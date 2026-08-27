@@ -1,5 +1,7 @@
 # 正式公開チェックリスト
 
+進める順序は `docs/release-runbook-ja.md`。ここは状態の一覧。
+
 ## 現在完了
 
 - [x] React Native / Expo SDK 57 のiOS・Android共通実装
@@ -14,12 +16,15 @@
 - [x] Web本体・無料コンパニオンアプリの課金設計を文書化
 - [ ] 個人契約または法人・会場単位契約の販売形態を申請前に確定
 - [ ] 利用権限の決済Webhookまたは運営管理連携（現状はD1へSQL直実行）
-- [ ] 利用権限が無い会員向けのアプリ内表示（現状は `/api/mobile/auth/session` が401を返すため未到達）
+- [x] 利用権限が無い会員向けのアプリ内表示と、その状態からのアカウント削除
 - [x] pushごとのCI（Web: lint / typecheck / build、Expo: tsc）
 - [x] 1024pxストアアイコン
 - [x] Google Play 1024×500フィーチャーグラフィック（サービス名非依存）
 - [x] プライバシーポリシー下書き
 - [x] Apple / Google審査メモ下書き
+- [x] iOSプライバシーマニフェスト（`ios.privacyManifests`）
+- [x] 公開サポートページ `/support`
+- [x] `eas.json` の submit プロファイル（値は環境変数）
 - [x] App Privacy / Data safety申告表下書き
 - [x] ストアスクリーンショット5枚構成と撮影条件
 - [x] iOS / Android Metro production bundle検証
