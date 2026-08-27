@@ -3,6 +3,7 @@
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import type { BusinessCard, BusinessCardInput } from '@/db/data';
+import { emptyBusinessCard, scanBusinessCardImage, type OCRStage } from './business-card-ocr';
 
 type Mode = 'list' | 'capture' | 'scan' | 'review' | 'confirm' | 'complete' | 'detail';
 type QueueItem = { id: string; file: File; preview: string };
@@ -72,29 +73,37 @@ export default function BusinessCardManager({ initialMode, onClose, onNotice }: 
     if (!queue.length) return onNotice('名刺を1枚以上撮影・選択してください。');
     setMode('scan'); setProgress({ card: 1, percent: 0 });
     let worker: Awaited<ReturnType<(typeof import('tesseract.js'))['createWorker']>> | null = null;
+    let orientationWorker: Awaited<ReturnType<(typeof import('tesseract.js'))['createWorker']>> | null = null;
+    let activeStage: OCRStage = 'orientation';
     try {
-      const { createWorker } = await import('tesseract.js');
-      worker = await createWorker(['jpn', 'eng'], undefined, {
+      const { createWorker, OEM } = await import('tesseract.js');
+      const reportProgress = (message: { status: string; progress: number }) => {
+        if (message.status !== 'recognizing text' || typeof message.progress !== 'number') return;
+        const stageNumber = activeStage === 'primary' ? 0 : activeStage === 'contrast' ? 1 : activeStage === 'name' ? 2 : 0;
+        setProgress((current) => ({ ...current, percent: Math.max(current.percent, Math.min(99, Math.round(((stageNumber + message.progress) / 3) * 100))) }));
+      };
+      orientationWorker = await createWorker('osd', OEM.TESSERACT_ONLY);
+      worker = await createWorker(['jpn', 'eng'], OEM.LSTM_ONLY, {
         logger: (message) => {
-          if (message.status === 'recognizing text' && typeof message.progress === 'number') {
-            setProgress((current) => ({ ...current, percent: Math.round(message.progress * 100) }));
-          }
+          reportProgress(message);
         },
       });
       const nextDrafts: DraftCard[] = [];
       for (let index = 0; index < queue.length; index += 1) {
         setProgress({ card: index + 1, percent: 0 });
-        const result = await worker.recognize(queue[index].file);
-        nextDrafts.push({ queueId: queue[index].id, ...parseBusinessCard(result.data.text) });
+        const result = await scanBusinessCardImage(queue[index].file, worker, orientationWorker, (stage) => { activeStage = stage; });
+        setProgress({ card: index + 1, percent: 100 });
+        nextDrafts.push({ queueId: queue[index].id, ...result });
       }
       setDrafts(nextDrafts); setReviewIndex(0); setMode('review');
       onNotice(`${nextDrafts.length}枚を読み取りました。内容を確認・修正してください。`);
     } catch {
-      setDrafts(queue.map((item) => ({ queueId: item.id, ...emptyCard() })));
+      setDrafts(queue.map((item) => ({ queueId: item.id, ...emptyBusinessCard() })));
       setReviewIndex(0); setMode('review');
       onNotice('読み取りに失敗した項目は、手入力で保存できます。');
     } finally {
       if (worker) await worker.terminate();
+      if (orientationWorker) await orientationWorker.terminate();
     }
   }
 
@@ -227,52 +236,6 @@ function CardFields({ card, onChange }: { card: BusinessCardInput; onChange: (fi
   return <div className="card-fields"><div className="field-row">{field('name', '氏名', '山田 太郎')}{field('company', '会社・屋号', '株式会社〇〇')}</div><div className="field-row">{field('positionTitle', '役職・肩書き')}{field('department', '部署')}</div><div className="field-row">{field('mobile', '携帯電話')}{field('phone', '会社電話')}</div>{field('email', 'メールアドレス')}{field('postalCode', '郵便番号', '000-0000')}{field('address', '住所')}{field('website', 'Webサイト')}{field('groupName', 'グループ', '例：ひるのめぐろ会場')}{field('exchangeDate', '名刺の交換日')}{field('memo', 'メモ', '次に話したいことなど')}</div>;
 }
 
-function emptyCard(): BusinessCardInput {
-  return { name: '', company: '', positionTitle: '', department: '', phone: '', mobile: '', email: '', postalCode: '', address: '', website: '', memo: '', groupName: '', exchangeDate: todayInJapan(), isFavorite: false };
-}
-
-function parseBusinessCard(text: string): BusinessCardInput {
-  const lines = text.replace(/\r/g, '').split('\n').map((line) => line.replace(/\s+/g, ' ').trim()).filter(Boolean);
-  const joined = lines.join(' ');
-  const email = joined.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] ?? '';
-  const website = joined.match(/(?:https?:\/\/|www\.)[^\s]+/i)?.[0]?.replace(/[),.;]+$/, '') ?? '';
-  const phones = [...joined.matchAll(/(?:\+81[-\s]?)?0\d{1,4}[-ー－\s]\d{1,4}[-ー－\s]\d{3,4}/g)].map((match) => match[0].replace(/[ー－\s]/g, '-'));
-  const mobile = phones.find((value) => /(?:070|080|090)/.test(value)) ?? '';
-  const phone = phones.find((value) => value !== mobile) ?? '';
-  const postal = joined.match(/〒?\s*(\d{3})[-ー－](\d{4})/);
-  const postalCode = postal ? `${postal[1]}-${postal[2]}` : '';
-  const companySource = lines.find((line) => !isContactLine(line) && /(株式会社|有限会社|合同会社|一般社団法人|一般財団法人|医療法人|税理士法人|弁護士法人|事務所|\bInc\.?\b|\bLLC\b|\bCo\.?[, ]+Ltd\.?\b|\bCorporation\b)/i.test(line)) ?? '';
-  const company = companySource.replace(/^[|｜/\-:：\s]+/, '').replace(/^(会社名|Company)\s*[:：]?\s*/i, '').trim();
-  const positionSource = lines.find((line) => !isContactLine(line) && line !== companySource && /(代表取締役|専務取締役|常務取締役|取締役|社長|会長|副社長|CEO|COO|CFO|CTO|President|Director|部長|課長|マネージャー|店長|代表)/i.test(line)) ?? '';
-  const positionTitle = extractPositionTitle(positionSource);
-  const departmentSource = lines.find((line) => !isContactLine(line) && line !== companySource && line !== positionSource && /(事業部|営業部|管理部|総務部|企画部|開発部|支店|営業所|部|課|室)$/.test(line)) ?? '';
-  const department = departmentSource.replace(/^[|｜/\-:：\s]+/, '').trim();
-  const address = lines.find((line) => /(?:東京都|北海道|(?:京都|大阪)府|.{2,3}県).{3,}/.test(line))?.replace(/^〒?\s*\d{3}[-ー－]\d{4}\s*/, '') ?? '';
-  const excluded = new Set([companySource, positionSource, departmentSource, address]);
-  const name = lines.find((line) => !excluded.has(line) && line.length >= 2 && line.length <= 24 && !isContactLine(line) && !/[@0-9〒]|TEL|FAX|Mobile|Phone|www|http/i.test(line) && !/(株式会社|有限会社|合同会社|法人)/.test(line))?.replace(/^[|｜/\-:：\s]+/, '').trim() ?? '';
-  return { ...emptyCard(), name, company, positionTitle, department, phone, mobile, email, postalCode, address, website };
-}
-
-function isContactLine(line: string) {
-  return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(line) ||
-    /(?:\+81[-\s]?)?0\d{1,4}[-ー－\s]\d{1,4}[-ー－\s]\d{3,4}/.test(line) ||
-    /(?:https?:\/\/|www\.)/i.test(line) || /\b(?:TEL|FAX|Mobile|Phone|E-?mail)\b/i.test(line);
-}
-
-function extractPositionTitle(line: string) {
-  if (!line) return '';
-  const titles: Array<[RegExp, string]> = [
-    [/代表取締役/, '代表取締役'], [/専務取締役/, '専務取締役'], [/常務取締役/, '常務取締役'],
-    [/副社長/, '副社長'], [/取締役/, '取締役'], [/社長/, '社長'], [/会長/, '会長'],
-    [/\bCEO\b/i, 'CEO'], [/\bCOO\b/i, 'COO'], [/\bCFO\b/i, 'CFO'], [/\bCTO\b/i, 'CTO'],
-    [/\bPresident\b/i, 'President'], [/\bDirector\b/i, 'Director'],
-    [/部長/, '部長'], [/課長/, '課長'], [/マネージャー/, 'マネージャー'], [/店長/, '店長'], [/代表/, '代表'],
-  ];
-  const found = titles.filter(([pattern]) => pattern.test(line)).map(([, title]) => title);
-  return [...new Set(found.filter((title, index, all) => !all.some((other, otherIndex) => otherIndex !== index && other.includes(title))))].join(' / ');
-}
-
-function todayInJapan() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
 function formatDate(value: string) { const [year, month, day] = value.split('-'); return `${year}年${Number(month)}月${Number(day)}日`; }
 function normalizeUrl(value: string) { return /^https?:\/\//i.test(value) ? value : `https://${value}`; }
 
