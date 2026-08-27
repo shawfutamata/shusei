@@ -128,7 +128,7 @@ const statements = [
     primary_industry TEXT NOT NULL DEFAULT '',
     notify_industries TEXT NOT NULL DEFAULT '[]',
     annual_revenue_band TEXT NOT NULL DEFAULT '',
-    membership_status TEXT NOT NULL DEFAULT 'active',
+    membership_status TEXT NOT NULL DEFAULT 'invited',
     membership_source TEXT NOT NULL DEFAULT 'direct_contract',
     membership_period_end TEXT NOT NULL DEFAULT '',
     organization_id TEXT NOT NULL DEFAULT '',
@@ -266,7 +266,7 @@ export async function ensureDatabase() {
     ['primary_industry', "ALTER TABLE members ADD COLUMN primary_industry TEXT NOT NULL DEFAULT ''"],
     ['notify_industries', "ALTER TABLE members ADD COLUMN notify_industries TEXT NOT NULL DEFAULT '[]'"],
     ['annual_revenue_band', "ALTER TABLE members ADD COLUMN annual_revenue_band TEXT NOT NULL DEFAULT ''"],
-    ['membership_status', "ALTER TABLE members ADD COLUMN membership_status TEXT NOT NULL DEFAULT 'active'"],
+    ['membership_status', "ALTER TABLE members ADD COLUMN membership_status TEXT NOT NULL DEFAULT 'invited'"],
     ['membership_source', "ALTER TABLE members ADD COLUMN membership_source TEXT NOT NULL DEFAULT 'direct_contract'"],
     ['membership_period_end', "ALTER TABLE members ADD COLUMN membership_period_end TEXT NOT NULL DEFAULT ''"],
     ['organization_id', "ALTER TABLE members ADD COLUMN organization_id TEXT NOT NULL DEFAULT ''"],
@@ -540,8 +540,8 @@ async function seedDemoData() {
 export async function upsertMember(user: ChatGPTUser) {
   await ensureDatabase();
   const now = new Date().toISOString();
-  await env.DB.prepare(`INSERT INTO members (id, email, display_name, created_at)
-    VALUES (?, ?, ?, ?)
+  await env.DB.prepare(`INSERT INTO members (id, email, display_name, membership_status, created_at)
+    VALUES (?, ?, ?, 'invited', ?)
     ON CONFLICT(id) DO UPDATE SET email = excluded.email, display_name = excluded.display_name`).bind(user.userId, user.email, user.displayName, now).run();
 }
 

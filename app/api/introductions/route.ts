@@ -1,16 +1,18 @@
 import { NextResponse } from 'next/server';
-import { getAppUser } from '@/app/app-auth';
+import { requireActiveMember } from '@/app/app-auth';
 import { createIntroduction, getReceivedIntroductions } from '@/db/data';
 
 export async function GET() {
-  const user = await getAppUser();
-  if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
+  const gate = await requireActiveMember();
+  if (gate.response) return gate.response;
+  const user = gate.user;
   return NextResponse.json({ introductions: await getReceivedIntroductions(user) });
 }
 
 export async function POST(request: Request) {
-  const user = await getAppUser();
-  if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
+  const gate = await requireActiveMember();
+  if (gate.response) return gate.response;
+  const user = gate.user;
   const body = await request.json() as Record<string, unknown>;
   const requestId = clean(body.requestId, 80);
   const personName = clean(body.personName, 60);

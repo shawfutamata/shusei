@@ -1,17 +1,19 @@
 import { NextResponse } from 'next/server';
-import { getAppUser } from '@/app/app-auth';
+import { requireActiveMember } from '@/app/app-auth';
 import { createRequest, getBoardData } from '@/db/data';
 import { isIndustry } from '@/app/industry-options';
 
 export async function GET() {
-  const user = await getAppUser();
-  if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
+  const gate = await requireActiveMember();
+  if (gate.response) return gate.response;
+  const user = gate.user;
   return NextResponse.json(await getBoardData(user));
 }
 
 export async function POST(request: Request) {
-  const user = await getAppUser();
-  if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
+  const gate = await requireActiveMember();
+  if (gate.response) return gate.response;
+  const user = gate.user;
   const body = await request.json() as Record<string, unknown>;
   const category = clean(body.category, 32);
   const title = clean(body.title, 90);

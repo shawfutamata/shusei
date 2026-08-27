@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAppUser } from '@/app/app-auth';
+import { requireActiveMember } from '@/app/app-auth';
 import { createBusinessCards, deleteBusinessCard, getBusinessCards, updateBusinessCard, type BusinessCardInput } from '@/db/data';
 
 const MAX_CARDS = 20;
@@ -7,14 +7,16 @@ const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
 export async function GET() {
-  const user = await getAppUser();
-  if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
+  const gate = await requireActiveMember();
+  if (gate.response) return gate.response;
+  const user = gate.user;
   return NextResponse.json({ cards: await getBusinessCards(user) });
 }
 
 export async function POST(request: Request) {
-  const user = await getAppUser();
-  if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
+  const gate = await requireActiveMember();
+  if (gate.response) return gate.response;
+  const user = gate.user;
   try {
     const body = await request.formData();
     const rawCards = body.get('cards');
@@ -38,8 +40,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const user = await getAppUser();
-  if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
+  const gate = await requireActiveMember();
+  if (gate.response) return gate.response;
+  const user = gate.user;
   try {
     const raw = await request.json() as Record<string, unknown>;
     const id = clean(raw.id, 80);
@@ -52,8 +55,9 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const user = await getAppUser();
-  if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
+  const gate = await requireActiveMember();
+  if (gate.response) return gate.response;
+  const user = gate.user;
   try {
     const body = await request.json() as Record<string, unknown>;
     const id = clean(body.id, 80);
