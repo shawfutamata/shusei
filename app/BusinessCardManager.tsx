@@ -4,7 +4,7 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import type { BusinessCard, BusinessCardInput } from '@/db/data';
 
-type Mode = 'list' | 'capture' | 'scan' | 'review' | 'detail';
+type Mode = 'list' | 'capture' | 'scan' | 'review' | 'confirm' | 'complete' | 'detail';
 type QueueItem = { id: string; file: File; preview: string };
 type DraftCard = BusinessCardInput & { queueId: string };
 
@@ -25,6 +25,7 @@ export default function BusinessCardManager({ initialMode, onClose, onNotice }: 
   const [search, setSearch] = useState('');
   const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [progress, setProgress] = useState({ card: 0, percent: 0 });
+  const [savedCount, setSavedCount] = useState(0);
   const queueRef = useRef<QueueItem[]>([]);
 
   useEffect(() => { void loadCards(); }, []);
@@ -118,9 +119,9 @@ export default function BusinessCardManager({ initialMode, onClose, onNotice }: 
     const result = await response.json() as { error?: string };
     setBusy(false);
     if (!response.ok) return onNotice(result.error ?? '名刺を保存できませんでした。');
+    const count = drafts.length;
     queue.forEach((item) => URL.revokeObjectURL(item.preview));
-    setQueue([]); setDrafts([]); await loadCards(); setMode('list');
-    onNotice(`${drafts.length}枚を個人名刺帳に保存しました。`);
+    setQueue([]); setDrafts([]); setSavedCount(count); setMode('complete'); await loadCards();
   }
 
   function openDetail(card: BusinessCard) {
@@ -159,12 +160,14 @@ export default function BusinessCardManager({ initialMode, onClose, onNotice }: 
   function closeOrBack() {
     if (mode === 'list') return onClose();
     if (mode === 'detail') { setMode('list'); setSelected(null); return; }
+    if (mode === 'confirm') { setReviewIndex(Math.max(0, drafts.length - 1)); setMode('review'); return; }
+    if (mode === 'complete') { setMode('list'); return; }
     if (mode === 'review') { setMode('capture'); return; }
     if (mode !== 'scan') setMode('list');
   }
 
   return <div className="cardbook-backdrop"><section className="cardbook" role="dialog" aria-modal="true" aria-label="個人名刺帳">
-    <header className="cardbook-header"><button onClick={closeOrBack} disabled={mode === 'scan'} aria-label="戻る">‹</button><div><b>{mode === 'detail' ? '名刺詳細' : mode === 'capture' ? '名刺を追加' : mode === 'scan' ? '文字を読み取り中' : mode === 'review' ? '読み取り結果を確認' : '個人名刺帳'}</b><small>{mode === 'list' ? `${cards.length}枚を本人だけに保存` : '複数枚をまとめて登録できます'}</small></div>{mode === 'list' ? <button className="cardbook-add" onClick={() => setMode('capture')}>＋追加</button> : <span />}</header>
+    <header className="cardbook-header"><button onClick={closeOrBack} disabled={mode === 'scan'} aria-label="戻る">‹</button><div><b>{mode === 'detail' ? '名刺詳細' : mode === 'capture' ? '名刺を追加' : mode === 'scan' ? '文字を読み取り中' : mode === 'review' ? '読み取り結果を確認' : mode === 'confirm' ? '登録内容を確認' : mode === 'complete' ? '登録完了' : '個人名刺帳'}</b><small>{mode === 'list' ? `${cards.length}枚を本人だけに保存` : mode === 'confirm' ? '登録前に内容を見直せます' : mode === 'complete' ? '名刺帳へ保存しました' : '複数枚をまとめて登録できます'}</small></div>{mode === 'list' ? <button className="cardbook-add" onClick={() => setMode('capture')}>＋追加</button> : <span />}</header>
 
     {mode === 'list' && <div className="cardbook-body cardbook-list-view">
       <div className="cardbook-search"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="名前・会社・グループで検索" /></div>
@@ -181,18 +184,30 @@ export default function BusinessCardManager({ initialMode, onClose, onNotice }: 
       <p className="privacy-note">🔒 名刺画像と連絡先は、あなたの個人名刺帳だけに保存されます。</p>
     </div>}
 
-    {mode === 'scan' && <div className="cardbook-body scanning-view"><div className="scan-illustration">▣<i /></div><h2>{queue.length}枚を読み取っています</h2><p>{progress.card}枚目 / {queue.length}枚 · {progress.percent}%</p><span><i style={{ width: `${((progress.card - 1 + progress.percent / 100) / queue.length) * 100}%` }} /></span><small>初回は日本語の読み取り準備に少し時間がかかります。画面を閉じずにお待ちください。</small></div>}
+    {mode === 'scan' && <div className="cardbook-body scanning-view"><div className="scan-modal-card" role="status" aria-live="polite"><div className="scan-illustration">▣<i /></div><h2>{queue.length}枚を読み取っています</h2><p>{progress.card}枚目 / {queue.length}枚 · {progress.percent}%</p><span><i style={{ width: `${((progress.card - 1 + progress.percent / 100) / queue.length) * 100}%` }} /></span><small>読み取りが終わると、結果を確認・修正できます。画面を閉じずにお待ちください。</small></div></div>}
 
-    {mode === 'review' && drafts[reviewIndex] && <ReviewCard draft={drafts[reviewIndex]} preview={queue.find((item) => item.id === drafts[reviewIndex].queueId)?.preview ?? ''} index={reviewIndex} total={drafts.length} onChange={updateDraft} onPrevious={() => setReviewIndex((value) => Math.max(0, value - 1))} onNext={() => setReviewIndex((value) => Math.min(drafts.length - 1, value + 1))} onSave={saveDrafts} busy={busy} />}
+    {mode === 'review' && drafts[reviewIndex] && <ReviewCard draft={drafts[reviewIndex]} preview={queue.find((item) => item.id === drafts[reviewIndex].queueId)?.preview ?? ''} index={reviewIndex} total={drafts.length} onChange={updateDraft} onPrevious={() => setReviewIndex((value) => Math.max(0, value - 1))} onNext={() => setReviewIndex((value) => Math.min(drafts.length - 1, value + 1))} onConfirm={() => setMode('confirm')} />}
+
+    {mode === 'confirm' && <RegistrationConfirm drafts={drafts} queue={queue} busy={busy} onEdit={(index) => { setReviewIndex(index); setMode('review'); }} onSave={saveDrafts} />}
+
+    {mode === 'complete' && <RegistrationComplete count={savedCount} onList={() => setMode('list')} onContinue={() => setMode('capture')} />}
 
     {mode === 'detail' && selected && <CardDetail card={selected} editing={editing} busy={busy} onEditing={setEditing} onChange={setSelected} onSave={saveSelected} onFavorite={() => toggleFavorite(selected)} onDelete={deleteSelected} onNotice={onNotice} />}
   </section></div>;
 }
 
-function ReviewCard({ draft, preview, index, total, onChange, onPrevious, onNext, onSave, busy }: {
-  draft: DraftCard; preview: string; index: number; total: number; onChange: (field: keyof BusinessCardInput, value: string | boolean) => void; onPrevious: () => void; onNext: () => void; onSave: () => void; busy: boolean;
+function ReviewCard({ draft, preview, index, total, onChange, onPrevious, onNext, onConfirm }: {
+  draft: DraftCard; preview: string; index: number; total: number; onChange: (field: keyof BusinessCardInput, value: string | boolean) => void; onPrevious: () => void; onNext: () => void; onConfirm: () => void;
 }) {
-  return <div className="cardbook-body review-view"><div className="review-progress"><b>{index + 1} / {total}枚目</b><span>{Array.from({ length: total }).map((_, item) => <i className={item === index ? 'active' : ''} key={item} />)}</span></div><img className="review-image" src={preview} alt={`${index + 1}枚目の名刺`} /><p className="review-guide">読み取り間違いを直接修正できます。</p><CardFields card={draft} onChange={onChange} /><div className="review-nav"><button onClick={onPrevious} disabled={index === 0}>‹ 前の名刺</button>{index < total - 1 ? <button className="next" onClick={onNext}>次の名刺 ›</button> : <button className="next" onClick={onSave} disabled={busy}>{busy ? '保存中…' : `${total}枚を保存`}</button>}</div></div>;
+  return <div className="cardbook-body review-view"><div className="review-progress"><b>{index + 1} / {total}枚目</b><span>{Array.from({ length: total }).map((_, item) => <i className={item === index ? 'active' : ''} key={item} />)}</span></div><img className="review-image" src={preview} alt={`${index + 1}枚目の名刺`} /><p className="review-guide">読み取り間違いを直接修正できます。</p><CardFields card={draft} onChange={onChange} /><div className="review-nav"><button onClick={onPrevious} disabled={index === 0}>‹ 前の名刺</button>{index < total - 1 ? <button className="next" onClick={onNext}>次の名刺 ›</button> : <button className="next" onClick={onConfirm}>登録内容を確認 ›</button>}</div></div>;
+}
+
+function RegistrationConfirm({ drafts, queue, busy, onEdit, onSave }: { drafts: DraftCard[]; queue: QueueItem[]; busy: boolean; onEdit: (index: number) => void; onSave: () => void }) {
+  return <div className="cardbook-body registration-confirm"><div className="confirm-guide"><span>✓</span><div><b>{drafts.length}枚の読み取り結果</b><small>名前・会社・連絡先を確認してから登録してください。</small></div></div><div className="confirm-cards">{drafts.map((draft, index) => <article key={draft.queueId}><img src={queue.find((item) => item.id === draft.queueId)?.preview ?? ''} alt={`${index + 1}枚目の名刺`} /><div><small>{index + 1}枚目</small><h3>{draft.name || '氏名未入力'}</h3><b>{draft.company || '会社名未入力'}</b><p>{[draft.positionTitle, draft.mobile || draft.phone, draft.email].filter(Boolean).join(' · ') || '詳細情報未入力'}</p></div><button onClick={() => onEdit(index)}>修正</button></article>)}</div><button className="cardbook-primary confirm-save" onClick={onSave} disabled={busy}>{busy ? '登録しています…' : `この内容で${drafts.length}枚を登録する`}</button><p className="privacy-note">登録後は個人名刺帳からいつでも編集できます。</p></div>;
+}
+
+function RegistrationComplete({ count, onList, onContinue }: { count: number; onList: () => void; onContinue: () => void }) {
+  return <div className="cardbook-body registration-complete"><span>✓</span><h2>名刺を登録しました</h2><p>{count}枚の名刺を個人名刺帳に保存しました。</p><button className="cardbook-primary" onClick={onList}>名刺帳で確認する</button><button className="complete-secondary" onClick={onContinue}>続けて名刺を読み取る</button></div>;
 }
 
 function CardDetail({ card, editing, busy, onEditing, onChange, onSave, onFavorite, onDelete, onNotice }: {
