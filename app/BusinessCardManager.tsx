@@ -226,13 +226,35 @@ function parseBusinessCard(text: string): BusinessCardInput {
   const phone = phones.find((value) => value !== mobile) ?? '';
   const postal = joined.match(/〒?\s*(\d{3})[-ー－](\d{4})/);
   const postalCode = postal ? `${postal[1]}-${postal[2]}` : '';
-  const company = lines.find((line) => /(株式会社|有限会社|合同会社|一般社団|法人|事務所|Inc\.?|LLC|Co\.?[, ]?Ltd)/i.test(line)) ?? '';
-  const positionTitle = lines.find((line) => /(代表取締役|取締役|社長|会長|CEO|COO|President|Director|部長|課長|マネージャー|店長|代表)/i.test(line) && line !== company) ?? '';
-  const department = lines.find((line) => /(事業部|営業部|管理部|総務部|企画部|開発部|支店|営業所|部|課|室)$/.test(line) && line !== positionTitle) ?? '';
+  const companySource = lines.find((line) => !isContactLine(line) && /(株式会社|有限会社|合同会社|一般社団法人|一般財団法人|医療法人|税理士法人|弁護士法人|事務所|\bInc\.?\b|\bLLC\b|\bCo\.?[, ]+Ltd\.?\b|\bCorporation\b)/i.test(line)) ?? '';
+  const company = companySource.replace(/^[|｜/\-:：\s]+/, '').replace(/^(会社名|Company)\s*[:：]?\s*/i, '').trim();
+  const positionSource = lines.find((line) => !isContactLine(line) && line !== companySource && /(代表取締役|専務取締役|常務取締役|取締役|社長|会長|副社長|CEO|COO|CFO|CTO|President|Director|部長|課長|マネージャー|店長|代表)/i.test(line)) ?? '';
+  const positionTitle = extractPositionTitle(positionSource);
+  const departmentSource = lines.find((line) => !isContactLine(line) && line !== companySource && line !== positionSource && /(事業部|営業部|管理部|総務部|企画部|開発部|支店|営業所|部|課|室)$/.test(line)) ?? '';
+  const department = departmentSource.replace(/^[|｜/\-:：\s]+/, '').trim();
   const address = lines.find((line) => /(?:東京都|北海道|(?:京都|大阪)府|.{2,3}県).{3,}/.test(line))?.replace(/^〒?\s*\d{3}[-ー－]\d{4}\s*/, '') ?? '';
-  const excluded = new Set([company, positionTitle, department, address]);
-  const name = lines.find((line) => !excluded.has(line) && line.length >= 2 && line.length <= 24 && !/[@0-9〒]|TEL|FAX|Mobile|Phone|www|http/i.test(line) && !/(株式会社|有限会社|合同会社|法人)/.test(line)) ?? '';
+  const excluded = new Set([companySource, positionSource, departmentSource, address]);
+  const name = lines.find((line) => !excluded.has(line) && line.length >= 2 && line.length <= 24 && !isContactLine(line) && !/[@0-9〒]|TEL|FAX|Mobile|Phone|www|http/i.test(line) && !/(株式会社|有限会社|合同会社|法人)/.test(line))?.replace(/^[|｜/\-:：\s]+/, '').trim() ?? '';
   return { ...emptyCard(), name, company, positionTitle, department, phone, mobile, email, postalCode, address, website };
+}
+
+function isContactLine(line: string) {
+  return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(line) ||
+    /(?:\+81[-\s]?)?0\d{1,4}[-ー－\s]\d{1,4}[-ー－\s]\d{3,4}/.test(line) ||
+    /(?:https?:\/\/|www\.)/i.test(line) || /\b(?:TEL|FAX|Mobile|Phone|E-?mail)\b/i.test(line);
+}
+
+function extractPositionTitle(line: string) {
+  if (!line) return '';
+  const titles: Array<[RegExp, string]> = [
+    [/代表取締役/, '代表取締役'], [/専務取締役/, '専務取締役'], [/常務取締役/, '常務取締役'],
+    [/副社長/, '副社長'], [/取締役/, '取締役'], [/社長/, '社長'], [/会長/, '会長'],
+    [/\bCEO\b/i, 'CEO'], [/\bCOO\b/i, 'COO'], [/\bCFO\b/i, 'CFO'], [/\bCTO\b/i, 'CTO'],
+    [/\bPresident\b/i, 'President'], [/\bDirector\b/i, 'Director'],
+    [/部長/, '部長'], [/課長/, '課長'], [/マネージャー/, 'マネージャー'], [/店長/, '店長'], [/代表/, '代表'],
+  ];
+  const found = titles.filter(([pattern]) => pattern.test(line)).map(([, title]) => title);
+  return [...new Set(found.filter((title, index, all) => !all.some((other, otherIndex) => otherIndex !== index && other.includes(title))))].join(' / ');
 }
 
 function todayInJapan() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
