@@ -40,6 +40,7 @@ const industryIcons: Record<string, string> = {
 };
 const historyStorageKey = 'give-hub-request-history-v1';
 const favoriteStorageKey = 'give-hub-request-favorites-v1';
+const rankThresholds = [0, 3, 6, 10, 20];
 
 export default function BoardClient({ initialRequests, initialStats, userName }: { initialRequests: BoardRequest[]; initialStats: MemberStats; userName: string }) {
   const [requests, setRequests] = useState(initialRequests);
@@ -92,6 +93,9 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const viewedRequests = useMemo(() => viewedIds.map((id) => requests.find((item) => item.id === id)).filter((item): item is BoardRequest => Boolean(item)), [requests, viewedIds]);
   const favoriteRequests = useMemo(() => favoriteIds.map((id) => requests.find((item) => item.id === id)).filter((item): item is BoardRequest => Boolean(item)), [favoriteIds, requests]);
   const count = (category: string) => category === 'all' ? requests.length : requests.filter((item) => item.category === category).length;
+  const rankStart = rankThresholds[Math.max(0, stats.level - 1)] ?? 0;
+  const rankProgress = stats.level >= rankThresholds.length ? 100 : Math.max(0, Math.min(100, ((stats.introCount - rankStart) / Math.max(1, stats.nextRankAt - rankStart)) * 100));
+  const introductionsToNextRank = Math.max(0, stats.nextRankAt - stats.introCount);
   useEffect(() => () => {
     if (photoPreview.startsWith('blob:')) URL.revokeObjectURL(photoPreview);
   }, [photoPreview]);
@@ -299,7 +303,13 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         </div>
       </section> : <section className="profile-page" aria-labelledby="profile-page-title">
         <header className="profile-page-heading"><p>MY PAGE</p><h1 id="profile-page-title">マイページ</h1><span>会員情報・通知設定・ランクを管理できます。</span></header>
-        <div className="profile-sheet profile-page-summary"><Avatar src={photoPreview} name={userName} className="profile-avatar" /><h3>{userName}</h3><p>{stats.badge || '未設定'} · {stats.venue}</p><div><span><b>{stats.introCount}</b><small>紹介した数</small></span><span><b>{stats.points}</b><small>ポイント</small></span><span><b>{stats.rank}</b><small>会員ランク</small></span></div></div>
+        <section className={`rank-card rank-${stats.rank.toLowerCase()} profile-rank-card`} aria-label={`${stats.rank}会員ランクカード`}>
+          <div className="rank-card-top"><span className="rank-crown">♛</span><b>GIVE HUB</b><small>MEMBER RANK</small></div>
+          <div className="rank-member-row"><Avatar src={photoPreview} name={userName} className="rank-member-avatar" /><span><b>{userName}</b><small>{stats.badge || 'バッヂ未設定'} · {stats.venue}</small></span></div>
+          <p className="rank-eyebrow">CURRENT RANK</p><h1>{stats.rank}</h1><h2>MEMBER</h2>
+          <div className="rank-progress"><div className="rank-progress-copy"><b>{stats.level >= rankThresholds.length ? '最高ランクに到達' : `あと${introductionsToNextRank}件でランクアップ`}</b><span>紹介実績 {stats.introCount}件</span></div><span className="rank-progress-track"><i style={{ width: `${rankProgress}%` }} /></span></div>
+          <div className="rank-card-bottom"><span><small>MEMBER</small><b>{userName}</b></span><span><small>VENUE</small><b>{stats.venue}</b></span><span><small>POINTS</small><b>{stats.points}</b></span></div>
+        </section>
         <div className="profile-form profile-page-form">
           <div className="profile-form-heading"><b>プロフィール情報</b><span>入力内容は探しごとや紹介時に表示されます。</span></div>
           <label className="photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />JPEG・PNG・WebP／5MBまで</small></span><i>{stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>

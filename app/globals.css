@@ -297,6 +297,18 @@ body { font-weight:600; }
 .profile-page-heading h1 { margin:0; color:#172a4d; font-size:27px; font-weight:900; }
 .profile-page-heading span { display:block; margin-top:7px; color:#64748b; font-size:13px; font-weight:700; line-height:1.55; }
 .profile-page-summary { margin-top:18px; padding:20px 16px 0; border:1px solid #d5e2f4; border-radius:18px; background:linear-gradient(145deg,#f8fbff,#edf5ff); box-shadow:0 9px 24px rgba(36,74,135,.08); }
+.profile-rank-card { min-height:370px; margin:18px 0 0; padding:22px 22px 18px; text-align:left; }
+.rank-member-row { margin:17px 0 13px; display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:12px; }
+.rank-member-avatar { width:58px; height:58px; display:grid; place-items:center; overflow:hidden; border:2px solid var(--rank-line); border-radius:50%; background:rgba(255,255,255,.46); color:var(--rank-ink); font-size:18px; font-weight:900; box-shadow:0 6px 16px rgba(25,42,70,.12); }
+.rank-member-avatar img { width:100%; height:100%; display:block; object-fit:cover; }
+.rank-member-row>span { min-width:0; }
+.rank-member-row b,.rank-member-row small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rank-member-row b { font-size:16px; font-weight:900; }
+.rank-member-row small { margin-top:5px; color:var(--rank-muted); font-size:11px; font-weight:900; }
+.profile-rank-card .rank-eyebrow { margin-top:0; }
+.profile-rank-card h1 { font-size:38px; }
+.profile-rank-card .rank-progress { margin-top:15px; }
+.profile-rank-card .rank-card-bottom { grid-template-columns:1fr 1.15fr auto; }
 .profile-page-form { margin-top:16px; padding:17px; border:1px solid #e0e6ef; background:#fff; box-shadow:0 7px 22px rgba(28,52,93,.06); }
 .profile-form-heading { padding-bottom:13px; border-bottom:1px solid #e4e9f1; }
 .profile-form-heading b,.profile-form-heading span { display:block; }
