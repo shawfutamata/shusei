@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import 'react-easy-crop/react-easy-crop.css';
 
 :root { --ink:#15213a; --muted:#6f7c92; --blue:#2563eb; --blue-dark:#1d4ed8; --sky:#38bdf8; --paper:#f6f8fc; --line:#e4e9f1; }
 * { box-sizing:border-box; }
@@ -173,3 +174,20 @@ body { font-weight:600; }
 .signin-card .primary-button { padding:17px; font-size:16px; }
 .signin-card small { font-size:12px; }
 .eyebrow { font-size:12px; }
+
+.crop-backdrop { position:fixed; inset:0; z-index:100; background:#0d1830; }
+.crop-dialog { width:min(100%,480px); height:100dvh; margin:0 auto; display:grid; grid-template-rows:auto minmax(0,1fr) auto; background:#fff; }
+.crop-dialog>header { min-height:88px; padding:14px 16px; display:grid; grid-template-columns:82px 1fr 82px; align-items:center; gap:8px; border-bottom:1px solid #dfe5ee; text-align:center; }
+.crop-dialog>header button { min-height:44px; padding:0 8px; border:0; border-radius:10px; background:#edf1f6; color:#536176; font-size:13px; font-weight:900; }
+.crop-dialog>header .crop-confirm { background:#2563eb; color:#fff; }
+.crop-dialog>header .crop-confirm:disabled { opacity:.55; }
+.crop-dialog>header h2 { margin:0; font-size:19px; font-weight:900; }
+.crop-dialog>header p { margin:5px 0 0; color:#6b778b; font-size:11px; font-weight:700; line-height:1.4; }
+.crop-stage { min-height:0; position:relative; background:#111827; }
+.crop-stage .reactEasyCrop_CropArea { border:3px solid #fff; box-shadow:0 0 0 9999em rgba(5,12,27,.68); }
+.crop-controls { padding:20px 20px calc(22px + env(safe-area-inset-bottom)); background:#fff; }
+.crop-controls label { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:13px; }
+.crop-controls label span,.crop-controls label b { font-size:13px; font-weight:900; white-space:nowrap; }
+.crop-controls label b { min-width:42px; color:#2563eb; text-align:right; }
+.crop-controls input[type='range'] { width:100%; height:32px; accent-color:#2563eb; }
+.crop-controls p { margin:11px 0 0; color:#627087; font-size:12px; font-weight:700; line-height:1.55; text-align:center; }

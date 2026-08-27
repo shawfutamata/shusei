@@ -1,6 +1,7 @@
 'use client';
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import Cropper, { type Area } from 'react-easy-crop';
 import type { BoardRequest, MemberStats } from '@/db/data';
 import AttendanceManager from './AttendanceManager';
 
@@ -32,6 +33,12 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [profileRevenue, setProfileRevenue] = useState(initialStats.annualRevenueBand);
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState(initialStats.avatarUrl);
+  const [cropSource, setCropSource] = useState('');
+  const [cropFileName, setCropFileName] = useState('profile.jpg');
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedArea, setCroppedArea] = useState<Area | null>(null);
+  const [cropping, setCropping] = useState(false);
   const [profileTab, setProfileTab] = useState<'profile' | 'attendance' | 'important'>('profile');
   const [modal, setModal] = useState<'request' | 'intro' | 'profile' | null>(initialStats.avatarUrl ? null : 'profile');
   const [selected, setSelected] = useState<BoardRequest | null>(null);
@@ -51,6 +58,9 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   useEffect(() => () => {
     if (photoPreview.startsWith('blob:')) URL.revokeObjectURL(photoPreview);
   }, [photoPreview]);
+  useEffect(() => () => {
+    if (cropSource.startsWith('blob:')) URL.revokeObjectURL(cropSource);
+  }, [cropSource]);
 
   async function refreshBoard() {
     const response = await fetch('/api/board');
@@ -95,10 +105,25 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
 
   function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    event.target.value = '';
     if (!file) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { event.target.value = ''; return showToast('JPEG・PNG・WebPの写真を選んでください。'); }
-    if (file.size > 5 * 1024 * 1024) { event.target.value = ''; return showToast('顔写真は5MB以下にしてください。'); }
-    setProfilePhoto(file); setPhotoPreview(URL.createObjectURL(file));
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return showToast('JPEG・PNG・WebPの写真を選んでください。');
+    if (file.size > 5 * 1024 * 1024) return showToast('顔写真は5MB以下にしてください。');
+    setCropSource(URL.createObjectURL(file)); setCropFileName(file.name); setCrop({ x: 0, y: 0 }); setZoom(1); setCroppedArea(null);
+  }
+
+  async function confirmCrop() {
+    if (!cropSource || !croppedArea) return;
+    setCropping(true);
+    try {
+      const croppedFile = await makeCroppedPhoto(cropSource, croppedArea, cropFileName);
+      setProfilePhoto(croppedFile); setPhotoPreview(URL.createObjectURL(croppedFile)); setCropSource('');
+      showToast('トリミングしました。プロフィールを保存してください。');
+    } catch {
+      showToast('写真をトリミングできませんでした。別の写真をお試しください。');
+    } finally {
+      setCropping(false);
+    }
   }
 
   function openRequest() {
@@ -179,6 +204,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         <button onClick={saveProfile} disabled={busy || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : '顔写真とプロフィールを保存する'}</button>
       </div>}{profileTab !== 'profile' && <AttendanceManager view={profileTab} defaultVenue={stats.venue} onNotice={showToast} />}</Modal>}
+      {cropSource && <div className="crop-backdrop"><section className="crop-dialog" role="dialog" aria-modal="true" aria-labelledby="crop-title"><header><button onClick={() => setCropSource('')}>キャンセル</button><div><h2 id="crop-title">顔写真を調整</h2><p>指で動かして、顔が中央に来るようにします</p></div><button className="crop-confirm" onClick={confirmCrop} disabled={cropping || !croppedArea}>{cropping ? '処理中' : '決定'}</button></header><div className="crop-stage"><Cropper image={cropSource} crop={crop} zoom={zoom} aspect={1} cropShape="round" showGrid={false} minZoom={1} maxZoom={4} zoomSpeed={0.35} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_, pixels) => setCroppedArea(pixels)} disableAutomaticStylesInjection /></div><div className="crop-controls"><label><span>顔の大きさ</span><input type="range" min="1" max="4" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} aria-label="顔写真の拡大率" /><b>{Math.round(zoom * 100)}%</b></label><p>写真を指で動かせます。丸の中がプロフィール写真に表示されます。</p></div></section></div>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
   );
@@ -187,3 +213,23 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
 function Modal({ title, lead, onClose, children }: { title: string; lead: string; onClose: () => void; children: React.ReactNode }) { return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><span className="sheet-handle" /><button className="modal-close" onClick={onClose} aria-label="閉じる">×</button><h2 id="modal-title">{title}</h2><p className="modal-lead">{lead}</p>{children}</section></div>; }
 function Avatar({ src, name, className }: { src: string; name: string; className: string }) { return <span className={className}>{src ? <img src={src} alt={`${name}さんの顔写真`} /> : <span>{name.slice(0, 1)}</span>}</span>; }
 function daysLeft(value: string) { const deadline = new Date(`${value}T23:59:59+09:00`).getTime(); return Math.max(0, Math.ceil((deadline - Date.now()) / 86400000)); }
+
+async function makeCroppedPhoto(source: string, area: Area, originalName: string) {
+  const image = await loadPhoto(source);
+  const canvas = document.createElement('canvas');
+  canvas.width = 800; canvas.height = 800;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Canvas is unavailable');
+  context.imageSmoothingEnabled = true; context.imageSmoothingQuality = 'high';
+  context.drawImage(image, area.x, area.y, area.width, area.height, 0, 0, 800, 800);
+  const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error('Image conversion failed')), 'image/jpeg', 0.9));
+  const baseName = originalName.replace(/\.[^.]+$/, '').slice(0, 50) || 'profile';
+  return new File([blob], `${baseName}-cropped.jpg`, { type: 'image/jpeg' });
+}
+
+function loadPhoto(source: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image); image.onerror = () => reject(new Error('Image load failed')); image.src = source;
+  });
+}

@@ -17,6 +17,7 @@
     "next": "16.2.6",
     "react": "19.2.6",
     "react-dom": "19.2.6",
+    "react-easy-crop": "^6.2.3",
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
