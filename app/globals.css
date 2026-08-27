@@ -332,3 +332,8 @@ body { font-weight:600; }
 .card-person p { min-width:0; }
 .intro-button { min-height:50px; padding:0 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-radius:12px; font-size:14px; line-height:1.35; text-align:left; }
 .intro-button span { float:none; margin:0; flex:0 0 auto; font-size:18px; line-height:1; }
+
+/* Make the notification purpose clear before members choose industry tags. */
+.profile-tag-field legend { color:#203a67; font-size:14px; }
+.profile-tag-field legend small { margin-left:3px; padding:3px 6px; border-radius:99px; background:#dbeafe; color:#2563eb; font-size:10px; }
+.profile-tag-field>p { margin:4px 0 14px; padding:11px 12px; border:1px solid #bfdbfe; border-radius:10px; background:#eaf3ff; color:#1d4ed8; font-size:13px; font-weight:900; line-height:1.6; }
