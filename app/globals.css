@@ -314,7 +314,7 @@ body { font-weight:600; }
 .profile-form-heading b,.profile-form-heading span { display:block; }
 .profile-form-heading b { color:#243650; font-size:18px; font-weight:900; }
 .profile-form-heading span { margin-top:5px; color:#6e7d91; font-size:12px; font-weight:700; line-height:1.5; }
-.profile-page-form .profile-save-button { position:sticky; bottom:91px; z-index:4; min-height:58px; border-radius:13px; background:linear-gradient(90deg,#1d4ed8,#2563eb); color:#fff; box-shadow:0 9px 23px rgba(37,99,235,.25); }
+.profile-page-form .profile-save-button { position:static; width:100%; min-height:58px; margin-top:6px; border-radius:13px; background:linear-gradient(90deg,#1d4ed8,#2563eb); color:#fff; box-shadow:0 9px 23px rgba(37,99,235,.25); }
 
 /* All major industry choices remain visible without horizontal scrolling. */
 .industry-major-picker { margin:0; padding:3px 0 14px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; overflow:visible; }
