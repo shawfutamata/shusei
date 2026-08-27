@@ -14,6 +14,9 @@ export type BoardRequest = {
   authorName: string;
   authorCompany: string;
   authorVenue: string;
+  authorPositionTitle: string;
+  authorBadge: string;
+  authorBusinessArea: string;
   authorRevenueBand: string;
   introCount: number;
 };
@@ -22,6 +25,9 @@ export type MemberStats = {
   displayName: string;
   venue: string;
   company: string;
+  positionTitle: string;
+  badge: string;
+  businessArea: string;
   annualRevenueBand: string;
   introCount: number;
   dealCount: number;
@@ -38,6 +44,9 @@ const statements = [
     display_name TEXT NOT NULL,
     venue TEXT NOT NULL DEFAULT 'ひるのめぐろ会場',
     company TEXT NOT NULL DEFAULT '',
+    position_title TEXT NOT NULL DEFAULT '',
+    badge TEXT NOT NULL DEFAULT '',
+    business_area TEXT NOT NULL DEFAULT '',
     annual_revenue_band TEXT NOT NULL DEFAULT '',
     intro_count INTEGER NOT NULL DEFAULT 0,
     deal_count INTEGER NOT NULL DEFAULT 0,
@@ -81,13 +90,22 @@ export async function ensureDatabase() {
   if (initialized) return;
   await env.DB.batch(statements.map((sql) => env.DB.prepare(sql)));
   const memberColumns = await env.DB.prepare('PRAGMA table_info(members)').all<{ name: string }>();
-  if (!memberColumns.results.some((column) => column.name === 'annual_revenue_band')) {
-    await env.DB.prepare("ALTER TABLE members ADD COLUMN annual_revenue_band TEXT NOT NULL DEFAULT ''").run();
+  const existingColumns = new Set(memberColumns.results.map((column) => column.name));
+  const missingColumns = [
+    ['position_title', "ALTER TABLE members ADD COLUMN position_title TEXT NOT NULL DEFAULT ''"],
+    ['badge', "ALTER TABLE members ADD COLUMN badge TEXT NOT NULL DEFAULT ''"],
+    ['business_area', "ALTER TABLE members ADD COLUMN business_area TEXT NOT NULL DEFAULT ''"],
+    ['annual_revenue_band', "ALTER TABLE members ADD COLUMN annual_revenue_band TEXT NOT NULL DEFAULT ''"],
+  ];
+  for (const [columnName, sql] of missingColumns) {
+    if (!existingColumns.has(columnName)) await env.DB.prepare(sql).run();
   }
   await seedDemoData();
   await env.DB.batch([
     env.DB.prepare("UPDATE members SET annual_revenue_band = 'revenue_30_70' WHERE id = 'demo-tanaka' AND annual_revenue_band = ''"),
     env.DB.prepare("UPDATE members SET annual_revenue_band = 'revenue_70_100' WHERE id = 'demo-sato' AND annual_revenue_band = ''"),
+    env.DB.prepare("UPDATE members SET position_title = '代表取締役', badge = '赤バッヂ', business_area = '東京都' WHERE id = 'demo-tanaka' AND business_area = ''"),
+    env.DB.prepare("UPDATE members SET position_title = 'オーナー', badge = '緑バッヂ', business_area = '東京都' WHERE id = 'demo-sato' AND business_area = ''"),
   ]);
   initialized = true;
 }
@@ -121,6 +139,8 @@ export async function getBoardData(user: ChatGPTUser) {
   const requestsResult = await env.DB.prepare(`SELECT r.id, r.category, r.title, r.description,
     r.budget_label AS budgetLabel, r.area, r.deadline, r.status, r.created_at AS createdAt,
     m.display_name AS authorName, m.company AS authorCompany, m.venue AS authorVenue,
+    m.position_title AS authorPositionTitle, m.badge AS authorBadge,
+    m.business_area AS authorBusinessArea,
     m.annual_revenue_band AS authorRevenueBand,
     COUNT(i.id) AS introCount
     FROM requests r
@@ -131,17 +151,20 @@ export async function getBoardData(user: ChatGPTUser) {
     ORDER BY r.created_at DESC`).all<BoardRequest>();
 
   const member = await env.DB.prepare(`SELECT display_name AS displayName, venue, company,
+    position_title AS positionTitle, badge, business_area AS businessArea,
     annual_revenue_band AS annualRevenueBand,
     intro_count AS introCount, deal_count AS dealCount, points
     FROM members WHERE id = ?`).bind(user.userId).first<Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'>>();
 
-  const stats = calculateRank(member ?? { displayName: user.displayName, venue: 'ひるのめぐろ会場', company: '', annualRevenueBand: '', introCount: 0, dealCount: 0, points: 0 });
+  const stats = calculateRank(member ?? { displayName: user.displayName, venue: 'ひるのめぐろ会場', company: '', positionTitle: '', badge: '', businessArea: '', annualRevenueBand: '', introCount: 0, dealCount: 0, points: 0 });
   return { requests: requestsResult.results, stats };
 }
 
-export async function updateMemberRevenueBand(user: ChatGPTUser, annualRevenueBand: string) {
+export async function updateMemberProfile(user: ChatGPTUser, input: { company: string; venue: string; positionTitle: string; badge: string; businessArea: string; annualRevenueBand: string; }) {
   await upsertMember(user);
-  await env.DB.prepare('UPDATE members SET annual_revenue_band = ? WHERE id = ?').bind(annualRevenueBand, user.userId).run();
+  await env.DB.prepare(`UPDATE members SET company = ?, venue = ?, position_title = ?, badge = ?,
+    business_area = ?, annual_revenue_band = ? WHERE id = ?`)
+    .bind(input.company, input.venue, input.positionTitle, input.badge, input.businessArea, input.annualRevenueBand, user.userId).run();
 }
 
 export async function createRequest(user: ChatGPTUser, input: { category: string; title: string; description: string; budgetLabel: string; area: string; deadline: string; }) {

@@ -21,13 +21,27 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [stats, setStats] = useState(initialStats);
   const [filter, setFilter] = useState('all');
   const [revenueFilter, setRevenueFilter] = useState('all');
+  const [venueFilter, setVenueFilter] = useState('all');
+  const [areaFilter, setAreaFilter] = useState('all');
+  const [profileCompany, setProfileCompany] = useState(initialStats.company);
+  const [profileVenue, setProfileVenue] = useState(initialStats.venue);
+  const [profilePosition, setProfilePosition] = useState(initialStats.positionTitle);
+  const [profileBadge, setProfileBadge] = useState(initialStats.badge);
+  const [profileArea, setProfileArea] = useState(initialStats.businessArea);
   const [profileRevenue, setProfileRevenue] = useState(initialStats.annualRevenueBand);
   const [modal, setModal] = useState<'request' | 'intro' | 'profile' | null>(null);
   const [selected, setSelected] = useState<BoardRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
 
-  const shown = useMemo(() => requests.filter((item) => (filter === 'all' || item.category === filter) && (revenueFilter === 'all' || item.authorRevenueBand === revenueFilter)), [filter, revenueFilter, requests]);
+  const venueOptions = useMemo(() => [...new Set(requests.map((item) => item.authorVenue).filter(Boolean))].sort(), [requests]);
+  const areaOptions = useMemo(() => [...new Set(requests.map((item) => item.authorBusinessArea).filter(Boolean))].sort(), [requests]);
+  const shown = useMemo(() => requests.filter((item) =>
+    (filter === 'all' || item.category === filter) &&
+    (revenueFilter === 'all' || item.authorRevenueBand === revenueFilter) &&
+    (venueFilter === 'all' || item.authorVenue === venueFilter) &&
+    (areaFilter === 'all' || item.authorBusinessArea === areaFilter)
+  ), [areaFilter, filter, revenueFilter, requests, venueFilter]);
   const count = (category: string) => category === 'all' ? requests.length : requests.filter((item) => item.category === category).length;
 
   async function refreshBoard() {
@@ -56,13 +70,13 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     setModal(null); form.reset(); await refreshBoard(); showToast('紹介を届けました。10ポイント加算されました。');
   }
 
-  async function saveRevenueBand() {
+  async function saveProfile() {
     setBusy(true);
-    const response = await fetch('/api/profile', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ annualRevenueBand: profileRevenue }) });
+    const response = await fetch('/api/profile', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ company: profileCompany, venue: profileVenue, positionTitle: profilePosition, badge: profileBadge, businessArea: profileArea, annualRevenueBand: profileRevenue }) });
     const result = await response.json() as { error?: string }; setBusy(false);
-    if (!response.ok) return showToast(result.error ?? '年商を保存できませんでした。');
-    setStats((current) => ({ ...current, annualRevenueBand: profileRevenue }));
-    await refreshBoard(); showToast('年商を保存しました。');
+    if (!response.ok) return showToast(result.error ?? 'プロフィールを保存できませんでした。');
+    setStats((current) => ({ ...current, company: profileCompany, venue: profileVenue, positionTitle: profilePosition, badge: profileBadge, businessArea: profileArea, annualRevenueBand: profileRevenue }));
+    await refreshBoard(); showToast('プロフィールを保存しました。');
   }
 
   function showToast(message: string) { setToast(message); window.setTimeout(() => setToast(''), 3800); }
@@ -90,14 +104,20 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
       <section className="mobile-board" id="board">
         <div className="section-title"><div><p>REQUESTS</p><h2>みんなの探しごと</h2></div><span>{shown.length}件</span></div>
         <div className="filters" role="group" aria-label="投稿を絞り込む">{[['all','すべて'],['project','案件'],['collaboration','協業先'],['consultation','相談']].map(([key,label]) => <button key={key} className={filter === key ? 'selected' : ''} onClick={() => setFilter(key)}>{label}<span>{count(key)}</span></button>)}</div>
-        <label className="revenue-filter"><span>会社の年商で絞り込む</span><select value={revenueFilter} onChange={(event) => setRevenueFilter(event.target.value)}><option value="all">すべての年商</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+        <div className="member-filters">
+          <p>会員情報で絞り込む</p>
+          <label><span>所属会場</span><select value={venueFilter} onChange={(event) => setVenueFilter(event.target.value)}><option value="all">すべての会場</option>{venueOptions.map((value) => <option value={value} key={value}>{value}</option>)}</select></label>
+          <label><span>活動エリア</span><select value={areaFilter} onChange={(event) => setAreaFilter(event.target.value)}><option value="all">すべてのエリア</option>{areaOptions.map((value) => <option value={value} key={value}>{value}</option>)}</select></label>
+          <label className="wide"><span>会社の年商</span><select value={revenueFilter} onChange={(event) => setRevenueFilter(event.target.value)}><option value="all">すべての年商</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+        </div>
         <div className="card-list">
           {shown.length === 0 ? <div className="empty"><b>まだ投稿がありません</b><span>最初の探しごとを投稿してみましょう。</span></div> : shown.map((need) => (
             <article className="need-card" key={need.id}>
               <div className="card-topline"><span className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</span><span className="deadline">あと{daysLeft(need.deadline)}日</span></div>
               <h3>{need.title}</h3><p className="need-body">{need.description}</p>
               <dl className="details"><div><dt>予算</dt><dd>{need.budgetLabel}</dd></div><div><dt>エリア</dt><dd>{need.area}</dd></div></dl>
-              <div className="card-person"><span className="mini-avatar">{need.authorName.slice(0,1)}</span><p><b>{need.authorName}</b><small>{need.authorCompany || need.authorVenue}</small>{need.authorRevenueBand && <em>年商 {revenueBands[need.authorRevenueBand]}</em>}</p><span>紹介 {need.introCount}件</span></div>
+              <div className="card-person"><span className="mini-avatar">{need.authorName.slice(0,1)}</span><p><b>{need.authorName}</b><small>{need.authorPositionTitle && `${need.authorPositionTitle}｜`}{need.authorCompany || '会社名未設定'}</small></p><span>紹介 {need.introCount}件</span></div>
+              <div className="member-context"><span>会場 {need.authorVenue}</span>{need.authorBusinessArea && <span>エリア {need.authorBusinessArea}</span>}{need.authorBadge && <span>{need.authorBadge}</span>}{need.authorRevenueBand && <span>年商 {revenueBands[need.authorRevenueBand]}</span>}</div>
               <button className="intro-button" onClick={() => { setSelected(need); setModal('intro'); }}>この人を紹介できる <span>→</span></button>
             </article>
           ))}
@@ -116,7 +136,14 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
 
       {modal === 'intro' && selected && <Modal title="知っている人を紹介" lead={`「${selected.title}」への紹介です。`} onClose={() => setModal(null)}><form className="form" onSubmit={submitIntroduction}><label>お名前<input name="personName" required maxLength={60} /></label><label>会社・屋号<input name="personCompany" required maxLength={80} /></label><label>あなたとの関係<input name="relationship" required maxLength={120} placeholder="例：取引先、友人" /></label><label>紹介したい理由<textarea name="fitReason" required maxLength={400} rows={3} /></label><label className="consent"><input type="checkbox" name="consentConfirmed" required /> ご本人に紹介の了承を得ています</label><button className="submit-button" disabled={busy}>{busy ? '届けています…' : '紹介を届ける'}</button></form></Modal>}
 
-      {modal === 'profile' && <Modal title="マイページ" lead="あなたの紹介活動と会社情報" onClose={() => setModal(null)}><div className="profile-sheet"><span className="profile-avatar">{userName.slice(0,1)}</span><h3>{userName}</h3><p>{stats.venue}</p><div><span><b>{stats.introCount}</b><small>紹介した数</small></span><span><b>{stats.points}</b><small>ポイント</small></span><span><b>Lv.{stats.level}</b><small>{stats.rank}</small></span></div></div><div className="profile-form"><label>会社の年商 <small>任意・いつでも変更できます</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><button onClick={saveRevenueBand} disabled={busy}>{busy ? '保存中…' : '年商を保存する'}</button></div></Modal>}
+      {modal === 'profile' && <Modal title="守成会員プロフィール" lead="会場で会った相手に、どこの誰かが伝わる情報です。" onClose={() => setModal(null)}><div className="profile-sheet compact"><span className="profile-avatar">{userName.slice(0,1)}</span><h3>{userName}</h3><p>{stats.badge || 'バッヂ未設定'} · {stats.venue}</p><div><span><b>{stats.introCount}</b><small>紹介した数</small></span><span><b>{stats.points}</b><small>ポイント</small></span><span><b>Lv.{stats.level}</b><small>{stats.rank}</small></span></div></div><div className="profile-form">
+        <label>会社名 <small>必須</small><input value={profileCompany} onChange={(event) => setProfileCompany(event.target.value)} maxLength={80} placeholder="株式会社〇〇" required /></label>
+        <label>所属会場 <small>必須・正式な会場名</small><input value={profileVenue} onChange={(event) => setProfileVenue(event.target.value)} maxLength={60} placeholder="ひるのめぐろ会場" required /></label>
+        <div className="profile-row"><label>肩書き <small>任意</small><input value={profilePosition} onChange={(event) => setProfilePosition(event.target.value)} maxLength={60} placeholder="代表取締役" /></label><label>バッヂ <small>任意</small><input value={profileBadge} onChange={(event) => setProfileBadge(event.target.value)} maxLength={40} placeholder="赤バッヂ" /></label></div>
+        <label>活動エリア <small>任意・検索に使われます</small><input value={profileArea} onChange={(event) => setProfileArea(event.target.value)} maxLength={60} placeholder="東京都" /></label>
+        <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+        <button onClick={saveProfile} disabled={busy || !profileCompany.trim() || !profileVenue.trim()}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
+      </div></Modal>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
   );
