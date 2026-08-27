@@ -1,12 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getChatGPTUser } from '@/app/chatgpt-auth';
-import { createIntroduction, listMyIntroductions } from '@/db/data';
-
-export async function GET() {
-  const user = await getChatGPTUser();
-  if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
-  return NextResponse.json({ introductions: await listMyIntroductions(user) });
-}
+import { createIntroduction } from '@/db/data';
 
 export async function POST(request: Request) {
   const user = await getChatGPTUser();

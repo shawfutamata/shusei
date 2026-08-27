@@ -29,16 +29,6 @@ export type MemberStats = {
   nextRankAt: number;
 };
 
-export type IntroductionItem = {
-  id: string;
-  requestTitle: string;
-  personName: string;
-  personCompany: string;
-  status: string;
-  createdAt: string;
-  pointsAwarded: number;
-};
-
 const statements = [
   `CREATE TABLE IF NOT EXISTS members (
     id TEXT PRIMARY KEY,
@@ -156,22 +146,6 @@ export async function createIntroduction(user: ChatGPTUser, input: { requestId: 
     env.DB.prepare('UPDATE members SET intro_count = intro_count + 1, points = points + 10 WHERE id = ?').bind(user.userId),
   ]);
   return id;
-}
-
-export async function listMyIntroductions(user: ChatGPTUser): Promise<IntroductionItem[]> {
-  await upsertMember(user);
-  const result = await env.DB.prepare(`SELECT i.id, r.title AS requestTitle, i.person_name AS personName,
-    i.person_company AS personCompany, i.status, i.created_at AS createdAt, i.points_awarded AS pointsAwarded
-    FROM introductions i JOIN requests r ON r.id = i.request_id
-    WHERE i.introducer_id = ? ORDER BY i.created_at DESC`).bind(user.userId).all<IntroductionItem>();
-  return result.results;
-}
-
-export async function listLeaderboard() {
-  await ensureDatabase();
-  const result = await env.DB.prepare(`SELECT display_name AS displayName, venue, intro_count AS introCount,
-    deal_count AS dealCount, points FROM members ORDER BY points DESC, intro_count DESC LIMIT 20`).all<{ displayName: string; venue: string; introCount: number; dealCount: number; points: number }>();
-  return result.results.map((item, index) => ({ ...item, position: index + 1, ...calculateRank({ ...item, company: '' }) }));
 }
 
 function calculateRank(member: Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'>): MemberStats {
