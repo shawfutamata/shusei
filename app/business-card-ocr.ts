@@ -62,6 +62,14 @@ export async function scanBusinessCardImage(
       texts.push((await worker.recognize(titleImage)).data.text);
     }
   }
+  const detailLines = [findCompanyOCRLine(ocrLines), findAddressOCRLine(ocrLines)].filter((line): line is OCRLine => Boolean(line));
+  for (const detailLine of detailLines) {
+    const detailImage = createDirectLineCrop(oriented, detailLine, 0.12, 0.18, 185);
+    if (!detailImage) continue;
+    await worker.setParameters({ tessedit_pageseg_mode: '13', user_defined_dpi: '300', preserve_interword_spaces: '1' });
+    onStage?.('name');
+    texts.push((await worker.recognize(detailImage)).data.text);
+  }
   texts.push(contrast.data.text, primary.data.text);
   return parseBusinessCardTexts(texts);
 }
@@ -107,7 +115,7 @@ export function parseBusinessCardTexts(texts: string[]): BusinessCardInput {
   let address = '';
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index];
-    const postal = !isContactLine(record.raw) ? record.compact.match(/〒\s*(\d{3})[-ー－](\d{4})/) : null;
+    const postal = !isContactLine(record.raw) ? record.compact.match(/(?:〒\s*)?(\d{3})[-ー－](\d{4})(?=\s|[一-龯ぁ-んァ-ヶ]|$)/) : null;
     if (postal && !postalCode) postalCode = `${postal[1]}-${postal[2]}`;
     if (!address && looksLikeAddress(record.compact)) {
       address = cleanAddress(record.compact);
@@ -318,6 +326,18 @@ function findTitleLine(lines: OCRLine[]) {
   return lines.map((line) => ({ ...line, text: compactJapanese(normalizeBase(line.text)) })).filter((line) => /(取締役|店[長革]|CEO|COO|CFO|CTO|代表|社長|会長|部長|課長|マネージャー|世話人)/i.test(line.text)).sort((left, right) => (right.bbox.y1 - right.bbox.y0) - (left.bbox.y1 - left.bbox.y0))[0];
 }
 
+function findCompanyOCRLine(lines: OCRLine[]) {
+  return lines.map((line) => ({ ...line, text: compactJapanese(normalizeBase(line.text)) }))
+    .filter((line) => isCompanyLine(line.text))
+    .sort((left, right) => (right.bbox.x1 - right.bbox.x0) - (left.bbox.x1 - left.bbox.x0))[0];
+}
+
+function findAddressOCRLine(lines: OCRLine[]) {
+  return lines.map((line) => ({ ...line, text: compactJapanese(normalizeBase(line.text)) }))
+    .filter((line) => looksLikeAddress(line.text))
+    .sort((left, right) => (right.bbox.x1 - right.bbox.x0) - (left.bbox.x1 - left.bbox.x0))[0];
+}
+
 function createNameCrop(source: HTMLCanvasElement, line: OCRLine) {
   const lineWidth = line.bbox.x1 - line.bbox.x0;
   const lineHeight = line.bbox.y1 - line.bbox.y0;
@@ -404,7 +424,13 @@ function isCompanyLine(line: string) {
   return !isContactLine(line) && /(株式会社|有限会社|合同会社|一般社団法人|一般財団法人|医療法人|税理士法人|弁護士法人|事務所|\bInc\.?\b|\bLLC\b|\bCo\.?[, ]*Ltd\.?\b|\bCorporation\b)/i.test(line);
 }
 
-function cleanCompany(line: string) { return line.replace(/^[\s/\-:：]+/, '').replace(/^(会社名|Company)\s*[:：]?\s*/i, '').trim(); }
+function cleanCompany(line: string) {
+  return line.replace(/^[\s/\-:：]+/, '')
+    .replace(/^(会社名|Company)\s*[:：]?\s*/i, '')
+    .replace(/\s*(?:〒\s*)?\d{3}[-ー－]\d{4}.*$/, '')
+    .replace(/\s*(?:TEL|FAX|Mobile|Phone|E-?mail)\s*[:：]?.*$/i, '')
+    .trim();
+}
 
 function isDepartmentLine(line: string) {
   return !isContactLine(line) && !extractPositionTitle(line) && line.length <= 40 && /(?:本店|支店|営業所|事業部|営業部|管理部|総務部|企画部|開発部|部|課|室|店)(?:・[^0-9@]{1,12}(?:本店|支店|店))?$/.test(line) && !/〒|\d{3,}/.test(line);
@@ -428,7 +454,7 @@ function isPossibleOrganization(line: string) {
 }
 
 function chooseName(records: Array<{ source: number; raw: string; compact: string }>, excluded: Set<string>) {
-  const candidates = records.map((record) => ({ record, formatted: formatJapaneseName(record.raw) })).filter(({ record, formatted }) => formatted && !excluded.has(record.compact) && !isContactLine(record.raw) && !/(株式会社|有限会社|合同会社|会場|本店|支店|営業所|住所|申込|東京|名古屋|ホテル|ダイヤモンド)/.test(record.compact) && !extractPositionTitle(record.compact));
+  const candidates = records.map((record) => ({ record, formatted: formatJapaneseName(record.raw) })).filter(({ record, formatted }) => formatted && !excluded.has(record.compact) && !isContactLine(record.raw) && !isCompanyLine(record.compact) && !isDepartmentLine(record.compact) && !looksLikeAddress(record.compact) && !/(株式会社|有限会社|合同会社|会場|本店|支店|営業所|住所|申込|東京|名古屋|ホテル|ダイヤモンド)/.test(record.compact) && !extractPositionTitle(record.compact));
   candidates.sort((left, right) => nameScore(right.record, right.formatted) - nameScore(left.record, left.formatted));
   if (candidates[0]) return candidates[0].formatted;
   return records.map((record) => record.raw.replace(/[^A-Za-zÀ-ÿ' .-]/g, '').replace(/\s+/g, ' ').trim()).find((line) => line.split(' ').filter((word) => word.length >= 2).length === 2 && !/(company|inc|ltd|diamond|creative|production)/i.test(line)) ?? '';
@@ -457,7 +483,11 @@ function isJapaneseNameCandidate(line: string) { return /^[一-龯々]{3,7}$/.te
 function isContactLine(line: string) { return /@|(?:https?:\/\/|www\.)|\b(?:TEL|FAX|Mobile|Phone|E-?mail)\b/i.test(line) || /0\d{1,4}[-\s]\d{1,4}[-\s]\d{3,4}/.test(line); }
 
 function looksLikeAddress(line: string) {
-  return !isContactLine(line) && (/〒\s*\d{3}[-ー－]\d{4}/.test(line) || /(?:東京都|北海道|(?:京都|大阪)府|.{2,3}県|名古屋市|中央区|港区|目黒区).{3,}/.test(line) && /\d/.test(line));
+  return !isContactLine(line) && (
+    /(?:〒\s*)?\d{3}[-ー－]\d{4}(?=\s|[一-龯ぁ-んァ-ヶ]|$)/.test(line)
+    || /(?:東京都|北海道|(?:京都|大阪)府|.{2,3}県|名古屋市|中央区|港区|目黒区).{3,}/.test(line) && /\d/.test(line)
+    || /[一-龯々ぁ-んァ-ヶ]{2,}(?:市|区|郡|町|村)[一-龯々ぁ-んァ-ヶ0-9丁目番地号\-ー－]{3,}/.test(line) && /\d/.test(line)
+  );
 }
 
 function cleanAddress(line: string) {
