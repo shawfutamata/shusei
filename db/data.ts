@@ -305,7 +305,10 @@ export async function requestMobileAuthCode(rawEmail: string) {
   const membership = await env.DB.prepare(`SELECT membership_status AS status,
     membership_period_end AS currentPeriodEnd FROM members WHERE email = ?`)
     .bind(email).first<{ status: MembershipStatus; currentPeriodEnd: string }>();
-  if (membership && !canUseMembership(membership.status, membership.currentPeriodEnd)) {
+  if (!membership) {
+    throw new Error('登録済みの会員メールアドレスを入力してください。');
+  }
+  if (!canUseMembership(membership.status, membership.currentPeriodEnd)) {
     throw new Error('このメールアドレスには現在利用権限がありません。運営窓口へお問い合わせください。');
   }
 
@@ -365,20 +368,17 @@ export async function verifyMobileAuthCode(rawEmail: string, rawCode: string) {
     throw new Error('認証コードが違います。');
   }
 
-  let member = await env.DB.prepare(`SELECT id, display_name AS displayName,
+  const member = await env.DB.prepare(`SELECT id, display_name AS displayName,
     membership_status AS membershipStatus, membership_period_end AS membershipPeriodEnd
     FROM members WHERE email = ?`)
     .bind(email).first<{ id: string; displayName: string; membershipStatus: MembershipStatus; membershipPeriodEnd: string }>();
-  if (member && !canUseMembership(member.membershipStatus, member.membershipPeriodEnd)) {
+  if (!member) {
+    await env.DB.prepare('DELETE FROM mobile_auth_codes WHERE email = ?').bind(email).run();
+    throw new Error('登録済みの会員メールアドレスを入力してください。');
+  }
+  if (!canUseMembership(member.membershipStatus, member.membershipPeriodEnd)) {
     await env.DB.prepare('DELETE FROM mobile_auth_codes WHERE email = ?').bind(email).run();
     throw new Error('このメールアドレスには現在利用権限がありません。運営窓口へお問い合わせください。');
-  }
-  if (!member) {
-    member = { id: `mobile-${crypto.randomUUID()}`, displayName: email.split('@')[0], membershipStatus: 'invited', membershipPeriodEnd: '' };
-    await env.DB.prepare(`INSERT INTO members
-      (id, email, display_name, venue, membership_status, membership_source, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .bind(member.id, email, member.displayName, '', 'invited', 'direct_contract', new Date().toISOString()).run();
   }
 
   const token = randomMobileToken();
@@ -493,12 +493,12 @@ function configuredReviewCode(email: string) {
 }
 
 function normalizeMembershipStatus(value: unknown): MembershipStatus {
-  return value === 'invited' || value === 'past_due' || value === 'canceled' ? value : 'active';
+  return value === 'active' || value === 'past_due' || value === 'canceled' ? value : 'invited';
 }
 
 function canUseMembership(status: unknown, currentPeriodEnd: string) {
   const normalized = normalizeMembershipStatus(status);
-  if (normalized === 'canceled') return false;
+  if (normalized === 'invited' || normalized === 'canceled') return false;
   if (normalized === 'past_due') return Boolean(currentPeriodEnd) && new Date(currentPeriodEnd).getTime() > Date.now();
   return true;
 }
@@ -859,9 +859,12 @@ async function sendMatchingPushNotifications(authorId: string, request: { id: st
 
 async function sendMatchingMobileNotifications(authorId: string, request: { id: string; title: string; industryTags: string[] }) {
   if (!request.industryTags.length) return;
+  const now = new Date().toISOString();
   const subscriptions = await env.DB.prepare(`SELECT p.token, m.notify_industries AS notifyIndustriesJson
     FROM mobile_push_tokens p JOIN members m ON m.id = p.member_id
-    WHERE p.member_id != ?`).bind(authorId).all<{ token: string; notifyIndustriesJson: string }>();
+    WHERE p.member_id != ? AND (m.membership_status = 'active'
+      OR (m.membership_status = 'past_due' AND m.membership_period_end > ?))`)
+    .bind(authorId, now).all<{ token: string; notifyIndustriesJson: string }>();
   const targets = subscriptions.results.filter((subscription) => {
     const wanted = parseStringArray(subscription.notifyIndustriesJson);
     return wanted.some((industry) => matchesIndustry(request.industryTags, industry));
@@ -879,6 +882,11 @@ async function sendMatchingMobileNotifications(authorId: string, request: { id: 
     }))),
   });
   if (!response.ok) throw new Error('端末通知を送信できませんでした。');
+  const payload = await response.json().catch(() => null) as { data?: Array<{ status?: string; details?: { error?: string } }> } | null;
+  const invalidTokens = targets.filter((_, index) => payload?.data?.[index]?.details?.error === 'DeviceNotRegistered').map(({ token }) => token);
+  if (invalidTokens.length) {
+    await env.DB.batch(invalidTokens.map((token) => env.DB.prepare('DELETE FROM mobile_push_tokens WHERE token = ?').bind(token)));
+  }
 }
 
 function parseStringArray(value: string) {
