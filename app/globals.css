@@ -49,3 +49,127 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .signin-page { min-height:100vh; display:grid; place-items:center; padding:20px; background:linear-gradient(135deg,#1d4ed8,#38bdf8); }.signin-card { width:min(100%,430px); padding:43px 25px; border-radius:22px; background:#fff; text-align:center; box-shadow:0 30px 80px rgba(13,47,126,.25); }.signin-card .brand-mark { margin:0 auto 20px; width:58px; height:58px; font-size:25px; }.signin-card h1 { margin:0; font-size:32px; letter-spacing:.05em; }.signin-card h2 { margin:9px 0 17px; color:var(--blue); font-size:16px; }.signin-card>p:not(.eyebrow) { color:var(--muted); font-size:11px; line-height:1.8; }.signin-card .primary-button { display:block; margin:24px 0 12px; padding:15px; border-radius:12px; color:#fff; background:linear-gradient(90deg,var(--blue-dark),var(--blue)); font-size:12px; font-weight:800; }.signin-card small { color:#8d98aa; font-size:8px; }.eyebrow { color:#8290a6; font-size:9px; font-weight:800; letter-spacing:.14em; }
 
 @media(min-width:481px){body{padding:16px 0}.app-shell{min-height:calc(100vh - 32px);border-radius:28px}.mobile-header{border-radius:28px 28px 0 0}.bottom-nav{bottom:16px;border-radius:0 0 28px 28px}.modal-backdrop{align-items:center}.modal{border-radius:24px;max-height:86vh}.sheet-handle{display:none}.modal-close{right:calc((100vw - 480px)/2 + 18px);margin-top:-1px}}
+
+/* Senior-friendly readability: larger, heavier text and touch targets. */
+:root { --muted:#536176; }
+body { font-weight:600; }
+.app-shell { padding-bottom:116px; }
+.mobile-header { height:76px; }
+.mobile-brand b { font-size:18px; font-weight:900; }
+.header-profile small { font-size:11px; font-weight:700; }
+.header-profile b { font-size:13px; font-weight:900; }
+.mini-avatar { width:42px; height:42px; font-size:15px; }
+
+.mobile-hero { min-height:308px; padding:30px 24px 24px; }
+.hero-badge { padding:8px 11px; font-size:12px; }
+.mobile-hero h1 { font-size:40px; line-height:1.22; }
+.mobile-hero>p { font-size:15px; font-weight:700; line-height:1.75; }
+.hero-stats span { font-size:12px; font-weight:700; }
+.hero-stats b { font-size:21px; }
+
+.quick-actions { grid-template-columns:1fr; }
+.quick-card { min-height:88px; padding:15px; }
+.quick-card b { font-size:15px; font-weight:900; }
+.quick-card small { margin-top:5px; font-size:12px; font-weight:700; line-height:1.45; }
+.quick-icon { width:46px; height:46px; font-size:25px; }
+.photo-required-banner span { font-size:13px; }
+.photo-required-banner b { font-size:12px; }
+.photo-required-banner i { font-size:11px; }
+
+.section-title p { font-size:11px; }
+.section-title h2 { font-size:24px; font-weight:900; }
+.section-title>span { font-size:13px; font-weight:800; }
+.filters button { min-height:44px; padding:10px 15px; font-size:13px; font-weight:900; }
+.member-filters { padding:14px; gap:11px; }
+.member-filters>p { font-size:12px; }
+.member-filters label { gap:6px; font-size:11px; font-weight:800; }
+.member-filters select { min-height:46px; padding:0 10px; font-size:13px; font-weight:800; }
+
+.need-card { padding:20px 18px 17px; }
+.kind,.deadline { font-size:12px; font-weight:900; }
+.need-card h3 { font-size:19px; line-height:1.55; font-weight:900; }
+.need-body { font-size:14px; font-weight:600; line-height:1.75; }
+.details { padding:13px; }
+.details dt { font-size:11px; font-weight:700; }
+.details dd { margin-top:5px; font-size:13px; font-weight:900; }
+.member-avatar { width:50px; height:50px; font-size:15px; }
+.card-person b { font-size:14px; font-weight:900; }
+.card-person small { margin-top:4px; font-size:11px; font-weight:700; }
+.card-person>span:last-child:not(.member-avatar) { font-size:11px; font-weight:800; }
+.member-context { gap:7px; margin-top:12px; }
+.member-context span { padding:6px 8px; font-size:11px; font-weight:900; }
+.intro-button { min-height:52px; font-size:15px; font-weight:900; }
+.empty b { font-size:16px; }
+.empty span { font-size:13px; }
+
+.bottom-nav { height:84px; }
+.bottom-nav button,.bottom-nav label { min-height:58px; }
+.bottom-nav button>span,.bottom-nav label>span { font-size:24px; }
+.bottom-nav small { font-size:11px; font-weight:900; }
+
+.modal h2 { font-size:25px; font-weight:900; }
+.modal-lead { font-size:14px; font-weight:600; line-height:1.7; }
+.modal-close { width:42px; height:42px; font-size:23px; }
+.form { gap:18px; }
+.form label { gap:8px; font-size:14px; font-weight:900; }
+.form input,.form select,.form textarea { min-height:52px; padding:13px; font-size:16px; font-weight:600; }
+.form .consent { font-size:14px; line-height:1.5; }
+.submit-button { min-height:56px; font-size:16px; }
+.profile-sheet h3 { font-size:20px; font-weight:900; }
+.profile-sheet>p { font-size:13px; font-weight:700; }
+.profile-sheet span b { font-size:22px; }
+.profile-sheet span small { font-size:11px; font-weight:700; }
+.profile-tabs button { min-height:48px; font-size:13px; }
+.profile-form { gap:16px; }
+.profile-form label { gap:8px; font-size:14px; }
+.profile-form label small { font-size:11px; font-weight:700; }
+.profile-form input,.profile-form select { min-height:52px; font-size:16px; font-weight:600; }
+.profile-form button { min-height:54px; font-size:15px; }
+.photo-upload>span:nth-child(3)>b { font-size:14px; }
+.photo-upload>span:nth-child(3)>small { font-size:11px; }
+.photo-upload>span:nth-child(3)>b em { font-size:10px; }
+.photo-upload>i { font-size:11px; }
+
+.roster-loading { font-size:14px; font-weight:800; }
+.roster-summary b { font-size:26px; }
+.roster-summary small { font-size:11px; font-weight:800; }
+.roster-summary p { font-size:12px; font-weight:700; }
+.scan-roster-button { min-height:94px; }
+.scan-roster-button b { font-size:15px; }
+.scan-roster-button small { font-size:11px; font-weight:700; }
+.roster-actions>button { min-height:50px; font-size:13px; }
+.draft-heading p,.saved-title p { font-size:10px; }
+.draft-heading h3,.saved-title h3 { font-size:18px; font-weight:900; }
+.meeting-fields label { font-size:12px; }
+.meeting-fields input { min-height:48px; font-size:16px; font-weight:600; }
+.scan-progress b { font-size:14px; }
+.scan-progress small { font-size:11px; }
+.draft-guide b { font-size:13px; }
+.draft-guide span { font-size:11px; font-weight:700; }
+.draft-person { grid-template-columns:36px 24px 1fr 36px; gap:8px; }
+.draft-person>span { font-size:12px; font-weight:800; }
+.draft-person input { min-height:44px; font-size:15px; font-weight:600; }
+.star { width:36px; height:36px; font-size:21px; }
+.remove-person { width:36px; height:36px; font-size:18px; }
+.add-person { min-height:48px; font-size:13px; }
+.save-roster { min-height:54px; font-size:15px; }
+.roster-empty b { font-size:15px; }
+.roster-empty span { font-size:12px; }
+.event-roster-head>span { font-size:11px; }
+.event-roster-head b { font-size:14px; }
+.event-roster-head small { font-size:11px; font-weight:700; }
+.event-roster-head i { font-size:20px; }
+.event-people b { font-size:14px; }
+.event-people small { font-size:11px; font-weight:700; }
+.important-person h3 { font-size:17px; }
+.important-person p { font-size:13px; font-weight:700; }
+.important-person small { font-size:11px; font-weight:700; }
+.important-note input { min-height:46px; font-size:15px; }
+.important-note button { font-size:13px; }
+.toast { padding:15px 17px; font-size:14px; line-height:1.5; }
+
+.signin-card h2 { font-size:20px; }
+.signin-card>p:not(.eyebrow) { font-size:15px; font-weight:600; }
+.signin-card .primary-button { padding:17px; font-size:16px; }
+.signin-card small { font-size:12px; }
+.eyebrow { font-size:12px; }
