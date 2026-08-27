@@ -20,6 +20,9 @@ const revenueBands: Record<string, string> = {
   revenue_100_plus: '1億円以上',
 };
 
+const rankNames = ['PEARL', 'EMERALD', 'SAPPHIRE', 'RUBY', 'DIAMOND'];
+const rankThresholds = [0, 3, 6, 10, 20];
+
 export default function BoardClient({ initialRequests, initialStats, userName }: { initialRequests: BoardRequest[]; initialStats: MemberStats; userName: string }) {
   const [requests, setRequests] = useState(initialRequests);
   const [stats, setStats] = useState(initialStats);
@@ -56,6 +59,12 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     (areaFilter === 'all' || item.authorBusinessArea === areaFilter)
   ), [areaFilter, filter, revenueFilter, requests, venueFilter]);
   const count = (category: string) => category === 'all' ? requests.length : requests.filter((item) => item.category === category).length;
+  const currentRankFloor = rankThresholds[stats.level - 1] ?? 0;
+  const nextRankThreshold = rankThresholds[stats.level];
+  const nextRankName = rankNames[stats.level];
+  const rankProgress = nextRankThreshold === undefined
+    ? 100
+    : Math.min(100, Math.round(((stats.introCount - currentRankFloor) / (nextRankThreshold - currentRankFloor)) * 100));
 
   useEffect(() => () => {
     if (photoPreview.startsWith('blob:')) URL.revokeObjectURL(photoPreview);
@@ -150,11 +159,20 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <button className="header-profile" onClick={() => setModal('profile')}><span><small>こんにちは</small><b>{userName}</b></span><Avatar src={stats.avatarUrl} name={userName} className="mini-avatar" /></button>
       </header>
 
-      <section className="mobile-hero">
-        <div className="hero-badge"><span />守成クラブの紹介掲示板</div>
-        <h1>こんな人、<br /><em>探しています。</em></h1>
-        <p>仲間のつながりから、<br />信頼できる人と出会おう。</p>
-        <div className="hero-stats"><span><b>{requests.length}</b>件 募集中</span><span><b>{stats.introCount}</b>件 紹介しました</span></div>
+      <section className={`rank-card rank-${stats.rank.toLowerCase()}`} aria-label={`現在の会員ランクは${stats.rank}です`}>
+        <div className="rank-card-top"><span className="rank-crown">♛</span><b>GIVE HUB</b><small>SHUSEI CLUB MEMBER</small></div>
+        <div className="rank-emblem" aria-hidden="true"><span>✦</span></div>
+        <p className="rank-eyebrow">YOUR MEMBER GRADE</p>
+        <h1>{stats.rank}</h1>
+        <h2>MEMBER</h2>
+        <div className="rank-progress">
+          <div className="rank-progress-copy">
+            <b>紹介 {stats.introCount}件</b>
+            <span>{nextRankThreshold === undefined ? '最高ランクに到達しました' : `あと${Math.max(0, nextRankThreshold - stats.introCount)}件で ${nextRankName}`}</span>
+          </div>
+          <span className="rank-progress-track"><i style={{ width: `${rankProgress}%` }} /></span>
+        </div>
+        <div className="rank-card-bottom"><span><small>MEMBER</small><b>{userName}</b></span><span><small>VENUE</small><b>{stats.venue || '会場未設定'}</b></span><span><small>募集中</small><b>{requests.length}件</b></span></div>
       </section>
 
       <section className="quick-actions" aria-label="クイック操作">
@@ -202,7 +220,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
 
       {modal === 'responses' && <Modal title="届いた紹介" lead="あなたが投稿した探しごとへの紹介です。" onClose={() => setModal(null)}><ReceivedIntroductions /></Modal>}
 
-      {modal === 'profile' && <Modal title="マイプロフィール" lead="会員情報と名刺帳のプロフィールを管理できます。" onClose={() => setModal(null)}><div className="profile-sheet compact"><Avatar src={photoPreview} name={userName} className="profile-avatar" /><h3>{userName}</h3><p>{stats.badge ? `${stats.badge}バッヂ` : 'バッヂ未設定'} · {stats.venue}</p><div><span><b>{stats.introCount}</b><small>紹介した数</small></span><span><b>{stats.points}</b><small>ポイント</small></span><span><b>Lv.{stats.level}</b><small>{stats.rank}</small></span></div></div><div className="profile-form">
+      {modal === 'profile' && <Modal title="マイプロフィール" lead="会員情報と名刺帳のプロフィールを管理できます。" onClose={() => setModal(null)}><div className="profile-sheet compact"><Avatar src={photoPreview} name={userName} className="profile-avatar" /><h3>{userName}</h3><p>{stats.badge ? `${stats.badge}バッヂ` : 'バッヂ未設定'} · {stats.venue}</p><div><span><b>{stats.introCount}</b><small>紹介した数</small></span><span><b>{stats.points}</b><small>ポイント</small></span><span><b>{stats.rank}</b><small>会員ランク</small></span></div></div><div className="profile-form">
         <label className="photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />JPEG・PNG・WebP／5MBまで</small></span><i>{stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
         <label>会社名 <small>必須</small><input value={profileCompany} onChange={(event) => setProfileCompany(event.target.value)} maxLength={80} placeholder="株式会社〇〇" required /></label>
         <label>所属会場 <small>必須・正式な会場名</small><input value={profileVenue} onChange={(event) => setProfileVenue(event.target.value)} maxLength={60} placeholder="ひるのめぐろ会場" required /></label>

@@ -505,9 +505,9 @@ function businessCardImageUrl(id: string, version: number) {
 }
 
 function calculateRank(member: Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'>): MemberStats {
-  const thresholds = [0, 50, 150, 350, 700, 1200];
-  const names = ['SEED', 'SUPPORTER', 'CONNECTOR', 'GIVER', 'AMBASSADOR', 'LEGEND'];
+  const thresholds = [0, 3, 6, 10, 20];
+  const names = ['PEARL', 'EMERALD', 'SAPPHIRE', 'RUBY', 'DIAMOND'];
   let level = 1;
-  thresholds.forEach((threshold, index) => { if (member.points >= threshold) level = index + 1; });
-  return { ...member, rank: names[level - 1], level, nextRankAt: thresholds[level] ?? member.points };
+  thresholds.forEach((threshold, index) => { if (member.introCount >= threshold) level = index + 1; });
+  return { ...member, rank: names[level - 1], level, nextRankAt: thresholds[level] ?? member.introCount };
 }
