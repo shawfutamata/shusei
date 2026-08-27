@@ -25,10 +25,14 @@ const revenueBands: Record<string, string> = {
 const rankNames = ['PEARL', 'EMERALD', 'SAPPHIRE', 'RUBY', 'DIAMOND'];
 const rankThresholds = [0, 3, 6, 10, 20];
 const industryIcons: Record<string, string> = {
-  'IT・システム': '💻', 'Web・広告': '📣', '映像・写真': '🎬', 'デザイン・印刷': '🎨',
-  '建設・不動産': '🏗️', '製造・卸売': '🏭', '小売・EC': '🛍️', '飲食・食品': '🍽️',
-  '美容・健康': '✨', '医療・福祉': '🏥', '士業・コンサル': '⚖️', '人材・教育': '👥',
-  '金融・保険': '💰', '運輸・物流': '🚚', 'イベント・エンタメ': '🎪', 'その他': '•••',
+  'IT・システム': '/icons/industries/it-system.png', 'Web・広告': '/icons/industries/web-ad.png',
+  '映像・写真': '/icons/industries/video-photo.png', 'デザイン・印刷': '/icons/industries/design-print.png',
+  '建設・不動産': '/icons/industries/construction-realestate.png', '製造・卸売': '/icons/industries/manufacturing-wholesale.png',
+  '小売・EC': '/icons/industries/retail-ec.png', '飲食・食品': '/icons/industries/food.png',
+  '美容・健康': '/icons/industries/beauty-health.png', '医療・福祉': '/icons/industries/medical-welfare.png',
+  '士業・コンサル': '/icons/industries/legal-consulting.png', '人材・教育': '/icons/industries/hr-education.png',
+  '金融・保険': '/icons/industries/finance-insurance.png', '運輸・物流': '/icons/industries/transport-logistics.png',
+  'イベント・エンタメ': '/icons/industries/event-entertainment.png', 'その他': '/icons/industries/other.png',
 };
 const historyStorageKey = 'give-hub-request-history-v1';
 const favoriteStorageKey = 'give-hub-request-favorites-v1';
@@ -256,14 +260,14 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
 
         <section className="industry-home">
           <div className="home-section-heading"><div><p>業種から探す</p><h2>ジャンル別の探しごと検索</h2></div><button onClick={() => showSearch('all')}>すべて見る</button></div>
-          <div className="industry-grid">{industries.map((industry) => <button key={industry} onClick={() => showSearch(industry)}><span>{industryIcons[industry]}</span><b>{industry}</b><small>{requests.filter((item) => item.industryTags.includes(industry)).length}件</small></button>)}</div>
+          <div className="industry-grid">{industries.map((industry) => <button key={industry} onClick={() => showSearch(industry)}><span><img src={industryIcons[industry]} alt="" /></span><b>{industry}</b><small>{requests.filter((item) => item.industryTags.includes(industry)).length}件</small></button>)}</div>
         </section>
 
         {!stats.avatarUrl && <button className="photo-required-banner" onClick={() => setModal('profile')}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・紹介ができます。</b><i>登録する →</i></button>}
         <InstallAndNotificationPanel onNotice={showToast} />
       </div> : <section className="mobile-board search-page" id="board">
         <div className="section-title"><div><p>REQUESTS</p><h2>{industryFilter === 'all' ? 'みんなの探しごと' : industryFilter}</h2></div><span>{shown.length}件</span></div>
-        {industryFilter !== 'all' && <button className="clear-industry" onClick={() => setIndustryFilter('all')}><span>{industryIcons[industryFilter]}</span>{industryFilter}で絞り込み中 <i>×</i></button>}
+        {industryFilter !== 'all' && <button className="clear-industry" onClick={() => setIndustryFilter('all')}><img src={industryIcons[industryFilter]} alt="" />{industryFilter}で絞り込み中 <i>×</i></button>}
         <div className="filters" role="group" aria-label="投稿を絞り込む">{[['all','すべて'],['project','案件'],['collaboration','協業先'],['consultation','相談']].map(([key,label]) => <button key={key} className={filter === key ? 'selected' : ''} onClick={() => setFilter(key)}>{label}<span>{count(key)}</span></button>)}</div>
         <div className="member-filters">
           <p>会員情報で絞り込む</p>
@@ -288,10 +292,10 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
 
       <nav className="bottom-nav" aria-label="アプリメニュー">
         <button className={activeTab === 'home' ? 'active' : ''} onClick={showHome}><span>⌂</span><small>ホーム</small></button>
-        <button className={activeTab === 'search' ? 'active' : ''} onClick={() => showSearch()}><span>⌕</span><small>探す</small></button>
+        <button className={activeTab === 'search' ? 'active' : ''} onClick={() => showSearch()}><span>⌕</span><small>困りごと</small></button>
         <button className="nav-post" onClick={openRequest} aria-label="探しごとを投稿する"><span>＋</span></button>
         <button onClick={() => openCards('list')}><span>▣</span><small>名刺</small></button>
-        <button onClick={() => setModal('profile')}><span>●</span><small>マイ</small></button>
+        <button onClick={() => setModal('profile')}><span>●</span><small>マイページ</small></button>
       </nav>
 
       {modal === 'request' && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの<select name="category" required defaultValue=""><option value="" disabled>選択してください</option><option value="project">案件の発注先</option><option value="collaboration">協業パートナー</option><option value="consultation">相談相手・情報</option></select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容<textarea name="description" required maxLength={600} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><fieldset className="tag-field"><legend>関連する業種 <small>必須・3個まで</small></legend><div className="tag-picker">{industries.map((industry) => <button type="button" key={industry} className={requestIndustries.includes(industry) ? 'selected' : ''} onClick={() => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)}>{industry}</button>)}</div></fieldset><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア<input name="area" required maxLength={60} placeholder="例：東京都・オンライン" /></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><button className="submit-button" disabled={busy || !requestIndustries.length}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
@@ -334,7 +338,7 @@ function HomeShelf({ title, count, emptyTitle, emptyText, onMore, children }: { 
 function HomeRequestCard({ need, favorite, onOpen, onFavorite }: { need: BoardRequest; favorite: boolean; onOpen: () => void; onFavorite: () => void }) {
   const primaryIndustry = need.industryTags[0] || 'その他';
   return <article className="home-request-card"><button className={favorite ? 'home-heart active' : 'home-heart'} aria-label={favorite ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={onFavorite}>♥</button><button className="home-request-open" onClick={onOpen}>
-    <span className="home-request-cover"><i>{industryIcons[primaryIndustry] || '•'}</i><small>{primaryIndustry}</small></span>
+    <span className="home-request-cover"><img src={industryIcons[primaryIndustry] || industryIcons['その他']} alt="" /><small>{primaryIndustry}</small></span>
     <span className="home-request-copy"><small><b className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</b> あと{daysLeft(need.deadline)}日</small><strong>{need.title}</strong><span>{need.budgetLabel}</span><em>{need.authorName}・{need.authorVenue}</em></span>
   </button></article>;
 }
