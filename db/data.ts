@@ -106,6 +106,15 @@ export type BusinessCard = {
 
 export type BusinessCardInput = Omit<BusinessCard, 'id' | 'imageUrl' | 'createdAt' | 'updatedAt' | 'isFavorite'> & { isFavorite?: boolean };
 
+export type MembershipStatus = 'invited' | 'active' | 'past_due' | 'canceled';
+export type MembershipAccess = {
+  status: MembershipStatus;
+  source: 'direct_contract' | 'organization_contract';
+  currentPeriodEnd: string;
+  organizationId: string;
+  canUseApp: boolean;
+};
+
 const statements = [
   `CREATE TABLE IF NOT EXISTS members (
     id TEXT PRIMARY KEY,
@@ -119,6 +128,10 @@ const statements = [
     primary_industry TEXT NOT NULL DEFAULT '',
     notify_industries TEXT NOT NULL DEFAULT '[]',
     annual_revenue_band TEXT NOT NULL DEFAULT '',
+    membership_status TEXT NOT NULL DEFAULT 'active',
+    membership_source TEXT NOT NULL DEFAULT 'direct_contract',
+    membership_period_end TEXT NOT NULL DEFAULT '',
+    organization_id TEXT NOT NULL DEFAULT '',
     avatar_key TEXT NOT NULL DEFAULT '',
     avatar_version INTEGER NOT NULL DEFAULT 0,
     intro_count INTEGER NOT NULL DEFAULT 0,
@@ -253,6 +266,10 @@ export async function ensureDatabase() {
     ['primary_industry', "ALTER TABLE members ADD COLUMN primary_industry TEXT NOT NULL DEFAULT ''"],
     ['notify_industries', "ALTER TABLE members ADD COLUMN notify_industries TEXT NOT NULL DEFAULT '[]'"],
     ['annual_revenue_band', "ALTER TABLE members ADD COLUMN annual_revenue_band TEXT NOT NULL DEFAULT ''"],
+    ['membership_status', "ALTER TABLE members ADD COLUMN membership_status TEXT NOT NULL DEFAULT 'active'"],
+    ['membership_source', "ALTER TABLE members ADD COLUMN membership_source TEXT NOT NULL DEFAULT 'direct_contract'"],
+    ['membership_period_end', "ALTER TABLE members ADD COLUMN membership_period_end TEXT NOT NULL DEFAULT ''"],
+    ['organization_id', "ALTER TABLE members ADD COLUMN organization_id TEXT NOT NULL DEFAULT ''"],
     ['avatar_key', "ALTER TABLE members ADD COLUMN avatar_key TEXT NOT NULL DEFAULT ''"],
     ['avatar_version', 'ALTER TABLE members ADD COLUMN avatar_version INTEGER NOT NULL DEFAULT 0'],
   ];
@@ -284,6 +301,13 @@ export async function requestMobileAuthCode(rawEmail: string) {
   await ensureDatabase();
   const email = normalizeAuthEmail(rawEmail);
   if (!email) throw new Error('正しいメールアドレスを入力してください。');
+
+  const membership = await env.DB.prepare(`SELECT membership_status AS status,
+    membership_period_end AS currentPeriodEnd FROM members WHERE email = ?`)
+    .bind(email).first<{ status: MembershipStatus; currentPeriodEnd: string }>();
+  if (membership && !canUseMembership(membership.status, membership.currentPeriodEnd)) {
+    throw new Error('このメールアドレスには現在利用権限がありません。運営窓口へお問い合わせください。');
+  }
 
   const existing = await env.DB.prepare('SELECT requested_at AS requestedAt FROM mobile_auth_codes WHERE email = ?')
     .bind(email).first<{ requestedAt: string }>();
@@ -338,12 +362,20 @@ export async function verifyMobileAuthCode(rawEmail: string, rawCode: string) {
     throw new Error('認証コードが違います。');
   }
 
-  let member = await env.DB.prepare('SELECT id, display_name AS displayName FROM members WHERE email = ?')
-    .bind(email).first<{ id: string; displayName: string }>();
+  let member = await env.DB.prepare(`SELECT id, display_name AS displayName,
+    membership_status AS membershipStatus, membership_period_end AS membershipPeriodEnd
+    FROM members WHERE email = ?`)
+    .bind(email).first<{ id: string; displayName: string; membershipStatus: MembershipStatus; membershipPeriodEnd: string }>();
+  if (member && !canUseMembership(member.membershipStatus, member.membershipPeriodEnd)) {
+    await env.DB.prepare('DELETE FROM mobile_auth_codes WHERE email = ?').bind(email).run();
+    throw new Error('このメールアドレスには現在利用権限がありません。運営窓口へお問い合わせください。');
+  }
   if (!member) {
-    member = { id: `mobile-${crypto.randomUUID()}`, displayName: email.split('@')[0] };
-    await env.DB.prepare('INSERT INTO members (id, email, display_name, venue, created_at) VALUES (?, ?, ?, ?, ?)')
-      .bind(member.id, email, member.displayName, '', new Date().toISOString()).run();
+    member = { id: `mobile-${crypto.randomUUID()}`, displayName: email.split('@')[0], membershipStatus: 'invited', membershipPeriodEnd: '' };
+    await env.DB.prepare(`INSERT INTO members
+      (id, email, display_name, venue, membership_status, membership_source, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .bind(member.id, email, member.displayName, '', 'invited', 'direct_contract', new Date().toISOString()).run();
   }
 
   const token = randomMobileToken();
@@ -365,10 +397,11 @@ export async function getMobileSessionUser(token: string): Promise<ChatGPTUser |
   const tokenHash = await hashMobileSecret(token);
   const now = new Date().toISOString();
   const row = await env.DB.prepare(`SELECT m.id AS userId, m.email, m.display_name AS displayName,
+    m.membership_status AS membershipStatus, m.membership_period_end AS membershipPeriodEnd,
     s.expires_at AS expiresAt FROM mobile_sessions s JOIN members m ON m.id = s.member_id
     WHERE s.token_hash = ? AND s.expires_at > ?`).bind(tokenHash, now)
-    .first<{ userId: string; email: string; displayName: string; expiresAt: string }>();
-  if (!row) return null;
+    .first<{ userId: string; email: string; displayName: string; membershipStatus: MembershipStatus; membershipPeriodEnd: string; expiresAt: string }>();
+  if (!row || !canUseMembership(row.membershipStatus, row.membershipPeriodEnd)) return null;
   await env.DB.prepare('UPDATE mobile_sessions SET last_seen_at = ? WHERE token_hash = ?').bind(now, tokenHash).run();
   return { userId: row.userId, email: row.email, displayName: row.displayName, fullName: row.displayName };
 }
@@ -377,6 +410,22 @@ export async function revokeMobileSession(token: string) {
   await ensureDatabase();
   if (token.length < 32 || token.length > 256) return;
   await env.DB.prepare('DELETE FROM mobile_sessions WHERE token_hash = ?').bind(await hashMobileSecret(token)).run();
+}
+
+export async function getMembershipAccess(userId: string): Promise<MembershipAccess> {
+  await ensureDatabase();
+  const row = await env.DB.prepare(`SELECT membership_status AS status, membership_source AS source,
+    membership_period_end AS currentPeriodEnd, organization_id AS organizationId
+    FROM members WHERE id = ?`).bind(userId).first<Omit<MembershipAccess, 'canUseApp'>>();
+  const status = normalizeMembershipStatus(row?.status);
+  const currentPeriodEnd = row?.currentPeriodEnd ?? '';
+  return {
+    status,
+    source: row?.source === 'organization_contract' ? 'organization_contract' : 'direct_contract',
+    currentPeriodEnd,
+    organizationId: row?.organizationId ?? '',
+    canUseApp: canUseMembership(status, currentPeriodEnd),
+  };
 }
 
 export async function saveMobilePushToken(user: ChatGPTUser, token: string, platform: string) {
@@ -432,6 +481,17 @@ export async function deleteMobileAccount(user: ChatGPTUser) {
 function normalizeAuthEmail(value: string) {
   const email = value.trim().toLowerCase();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254 ? email : '';
+}
+
+function normalizeMembershipStatus(value: unknown): MembershipStatus {
+  return value === 'invited' || value === 'past_due' || value === 'canceled' ? value : 'active';
+}
+
+function canUseMembership(status: unknown, currentPeriodEnd: string) {
+  const normalized = normalizeMembershipStatus(status);
+  if (normalized === 'canceled') return false;
+  if (normalized === 'past_due') return Boolean(currentPeriodEnd) && new Date(currentPeriodEnd).getTime() > Date.now();
+  return true;
 }
 
 async function hashMobileSecret(value: string) {

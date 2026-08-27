@@ -28,7 +28,7 @@ iOS / Androidはログイン後に権限を確認
 
 ## Web側で持つ契約状態
 
-決済サービスを確定した時点で、Web側に次の権限情報を持たせる。
+Web側の会員データに次の権限情報を持たせる。データ構造とログイン時の判定は実装済みで、決済サービス確定後はWebhookまたは運営管理画面から状態を更新する。
 
 - `membership_status`: `active` / `past_due` / `canceled` / `invited`
 - `membership_source`: `direct_contract` / `organization_contract`

@@ -5,7 +5,7 @@ const appSlug = process.env.APP_SLUG || 'member-hub';
 const iosBundleIdentifier = process.env.IOS_BUNDLE_ID || 'jp.everycounts.memberhub';
 const androidPackage = process.env.ANDROID_PACKAGE || 'jp.everycounts.memberhub';
 
-export default ({ config }: ConfigContext): ExpoConfig => ({
+const appConfig = ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: displayName,
   slug: appSlug,
@@ -46,3 +46,5 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     eas: { projectId: process.env.EAS_PROJECT_ID },
   },
 });
+
+export default appConfig;

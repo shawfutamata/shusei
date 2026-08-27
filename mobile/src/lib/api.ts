@@ -15,7 +15,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 export const authApi = {
   requestCode: (email: string) => apiFetch<{ ok: true }>('/api/mobile/auth/request-code', { method: 'POST', body: JSON.stringify({ email }) }),
   verifyCode: (email: string, code: string) => apiFetch<{ token: string; expiresAt: string; user: AppUser }>('/api/mobile/auth/verify-code', { method: 'POST', body: JSON.stringify({ email, code }) }),
-  session: () => apiFetch<{ user: AppUser }>('/api/mobile/auth/session'),
+  session: () => apiFetch<{ user: AppUser; membership: MembershipAccess }>('/api/mobile/auth/session'),
   logout: () => apiFetch<{ ok: true }>('/api/mobile/auth/session', { method: 'DELETE' }),
   deleteAccount: () => apiFetch<{ ok: true }>('/api/mobile/account', { method: 'DELETE' }),
 };
@@ -24,3 +24,4 @@ export const pushApi = {
   remove: (token: string) => apiFetch<{ ok: true }>('/api/mobile/push', { method: 'DELETE', body: JSON.stringify({ token }) }),
 };
 export type AppUser = { userId: string; email: string; displayName: string; fullName: string | null };
+export type MembershipAccess = { status: 'invited' | 'active' | 'past_due' | 'canceled'; source: 'direct_contract' | 'organization_contract'; currentPeriodEnd: string; organizationId: string; canUseApp: boolean };

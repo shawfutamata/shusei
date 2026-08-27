@@ -102,18 +102,21 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     if (cropSource.startsWith('blob:')) URL.revokeObjectURL(cropSource);
   }, [cropSource]);
   useEffect(() => {
-    try {
-      const savedHistory = window.localStorage.getItem(historyStorageKey);
-      const savedFavorites = window.localStorage.getItem(favoriteStorageKey);
-      const parsedHistory = savedHistory ? JSON.parse(savedHistory) : [];
-      const parsedFavorites = savedFavorites ? JSON.parse(savedFavorites) : [];
-      setViewedIds(Array.isArray(parsedHistory) && parsedHistory.length ? parsedHistory : initialRequests.slice(0, 4).map((item) => item.id));
-      setFavoriteIds(Array.isArray(parsedFavorites) ? parsedFavorites : []);
-    } catch {
-      setViewedIds(initialRequests.slice(0, 4).map((item) => item.id));
-    } finally {
-      setLocalListsReady(true);
-    }
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        const savedHistory = window.localStorage.getItem(historyStorageKey);
+        const savedFavorites = window.localStorage.getItem(favoriteStorageKey);
+        const parsedHistory = savedHistory ? JSON.parse(savedHistory) : [];
+        const parsedFavorites = savedFavorites ? JSON.parse(savedFavorites) : [];
+        setViewedIds(Array.isArray(parsedHistory) && parsedHistory.length ? parsedHistory : initialRequests.slice(0, 4).map((item) => item.id));
+        setFavoriteIds(Array.isArray(parsedFavorites) ? parsedFavorites : []);
+      } catch {
+        setViewedIds(initialRequests.slice(0, 4).map((item) => item.id));
+      } finally {
+        setLocalListsReady(true);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [initialRequests]);
   useEffect(() => {
     if (!localListsReady) return;
