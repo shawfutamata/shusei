@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import type { BoardRequest, MemberStats } from '@/db/data';
 import BusinessCardManager from './BusinessCardManager';
+import { prefectures, type Prefecture } from './profile-options';
 
 const categories = {
   project: { label: '案件', className: 'project' },
@@ -29,7 +30,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [profileVenue, setProfileVenue] = useState(initialStats.venue);
   const [profilePosition, setProfilePosition] = useState(initialStats.positionTitle);
   const [profileBadge, setProfileBadge] = useState(initialStats.badge);
-  const [profileArea, setProfileArea] = useState(initialStats.businessArea);
+  const [profileArea, setProfileArea] = useState(prefectures.includes(initialStats.businessArea as Prefecture) ? initialStats.businessArea : '');
   const [profileRevenue, setProfileRevenue] = useState(initialStats.annualRevenueBand);
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState(initialStats.avatarUrl);
@@ -202,7 +203,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <label>会社名 <small>必須</small><input value={profileCompany} onChange={(event) => setProfileCompany(event.target.value)} maxLength={80} placeholder="株式会社〇〇" required /></label>
         <label>所属会場 <small>必須・正式な会場名</small><input value={profileVenue} onChange={(event) => setProfileVenue(event.target.value)} maxLength={60} placeholder="ひるのめぐろ会場" required /></label>
         <div className="profile-row"><label>肩書き <small>任意</small><input value={profilePosition} onChange={(event) => setProfilePosition(event.target.value)} maxLength={60} placeholder="代表取締役" /></label><label>バッヂ <small>任意</small><select value={profileBadge} onChange={(event) => setProfileBadge(event.target.value)}><option value="">選択しない</option><option value="緑">緑バッヂ</option><option value="赤">赤バッヂ</option><option value="ゴールド">ゴールドバッヂ</option><option value="ダイヤモンド">ダイヤモンドバッヂ</option></select></label></div>
-        <label>活動エリア <small>任意・検索に使われます</small><input value={profileArea} onChange={(event) => setProfileArea(event.target.value)} maxLength={60} placeholder="東京都" /></label>
+        <label>活動エリア <small>任意・検索に使われます</small><select value={profileArea} onChange={(event) => setProfileArea(event.target.value)}><option value="">選択しない</option>{prefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
         <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         <button onClick={saveProfile} disabled={busy || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : '顔写真とプロフィールを保存する'}</button>
       </div></Modal>}

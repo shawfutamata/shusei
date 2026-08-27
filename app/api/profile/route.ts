@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { updateMemberProfile } from '@/db/data';
+import { prefectures, type Prefecture } from '@/app/profile-options';
 
 const allowedBands = ['', 'revenue_10_30', 'revenue_30_70', 'revenue_70_100', 'revenue_100_plus'];
 const allowedBadges = ['', '緑', '赤', 'ゴールド', 'ダイヤモンド'];
@@ -24,6 +25,9 @@ export async function PATCH(request: Request) {
   }
   if (!allowedBadges.includes(badge)) {
     return NextResponse.json({ error: 'バッヂは緑・赤・ゴールド・ダイヤモンドから選択してください。' }, { status: 400 });
+  }
+  if (businessArea && !prefectures.includes(businessArea as Prefecture)) {
+    return NextResponse.json({ error: '活動エリアは47都道府県から選択してください。' }, { status: 400 });
   }
   let avatarUpload: { bytes: ArrayBuffer; contentType: string } | undefined;
   if (avatar instanceof File && avatar.size > 0) {
