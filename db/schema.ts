@@ -6,6 +6,7 @@ export const members = sqliteTable('members', {
   displayName: text('display_name').notNull(),
   venue: text('venue').notNull().default('ひるのめぐろ会場'),
   company: text('company').notNull().default(''),
+  annualRevenueBand: text('annual_revenue_band').notNull().default(''),
   introCount: integer('intro_count').notNull().default(0),
   dealCount: integer('deal_count').notNull().default(0),
   points: integer('points').notNull().default(0),

@@ -15,6 +15,13 @@
       "when": 1787803158912,
       "tag": "0001_moaning_luke_cage",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1787804131274,
+      "tag": "0002_flowery_vanisher",
+      "breakpoints": true
     }
   ]
 }

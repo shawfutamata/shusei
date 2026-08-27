@@ -1,0 +1,1 @@
+ALTER TABLE `members` ADD `annual_revenue_band` text DEFAULT '' NOT NULL;

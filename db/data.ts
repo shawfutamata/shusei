@@ -14,6 +14,7 @@ export type BoardRequest = {
   authorName: string;
   authorCompany: string;
   authorVenue: string;
+  authorRevenueBand: string;
   introCount: number;
 };
 
@@ -21,6 +22,7 @@ export type MemberStats = {
   displayName: string;
   venue: string;
   company: string;
+  annualRevenueBand: string;
   introCount: number;
   dealCount: number;
   points: number;
@@ -36,6 +38,7 @@ const statements = [
     display_name TEXT NOT NULL,
     venue TEXT NOT NULL DEFAULT 'ひるのめぐろ会場',
     company TEXT NOT NULL DEFAULT '',
+    annual_revenue_band TEXT NOT NULL DEFAULT '',
     intro_count INTEGER NOT NULL DEFAULT 0,
     deal_count INTEGER NOT NULL DEFAULT 0,
     points INTEGER NOT NULL DEFAULT 0,
@@ -77,7 +80,15 @@ let initialized = false;
 export async function ensureDatabase() {
   if (initialized) return;
   await env.DB.batch(statements.map((sql) => env.DB.prepare(sql)));
+  const memberColumns = await env.DB.prepare('PRAGMA table_info(members)').all<{ name: string }>();
+  if (!memberColumns.results.some((column) => column.name === 'annual_revenue_band')) {
+    await env.DB.prepare("ALTER TABLE members ADD COLUMN annual_revenue_band TEXT NOT NULL DEFAULT ''").run();
+  }
   await seedDemoData();
+  await env.DB.batch([
+    env.DB.prepare("UPDATE members SET annual_revenue_band = 'revenue_30_70' WHERE id = 'demo-tanaka' AND annual_revenue_band = ''"),
+    env.DB.prepare("UPDATE members SET annual_revenue_band = 'revenue_70_100' WHERE id = 'demo-sato' AND annual_revenue_band = ''"),
+  ]);
   initialized = true;
 }
 
@@ -110,6 +121,7 @@ export async function getBoardData(user: ChatGPTUser) {
   const requestsResult = await env.DB.prepare(`SELECT r.id, r.category, r.title, r.description,
     r.budget_label AS budgetLabel, r.area, r.deadline, r.status, r.created_at AS createdAt,
     m.display_name AS authorName, m.company AS authorCompany, m.venue AS authorVenue,
+    m.annual_revenue_band AS authorRevenueBand,
     COUNT(i.id) AS introCount
     FROM requests r
     JOIN members m ON m.id = r.author_id
@@ -119,11 +131,17 @@ export async function getBoardData(user: ChatGPTUser) {
     ORDER BY r.created_at DESC`).all<BoardRequest>();
 
   const member = await env.DB.prepare(`SELECT display_name AS displayName, venue, company,
+    annual_revenue_band AS annualRevenueBand,
     intro_count AS introCount, deal_count AS dealCount, points
     FROM members WHERE id = ?`).bind(user.userId).first<Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'>>();
 
-  const stats = calculateRank(member ?? { displayName: user.displayName, venue: 'ひるのめぐろ会場', company: '', introCount: 0, dealCount: 0, points: 0 });
+  const stats = calculateRank(member ?? { displayName: user.displayName, venue: 'ひるのめぐろ会場', company: '', annualRevenueBand: '', introCount: 0, dealCount: 0, points: 0 });
   return { requests: requestsResult.results, stats };
+}
+
+export async function updateMemberRevenueBand(user: ChatGPTUser, annualRevenueBand: string) {
+  await upsertMember(user);
+  await env.DB.prepare('UPDATE members SET annual_revenue_band = ? WHERE id = ?').bind(annualRevenueBand, user.userId).run();
 }
 
 export async function createRequest(user: ChatGPTUser, input: { category: string; title: string; description: string; budgetLabel: string; area: string; deadline: string; }) {
