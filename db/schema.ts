@@ -10,6 +10,8 @@ export const members = sqliteTable('members', {
   badge: text('badge').notNull().default(''),
   businessArea: text('business_area').notNull().default(''),
   annualRevenueBand: text('annual_revenue_band').notNull().default(''),
+  avatarKey: text('avatar_key').notNull().default(''),
+  avatarVersion: integer('avatar_version').notNull().default(0),
   introCount: integer('intro_count').notNull().default(0),
   dealCount: integer('deal_count').notNull().default(0),
   points: integer('points').notNull().default(0),

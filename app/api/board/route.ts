@@ -21,8 +21,12 @@ export async function POST(request: Request) {
   if (!['project', 'collaboration', 'consultation'].includes(category) || !title || !description || !budgetLabel || !area || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
     return NextResponse.json({ error: '入力内容を確認してください。' }, { status: 400 });
   }
-  const id = await createRequest(user, { category, title, description, budgetLabel, area, deadline });
-  return NextResponse.json({ id }, { status: 201 });
+  try {
+    const id = await createRequest(user, { category, title, description, budgetLabel, area, deadline });
+    return NextResponse.json({ id }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : '投稿できませんでした。' }, { status: 400 });
+  }
 }
 
 function clean(value: unknown, max: number) {

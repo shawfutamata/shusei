@@ -18,6 +18,7 @@ export type BoardRequest = {
   authorBadge: string;
   authorBusinessArea: string;
   authorRevenueBand: string;
+  authorAvatarUrl: string;
   introCount: number;
 };
 
@@ -29,6 +30,7 @@ export type MemberStats = {
   badge: string;
   businessArea: string;
   annualRevenueBand: string;
+  avatarUrl: string;
   introCount: number;
   dealCount: number;
   points: number;
@@ -48,6 +50,8 @@ const statements = [
     badge TEXT NOT NULL DEFAULT '',
     business_area TEXT NOT NULL DEFAULT '',
     annual_revenue_band TEXT NOT NULL DEFAULT '',
+    avatar_key TEXT NOT NULL DEFAULT '',
+    avatar_version INTEGER NOT NULL DEFAULT 0,
     intro_count INTEGER NOT NULL DEFAULT 0,
     deal_count INTEGER NOT NULL DEFAULT 0,
     points INTEGER NOT NULL DEFAULT 0,
@@ -96,6 +100,8 @@ export async function ensureDatabase() {
     ['badge', "ALTER TABLE members ADD COLUMN badge TEXT NOT NULL DEFAULT ''"],
     ['business_area', "ALTER TABLE members ADD COLUMN business_area TEXT NOT NULL DEFAULT ''"],
     ['annual_revenue_band', "ALTER TABLE members ADD COLUMN annual_revenue_band TEXT NOT NULL DEFAULT ''"],
+    ['avatar_key', "ALTER TABLE members ADD COLUMN avatar_key TEXT NOT NULL DEFAULT ''"],
+    ['avatar_version', 'ALTER TABLE members ADD COLUMN avatar_version INTEGER NOT NULL DEFAULT 0'],
   ];
   for (const [columnName, sql] of missingColumns) {
     if (!existingColumns.has(columnName)) await env.DB.prepare(sql).run();
@@ -142,33 +148,55 @@ export async function getBoardData(user: ChatGPTUser) {
     m.position_title AS authorPositionTitle, m.badge AS authorBadge,
     m.business_area AS authorBusinessArea,
     m.annual_revenue_band AS authorRevenueBand,
+    m.id AS authorId, m.avatar_key AS authorAvatarKey, m.avatar_version AS authorAvatarVersion,
     COUNT(i.id) AS introCount
     FROM requests r
     JOIN members m ON m.id = r.author_id
     LEFT JOIN introductions i ON i.request_id = r.id
     WHERE r.status = 'open'
     GROUP BY r.id
-    ORDER BY r.created_at DESC`).all<BoardRequest>();
+    ORDER BY r.created_at DESC`).all<BoardRequest & { authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
 
   const member = await env.DB.prepare(`SELECT display_name AS displayName, venue, company,
     position_title AS positionTitle, badge, business_area AS businessArea,
     annual_revenue_band AS annualRevenueBand,
+    avatar_key AS avatarKey, avatar_version AS avatarVersion,
     intro_count AS introCount, deal_count AS dealCount, points
-    FROM members WHERE id = ?`).bind(user.userId).first<Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'>>();
+    FROM members WHERE id = ?`).bind(user.userId).first<Omit<MemberStats, 'rank' | 'level' | 'nextRankAt' | 'avatarUrl'> & { avatarKey: string; avatarVersion: number }>();
 
-  const stats = calculateRank(member ?? { displayName: user.displayName, venue: 'ひるのめぐろ会場', company: '', positionTitle: '', badge: '', businessArea: '', annualRevenueBand: '', introCount: 0, dealCount: 0, points: 0 });
-  return { requests: requestsResult.results, stats };
+  const baseMember = member ?? { displayName: user.displayName, venue: 'ひるのめぐろ会場', company: '', positionTitle: '', badge: '', businessArea: '', annualRevenueBand: '', avatarKey: '', avatarVersion: 0, introCount: 0, dealCount: 0, points: 0 };
+  const stats = calculateRank({ ...baseMember, avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion) });
+  const requests = requestsResult.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, ...request }) => ({
+    ...request,
+    authorAvatarUrl: avatarUrl(authorId, authorAvatarKey, authorAvatarVersion),
+  }));
+  return { requests, stats };
 }
 
-export async function updateMemberProfile(user: ChatGPTUser, input: { company: string; venue: string; positionTitle: string; badge: string; businessArea: string; annualRevenueBand: string; }) {
+export async function updateMemberProfile(user: ChatGPTUser, input: { company: string; venue: string; positionTitle: string; badge: string; businessArea: string; annualRevenueBand: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {
   await upsertMember(user);
+  const existing = await env.DB.prepare('SELECT avatar_key AS avatarKey, avatar_version AS avatarVersion FROM members WHERE id = ?')
+    .bind(user.userId).first<{ avatarKey: string; avatarVersion: number }>();
+  let avatarKey = existing?.avatarKey ?? '';
+  let avatarVersion = existing?.avatarVersion ?? 0;
+  if (input.avatar) {
+    avatarKey = `member-photos/${user.userId}`;
+    avatarVersion = Date.now();
+    await env.AVATARS.put(avatarKey, input.avatar.bytes, {
+      httpMetadata: { contentType: input.avatar.contentType },
+      customMetadata: { ownerId: user.userId },
+    });
+  }
+  if (!avatarKey) throw new Error('顔写真を登録してください。');
   await env.DB.prepare(`UPDATE members SET company = ?, venue = ?, position_title = ?, badge = ?,
-    business_area = ?, annual_revenue_band = ? WHERE id = ?`)
-    .bind(input.company, input.venue, input.positionTitle, input.badge, input.businessArea, input.annualRevenueBand, user.userId).run();
+    business_area = ?, annual_revenue_band = ?, avatar_key = ?, avatar_version = ? WHERE id = ?`)
+    .bind(input.company, input.venue, input.positionTitle, input.badge, input.businessArea, input.annualRevenueBand, avatarKey, avatarVersion, user.userId).run();
+  return avatarUrl(user.userId, avatarKey, avatarVersion);
 }
 
 export async function createRequest(user: ChatGPTUser, input: { category: string; title: string; description: string; budgetLabel: string; area: string; deadline: string; }) {
   await upsertMember(user);
+  await requireFacePhoto(user.userId);
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   await env.DB.prepare('INSERT INTO requests (id, author_id, category, title, description, budget_label, area, deadline, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
@@ -178,6 +206,7 @@ export async function createRequest(user: ChatGPTUser, input: { category: string
 
 export async function createIntroduction(user: ChatGPTUser, input: { requestId: string; personName: string; personCompany: string; relationship: string; fitReason: string; }) {
   await upsertMember(user);
+  await requireFacePhoto(user.userId);
   const request = await env.DB.prepare('SELECT id FROM requests WHERE id = ? AND status = ?').bind(input.requestId, 'open').first();
   if (!request) throw new Error('募集が終了しているか、見つかりません。');
   const id = crypto.randomUUID();
@@ -187,6 +216,24 @@ export async function createIntroduction(user: ChatGPTUser, input: { requestId: 
     env.DB.prepare('UPDATE members SET intro_count = intro_count + 1, points = points + 10 WHERE id = ?').bind(user.userId),
   ]);
   return id;
+}
+
+export async function getMemberAvatar(memberId: string) {
+  await ensureDatabase();
+  const member = await env.DB.prepare('SELECT avatar_key AS avatarKey FROM members WHERE id = ?')
+    .bind(memberId).first<{ avatarKey: string }>();
+  if (!member?.avatarKey) return null;
+  return env.AVATARS.get(member.avatarKey);
+}
+
+async function requireFacePhoto(memberId: string) {
+  const member = await env.DB.prepare('SELECT avatar_key AS avatarKey FROM members WHERE id = ?')
+    .bind(memberId).first<{ avatarKey: string }>();
+  if (!member?.avatarKey) throw new Error('投稿・紹介の前に、プロフィールへ顔写真を登録してください。');
+}
+
+function avatarUrl(memberId: string, avatarKey: string, avatarVersion: number) {
+  return avatarKey ? `/api/avatar/${encodeURIComponent(memberId)}?v=${avatarVersion}` : '';
 }
 
 function calculateRank(member: Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'>): MemberStats {
