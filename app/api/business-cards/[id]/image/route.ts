@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getChatGPTUser } from '@/app/chatgpt-auth';
+import { getAppUser } from '@/app/app-auth';
 import { getBusinessCardImage } from '@/db/data';
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await getChatGPTUser();
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
   const { id } = await context.params;
   const object = await getBusinessCardImage(user, id);

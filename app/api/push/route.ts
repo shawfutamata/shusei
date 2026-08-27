@@ -1,16 +1,16 @@
 import { env } from 'cloudflare:workers';
 import { NextResponse } from 'next/server';
-import { getChatGPTUser } from '@/app/chatgpt-auth';
+import { getAppUser } from '@/app/app-auth';
 import { deletePushSubscription, savePushSubscription } from '@/db/data';
 
 export async function GET() {
-  const user = await getChatGPTUser();
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
   return NextResponse.json({ available: Boolean(env.VAPID_PUBLIC_KEY), publicKey: env.VAPID_PUBLIC_KEY || '' });
 }
 
 export async function POST(request: Request) {
-  const user = await getChatGPTUser();
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
   const body = await request.json() as { endpoint?: unknown; expirationTime?: unknown; keys?: { p256dh?: unknown; auth?: unknown } };
   const endpoint = typeof body.endpoint === 'string' ? body.endpoint.slice(0, 2048) : '';
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const user = await getChatGPTUser();
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
   const body = await request.json() as { endpoint?: unknown };
   const endpoint = typeof body.endpoint === 'string' ? body.endpoint.slice(0, 2048) : '';

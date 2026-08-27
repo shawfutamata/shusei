@@ -160,6 +160,27 @@ const statements = [
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS mobile_auth_codes (
+    email TEXT PRIMARY KEY,
+    code_hash TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    requested_at TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE TABLE IF NOT EXISTS mobile_sessions (
+    token_hash TEXT PRIMARY KEY,
+    member_id TEXT NOT NULL REFERENCES members(id),
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS mobile_push_tokens (
+    token TEXT PRIMARY KEY,
+    member_id TEXT NOT NULL REFERENCES members(id),
+    platform TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS attendance_events (
     id TEXT PRIMARY KEY,
     owner_id TEXT NOT NULL REFERENCES members(id),
@@ -208,6 +229,9 @@ const statements = [
   'CREATE INDEX IF NOT EXISTS idx_introductions_introducer_id ON introductions(introducer_id)',
   'CREATE INDEX IF NOT EXISTS idx_introductions_request_id ON introductions(request_id)',
   'CREATE INDEX IF NOT EXISTS idx_push_subscriptions_member_id ON push_subscriptions(member_id)',
+  'CREATE INDEX IF NOT EXISTS idx_mobile_sessions_member_id ON mobile_sessions(member_id)',
+  'CREATE INDEX IF NOT EXISTS idx_mobile_sessions_expires_at ON mobile_sessions(expires_at)',
+  'CREATE INDEX IF NOT EXISTS idx_mobile_push_tokens_member_id ON mobile_push_tokens(member_id)',
   'CREATE INDEX IF NOT EXISTS idx_attendance_events_owner_date ON attendance_events(owner_id, meeting_date)',
   'CREATE INDEX IF NOT EXISTS idx_attendance_people_event_id ON attendance_people(event_id)',
   'CREATE INDEX IF NOT EXISTS idx_attendance_people_owner_important ON attendance_people(owner_id, is_important)',
@@ -254,6 +278,178 @@ export async function ensureDatabase() {
     env.DB.prepare("UPDATE requests SET industry_tags = '[\"美容・健康\",\"建設・不動産\"]' WHERE id = 'request-salon-designer' AND industry_tags = '[]'"),
   ]);
   initialized = true;
+}
+
+export async function requestMobileAuthCode(rawEmail: string) {
+  await ensureDatabase();
+  const email = normalizeAuthEmail(rawEmail);
+  if (!email) throw new Error('正しいメールアドレスを入力してください。');
+
+  const existing = await env.DB.prepare('SELECT requested_at AS requestedAt FROM mobile_auth_codes WHERE email = ?')
+    .bind(email).first<{ requestedAt: string }>();
+  if (existing && Date.now() - new Date(existing.requestedAt).getTime() < 60_000) {
+    throw new Error('認証コードは1分後に再送できます。');
+  }
+
+  const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 10 * 60_000).toISOString();
+  const codeHash = await hashMobileSecret(`${email}:${code}`);
+  await env.DB.prepare(`INSERT INTO mobile_auth_codes (email, code_hash, expires_at, requested_at, attempts)
+    VALUES (?, ?, ?, ?, 0)
+    ON CONFLICT(email) DO UPDATE SET code_hash = excluded.code_hash, expires_at = excluded.expires_at,
+      requested_at = excluded.requested_at, attempts = 0`)
+    .bind(email, codeHash, expiresAt, now.toISOString()).run();
+
+  if (!env.RESEND_API_KEY || !env.AUTH_FROM_EMAIL) {
+    await env.DB.prepare('DELETE FROM mobile_auth_codes WHERE email = ?').bind(email).run();
+    throw new Error('メール認証の送信設定が未完了です。');
+  }
+  const delivery = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      from: env.AUTH_FROM_EMAIL,
+      to: [email],
+      subject: '会員アプリ ログイン認証コード',
+      html: `<div style="font-family:Arial,sans-serif;color:#15213a"><h2>ログイン認証コード</h2><p>アプリに次の6桁を入力してください。</p><p style="font-size:34px;font-weight:800;letter-spacing:8px;color:#2563eb">${code}</p><p>有効期限は10分です。心当たりがない場合はこのメールを破棄してください。</p></div>`,
+    }),
+  });
+  if (!delivery.ok) {
+    await env.DB.prepare('DELETE FROM mobile_auth_codes WHERE email = ?').bind(email).run();
+    throw new Error('認証メールを送信できませんでした。');
+  }
+}
+
+export async function verifyMobileAuthCode(rawEmail: string, rawCode: string) {
+  await ensureDatabase();
+  const email = normalizeAuthEmail(rawEmail);
+  const code = rawCode.trim();
+  if (!email || !/^\d{6}$/.test(code)) throw new Error('メールアドレスと6桁のコードを確認してください。');
+  const row = await env.DB.prepare(`SELECT code_hash AS codeHash, expires_at AS expiresAt, attempts
+    FROM mobile_auth_codes WHERE email = ?`).bind(email).first<{ codeHash: string; expiresAt: string; attempts: number }>();
+  if (!row || new Date(row.expiresAt).getTime() < Date.now() || row.attempts >= 5) {
+    await env.DB.prepare('DELETE FROM mobile_auth_codes WHERE email = ?').bind(email).run();
+    throw new Error('認証コードの有効期限が切れています。再送してください。');
+  }
+  const codeHash = await hashMobileSecret(`${email}:${code}`);
+  if (!safeHashEqual(codeHash, row.codeHash)) {
+    await env.DB.prepare('UPDATE mobile_auth_codes SET attempts = attempts + 1 WHERE email = ?').bind(email).run();
+    throw new Error('認証コードが違います。');
+  }
+
+  let member = await env.DB.prepare('SELECT id, display_name AS displayName FROM members WHERE email = ?')
+    .bind(email).first<{ id: string; displayName: string }>();
+  if (!member) {
+    member = { id: `mobile-${crypto.randomUUID()}`, displayName: email.split('@')[0] };
+    await env.DB.prepare('INSERT INTO members (id, email, display_name, venue, created_at) VALUES (?, ?, ?, ?, ?)')
+      .bind(member.id, email, member.displayName, '', new Date().toISOString()).run();
+  }
+
+  const token = randomMobileToken();
+  const tokenHash = await hashMobileSecret(token);
+  const now = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + 30 * 86400_000).toISOString();
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM mobile_auth_codes WHERE email = ?').bind(email),
+    env.DB.prepare('DELETE FROM mobile_sessions WHERE expires_at < ?').bind(now),
+    env.DB.prepare(`INSERT INTO mobile_sessions (token_hash, member_id, expires_at, created_at, last_seen_at)
+      VALUES (?, ?, ?, ?, ?)`).bind(tokenHash, member.id, expiresAt, now, now),
+  ]);
+  return { token, expiresAt, user: { userId: member.id, email, displayName: member.displayName, fullName: member.displayName } satisfies ChatGPTUser };
+}
+
+export async function getMobileSessionUser(token: string): Promise<ChatGPTUser | null> {
+  await ensureDatabase();
+  if (token.length < 32 || token.length > 256) return null;
+  const tokenHash = await hashMobileSecret(token);
+  const now = new Date().toISOString();
+  const row = await env.DB.prepare(`SELECT m.id AS userId, m.email, m.display_name AS displayName,
+    s.expires_at AS expiresAt FROM mobile_sessions s JOIN members m ON m.id = s.member_id
+    WHERE s.token_hash = ? AND s.expires_at > ?`).bind(tokenHash, now)
+    .first<{ userId: string; email: string; displayName: string; expiresAt: string }>();
+  if (!row) return null;
+  await env.DB.prepare('UPDATE mobile_sessions SET last_seen_at = ? WHERE token_hash = ?').bind(now, tokenHash).run();
+  return { userId: row.userId, email: row.email, displayName: row.displayName, fullName: row.displayName };
+}
+
+export async function revokeMobileSession(token: string) {
+  await ensureDatabase();
+  if (token.length < 32 || token.length > 256) return;
+  await env.DB.prepare('DELETE FROM mobile_sessions WHERE token_hash = ?').bind(await hashMobileSecret(token)).run();
+}
+
+export async function saveMobilePushToken(user: ChatGPTUser, token: string, platform: string) {
+  await upsertMember(user);
+  if (!/^ExponentPushToken\[[A-Za-z0-9_-]+\]$/.test(token) && !/^ExpoPushToken\[[A-Za-z0-9_-]+\]$/.test(token)) {
+    throw new Error('通知端末を登録できませんでした。');
+  }
+  const safePlatform = platform === 'ios' || platform === 'android' ? platform : 'unknown';
+  const now = new Date().toISOString();
+  await env.DB.prepare(`INSERT INTO mobile_push_tokens (token, member_id, platform, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(token) DO UPDATE SET member_id = excluded.member_id, platform = excluded.platform,
+      updated_at = excluded.updated_at`)
+    .bind(token, user.userId, safePlatform, now, now).run();
+}
+
+export async function deleteMobilePushToken(user: ChatGPTUser, token: string) {
+  await ensureDatabase();
+  await env.DB.prepare('DELETE FROM mobile_push_tokens WHERE token = ? AND member_id = ?')
+    .bind(token, user.userId).run();
+}
+
+export async function deleteMobileAccount(user: ChatGPTUser) {
+  await ensureDatabase();
+  const member = await env.DB.prepare('SELECT avatar_key AS avatarKey FROM members WHERE id = ?')
+    .bind(user.userId).first<{ avatarKey: string }>();
+  if (!member) return;
+  const cardImages = await env.DB.prepare('SELECT image_key AS imageKey FROM business_cards WHERE owner_id = ?')
+    .bind(user.userId).all<{ imageKey: string }>();
+  const eventIds = await env.DB.prepare('SELECT id FROM attendance_events WHERE owner_id = ?')
+    .bind(user.userId).all<{ id: string }>();
+  const requestIds = await env.DB.prepare('SELECT id FROM requests WHERE author_id = ?')
+    .bind(user.userId).all<{ id: string }>();
+  const statementsToDelete = [
+    ...requestIds.results.map(({ id }) => env.DB.prepare('DELETE FROM introductions WHERE request_id = ?').bind(id)),
+    ...eventIds.results.map(({ id }) => env.DB.prepare('DELETE FROM attendance_people WHERE event_id = ?').bind(id)),
+    env.DB.prepare('DELETE FROM introductions WHERE introducer_id = ?').bind(user.userId),
+    env.DB.prepare('DELETE FROM push_subscriptions WHERE member_id = ?').bind(user.userId),
+    env.DB.prepare('DELETE FROM mobile_push_tokens WHERE member_id = ?').bind(user.userId),
+    env.DB.prepare('DELETE FROM mobile_sessions WHERE member_id = ?').bind(user.userId),
+    env.DB.prepare('DELETE FROM business_cards WHERE owner_id = ?').bind(user.userId),
+    env.DB.prepare('DELETE FROM attendance_people WHERE owner_id = ?').bind(user.userId),
+    env.DB.prepare('DELETE FROM attendance_events WHERE owner_id = ?').bind(user.userId),
+    env.DB.prepare('DELETE FROM requests WHERE author_id = ?').bind(user.userId),
+    env.DB.prepare('DELETE FROM mobile_auth_codes WHERE email = ?').bind(user.email.toLowerCase()),
+    env.DB.prepare('DELETE FROM members WHERE id = ?').bind(user.userId),
+  ];
+  await env.DB.batch(statementsToDelete);
+  const objectKeys = [member.avatarKey, ...cardImages.results.map(({ imageKey }) => imageKey)].filter(Boolean);
+  await Promise.allSettled(objectKeys.map((key) => env.AVATARS.delete(key)));
+}
+
+function normalizeAuthEmail(value: string) {
+  const email = value.trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254 ? email : '';
+}
+
+async function hashMobileSecret(value: string) {
+  if (!env.AUTH_CODE_PEPPER) throw new Error('認証用の秘密鍵が未設定です。');
+  const bytes = new TextEncoder().encode(`${value}:${env.AUTH_CODE_PEPPER}`);
+  return [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function safeHashEqual(left: string, right: string) {
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  return difference === 0;
+}
+
+function randomMobileToken() {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
 async function seedDemoData() {
@@ -350,6 +546,7 @@ export async function createRequest(user: ChatGPTUser, input: { category: string
   await env.DB.prepare('INSERT INTO requests (id, author_id, category, title, description, budget_label, area, industry_tags, deadline, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
     .bind(id, user.userId, input.category, input.title, input.description, input.budgetLabel, input.area, JSON.stringify(input.industryTags), input.deadline, 'open', createdAt).run();
   await sendMatchingPushNotifications(user.userId, { id, title: input.title, industryTags: input.industryTags }).catch(() => undefined);
+  await sendMatchingMobileNotifications(user.userId, { id, title: input.title, industryTags: input.industryTags }).catch(() => undefined);
   return id;
 }
 
@@ -589,6 +786,30 @@ async function sendMatchingPushNotifications(authorId: string, request: { id: st
   if (expiredEndpoints.length) {
     await env.DB.batch(expiredEndpoints.map((endpoint) => env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(endpoint)));
   }
+}
+
+async function sendMatchingMobileNotifications(authorId: string, request: { id: string; title: string; industryTags: string[] }) {
+  if (!request.industryTags.length) return;
+  const subscriptions = await env.DB.prepare(`SELECT p.token, m.notify_industries AS notifyIndustriesJson
+    FROM mobile_push_tokens p JOIN members m ON m.id = p.member_id
+    WHERE p.member_id != ?`).bind(authorId).all<{ token: string; notifyIndustriesJson: string }>();
+  const targets = subscriptions.results.filter((subscription) => {
+    const wanted = parseStringArray(subscription.notifyIndustriesJson);
+    return wanted.some((industry) => matchesIndustry(request.industryTags, industry));
+  });
+  if (!targets.length) return;
+  const response = await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: { accept: 'application/json', 'content-type': 'application/json' },
+    body: JSON.stringify(targets.map(({ token }) => ({
+      to: token,
+      sound: 'default',
+      title: '関連する探しごとが投稿されました',
+      body: request.title,
+      data: { requestId: request.id, path: '/requests' },
+    }))),
+  });
+  if (!response.ok) throw new Error('端末通知を送信できませんでした。');
 }
 
 function parseStringArray(value: string) {

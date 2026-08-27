@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getChatGPTUser } from '@/app/chatgpt-auth';
+import { getAppUser } from '@/app/app-auth';
 import { createBusinessCards, deleteBusinessCard, getBusinessCards, updateBusinessCard, type BusinessCardInput } from '@/db/data';
 
 const MAX_CARDS = 20;
@@ -7,13 +7,13 @@ const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
 export async function GET() {
-  const user = await getChatGPTUser();
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
   return NextResponse.json({ cards: await getBusinessCards(user) });
 }
 
 export async function POST(request: Request) {
-  const user = await getChatGPTUser();
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
   try {
     const body = await request.formData();
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const user = await getChatGPTUser();
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
   try {
     const raw = await request.json() as Record<string, unknown>;
@@ -52,7 +52,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const user = await getChatGPTUser();
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
   try {
     const body = await request.json() as Record<string, unknown>;

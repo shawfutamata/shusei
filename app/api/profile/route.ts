@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getChatGPTUser } from '@/app/chatgpt-auth';
+import { getAppUser } from '@/app/app-auth';
 import { updateMemberProfile } from '@/db/data';
 import { prefectures, type Prefecture } from '@/app/profile-options';
 import { isIndustry } from '@/app/industry-options';
@@ -8,7 +8,7 @@ const allowedBands = ['', 'revenue_10_30', 'revenue_30_70', 'revenue_70_100', 'r
 const allowedBadges = ['', '緑', '赤', 'ゴールド', 'ダイヤモンド'];
 
 export async function PATCH(request: Request) {
-  const user = await getChatGPTUser();
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
   const body = await request.formData();
   const company = clean(body.get('company'), 80);
