@@ -14,7 +14,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: 'portrait',
   scheme: 'memberhub',
   userInterfaceStyle: 'light',
-  icon: './assets/givehub/app-icon.png',
+  icon: './assets/givehub/app-icon-v2.png',
   ios: {
     bundleIdentifier: iosBundleIdentifier,
     supportsTablet: false,
@@ -26,7 +26,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: androidPackage,
     adaptiveIcon: {
-      foregroundImage: './assets/givehub/app-icon.png',
+      foregroundImage: './assets/givehub/app-icon-v2.png',
       backgroundColor: '#2563EB',
     },
     permissions: ['CAMERA', 'POST_NOTIFICATIONS'],
@@ -37,7 +37,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-notifications',
     ['expo-camera', { cameraPermission: '名刺を撮影して名刺リストへ登録するためにカメラを使用します。' }],
     ['expo-image-picker', { photosPermission: '名刺やプロフィール写真を選択するために写真を使用します。' }],
-    ['expo-splash-screen', { backgroundColor: '#2563EB', image: './assets/givehub/app-icon.png', imageWidth: 116 }],
+    ['expo-splash-screen', { backgroundColor: '#2563EB', image: './assets/givehub/app-icon-v2.png', imageWidth: 116 }],
   ],
   experiments: { typedRoutes: true, reactCompiler: true },
   extra: {
