@@ -16,6 +16,7 @@
 - [x] 1024pxストアアイコン
 - [x] プライバシーポリシー下書き
 - [x] iOS / Android Metro production bundle検証
+- [x] iOS / Android native prebuildと日英OCRモデル設定検証
 
 ## アカウント接続後
 

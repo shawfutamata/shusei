@@ -37,6 +37,7 @@ const appConfig = ({ config }: ConfigContext): ExpoConfig => ({
     'expo-notifications',
     ['expo-camera', { cameraPermission: '名刺を撮影して名刺リストへ登録するためにカメラを使用します。' }],
     ['expo-image-picker', { photosPermission: '名刺やプロフィール写真を選択するために写真を使用します。' }],
+    './plugins/with-mlkit-ocr-ios',
     ['rn-mlkit-ocr', { ocrModels: ['latin', 'japanese'], ocrUseBundled: true }],
     ['expo-splash-screen', { backgroundColor: '#2563EB', image: './assets/givehub/app-icon-v2.png', imageWidth: 116 }],
   ],
