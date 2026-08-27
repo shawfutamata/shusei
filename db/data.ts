@@ -315,7 +315,8 @@ export async function requestMobileAuthCode(rawEmail: string) {
     throw new Error('認証コードは1分後に再送できます。');
   }
 
-  const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
+  const reviewCode = configuredReviewCode(email);
+  const code = reviewCode || String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 10 * 60_000).toISOString();
   const codeHash = await hashMobileSecret(`${email}:${code}`);
@@ -324,6 +325,8 @@ export async function requestMobileAuthCode(rawEmail: string) {
     ON CONFLICT(email) DO UPDATE SET code_hash = excluded.code_hash, expires_at = excluded.expires_at,
       requested_at = excluded.requested_at, attempts = 0`)
     .bind(email, codeHash, expiresAt, now.toISOString()).run();
+
+  if (reviewCode) return;
 
   if (!env.RESEND_API_KEY || !env.AUTH_FROM_EMAIL) {
     await env.DB.prepare('DELETE FROM mobile_auth_codes WHERE email = ?').bind(email).run();
@@ -481,6 +484,12 @@ export async function deleteMobileAccount(user: ChatGPTUser) {
 function normalizeAuthEmail(value: string) {
   const email = value.trim().toLowerCase();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254 ? email : '';
+}
+
+function configuredReviewCode(email: string) {
+  const reviewEmail = normalizeAuthEmail(String(env.REVIEW_AUTH_EMAIL || ''));
+  const reviewCode = String(env.REVIEW_AUTH_CODE || '').trim();
+  return email === reviewEmail && /^\d{6}$/.test(reviewCode) ? reviewCode : '';
 }
 
 function normalizeMembershipStatus(value: unknown): MembershipStatus {

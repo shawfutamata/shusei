@@ -25,6 +25,7 @@
 ## アカウント接続後
 
 - [ ] Resend APIキーと認証メール送信元を設定
+- [ ] 審査専用メールと6桁コードをSitesの秘密環境変数へ設定
 - [ ] Sitesを公開アクセスへ変更し、Bearer保護APIを実機確認
 - [ ] ExpoアカウントへログインしEAS projectIdを確定
 - [ ] iOS preview buildを実機配布
