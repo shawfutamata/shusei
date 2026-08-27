@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import type { ChatGPTUser } from '@/app/chatgpt-auth';
+import { matchesIndustry } from '@/app/industry-options';
 
 export type BoardRequest = {
   id: string;
@@ -559,8 +560,8 @@ async function sendMatchingPushNotifications(authorId: string, request: { id: st
     FROM push_subscriptions p JOIN members m ON m.id = p.member_id
     WHERE p.member_id != ?`).bind(authorId).all<{ endpoint: string; p256dh: string; auth: string; notifyIndustriesJson: string }>();
   const targets = subscriptions.results.filter((subscription) => {
-    const wanted = new Set(parseStringArray(subscription.notifyIndustriesJson));
-    return request.industryTags.some((industry) => wanted.has(industry));
+    const wanted = parseStringArray(subscription.notifyIndustriesJson);
+    return wanted.some((industry) => matchesIndustry(request.industryTags, industry));
   });
   const expiredEndpoints: string[] = [];
   await Promise.allSettled(targets.map(async (target) => {
