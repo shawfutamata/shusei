@@ -60,6 +60,29 @@ export type AttendanceEvent = {
   people: AttendancePerson[];
 };
 
+export type BusinessCard = {
+  id: string;
+  name: string;
+  company: string;
+  positionTitle: string;
+  department: string;
+  phone: string;
+  mobile: string;
+  email: string;
+  postalCode: string;
+  address: string;
+  website: string;
+  memo: string;
+  groupName: string;
+  exchangeDate: string;
+  isFavorite: boolean;
+  imageUrl: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BusinessCardInput = Omit<BusinessCard, 'id' | 'imageUrl' | 'createdAt' | 'updatedAt' | 'isFavorite'> & { isFavorite?: boolean };
+
 const statements = [
   `CREATE TABLE IF NOT EXISTS members (
     id TEXT PRIMARY KEY,
@@ -123,6 +146,29 @@ const statements = [
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS business_cards (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL REFERENCES members(id),
+    name TEXT NOT NULL DEFAULT '',
+    company TEXT NOT NULL DEFAULT '',
+    position_title TEXT NOT NULL DEFAULT '',
+    department TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    mobile TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT '',
+    postal_code TEXT NOT NULL DEFAULT '',
+    address TEXT NOT NULL DEFAULT '',
+    website TEXT NOT NULL DEFAULT '',
+    memo TEXT NOT NULL DEFAULT '',
+    group_name TEXT NOT NULL DEFAULT '',
+    exchange_date TEXT NOT NULL,
+    image_key TEXT NOT NULL,
+    image_content_type TEXT NOT NULL,
+    image_version INTEGER NOT NULL DEFAULT 0,
+    is_favorite INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
   'CREATE INDEX IF NOT EXISTS idx_requests_status_created_at ON requests(status, created_at)',
   'CREATE INDEX IF NOT EXISTS idx_requests_category ON requests(category)',
   'CREATE INDEX IF NOT EXISTS idx_introductions_introducer_id ON introductions(introducer_id)',
@@ -130,6 +176,8 @@ const statements = [
   'CREATE INDEX IF NOT EXISTS idx_attendance_events_owner_date ON attendance_events(owner_id, meeting_date)',
   'CREATE INDEX IF NOT EXISTS idx_attendance_people_event_id ON attendance_people(event_id)',
   'CREATE INDEX IF NOT EXISTS idx_attendance_people_owner_important ON attendance_people(owner_id, is_important)',
+  'CREATE INDEX IF NOT EXISTS idx_business_cards_owner_date ON business_cards(owner_id, exchange_date)',
+  'CREATE INDEX IF NOT EXISTS idx_business_cards_owner_favorite ON business_cards(owner_id, is_favorite)',
 ];
 
 let initialized = false;
@@ -326,6 +374,80 @@ export async function updateAttendancePerson(user: ChatGPTUser, input: {
   if (!result.meta.changes) throw new Error('対象の出席者が見つかりません。');
 }
 
+export async function getBusinessCards(user: ChatGPTUser) {
+  await upsertMember(user);
+  const result = await env.DB.prepare(`SELECT id, name, company, position_title AS positionTitle,
+    department, phone, mobile, email, postal_code AS postalCode, address, website, memo,
+    group_name AS groupName, exchange_date AS exchangeDate, is_favorite AS isFavorite,
+    image_version AS imageVersion, created_at AS createdAt, updated_at AS updatedAt
+    FROM business_cards WHERE owner_id = ? ORDER BY exchange_date DESC, created_at DESC`)
+    .bind(user.userId).all<Omit<BusinessCard, 'imageUrl' | 'isFavorite'> & { isFavorite: number; imageVersion: number }>();
+  return result.results.map(({ imageVersion, ...card }) => ({
+    ...card,
+    isFavorite: Boolean(card.isFavorite),
+    imageUrl: businessCardImageUrl(card.id, imageVersion),
+  }));
+}
+
+export async function createBusinessCards(user: ChatGPTUser, inputs: Array<{ card: BusinessCardInput; image: { bytes: ArrayBuffer; contentType: string } }>) {
+  await upsertMember(user);
+  if (!inputs.length || inputs.length > 20) throw new Error('名刺は1回につき1〜20枚まで保存できます。');
+  const createdAt = new Date().toISOString();
+  const rows = [] as Array<{ id: string; imageKey: string; imageVersion: number; card: BusinessCardInput; contentType: string }>;
+  for (const item of inputs) {
+    const id = crypto.randomUUID();
+    const imageKey = `business-cards/${user.userId}/${id}`;
+    const imageVersion = Date.now();
+    await env.AVATARS.put(imageKey, item.image.bytes, {
+      httpMetadata: { contentType: item.image.contentType },
+      customMetadata: { ownerId: user.userId, cardId: id },
+    });
+    rows.push({ id, imageKey, imageVersion, card: item.card, contentType: item.image.contentType });
+  }
+  try {
+    await env.DB.batch(rows.map(({ id, imageKey, imageVersion, card, contentType }) => env.DB.prepare(`INSERT INTO business_cards
+      (id, owner_id, name, company, position_title, department, phone, mobile, email, postal_code,
+       address, website, memo, group_name, exchange_date, image_key, image_content_type, image_version,
+       is_favorite, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(id, user.userId, card.name, card.company, card.positionTitle, card.department, card.phone,
+        card.mobile, card.email, card.postalCode, card.address, card.website, card.memo, card.groupName,
+        card.exchangeDate, imageKey, contentType, imageVersion, card.isFavorite ? 1 : 0, createdAt, createdAt)));
+  } catch (error) {
+    await Promise.all(rows.map(({ imageKey }) => env.AVATARS.delete(imageKey)));
+    throw error;
+  }
+  return rows.map(({ id, imageVersion }) => ({ id, imageUrl: businessCardImageUrl(id, imageVersion) }));
+}
+
+export async function updateBusinessCard(user: ChatGPTUser, input: BusinessCardInput & { id: string }) {
+  await upsertMember(user);
+  const updatedAt = new Date().toISOString();
+  const result = await env.DB.prepare(`UPDATE business_cards SET name = ?, company = ?, position_title = ?,
+    department = ?, phone = ?, mobile = ?, email = ?, postal_code = ?, address = ?, website = ?, memo = ?,
+    group_name = ?, exchange_date = ?, is_favorite = ?, updated_at = ? WHERE id = ? AND owner_id = ?`)
+    .bind(input.name, input.company, input.positionTitle, input.department, input.phone, input.mobile,
+      input.email, input.postalCode, input.address, input.website, input.memo, input.groupName,
+      input.exchangeDate, input.isFavorite ? 1 : 0, updatedAt, input.id, user.userId).run();
+  if (!result.meta.changes) throw new Error('対象の名刺が見つかりません。');
+}
+
+export async function deleteBusinessCard(user: ChatGPTUser, id: string) {
+  await upsertMember(user);
+  const card = await env.DB.prepare('SELECT image_key AS imageKey FROM business_cards WHERE id = ? AND owner_id = ?')
+    .bind(id, user.userId).first<{ imageKey: string }>();
+  if (!card) throw new Error('対象の名刺が見つかりません。');
+  await env.DB.prepare('DELETE FROM business_cards WHERE id = ? AND owner_id = ?').bind(id, user.userId).run();
+  await env.AVATARS.delete(card.imageKey);
+}
+
+export async function getBusinessCardImage(user: ChatGPTUser, id: string) {
+  await upsertMember(user);
+  const card = await env.DB.prepare(`SELECT image_key AS imageKey FROM business_cards WHERE id = ? AND owner_id = ?`)
+    .bind(id, user.userId).first<{ imageKey: string }>();
+  return card?.imageKey ? env.AVATARS.get(card.imageKey) : null;
+}
+
 async function requireFacePhoto(memberId: string) {
   const member = await env.DB.prepare('SELECT avatar_key AS avatarKey FROM members WHERE id = ?')
     .bind(memberId).first<{ avatarKey: string }>();
@@ -334,6 +456,10 @@ async function requireFacePhoto(memberId: string) {
 
 function avatarUrl(memberId: string, avatarKey: string, avatarVersion: number) {
   return avatarKey ? `/api/avatar/${encodeURIComponent(memberId)}?v=${avatarVersion}` : '';
+}
+
+function businessCardImageUrl(id: string, version: number) {
+  return `/api/business-cards/${encodeURIComponent(id)}/image?v=${version}`;
 }
 
 function calculateRank(member: Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'>): MemberStats {

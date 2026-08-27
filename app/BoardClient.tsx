@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import type { BoardRequest, MemberStats } from '@/db/data';
 import AttendanceManager from './AttendanceManager';
+import BusinessCardManager from './BusinessCardManager';
 
 const categories = {
   project: { label: '案件', className: 'project' },
@@ -40,7 +41,8 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [croppedArea, setCroppedArea] = useState<Area | null>(null);
   const [cropping, setCropping] = useState(false);
   const [profileTab, setProfileTab] = useState<'profile' | 'attendance' | 'important'>('profile');
-  const [modal, setModal] = useState<'request' | 'intro' | 'profile' | null>(initialStats.avatarUrl ? null : 'profile');
+  const [modal, setModal] = useState<'request' | 'intro' | 'profile' | 'cards' | null>(initialStats.avatarUrl ? null : 'profile');
+  const [cardStartMode, setCardStartMode] = useState<'list' | 'capture'>('list');
   const [selected, setSelected] = useState<BoardRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
@@ -136,6 +138,8 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     setSelected(need); setModal('intro');
   }
 
+  function openCards(mode: 'list' | 'capture') { setCardStartMode(mode); setModal('cards'); }
+
   function showToast(message: string) { setToast(message); window.setTimeout(() => setToast(''), 3800); }
   function scrollTo(id: string) { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 
@@ -155,7 +159,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
 
       <section className="quick-actions" aria-label="クイック操作">
         <button className="quick-card primary" onClick={openRequest}><span className="quick-icon">＋</span><span><b>探しごとを投稿</b><small>案件・協業先を募集</small></span><i>›</i></button>
-        <label className="quick-card camera" htmlFor="card-camera"><span className="quick-icon">▣</span><span><b>名刺を読み取る</b><small>カメラでその場で保存</small></span><i>›</i><input id="card-camera" type="file" accept="image/*" capture="environment" onChange={(event) => { if (event.target.files?.[0]) showToast('名刺を撮影しました。読み取り画面へ進みます。'); }} /></label>
+        <button className="quick-card camera" onClick={() => openCards('capture')}><span className="quick-icon">▣</span><span><b>名刺をまとめて読み取る</b><small>複数枚の撮影・写真選択に対応</small></span><i>›</i></button>
       </section>
 
       {!stats.avatarUrl && <button className="photo-required-banner" onClick={() => { setProfileTab('profile'); setModal('profile'); }}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・紹介ができます。</b><i>登録する →</i></button>}
@@ -187,7 +191,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <button className="active" onClick={() => scrollTo('home')}><span>⌂</span><small>ホーム</small></button>
         <button onClick={() => scrollTo('board')}><span>⌕</span><small>探す</small></button>
         <button className="nav-post" onClick={openRequest} aria-label="探しごとを投稿する"><span>＋</span></button>
-        <label htmlFor="card-camera"><span>▣</span><small>名刺</small></label>
+        <button onClick={() => openCards('list')}><span>▣</span><small>名刺</small></button>
         <button onClick={() => { setProfileTab('profile'); setModal('profile'); }}><span>●</span><small>マイ</small></button>
       </nav>
 
@@ -204,6 +208,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         <button onClick={saveProfile} disabled={busy || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : '顔写真とプロフィールを保存する'}</button>
       </div>}{profileTab !== 'profile' && <AttendanceManager view={profileTab} defaultVenue={stats.venue} onNotice={showToast} />}</Modal>}
+      {modal === 'cards' && <BusinessCardManager initialMode={cardStartMode} onClose={() => setModal(null)} onNotice={showToast} />}
       {cropSource && <div className="crop-backdrop"><section className="crop-dialog" role="dialog" aria-modal="true" aria-labelledby="crop-title"><header><button onClick={() => setCropSource('')}>キャンセル</button><div><h2 id="crop-title">顔写真を調整</h2><p>指で動かして、顔が中央に来るようにします</p></div><button className="crop-confirm" onClick={confirmCrop} disabled={cropping || !croppedArea}>{cropping ? '処理中' : '決定'}</button></header><div className="crop-stage"><Cropper image={cropSource} crop={crop} zoom={zoom} aspect={1} cropShape="round" showGrid={false} minZoom={1} maxZoom={4} zoomSpeed={0.35} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_, pixels) => setCroppedArea(pixels)} disableAutomaticStylesInjection /></div><div className="crop-controls"><label><span>顔の大きさ</span><input type="range" min="1" max="4" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} aria-label="顔写真の拡大率" /><b>{Math.round(zoom * 100)}%</b></label><p>写真を指で動かせます。丸の中がプロフィール写真に表示されます。</p></div></section></div>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>

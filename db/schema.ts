@@ -77,3 +77,30 @@ export const attendancePeople = sqliteTable('attendance_people', {
   index('idx_attendance_people_event_id').on(table.eventId),
   index('idx_attendance_people_owner_important').on(table.ownerId, table.isImportant),
 ]);
+
+export const businessCards = sqliteTable('business_cards', {
+  id: text('id').primaryKey(),
+  ownerId: text('owner_id').notNull().references(() => members.id),
+  name: text('name').notNull().default(''),
+  company: text('company').notNull().default(''),
+  positionTitle: text('position_title').notNull().default(''),
+  department: text('department').notNull().default(''),
+  phone: text('phone').notNull().default(''),
+  mobile: text('mobile').notNull().default(''),
+  email: text('email').notNull().default(''),
+  postalCode: text('postal_code').notNull().default(''),
+  address: text('address').notNull().default(''),
+  website: text('website').notNull().default(''),
+  memo: text('memo').notNull().default(''),
+  groupName: text('group_name').notNull().default(''),
+  exchangeDate: text('exchange_date').notNull(),
+  imageKey: text('image_key').notNull(),
+  imageContentType: text('image_content_type').notNull(),
+  imageVersion: integer('image_version').notNull().default(0),
+  isFavorite: integer('is_favorite', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  index('idx_business_cards_owner_date').on(table.ownerId, table.exchangeDate),
+  index('idx_business_cards_owner_favorite').on(table.ownerId, table.isFavorite),
+]);
