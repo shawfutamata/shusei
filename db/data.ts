@@ -32,11 +32,29 @@ export type MemberStats = {
   annualRevenueBand: string;
   avatarUrl: string;
   introCount: number;
+  receivedIntroCount: number;
   dealCount: number;
   points: number;
   rank: string;
   level: number;
   nextRankAt: number;
+};
+
+export type ReceivedIntroduction = {
+  id: string;
+  requestId: string;
+  requestTitle: string;
+  requestCategory: 'project' | 'collaboration' | 'consultation';
+  personName: string;
+  personCompany: string;
+  relationship: string;
+  fitReason: string;
+  status: string;
+  createdAt: string;
+  introducerName: string;
+  introducerCompany: string;
+  introducerVenue: string;
+  introducerAvatarUrl: string;
 };
 
 export type AttendancePerson = {
@@ -256,10 +274,12 @@ export async function getBoardData(user: ChatGPTUser) {
     position_title AS positionTitle, badge, business_area AS businessArea,
     annual_revenue_band AS annualRevenueBand,
     avatar_key AS avatarKey, avatar_version AS avatarVersion,
-    intro_count AS introCount, deal_count AS dealCount, points
+    intro_count AS introCount, deal_count AS dealCount, points,
+    (SELECT COUNT(*) FROM introductions i JOIN requests r ON r.id = i.request_id
+      WHERE r.author_id = members.id) AS receivedIntroCount
     FROM members WHERE id = ?`).bind(user.userId).first<Omit<MemberStats, 'rank' | 'level' | 'nextRankAt' | 'avatarUrl'> & { avatarKey: string; avatarVersion: number }>();
 
-  const baseMember = member ?? { displayName: user.displayName, venue: 'ひるのめぐろ会場', company: '', positionTitle: '', badge: '', businessArea: '', annualRevenueBand: '', avatarKey: '', avatarVersion: 0, introCount: 0, dealCount: 0, points: 0 };
+  const baseMember = member ?? { displayName: user.displayName, venue: 'ひるのめぐろ会場', company: '', positionTitle: '', badge: '', businessArea: '', annualRevenueBand: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, dealCount: 0, points: 0 };
   const stats = calculateRank({ ...baseMember, avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion) });
   const requests = requestsResult.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, ...request }) => ({
     ...request,
@@ -311,6 +331,25 @@ export async function createIntroduction(user: ChatGPTUser, input: { requestId: 
     env.DB.prepare('UPDATE members SET intro_count = intro_count + 1, points = points + 10 WHERE id = ?').bind(user.userId),
   ]);
   return id;
+}
+
+export async function getReceivedIntroductions(user: ChatGPTUser) {
+  await upsertMember(user);
+  const result = await env.DB.prepare(`SELECT i.id, i.request_id AS requestId, r.title AS requestTitle,
+    r.category AS requestCategory, i.person_name AS personName, i.person_company AS personCompany,
+    i.relationship, i.fit_reason AS fitReason, i.status, i.created_at AS createdAt,
+    m.display_name AS introducerName, m.company AS introducerCompany, m.venue AS introducerVenue,
+    m.id AS introducerId, m.avatar_key AS introducerAvatarKey, m.avatar_version AS introducerAvatarVersion
+    FROM introductions i
+    JOIN requests r ON r.id = i.request_id
+    JOIN members m ON m.id = i.introducer_id
+    WHERE r.author_id = ?
+    ORDER BY i.created_at DESC`)
+    .bind(user.userId).all<Omit<ReceivedIntroduction, 'introducerAvatarUrl'> & { introducerId: string; introducerAvatarKey: string; introducerAvatarVersion: number }>();
+  return result.results.map(({ introducerId, introducerAvatarKey, introducerAvatarVersion, ...introduction }) => ({
+    ...introduction,
+    introducerAvatarUrl: avatarUrl(introducerId, introducerAvatarKey, introducerAvatarVersion),
+  }));
 }
 
 export async function getMemberAvatar(memberId: string) {
