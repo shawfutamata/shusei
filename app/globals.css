@@ -286,3 +286,22 @@ body { font-weight:600; }
 .crop-controls label b { min-width:42px; color:#2563eb; text-align:right; }
 .crop-controls input[type='range'] { width:100%; height:32px; accent-color:#2563eb; }
 .crop-controls p { margin:11px 0 0; color:#627087; font-size:12px; font-weight:700; line-height:1.55; text-align:center; }
+
+/* My Page is a full application screen, not a temporary modal. */
+.profile-page { padding:24px 14px 30px; }
+.profile-page-heading { padding:2px 3px 0; }
+.profile-page-heading p { margin:0 0 4px; color:#2563eb; font-size:11px; font-weight:900; letter-spacing:.13em; }
+.profile-page-heading h1 { margin:0; color:#172a4d; font-size:27px; font-weight:900; }
+.profile-page-heading span { display:block; margin-top:7px; color:#64748b; font-size:13px; font-weight:700; line-height:1.55; }
+.profile-page-summary { margin-top:18px; padding:20px 16px 0; border:1px solid #d5e2f4; border-radius:18px; background:linear-gradient(145deg,#f8fbff,#edf5ff); box-shadow:0 9px 24px rgba(36,74,135,.08); }
+.profile-page-form { margin-top:16px; padding:17px; border:1px solid #e0e6ef; background:#fff; box-shadow:0 7px 22px rgba(28,52,93,.06); }
+.profile-form-heading { padding-bottom:13px; border-bottom:1px solid #e4e9f1; }
+.profile-form-heading b,.profile-form-heading span { display:block; }
+.profile-form-heading b { color:#243650; font-size:18px; font-weight:900; }
+.profile-form-heading span { margin-top:5px; color:#6e7d91; font-size:12px; font-weight:700; line-height:1.5; }
+.profile-page-form .profile-save-button { position:sticky; bottom:91px; z-index:4; min-height:58px; border-radius:13px; background:linear-gradient(90deg,#1d4ed8,#2563eb); color:#fff; box-shadow:0 9px 23px rgba(37,99,235,.25); }
+
+/* All major industry choices remain visible without horizontal scrolling. */
+.industry-major-picker { margin:0; padding:3px 0 14px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; overflow:visible; }
+.industry-major-picker button,.profile-form .industry-major-picker button { width:100%; min-width:0; min-height:48px; padding:8px 6px; border:1px solid #cbd7e7; border-radius:11px; background:#fff; color:#51637d; font-size:12px; font-weight:900; line-height:1.35; white-space:normal; }
+.industry-major-picker button.selected,.profile-form .industry-major-picker button.selected { border-color:#2563eb; background:#2563eb; color:#fff; box-shadow:0 5px 13px rgba(37,99,235,.2); }

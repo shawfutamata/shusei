@@ -45,7 +45,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [venueFilter, setVenueFilter] = useState('all');
   const [areaFilter, setAreaFilter] = useState('all');
   const [industryFilter, setIndustryFilter] = useState('all');
-  const [activeTab, setActiveTab] = useState<'home' | 'search'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'search' | 'profile'>(initialStats.avatarUrl ? 'home' : 'profile');
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [viewedIds, setViewedIds] = useState<string[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
@@ -70,7 +70,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [zoom, setZoom] = useState(1);
   const [croppedArea, setCroppedArea] = useState<Area | null>(null);
   const [cropping, setCropping] = useState(false);
-  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'profile' | 'cards' | 'responses' | null>(initialStats.avatarUrl ? null : 'profile');
+  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'cards' | 'responses' | null>(null);
   const [cardStartMode, setCardStartMode] = useState<'list' | 'capture'>('list');
   const [selected, setSelected] = useState<BoardRequest | null>(null);
   const [busy, setBusy] = useState(false);
@@ -166,7 +166,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     if (!response.ok) return showToast(result.error ?? 'プロフィールを保存できませんでした。');
     const avatarUrl = result.avatarUrl ?? stats.avatarUrl;
     setStats((current) => ({ ...current, company: profileCompany, venue: profileVenue, positionTitle: profilePosition, badge: profileBadge, businessArea: profileArea, primaryIndustry: profileIndustry, notifyIndustries: profileNotifyIndustries, annualRevenueBand: profileRevenue, avatarUrl }));
-    setProfilePhoto(null); setPhotoPreview(avatarUrl); setModal(null);
+    setProfilePhoto(null); setPhotoPreview(avatarUrl);
     await refreshBoard(); showToast('顔写真とプロフィールを保存しました。');
   }
 
@@ -194,12 +194,12 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   }
 
   function openRequest() {
-    if (!stats.avatarUrl) { setModal('profile'); return showToast('投稿の前に顔写真を登録してください。'); }
+    if (!stats.avatarUrl) { showProfile(); return showToast('投稿の前に顔写真を登録してください。'); }
     setModal('request');
   }
 
   function openIntroduction(need: BoardRequest) {
-    if (!stats.avatarUrl) { setModal('profile'); return showToast('紹介の前に顔写真を登録してください。'); }
+    if (!stats.avatarUrl) { showProfile(); return showToast('紹介の前に顔写真を登録してください。'); }
     setSelected(need); setModal('intro');
   }
 
@@ -228,6 +228,12 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  function showProfile() {
+    setModal(null);
+    setActiveTab('profile');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   function showToast(message: string) { setToast(message); window.setTimeout(() => setToast(''), 3800); }
   function toggleIndustry(value: string, selected: string[], setSelected: (values: string[]) => void, max: number) {
     if (selected.includes(value)) return setSelected(selected.filter((item) => item !== value));
@@ -239,7 +245,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     <main className="app-shell" id="home">
       <header className="mobile-header">
         <button className="mobile-brand" onClick={showHome}><span className="brand-mark">G</span><b>GIVE HUB</b></button>
-        <button className="header-profile" onClick={() => setModal('profile')}><span><small>こんにちは</small><b>{userName}</b></span><Avatar src={stats.avatarUrl} name={userName} className="mini-avatar" /></button>
+        <button className="header-profile" onClick={showProfile}><span><small>こんにちは</small><b>{userName}</b></span><Avatar src={stats.avatarUrl} name={userName} className="mini-avatar" /></button>
       </header>
 
       {activeTab === 'home' ? <div className="home-dashboard">
@@ -247,7 +253,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           <div className={`hero-slide hero-slide-${carouselIndex}`}>
             {carouselIndex === 0 && <><div className="hero-copy"><span>守成クラブの紹介掲示板</span><h1>こんな人、<br />探しています。</h1><p>困りごとを投稿して、信頼できる仲間から紹介をもらいましょう。</p><button onClick={openRequest}>探しごとを投稿する <i>→</i></button></div><div className="hero-visual"><b>GIVE</b><span>つながる</span><b>HUB</b></div></>}
             {carouselIndex === 1 && <><div className="hero-copy"><span>届いた回答をまとめて確認</span><h1>紹介が届いたら<br />ここで確認。</h1><p>自分の探しごとに届いた紹介を、投稿ごとに見られます。</p><button onClick={() => setModal('responses')}>届いた紹介を見る <strong>{stats.receivedIntroCount}</strong><i>→</i></button></div><div className="hero-visual hero-inbox">✉<small>{stats.receivedIntroCount}</small></div></>}
-            {carouselIndex === 2 && <><div className="hero-copy"><span>紹介するほどグレードアップ</span><h1>{stats.rank}<br />MEMBER</h1><p>{nextRankThreshold === undefined ? '最高ランクに到達しました。' : `あと${Math.max(0, nextRankThreshold - stats.introCount)}件の紹介で ${nextRankName}。`}</p><button onClick={() => setModal('profile')}>ランクを確認する <i>→</i></button></div><div className="hero-rank"><b>♛</b><span>{stats.introCount}件紹介</span><i><em style={{ width: `${rankProgress}%` }} /></i></div></>}
+            {carouselIndex === 2 && <><div className="hero-copy"><span>紹介するほどグレードアップ</span><h1>{stats.rank}<br />MEMBER</h1><p>{nextRankThreshold === undefined ? '最高ランクに到達しました。' : `あと${Math.max(0, nextRankThreshold - stats.introCount)}件の紹介で ${nextRankName}。`}</p><button onClick={showProfile}>ランクを確認する <i>→</i></button></div><div className="hero-rank"><b>♛</b><span>{stats.introCount}件紹介</span><i><em style={{ width: `${rankProgress}%` }} /></i></div></>}
             {carouselIndex === 3 && <><div className="hero-copy"><span>複数枚をまとめて読み取り</span><h1>名刺交換を、<br />その場で記録。</h1><p>カメラや写真から名刺を読み取り、確認してから登録できます。</p><button onClick={() => openCards('capture')}>名刺を読み取る <i>→</i></button></div><div className="hero-visual hero-card">▣<small>名刺帳</small></div></>}
           </div>
           <div className="carousel-dots" aria-label="バナーを切り替える">{[0,1,2,3].map((index) => <button key={index} aria-label={`${index + 1}枚目`} className={carouselIndex === index ? 'active' : ''} onClick={() => setCarouselIndex(index)} />)}</div>
@@ -266,9 +272,9 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           <div className="industry-grid">{industryGroups.map((group) => <button key={group.name} onClick={() => showSearch(group.name)}><span><img src={industryIcons[group.name]} alt="" /></span><b>{group.name}</b><small>{requests.filter((item) => matchesIndustry(item.industryTags, group.name)).length}件</small></button>)}</div>
         </section>
 
-        {!stats.avatarUrl && <button className="photo-required-banner" onClick={() => setModal('profile')}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・紹介ができます。</b><i>登録する →</i></button>}
+        {!stats.avatarUrl && <button className="photo-required-banner" onClick={showProfile}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・紹介ができます。</b><i>登録する →</i></button>}
         <InstallAndNotificationPanel onNotice={showToast} />
-      </div> : <section className="mobile-board search-page" id="board">
+      </div> : activeTab === 'search' ? <section className="mobile-board search-page" id="board">
         <div className="section-title"><div><p>REQUESTS</p><h2>{industryFilter === 'all' ? 'みんなの探しごと' : industryFilter}</h2></div><span>{shown.length}件</span></div>
         {industryFilter !== 'all' && <button className="clear-industry" onClick={() => setIndustryFilter('all')}><img src={industryIcons[getIndustryGroup(industryFilter)?.name ?? 'その他']} alt="" />{industryFilter}で絞り込み中 <i>×</i></button>}
         {industryFilter !== 'all' && getIndustryGroup(industryFilter) && <div className="subindustry-filter" aria-label="詳細業種で絞り込む"><button className={industryFilter === getIndustryGroup(industryFilter)?.name ? 'selected' : ''} onClick={() => setIndustryFilter(getIndustryGroup(industryFilter)?.name ?? 'all')}>すべて</button>{getIndustryGroup(industryFilter)?.children.map((industry) => <button key={industry} className={industryFilter === industry ? 'selected' : ''} onClick={() => setIndustryFilter(industry)}>{industry}</button>)}</div>}
@@ -292,6 +298,21 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
             </article>
           ))}
         </div>
+      </section> : <section className="profile-page" aria-labelledby="profile-page-title">
+        <header className="profile-page-heading"><p>MY PAGE</p><h1 id="profile-page-title">マイページ</h1><span>会員情報・通知設定・ランクを管理できます。</span></header>
+        <div className="profile-sheet profile-page-summary"><Avatar src={photoPreview} name={userName} className="profile-avatar" /><h3>{userName}</h3><p>{stats.badge || '未設定'} · {stats.venue}</p><div><span><b>{stats.introCount}</b><small>紹介した数</small></span><span><b>{stats.points}</b><small>ポイント</small></span><span><b>{stats.rank}</b><small>会員ランク</small></span></div></div>
+        <div className="profile-form profile-page-form">
+          <div className="profile-form-heading"><b>プロフィール情報</b><span>入力内容は探しごとや紹介時に表示されます。</span></div>
+          <label className="photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />JPEG・PNG・WebP／5MBまで</small></span><i>{stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
+          <label>会社名 <small>必須</small><input value={profileCompany} onChange={(event) => setProfileCompany(event.target.value)} maxLength={80} placeholder="株式会社〇〇" required /></label>
+          <label>所属会場 <small>必須・正式な会場名</small><input value={profileVenue} onChange={(event) => setProfileVenue(event.target.value)} maxLength={60} placeholder="ひるのめぐろ会場" required /></label>
+          <div className="profile-row"><label>肩書き <small>任意</small><input value={profilePosition} onChange={(event) => setProfilePosition(event.target.value)} maxLength={60} placeholder="世話人" /></label><label>バッヂ <small>任意</small><select value={profileBadge} onChange={(event) => setProfileBadge(event.target.value)}><option value="">選択しない</option><option value="緑">緑</option><option value="赤">赤</option><option value="ゴールド">ゴールド</option><option value="ダイヤモンド">ダイヤモンド</option></select></label></div>
+          <label>活動エリア <small>任意・検索に使われます</small><select value={profileArea} onChange={(event) => setProfileArea(event.target.value)}><option value="">選択しない</option>{prefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
+          <div className="profile-industry-select"><p>自分の業種 <small>通知の設定に使われます</small></p><label>大分類<select value={profileIndustryGroup} onChange={(event) => { setProfileIndustryGroup(event.target.value); setProfileIndustry(''); }}><option value="">選択してください</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label><label>詳細業種<select value={profileIndustry} onChange={(event) => { const value = event.target.value; setProfileIndustry(value); if (value && !profileNotifyIndustries.includes(value)) setProfileNotifyIndustries((current) => [...current, value].slice(0, 6)); }} disabled={!profileIndustryGroup}><option value="">詳細業種を選択</option>{profileIndustry === profileIndustryGroup && <option value={profileIndustryGroup}>大分類のみ（旧設定）</option>}{industryGroups.find((group) => group.name === profileIndustryGroup)?.children.map((industry) => <option value={industry} key={industry}>{industry}</option>)}</select></label></div>
+          <IndustryPicker legend="通知を受けたい関連業種" note="6個まで" description="選んだ詳細業種の探しごとが投稿されると通知します。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, 6)} className="profile-tag-field" />
+          <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+          <button className="profile-save-button" onClick={saveProfile} disabled={busy || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
+        </div>
       </section>}
 
       <nav className="bottom-nav" aria-label="アプリメニュー">
@@ -299,7 +320,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <button className={activeTab === 'search' ? 'active' : ''} onClick={() => showSearch()}><span>⌕</span><small>困りごと</small></button>
         <button className="nav-post" onClick={openRequest} aria-label="探しごとを投稿する"><span>＋</span></button>
         <button onClick={() => openCards('list')}><span>▣</span><small>名刺</small></button>
-        <button onClick={() => setModal('profile')}><span>●</span><small>マイページ</small></button>
+        <button className={activeTab === 'profile' ? 'active' : ''} onClick={showProfile}><span>●</span><small>マイページ</small></button>
       </nav>
 
       {modal === 'request' && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの<select name="category" required defaultValue=""><option value="" disabled>選択してください</option><option value="project">案件の発注先</option><option value="collaboration">協業パートナー</option><option value="consultation">相談相手・情報</option></select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容<textarea name="description" required maxLength={600} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア<input name="area" required maxLength={60} placeholder="例：東京都・オンライン" /></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><button className="submit-button" disabled={busy || !requestIndustries.length}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
@@ -317,17 +338,6 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <button className="submit-button" onClick={() => openIntroduction(selected)}>この人を紹介できる</button>
       </article></Modal>}
 
-      {modal === 'profile' && <Modal title="マイプロフィール" lead="会員情報と名刺帳のプロフィールを管理できます。" onClose={() => setModal(null)}><div className="profile-sheet compact"><Avatar src={photoPreview} name={userName} className="profile-avatar" /><h3>{userName}</h3><p>{stats.badge || '未設定'} · {stats.venue}</p><div><span><b>{stats.introCount}</b><small>紹介した数</small></span><span><b>{stats.points}</b><small>ポイント</small></span><span><b>{stats.rank}</b><small>会員ランク</small></span></div></div><div className="profile-form">
-        <label className="photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />JPEG・PNG・WebP／5MBまで</small></span><i>{stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
-        <label>会社名 <small>必須</small><input value={profileCompany} onChange={(event) => setProfileCompany(event.target.value)} maxLength={80} placeholder="株式会社〇〇" required /></label>
-        <label>所属会場 <small>必須・正式な会場名</small><input value={profileVenue} onChange={(event) => setProfileVenue(event.target.value)} maxLength={60} placeholder="ひるのめぐろ会場" required /></label>
-        <div className="profile-row"><label>肩書き <small>任意</small><input value={profilePosition} onChange={(event) => setProfilePosition(event.target.value)} maxLength={60} placeholder="世話人" /></label><label>バッヂ <small>任意</small><select value={profileBadge} onChange={(event) => setProfileBadge(event.target.value)}><option value="">選択しない</option><option value="緑">緑</option><option value="赤">赤</option><option value="ゴールド">ゴールド</option><option value="ダイヤモンド">ダイヤモンド</option></select></label></div>
-        <label>活動エリア <small>任意・検索に使われます</small><select value={profileArea} onChange={(event) => setProfileArea(event.target.value)}><option value="">選択しない</option>{prefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
-        <div className="profile-industry-select"><p>自分の業種 <small>通知の設定に使われます</small></p><label>大分類<select value={profileIndustryGroup} onChange={(event) => { setProfileIndustryGroup(event.target.value); setProfileIndustry(''); }}><option value="">選択してください</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label><label>詳細業種<select value={profileIndustry} onChange={(event) => { const value = event.target.value; setProfileIndustry(value); if (value && !profileNotifyIndustries.includes(value)) setProfileNotifyIndustries((current) => [...current, value].slice(0, 6)); }} disabled={!profileIndustryGroup}><option value="">詳細業種を選択</option>{profileIndustry === profileIndustryGroup && <option value={profileIndustryGroup}>大分類のみ（旧設定）</option>}{industryGroups.find((group) => group.name === profileIndustryGroup)?.children.map((industry) => <option value={industry} key={industry}>{industry}</option>)}</select></label></div>
-        <IndustryPicker legend="通知を受けたい関連業種" note="6個まで" description="選んだ詳細業種の探しごとが投稿されると通知します。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, 6)} className="profile-tag-field" />
-        <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-        <button onClick={saveProfile} disabled={busy || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : '顔写真とプロフィールを保存する'}</button>
-      </div></Modal>}
       {modal === 'cards' && <BusinessCardManager initialMode={cardStartMode} onClose={() => setModal(null)} onNotice={showToast} />}
       {cropSource && <div className="crop-backdrop"><section className="crop-dialog" role="dialog" aria-modal="true" aria-labelledby="crop-title"><header><button onClick={() => setCropSource('')}>キャンセル</button><div><h2 id="crop-title">顔写真を調整</h2><p>指で動かして、顔が中央に来るようにします</p></div><button className="crop-confirm" onClick={confirmCrop} disabled={cropping || !croppedArea}>{cropping ? '処理中' : '決定'}</button></header><div className="crop-stage"><Cropper image={cropSource} crop={crop} zoom={zoom} aspect={1} cropShape="round" showGrid={false} minZoom={1} maxZoom={4} zoomSpeed={0.35} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_, pixels) => setCroppedArea(pixels)} disableAutomaticStylesInjection /></div><div className="crop-controls"><label><span>顔の大きさ</span><input type="range" min="1" max="4" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} aria-label="顔写真の拡大率" /><b>{Math.round(zoom * 100)}%</b></label><p>写真を指で動かせます。丸の中がプロフィール写真に表示されます。</p></div></section></div>}
       {toast && <div className="toast" role="status">{toast}</div>}
