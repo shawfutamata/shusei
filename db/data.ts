@@ -39,6 +39,27 @@ export type MemberStats = {
   nextRankAt: number;
 };
 
+export type AttendancePerson = {
+  id: string;
+  eventId: string;
+  personName: string;
+  company: string;
+  note: string;
+  isImportant: boolean;
+  meetingDate: string;
+  meetingName: string;
+  venue: string;
+};
+
+export type AttendanceEvent = {
+  id: string;
+  meetingDate: string;
+  meetingName: string;
+  venue: string;
+  createdAt: string;
+  people: AttendancePerson[];
+};
+
 const statements = [
   `CREATE TABLE IF NOT EXISTS members (
     id TEXT PRIMARY KEY,
@@ -82,10 +103,33 @@ const statements = [
     points_awarded INTEGER NOT NULL DEFAULT 10,
     created_at TEXT NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS attendance_events (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL REFERENCES members(id),
+    meeting_date TEXT NOT NULL,
+    meeting_name TEXT NOT NULL,
+    venue TEXT NOT NULL,
+    ocr_text TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS attendance_people (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL REFERENCES attendance_events(id),
+    owner_id TEXT NOT NULL REFERENCES members(id),
+    person_name TEXT NOT NULL,
+    company TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    is_important INTEGER NOT NULL DEFAULT 0,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  )`,
   'CREATE INDEX IF NOT EXISTS idx_requests_status_created_at ON requests(status, created_at)',
   'CREATE INDEX IF NOT EXISTS idx_requests_category ON requests(category)',
   'CREATE INDEX IF NOT EXISTS idx_introductions_introducer_id ON introductions(introducer_id)',
   'CREATE INDEX IF NOT EXISTS idx_introductions_request_id ON introductions(request_id)',
+  'CREATE INDEX IF NOT EXISTS idx_attendance_events_owner_date ON attendance_events(owner_id, meeting_date)',
+  'CREATE INDEX IF NOT EXISTS idx_attendance_people_event_id ON attendance_people(event_id)',
+  'CREATE INDEX IF NOT EXISTS idx_attendance_people_owner_important ON attendance_people(owner_id, is_important)',
 ];
 
 let initialized = false;
@@ -224,6 +268,62 @@ export async function getMemberAvatar(memberId: string) {
     .bind(memberId).first<{ avatarKey: string }>();
   if (!member?.avatarKey) return null;
   return env.AVATARS.get(member.avatarKey);
+}
+
+export async function getAttendanceData(user: ChatGPTUser) {
+  await upsertMember(user);
+  const eventsResult = await env.DB.prepare(`SELECT id, meeting_date AS meetingDate,
+    meeting_name AS meetingName, venue, created_at AS createdAt
+    FROM attendance_events WHERE owner_id = ? ORDER BY meeting_date DESC, created_at DESC`)
+    .bind(user.userId).all<Omit<AttendanceEvent, 'people'>>();
+  const peopleResult = await env.DB.prepare(`SELECT p.id, p.event_id AS eventId, p.person_name AS personName,
+    p.company, p.note, p.is_important AS isImportant,
+    e.meeting_date AS meetingDate, e.meeting_name AS meetingName, e.venue
+    FROM attendance_people p JOIN attendance_events e ON e.id = p.event_id
+    WHERE p.owner_id = ? ORDER BY e.meeting_date DESC, p.sort_order ASC`)
+    .bind(user.userId).all<Omit<AttendancePerson, 'isImportant'> & { isImportant: number }>();
+  const people = peopleResult.results.map((person) => ({ ...person, isImportant: Boolean(person.isImportant) }));
+  const events = eventsResult.results.map((event) => ({ ...event, people: people.filter((person) => person.eventId === event.id) }));
+  return { events, importantPeople: people.filter((person) => person.isImportant) };
+}
+
+export async function createAttendanceEvent(user: ChatGPTUser, input: {
+  meetingDate: string;
+  meetingName: string;
+  venue: string;
+  ocrText: string;
+  people: Array<{ personName: string; company: string; note: string; isImportant: boolean }>;
+}) {
+  await upsertMember(user);
+  const eventId = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
+  const queries = [
+    env.DB.prepare(`INSERT INTO attendance_events
+      (id, owner_id, meeting_date, meeting_name, venue, ocr_text, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .bind(eventId, user.userId, input.meetingDate, input.meetingName, input.venue, input.ocrText, createdAt),
+    ...input.people.map((person, index) => env.DB.prepare(`INSERT INTO attendance_people
+      (id, event_id, owner_id, person_name, company, note, is_important, sort_order, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(crypto.randomUUID(), eventId, user.userId, person.personName, person.company, person.note, person.isImportant ? 1 : 0, index, createdAt)),
+  ];
+  await env.DB.batch(queries);
+  return eventId;
+}
+
+export async function updateAttendancePerson(user: ChatGPTUser, input: {
+  id: string;
+  personName: string;
+  company: string;
+  note: string;
+  isImportant: boolean;
+}) {
+  await upsertMember(user);
+  const result = await env.DB.prepare(`UPDATE attendance_people
+    SET person_name = ?, company = ?, note = ?, is_important = ?
+    WHERE id = ? AND owner_id = ?`)
+    .bind(input.personName, input.company, input.note, input.isImportant ? 1 : 0, input.id, user.userId).run();
+  if (!result.meta.changes) throw new Error('対象の出席者が見つかりません。');
 }
 
 async function requireFacePhoto(memberId: string) {

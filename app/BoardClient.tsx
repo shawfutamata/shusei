@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import type { BoardRequest, MemberStats } from '@/db/data';
+import AttendanceManager from './AttendanceManager';
 
 const categories = {
   project: { label: '案件', className: 'project' },
@@ -31,6 +32,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [profileRevenue, setProfileRevenue] = useState(initialStats.annualRevenueBand);
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState(initialStats.avatarUrl);
+  const [profileTab, setProfileTab] = useState<'profile' | 'attendance' | 'important'>('profile');
   const [modal, setModal] = useState<'request' | 'intro' | 'profile' | null>(initialStats.avatarUrl ? null : 'profile');
   const [selected, setSelected] = useState<BoardRequest | null>(null);
   const [busy, setBusy] = useState(false);
@@ -100,12 +102,12 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   }
 
   function openRequest() {
-    if (!stats.avatarUrl) { setModal('profile'); return showToast('投稿の前に顔写真を登録してください。'); }
+    if (!stats.avatarUrl) { setProfileTab('profile'); setModal('profile'); return showToast('投稿の前に顔写真を登録してください。'); }
     setModal('request');
   }
 
   function openIntroduction(need: BoardRequest) {
-    if (!stats.avatarUrl) { setModal('profile'); return showToast('紹介の前に顔写真を登録してください。'); }
+    if (!stats.avatarUrl) { setProfileTab('profile'); setModal('profile'); return showToast('紹介の前に顔写真を登録してください。'); }
     setSelected(need); setModal('intro');
   }
 
@@ -116,7 +118,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     <main className="app-shell" id="home">
       <header className="mobile-header">
         <a className="mobile-brand" href="#home"><span className="brand-mark">G</span><b>GIVE HUB</b></a>
-        <button className="header-profile" onClick={() => setModal('profile')}><span><small>こんにちは</small><b>{userName}</b></span><Avatar src={stats.avatarUrl} name={userName} className="mini-avatar" /></button>
+        <button className="header-profile" onClick={() => { setProfileTab('profile'); setModal('profile'); }}><span><small>こんにちは</small><b>{userName}</b></span><Avatar src={stats.avatarUrl} name={userName} className="mini-avatar" /></button>
       </header>
 
       <section className="mobile-hero">
@@ -131,7 +133,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <label className="quick-card camera" htmlFor="card-camera"><span className="quick-icon">▣</span><span><b>名刺を読み取る</b><small>カメラでその場で保存</small></span><i>›</i><input id="card-camera" type="file" accept="image/*" capture="environment" onChange={(event) => { if (event.target.files?.[0]) showToast('名刺を撮影しました。読み取り画面へ進みます。'); }} /></label>
       </section>
 
-      {!stats.avatarUrl && <button className="photo-required-banner" onClick={() => setModal('profile')}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・紹介ができます。</b><i>登録する →</i></button>}
+      {!stats.avatarUrl && <button className="photo-required-banner" onClick={() => { setProfileTab('profile'); setModal('profile'); }}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・紹介ができます。</b><i>登録する →</i></button>}
 
       <section className="mobile-board" id="board">
         <div className="section-title"><div><p>REQUESTS</p><h2>みんなの探しごと</h2></div><span>{shown.length}件</span></div>
@@ -161,14 +163,14 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <button onClick={() => scrollTo('board')}><span>⌕</span><small>探す</small></button>
         <button className="nav-post" onClick={openRequest} aria-label="探しごとを投稿する"><span>＋</span></button>
         <label htmlFor="card-camera"><span>▣</span><small>名刺</small></label>
-        <button onClick={() => setModal('profile')}><span>●</span><small>マイ</small></button>
+        <button onClick={() => { setProfileTab('profile'); setModal('profile'); }}><span>●</span><small>マイ</small></button>
       </nav>
 
       {modal === 'request' && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの<select name="category" required defaultValue=""><option value="" disabled>選択してください</option><option value="project">案件の発注先</option><option value="collaboration">協業パートナー</option><option value="consultation">相談相手・情報</option></select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容<textarea name="description" required maxLength={600} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア<input name="area" required maxLength={60} placeholder="例：東京都・オンライン" /></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><button className="submit-button" disabled={busy}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
 
       {modal === 'intro' && selected && <Modal title="知っている人を紹介" lead={`「${selected.title}」への紹介です。`} onClose={() => setModal(null)}><form className="form" onSubmit={submitIntroduction}><label>お名前<input name="personName" required maxLength={60} /></label><label>会社・屋号<input name="personCompany" required maxLength={80} /></label><label>あなたとの関係<input name="relationship" required maxLength={120} placeholder="例：取引先、友人" /></label><label>紹介したい理由<textarea name="fitReason" required maxLength={400} rows={3} /></label><label className="consent"><input type="checkbox" name="consentConfirmed" required /> ご本人に紹介の了承を得ています</label><button className="submit-button" disabled={busy}>{busy ? '届けています…' : '紹介を届ける'}</button></form></Modal>}
 
-      {modal === 'profile' && <Modal title="守成会員プロフィール" lead="顔と所属を明確にして、安心して紹介し合えるプロフィールにします。" onClose={() => setModal(null)}><div className="profile-sheet compact"><Avatar src={photoPreview} name={userName} className="profile-avatar" /><h3>{userName}</h3><p>{stats.badge || 'バッヂ未設定'} · {stats.venue}</p><div><span><b>{stats.introCount}</b><small>紹介した数</small></span><span><b>{stats.points}</b><small>ポイント</small></span><span><b>Lv.{stats.level}</b><small>{stats.rank}</small></span></div></div><div className="profile-form">
+      {modal === 'profile' && <Modal title="マイプロフィール" lead="会員情報と、参加した例会で出会った人を管理できます。" onClose={() => setModal(null)}><div className="profile-sheet compact"><Avatar src={photoPreview} name={userName} className="profile-avatar" /><h3>{userName}</h3><p>{stats.badge || 'バッヂ未設定'} · {stats.venue}</p><div><span><b>{stats.introCount}</b><small>紹介した数</small></span><span><b>{stats.points}</b><small>ポイント</small></span><span><b>Lv.{stats.level}</b><small>{stats.rank}</small></span></div></div><div className="profile-tabs" role="tablist"><button role="tab" aria-selected={profileTab === 'profile'} className={profileTab === 'profile' ? 'active' : ''} onClick={() => setProfileTab('profile')}>会員情報</button><button role="tab" aria-selected={profileTab === 'attendance'} className={profileTab === 'attendance' ? 'active' : ''} onClick={() => setProfileTab('attendance')}>例会名簿</button><button role="tab" aria-selected={profileTab === 'important'} className={profileTab === 'important' ? 'active' : ''} onClick={() => setProfileTab('important')}>重要人物</button></div>{profileTab === 'profile' && <div className="profile-form">
         <label className="photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />JPEG・PNG・WebP／5MBまで</small></span><i>{stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
         <label>会社名 <small>必須</small><input value={profileCompany} onChange={(event) => setProfileCompany(event.target.value)} maxLength={80} placeholder="株式会社〇〇" required /></label>
         <label>所属会場 <small>必須・正式な会場名</small><input value={profileVenue} onChange={(event) => setProfileVenue(event.target.value)} maxLength={60} placeholder="ひるのめぐろ会場" required /></label>
@@ -176,7 +178,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <label>活動エリア <small>任意・検索に使われます</small><input value={profileArea} onChange={(event) => setProfileArea(event.target.value)} maxLength={60} placeholder="東京都" /></label>
         <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         <button onClick={saveProfile} disabled={busy || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : '顔写真とプロフィールを保存する'}</button>
-      </div></Modal>}
+      </div>}{profileTab !== 'profile' && <AttendanceManager view={profileTab} defaultVenue={stats.venue} onNotice={showToast} />}</Modal>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
   );

@@ -50,3 +50,30 @@ export const introductions = sqliteTable('introductions', {
   index('idx_introductions_introducer_id').on(table.introducerId),
   index('idx_introductions_request_id').on(table.requestId),
 ]);
+
+export const attendanceEvents = sqliteTable('attendance_events', {
+  id: text('id').primaryKey(),
+  ownerId: text('owner_id').notNull().references(() => members.id),
+  meetingDate: text('meeting_date').notNull(),
+  meetingName: text('meeting_name').notNull(),
+  venue: text('venue').notNull(),
+  ocrText: text('ocr_text').notNull().default(''),
+  createdAt: text('created_at').notNull(),
+}, (table) => [
+  index('idx_attendance_events_owner_date').on(table.ownerId, table.meetingDate),
+]);
+
+export const attendancePeople = sqliteTable('attendance_people', {
+  id: text('id').primaryKey(),
+  eventId: text('event_id').notNull().references(() => attendanceEvents.id),
+  ownerId: text('owner_id').notNull().references(() => members.id),
+  personName: text('person_name').notNull(),
+  company: text('company').notNull().default(''),
+  note: text('note').notNull().default(''),
+  isImportant: integer('is_important', { mode: 'boolean' }).notNull().default(false),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: text('created_at').notNull(),
+}, (table) => [
+  index('idx_attendance_people_event_id').on(table.eventId),
+  index('idx_attendance_people_owner_important').on(table.ownerId, table.isImportant),
+]);
