@@ -60,9 +60,9 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [profileBadge, setProfileBadge] = useState(initialStats.badge);
   const [profileArea, setProfileArea] = useState(prefectures.includes(initialStats.businessArea as Prefecture) ? initialStats.businessArea : '');
   const [profileIndustry, setProfileIndustry] = useState(initialStats.primaryIndustry);
-  const [profileIndustryGroup, setProfileIndustryGroup] = useState(getIndustryGroup(initialStats.primaryIndustry)?.name ?? '');
+  const [profileIndustryGroup, setProfileIndustryGroup] = useState<string>(getIndustryGroup(initialStats.primaryIndustry)?.name ?? '');
   const [profileNotifyIndustries, setProfileNotifyIndustries] = useState(initialStats.notifyIndustries);
-  const [profileNotifyGroup, setProfileNotifyGroup] = useState(getIndustryGroup(initialStats.notifyIndustries[0] ?? '')?.name ?? 'IT・システム');
+  const [profileNotifyGroup, setProfileNotifyGroup] = useState<string>(getIndustryGroup(initialStats.notifyIndustries[0] ?? '')?.name ?? 'IT・システム');
   const [profileRevenue, setProfileRevenue] = useState(initialStats.annualRevenueBand);
   const [requestIndustries, setRequestIndustries] = useState<string[]>([]);
   const [requestIndustryGroup, setRequestIndustryGroup] = useState('IT・システム');

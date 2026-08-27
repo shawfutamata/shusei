@@ -849,7 +849,7 @@ async function sendMatchingPushNotifications(authorId: string, request: { id: st
       publicKey: env.VAPID_PUBLIC_KEY,
       privateKey: env.VAPID_PRIVATE_KEY,
     });
-    const response = await fetch(subscription.endpoint, payload);
+    const response = await fetch(subscription.endpoint, { ...payload, body: new Uint8Array(payload.body) });
     if (response.status === 404 || response.status === 410) expiredEndpoints.push(subscription.endpoint);
   }));
   if (expiredEndpoints.length) {
