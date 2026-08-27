@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { getChatGPTUser, type ChatGPTUser } from './chatgpt-auth';
-import { getMembershipAccess, getMobileSessionUser, upsertMember, type MembershipAccess } from '@/db/data';
+import { getMembershipAccess, getMobileSessionAccess, upsertMember, type MembershipAccess } from '@/db/data';
 
 export type AppAccess = { user: ChatGPTUser; membership: MembershipAccess };
 
@@ -13,18 +13,7 @@ export async function getAppAccess(): Promise<AppAccess | null> {
   }
 
   const token = await getMobileBearerToken();
-  if (!token) return null;
-  const mobileUser = await getMobileSessionUser(token);
-  if (!mobileUser) return null;
-  return { user: mobileUser, membership: await getMembershipAccess(mobileUser.userId) };
-}
-
-export async function getAppUser(): Promise<ChatGPTUser | null> {
-  const browserUser = await getChatGPTUser();
-  if (browserUser) return browserUser;
-
-  const token = await getMobileBearerToken();
-  return token ? getMobileSessionUser(token) : null;
+  return token ? getMobileSessionAccess(token) : null;
 }
 
 export async function requireActiveMember(): Promise<{ user: ChatGPTUser; response?: never } | { user?: never; response: NextResponse }> {

@@ -394,20 +394,32 @@ export async function verifyMobileAuthCode(rawEmail: string, rawCode: string) {
   return { token, expiresAt, user: { userId: member.id, email, displayName: member.displayName, fullName: member.displayName } satisfies ChatGPTUser };
 }
 
-export async function getMobileSessionUser(token: string): Promise<ChatGPTUser | null> {
+export async function getMobileSessionAccess(token: string): Promise<{ user: ChatGPTUser; membership: MembershipAccess } | null> {
   await ensureDatabase();
   if (token.length < 32 || token.length > 256) return null;
   const tokenHash = await hashMobileSecret(token);
   const now = new Date().toISOString();
   const row = await env.DB.prepare(`SELECT m.id AS userId, m.email, m.display_name AS displayName,
-    m.membership_status AS membershipStatus, m.membership_period_end AS membershipPeriodEnd,
+    m.membership_status AS membershipStatus, m.membership_source AS membershipSource,
+    m.membership_period_end AS membershipPeriodEnd, m.organization_id AS organizationId,
     s.expires_at AS expiresAt FROM mobile_sessions s JOIN members m ON m.id = s.member_id
     WHERE s.token_hash = ? AND s.expires_at > ?`).bind(tokenHash, now)
-    .first<{ userId: string; email: string; displayName: string; membershipStatus: MembershipStatus; membershipPeriodEnd: string; expiresAt: string }>();
-  if (!row || !canUseMembership(row.membershipStatus, row.membershipPeriodEnd)) return null;
+    .first<{ userId: string; email: string; displayName: string; membershipStatus: MembershipStatus; membershipSource: string; membershipPeriodEnd: string; organizationId: string; expiresAt: string }>();
+  if (!row) return null;
   await env.DB.prepare('UPDATE mobile_sessions SET last_seen_at = ? WHERE token_hash = ?').bind(now, tokenHash).run();
-  return { userId: row.userId, email: row.email, displayName: row.displayName, fullName: row.displayName };
+  const status = normalizeMembershipStatus(row.membershipStatus);
+  return {
+    user: { userId: row.userId, email: row.email, displayName: row.displayName, fullName: row.displayName },
+    membership: {
+      status,
+      source: row.membershipSource === 'organization_contract' ? 'organization_contract' : 'direct_contract',
+      currentPeriodEnd: row.membershipPeriodEnd,
+      organizationId: row.organizationId,
+      canUseApp: canUseMembership(status, row.membershipPeriodEnd),
+    },
+  };
 }
+
 
 export async function revokeMobileSession(token: string) {
   await ensureDatabase();
