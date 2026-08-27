@@ -14,7 +14,11 @@
 - [ ] 個人契約または法人・会場単位契約の販売形態を申請前に確定
 - [ ] 利用権限の決済Webhookまたは運営管理連携
 - [x] 1024pxストアアイコン
+- [x] Google Play 1024×500フィーチャーグラフィック（サービス名非依存）
 - [x] プライバシーポリシー下書き
+- [x] Apple / Google審査メモ下書き
+- [x] App Privacy / Data safety申告表下書き
+- [x] ストアスクリーンショット5枚構成と撮影条件
 - [x] iOS / Android Metro production bundle検証
 - [x] iOS / Android native prebuildと日英OCRモデル設定検証
 
