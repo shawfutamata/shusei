@@ -22,8 +22,12 @@ const revenueBands: Record<string, string> = {
   revenue_100_plus: '1億円以上',
 };
 
-const rankNames = ['PEARL', 'EMERALD', 'SAPPHIRE', 'RUBY', 'DIAMOND'];
-const rankThresholds = [0, 3, 6, 10, 20];
+const topBanners = [
+  { src: '/banners/top-request.webp', alt: 'こんな人、探しています。困りごとを投稿する案内' },
+  { src: '/banners/top-introductions.webp', alt: '届いた紹介をまとめて確認する案内' },
+  { src: '/banners/top-rank.webp', alt: '紹介するほど会員ランクが上がる仕組みの案内' },
+  { src: '/banners/top-business-cards.webp', alt: '複数枚の名刺をまとめて読み取る案内' },
+] as const;
 const industryIcons: Record<string, string> = {
   'IT・システム': '/icons/industries/it-system.png', 'Web・広告': '/icons/industries/web-ad.png',
   '映像・写真': '/icons/industries/video-photo.png', 'デザイン・印刷': '/icons/industries/design-print.png',
@@ -88,13 +92,6 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const viewedRequests = useMemo(() => viewedIds.map((id) => requests.find((item) => item.id === id)).filter((item): item is BoardRequest => Boolean(item)), [requests, viewedIds]);
   const favoriteRequests = useMemo(() => favoriteIds.map((id) => requests.find((item) => item.id === id)).filter((item): item is BoardRequest => Boolean(item)), [favoriteIds, requests]);
   const count = (category: string) => category === 'all' ? requests.length : requests.filter((item) => item.category === category).length;
-  const currentRankFloor = rankThresholds[stats.level - 1] ?? 0;
-  const nextRankThreshold = rankThresholds[stats.level];
-  const nextRankName = rankNames[stats.level];
-  const rankProgress = nextRankThreshold === undefined
-    ? 100
-    : Math.min(100, Math.round(((stats.introCount - currentRankFloor) / (nextRankThreshold - currentRankFloor)) * 100));
-
   useEffect(() => () => {
     if (photoPreview.startsWith('blob:')) URL.revokeObjectURL(photoPreview);
   }, [photoPreview]);
@@ -234,6 +231,13 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  function openCurrentBanner() {
+    if (carouselIndex === 0) return openRequest();
+    if (carouselIndex === 1) return setModal('responses');
+    if (carouselIndex === 2) return showProfile();
+    openCards('capture');
+  }
+
   function showToast(message: string) { setToast(message); window.setTimeout(() => setToast(''), 3800); }
   function toggleIndustry(value: string, selected: string[], setSelected: (values: string[]) => void, max: number) {
     if (selected.includes(value)) return setSelected(selected.filter((item) => item !== value));
@@ -250,12 +254,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
 
       {activeTab === 'home' ? <div className="home-dashboard">
         <section className="hero-carousel" aria-label="GIVE HUBの使い方">
-          <div className={`hero-slide hero-slide-${carouselIndex}`}>
-            {carouselIndex === 0 && <><div className="hero-copy"><span>守成クラブの紹介掲示板</span><h1>こんな人、<br />探しています。</h1><p>困りごとを投稿して、信頼できる仲間から紹介をもらいましょう。</p><button onClick={openRequest}>探しごとを投稿する <i>→</i></button></div><div className="hero-visual"><b>GIVE</b><span>つながる</span><b>HUB</b></div></>}
-            {carouselIndex === 1 && <><div className="hero-copy"><span>届いた回答をまとめて確認</span><h1>紹介が届いたら<br />ここで確認。</h1><p>自分の探しごとに届いた紹介を、投稿ごとに見られます。</p><button onClick={() => setModal('responses')}>届いた紹介を見る <strong>{stats.receivedIntroCount}</strong><i>→</i></button></div><div className="hero-visual hero-inbox">✉<small>{stats.receivedIntroCount}</small></div></>}
-            {carouselIndex === 2 && <><div className="hero-copy"><span>紹介するほどグレードアップ</span><h1>{stats.rank}<br />MEMBER</h1><p>{nextRankThreshold === undefined ? '最高ランクに到達しました。' : `あと${Math.max(0, nextRankThreshold - stats.introCount)}件の紹介で ${nextRankName}。`}</p><button onClick={showProfile}>ランクを確認する <i>→</i></button></div><div className="hero-rank"><b>♛</b><span>{stats.introCount}件紹介</span><i><em style={{ width: `${rankProgress}%` }} /></i></div></>}
-            {carouselIndex === 3 && <><div className="hero-copy"><span>複数枚をまとめて読み取り</span><h1>名刺交換を、<br />その場で記録。</h1><p>カメラや写真から名刺を読み取り、確認してから登録できます。</p><button onClick={() => openCards('capture')}>名刺を読み取る <i>→</i></button></div><div className="hero-visual hero-card">▣<small>名刺帳</small></div></>}
-          </div>
+          <button key={carouselIndex} className="hero-image-slide" onClick={openCurrentBanner} aria-label={`${topBanners[carouselIndex].alt}を開く`}><img src={topBanners[carouselIndex].src} alt={topBanners[carouselIndex].alt} /></button>
           <div className="carousel-dots" aria-label="バナーを切り替える">{[0,1,2,3].map((index) => <button key={index} aria-label={`${index + 1}枚目`} className={carouselIndex === index ? 'active' : ''} onClick={() => setCarouselIndex(index)} />)}</div>
         </section>
 

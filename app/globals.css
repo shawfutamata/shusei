@@ -33,6 +33,9 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 /* Home dashboard: carousel, history, favorites and industry discovery. */
 .home-dashboard { padding:12px 0 28px; }
 .hero-carousel { margin:0 14px; }
+.hero-image-slide { width:100%; aspect-ratio:3/2; padding:0; display:block; overflow:hidden; border:0; border-radius:23px; background:#1469d9; box-shadow:0 15px 34px rgba(30,78,180,.22); animation:hero-in .32s ease; }
+.hero-image-slide img { width:100%; height:100%; display:block; object-fit:cover; }
+.hero-image-slide:focus-visible { outline:4px solid #93c5fd; outline-offset:3px; }
 .hero-slide { min-height:274px; padding:25px 22px 23px; position:relative; overflow:hidden; border-radius:23px; display:grid; grid-template-columns:minmax(0,1fr) 108px; align-items:center; gap:12px; color:#fff; background:linear-gradient(135deg,#1749cb,#38bdf8); box-shadow:0 15px 34px rgba(30,78,180,.22); animation:hero-in .32s ease; }
 .hero-slide::before { content:''; width:210px; height:210px; position:absolute; right:-100px; top:-115px; border:1px solid rgba(255,255,255,.25); border-radius:50%; }
 .hero-slide-1 { background:linear-gradient(135deg,#173e8f,#2868df); }.hero-slide-2 { background:linear-gradient(135deg,#0c516a,#1f9bc0); }.hero-slide-3 { background:linear-gradient(135deg,#1548b8,#5b8df0); }
