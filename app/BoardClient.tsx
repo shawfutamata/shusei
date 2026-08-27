@@ -5,7 +5,6 @@ import Cropper, { type Area } from 'react-easy-crop';
 import type { BoardRequest, MemberStats } from '@/db/data';
 import BusinessCardManager from './BusinessCardManager';
 import ReceivedIntroductions from './ReceivedIntroductions';
-import InstallAndNotificationPanel from './InstallAndNotificationPanel';
 import { prefectures, type Prefecture } from './profile-options';
 import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-options';
 
@@ -276,7 +275,6 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         </section>
 
         {!stats.avatarUrl && <button className="photo-required-banner" onClick={showProfile}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・紹介ができます。</b><i>登録する →</i></button>}
-        <InstallAndNotificationPanel onNotice={showToast} />
       </div> : activeTab === 'search' ? <section className="mobile-board search-page" id="board">
         <div className="section-title"><div><p>REQUESTS</p><h2>{industryFilter === 'all' ? 'みんなの探しごと' : industryFilter}</h2></div><span>{shown.length}件</span></div>
         {industryFilter !== 'all' && <button className="clear-industry" onClick={() => setIndustryFilter('all')}><img src={industryIcons[getIndustryGroup(industryFilter)?.name ?? 'その他']} alt="" />{industryFilter}で絞り込み中 <i>×</i></button>}
