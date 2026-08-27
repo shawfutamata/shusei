@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import type { ChatGPTUser } from '@/app/chatgpt-auth';
 
 export type BoardRequest = {
@@ -8,6 +9,7 @@ export type BoardRequest = {
   description: string;
   budgetLabel: string;
   area: string;
+  industryTags: string[];
   deadline: string;
   status: string;
   createdAt: string;
@@ -29,6 +31,8 @@ export type MemberStats = {
   positionTitle: string;
   badge: string;
   businessArea: string;
+  primaryIndustry: string;
+  notifyIndustries: string[];
   annualRevenueBand: string;
   avatarUrl: string;
   introCount: number;
@@ -111,6 +115,8 @@ const statements = [
     position_title TEXT NOT NULL DEFAULT '',
     badge TEXT NOT NULL DEFAULT '',
     business_area TEXT NOT NULL DEFAULT '',
+    primary_industry TEXT NOT NULL DEFAULT '',
+    notify_industries TEXT NOT NULL DEFAULT '[]',
     annual_revenue_band TEXT NOT NULL DEFAULT '',
     avatar_key TEXT NOT NULL DEFAULT '',
     avatar_version INTEGER NOT NULL DEFAULT 0,
@@ -127,6 +133,7 @@ const statements = [
     description TEXT NOT NULL,
     budget_label TEXT NOT NULL,
     area TEXT NOT NULL,
+    industry_tags TEXT NOT NULL DEFAULT '[]',
     deadline TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'open',
     created_at TEXT NOT NULL
@@ -143,6 +150,14 @@ const statements = [
     status TEXT NOT NULL DEFAULT 'proposed',
     points_awarded INTEGER NOT NULL DEFAULT 10,
     created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS push_subscriptions (
+    endpoint TEXT PRIMARY KEY,
+    member_id TEXT NOT NULL REFERENCES members(id),
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS attendance_events (
     id TEXT PRIMARY KEY,
@@ -191,6 +206,7 @@ const statements = [
   'CREATE INDEX IF NOT EXISTS idx_requests_category ON requests(category)',
   'CREATE INDEX IF NOT EXISTS idx_introductions_introducer_id ON introductions(introducer_id)',
   'CREATE INDEX IF NOT EXISTS idx_introductions_request_id ON introductions(request_id)',
+  'CREATE INDEX IF NOT EXISTS idx_push_subscriptions_member_id ON push_subscriptions(member_id)',
   'CREATE INDEX IF NOT EXISTS idx_attendance_events_owner_date ON attendance_events(owner_id, meeting_date)',
   'CREATE INDEX IF NOT EXISTS idx_attendance_people_event_id ON attendance_people(event_id)',
   'CREATE INDEX IF NOT EXISTS idx_attendance_people_owner_important ON attendance_people(owner_id, is_important)',
@@ -209,12 +225,18 @@ export async function ensureDatabase() {
     ['position_title', "ALTER TABLE members ADD COLUMN position_title TEXT NOT NULL DEFAULT ''"],
     ['badge', "ALTER TABLE members ADD COLUMN badge TEXT NOT NULL DEFAULT ''"],
     ['business_area', "ALTER TABLE members ADD COLUMN business_area TEXT NOT NULL DEFAULT ''"],
+    ['primary_industry', "ALTER TABLE members ADD COLUMN primary_industry TEXT NOT NULL DEFAULT ''"],
+    ['notify_industries', "ALTER TABLE members ADD COLUMN notify_industries TEXT NOT NULL DEFAULT '[]'"],
     ['annual_revenue_band', "ALTER TABLE members ADD COLUMN annual_revenue_band TEXT NOT NULL DEFAULT ''"],
     ['avatar_key', "ALTER TABLE members ADD COLUMN avatar_key TEXT NOT NULL DEFAULT ''"],
     ['avatar_version', 'ALTER TABLE members ADD COLUMN avatar_version INTEGER NOT NULL DEFAULT 0'],
   ];
   for (const [columnName, sql] of missingColumns) {
     if (!existingColumns.has(columnName)) await env.DB.prepare(sql).run();
+  }
+  const requestColumns = await env.DB.prepare('PRAGMA table_info(requests)').all<{ name: string }>();
+  if (!requestColumns.results.some((column) => column.name === 'industry_tags')) {
+    await env.DB.prepare("ALTER TABLE requests ADD COLUMN industry_tags TEXT NOT NULL DEFAULT '[]'").run();
   }
   await seedDemoData();
   await env.DB.batch([
@@ -225,6 +247,10 @@ export async function ensureDatabase() {
     env.DB.prepare("UPDATE members SET badge = '赤' WHERE badge IN ('赤バッヂ', '赤バッジ')"),
     env.DB.prepare("UPDATE members SET badge = '緑' WHERE badge IN ('緑バッヂ', '緑バッジ')"),
     env.DB.prepare("UPDATE members SET badge = '' WHERE badge NOT IN ('', '緑', '赤', 'ゴールド', 'ダイヤモンド')"),
+    env.DB.prepare("UPDATE members SET primary_industry = '人材・教育', notify_industries = '[\"人材・教育\",\"映像・写真\",\"Web・広告\"]' WHERE id = 'demo-tanaka' AND primary_industry = ''"),
+    env.DB.prepare("UPDATE members SET primary_industry = '美容・健康', notify_industries = '[\"美容・健康\",\"デザイン・印刷\",\"建設・不動産\"]' WHERE id = 'demo-sato' AND primary_industry = ''"),
+    env.DB.prepare("UPDATE requests SET industry_tags = '[\"映像・写真\",\"Web・広告\"]' WHERE id = 'request-video-partner' AND industry_tags = '[]'"),
+    env.DB.prepare("UPDATE requests SET industry_tags = '[\"美容・健康\",\"建設・不動産\"]' WHERE id = 'request-salon-designer' AND industry_tags = '[]'"),
   ]);
   initialized = true;
 }
@@ -256,7 +282,8 @@ export async function upsertMember(user: ChatGPTUser) {
 export async function getBoardData(user: ChatGPTUser) {
   await upsertMember(user);
   const requestsResult = await env.DB.prepare(`SELECT r.id, r.category, r.title, r.description,
-    r.budget_label AS budgetLabel, r.area, r.deadline, r.status, r.created_at AS createdAt,
+    r.budget_label AS budgetLabel, r.area, r.industry_tags AS industryTagsJson,
+    r.deadline, r.status, r.created_at AS createdAt,
     m.display_name AS authorName, m.company AS authorCompany, m.venue AS authorVenue,
     m.position_title AS authorPositionTitle, m.badge AS authorBadge,
     m.business_area AS authorBusinessArea,
@@ -268,27 +295,30 @@ export async function getBoardData(user: ChatGPTUser) {
     LEFT JOIN introductions i ON i.request_id = r.id
     WHERE r.status = 'open'
     GROUP BY r.id
-    ORDER BY r.created_at DESC`).all<BoardRequest & { authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
+    ORDER BY r.created_at DESC`).all<Omit<BoardRequest, 'industryTags'> & { industryTagsJson: string; authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
 
   const member = await env.DB.prepare(`SELECT display_name AS displayName, venue, company,
     position_title AS positionTitle, badge, business_area AS businessArea,
+    primary_industry AS primaryIndustry, notify_industries AS notifyIndustriesJson,
     annual_revenue_band AS annualRevenueBand,
     avatar_key AS avatarKey, avatar_version AS avatarVersion,
     intro_count AS introCount, deal_count AS dealCount, points,
     (SELECT COUNT(*) FROM introductions i JOIN requests r ON r.id = i.request_id
       WHERE r.author_id = members.id) AS receivedIntroCount
-    FROM members WHERE id = ?`).bind(user.userId).first<Omit<MemberStats, 'rank' | 'level' | 'nextRankAt' | 'avatarUrl'> & { avatarKey: string; avatarVersion: number }>();
+    FROM members WHERE id = ?`).bind(user.userId).first<Omit<MemberStats, 'rank' | 'level' | 'nextRankAt' | 'avatarUrl' | 'notifyIndustries'> & { notifyIndustriesJson: string; avatarKey: string; avatarVersion: number }>();
 
-  const baseMember = member ?? { displayName: user.displayName, venue: 'ひるのめぐろ会場', company: '', positionTitle: '', badge: '', businessArea: '', annualRevenueBand: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, dealCount: 0, points: 0 };
-  const stats = calculateRank({ ...baseMember, avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion) });
-  const requests = requestsResult.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, ...request }) => ({
+  const baseMember = member ?? { displayName: user.displayName, venue: 'ひるのめぐろ会場', company: '', positionTitle: '', badge: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, dealCount: 0, points: 0 };
+  const { notifyIndustriesJson, ...memberFields } = baseMember;
+  const stats = calculateRank({ ...memberFields, notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion) });
+  const requests = requestsResult.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, industryTagsJson, ...request }) => ({
     ...request,
+    industryTags: parseStringArray(industryTagsJson),
     authorAvatarUrl: avatarUrl(authorId, authorAvatarKey, authorAvatarVersion),
   }));
   return { requests, stats };
 }
 
-export async function updateMemberProfile(user: ChatGPTUser, input: { company: string; venue: string; positionTitle: string; badge: string; businessArea: string; annualRevenueBand: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {
+export async function updateMemberProfile(user: ChatGPTUser, input: { company: string; venue: string; positionTitle: string; badge: string; businessArea: string; primaryIndustry: string; notifyIndustries: string[]; annualRevenueBand: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {
   await upsertMember(user);
   const existing = await env.DB.prepare('SELECT avatar_key AS avatarKey, avatar_version AS avatarVersion FROM members WHERE id = ?')
     .bind(user.userId).first<{ avatarKey: string; avatarVersion: number }>();
@@ -304,19 +334,37 @@ export async function updateMemberProfile(user: ChatGPTUser, input: { company: s
   }
   if (!avatarKey) throw new Error('顔写真を登録してください。');
   await env.DB.prepare(`UPDATE members SET company = ?, venue = ?, position_title = ?, badge = ?,
-    business_area = ?, annual_revenue_band = ?, avatar_key = ?, avatar_version = ? WHERE id = ?`)
-    .bind(input.company, input.venue, input.positionTitle, input.badge, input.businessArea, input.annualRevenueBand, avatarKey, avatarVersion, user.userId).run();
+    business_area = ?, primary_industry = ?, notify_industries = ?, annual_revenue_band = ?,
+    avatar_key = ?, avatar_version = ? WHERE id = ?`)
+    .bind(input.company, input.venue, input.positionTitle, input.badge, input.businessArea,
+      input.primaryIndustry, JSON.stringify(input.notifyIndustries), input.annualRevenueBand, avatarKey, avatarVersion, user.userId).run();
   return avatarUrl(user.userId, avatarKey, avatarVersion);
 }
 
-export async function createRequest(user: ChatGPTUser, input: { category: string; title: string; description: string; budgetLabel: string; area: string; deadline: string; }) {
+export async function createRequest(user: ChatGPTUser, input: { category: string; title: string; description: string; budgetLabel: string; area: string; industryTags: string[]; deadline: string; }) {
   await upsertMember(user);
   await requireFacePhoto(user.userId);
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
-  await env.DB.prepare('INSERT INTO requests (id, author_id, category, title, description, budget_label, area, deadline, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, user.userId, input.category, input.title, input.description, input.budgetLabel, input.area, input.deadline, 'open', createdAt).run();
+  await env.DB.prepare('INSERT INTO requests (id, author_id, category, title, description, budget_label, area, industry_tags, deadline, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, user.userId, input.category, input.title, input.description, input.budgetLabel, input.area, JSON.stringify(input.industryTags), input.deadline, 'open', createdAt).run();
+  await sendMatchingPushNotifications(user.userId, { id, title: input.title, industryTags: input.industryTags }).catch(() => undefined);
   return id;
+}
+
+export async function savePushSubscription(user: ChatGPTUser, subscription: PushSubscription) {
+  await upsertMember(user);
+  const now = new Date().toISOString();
+  await env.DB.prepare(`INSERT INTO push_subscriptions (endpoint, member_id, p256dh, auth, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(endpoint) DO UPDATE SET member_id = excluded.member_id, p256dh = excluded.p256dh,
+      auth = excluded.auth, updated_at = excluded.updated_at`)
+    .bind(subscription.endpoint, user.userId, subscription.keys.p256dh, subscription.keys.auth, now, now).run();
+}
+
+export async function deletePushSubscription(user: ChatGPTUser, endpoint: string) {
+  await upsertMember(user);
+  await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND member_id = ?').bind(endpoint, user.userId).run();
 }
 
 export async function createIntroduction(user: ChatGPTUser, input: { requestId: string; personName: string; personCompany: string; relationship: string; fitReason: string; }) {
@@ -502,6 +550,53 @@ function avatarUrl(memberId: string, avatarKey: string, avatarVersion: number) {
 
 function businessCardImageUrl(id: string, version: number) {
   return `/api/business-cards/${encodeURIComponent(id)}/image?v=${version}`;
+}
+
+async function sendMatchingPushNotifications(authorId: string, request: { id: string; title: string; industryTags: string[] }) {
+  if (!request.industryTags.length || !env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return;
+  const subscriptions = await env.DB.prepare(`SELECT p.endpoint, p.p256dh, p.auth,
+    m.notify_industries AS notifyIndustriesJson
+    FROM push_subscriptions p JOIN members m ON m.id = p.member_id
+    WHERE p.member_id != ?`).bind(authorId).all<{ endpoint: string; p256dh: string; auth: string; notifyIndustriesJson: string }>();
+  const targets = subscriptions.results.filter((subscription) => {
+    const wanted = new Set(parseStringArray(subscription.notifyIndustriesJson));
+    return request.industryTags.some((industry) => wanted.has(industry));
+  });
+  const expiredEndpoints: string[] = [];
+  await Promise.allSettled(targets.map(async (target) => {
+    const subscription: PushSubscription = {
+      endpoint: target.endpoint,
+      expirationTime: null,
+      keys: { p256dh: target.p256dh, auth: target.auth },
+    };
+    const payload = await buildPushPayload({
+      data: {
+        title: '関連する探しごとが投稿されました',
+        body: request.title,
+        url: `/?request=${encodeURIComponent(request.id)}`,
+        tag: `request-${request.id}`,
+      },
+      options: { ttl: 86400, urgency: 'normal' },
+    }, subscription, {
+      subject: env.VAPID_SUBJECT || 'mailto:info@give-hub.jp',
+      publicKey: env.VAPID_PUBLIC_KEY,
+      privateKey: env.VAPID_PRIVATE_KEY,
+    });
+    const response = await fetch(subscription.endpoint, payload);
+    if (response.status === 404 || response.status === 410) expiredEndpoints.push(subscription.endpoint);
+  }));
+  if (expiredEndpoints.length) {
+    await env.DB.batch(expiredEndpoints.map((endpoint) => env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(endpoint)));
+  }
+}
+
+function parseStringArray(value: string) {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
 }
 
 function calculateRank(member: Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'>): MemberStats {

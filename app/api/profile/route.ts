@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { updateMemberProfile } from '@/db/data';
 import { prefectures, type Prefecture } from '@/app/profile-options';
+import { isIndustry } from '@/app/industry-options';
 
 const allowedBands = ['', 'revenue_10_30', 'revenue_30_70', 'revenue_70_100', 'revenue_100_plus'];
 const allowedBadges = ['', '緑', '赤', 'ゴールド', 'ダイヤモンド'];
@@ -15,6 +16,8 @@ export async function PATCH(request: Request) {
   const positionTitle = clean(body.get('positionTitle'), 60);
   const badge = clean(body.get('badge'), 40);
   const businessArea = clean(body.get('businessArea'), 60);
+  const primaryIndustry = clean(body.get('primaryIndustry'), 40);
+  const notifyIndustries = cleanIndustries(body.get('notifyIndustries'), 6);
   const annualRevenueBand = clean(body.get('annualRevenueBand'), 30);
   const avatar = body.get('avatar');
   if (!company || !venue) {
@@ -29,6 +32,9 @@ export async function PATCH(request: Request) {
   if (businessArea && !prefectures.includes(businessArea as Prefecture)) {
     return NextResponse.json({ error: '活動エリアは47都道府県から選択してください。' }, { status: 400 });
   }
+  if (primaryIndustry && !isIndustry(primaryIndustry)) {
+    return NextResponse.json({ error: '業種の選択内容を確認してください。' }, { status: 400 });
+  }
   let avatarUpload: { bytes: ArrayBuffer; contentType: string } | undefined;
   if (avatar instanceof File && avatar.size > 0) {
     if (avatar.size > 5 * 1024 * 1024) return NextResponse.json({ error: '顔写真は5MB以下にしてください。' }, { status: 400 });
@@ -38,10 +44,21 @@ export async function PATCH(request: Request) {
     avatarUpload = { bytes, contentType: avatar.type };
   }
   try {
-    const avatarUrl = await updateMemberProfile(user, { company, venue, positionTitle, badge, businessArea, annualRevenueBand, avatar: avatarUpload });
-    return NextResponse.json({ company, venue, positionTitle, badge, businessArea, annualRevenueBand, avatarUrl });
+    const avatarUrl = await updateMemberProfile(user, { company, venue, positionTitle, badge, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, avatar: avatarUpload });
+    return NextResponse.json({ company, venue, positionTitle, badge, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, avatarUrl });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'プロフィールを保存できませんでした。' }, { status: 400 });
+  }
+}
+
+function cleanIndustries(value: FormDataEntryValue | null, max: number) {
+  if (typeof value !== 'string') return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return [...new Set(parsed.filter((item): item is string => typeof item === 'string' && isIndustry(item)))].slice(0, max);
+  } catch {
+    return [];
   }
 }
 

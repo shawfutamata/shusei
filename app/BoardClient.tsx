@@ -5,7 +5,9 @@ import Cropper, { type Area } from 'react-easy-crop';
 import type { BoardRequest, MemberStats } from '@/db/data';
 import BusinessCardManager from './BusinessCardManager';
 import ReceivedIntroductions from './ReceivedIntroductions';
+import InstallAndNotificationPanel from './InstallAndNotificationPanel';
 import { prefectures, type Prefecture } from './profile-options';
+import { industries } from './industry-options';
 
 const categories = {
   project: { label: '案件', className: 'project' },
@@ -35,7 +37,10 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [profilePosition, setProfilePosition] = useState(initialStats.positionTitle);
   const [profileBadge, setProfileBadge] = useState(initialStats.badge);
   const [profileArea, setProfileArea] = useState(prefectures.includes(initialStats.businessArea as Prefecture) ? initialStats.businessArea : '');
+  const [profileIndustry, setProfileIndustry] = useState(initialStats.primaryIndustry);
+  const [profileNotifyIndustries, setProfileNotifyIndustries] = useState(initialStats.notifyIndustries);
   const [profileRevenue, setProfileRevenue] = useState(initialStats.annualRevenueBand);
+  const [requestIndustries, setRequestIndustries] = useState<string[]>([]);
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState(initialStats.avatarUrl);
   const [cropSource, setCropSource] = useState('');
@@ -83,10 +88,10 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   async function submitRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true);
     const form = event.currentTarget;
-    const response = await fetch('/api/board', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+    const response = await fetch('/api/board', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...Object.fromEntries(new FormData(form)), industryTags: requestIndustries }) });
     const result = await response.json() as { error?: string }; setBusy(false);
     if (!response.ok) return showToast(result.error ?? '投稿できませんでした。');
-    setModal(null); form.reset(); await refreshBoard(); showToast('探しごとを投稿しました。');
+    setModal(null); form.reset(); setRequestIndustries([]); await refreshBoard(); showToast('探しごとを投稿しました。関連業種の会員へ通知します。');
   }
 
   async function submitIntroduction(event: FormEvent<HTMLFormElement>) {
@@ -103,13 +108,14 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     setBusy(true);
     const body = new FormData();
     body.set('company', profileCompany); body.set('venue', profileVenue); body.set('positionTitle', profilePosition);
-    body.set('badge', profileBadge); body.set('businessArea', profileArea); body.set('annualRevenueBand', profileRevenue);
+    body.set('badge', profileBadge); body.set('businessArea', profileArea); body.set('primaryIndustry', profileIndustry);
+    body.set('notifyIndustries', JSON.stringify(profileNotifyIndustries)); body.set('annualRevenueBand', profileRevenue);
     if (profilePhoto) body.set('avatar', profilePhoto);
     const response = await fetch('/api/profile', { method: 'PATCH', body });
     const result = await response.json() as { error?: string; avatarUrl?: string }; setBusy(false);
     if (!response.ok) return showToast(result.error ?? 'プロフィールを保存できませんでした。');
     const avatarUrl = result.avatarUrl ?? stats.avatarUrl;
-    setStats((current) => ({ ...current, company: profileCompany, venue: profileVenue, positionTitle: profilePosition, badge: profileBadge, businessArea: profileArea, annualRevenueBand: profileRevenue, avatarUrl }));
+    setStats((current) => ({ ...current, company: profileCompany, venue: profileVenue, positionTitle: profilePosition, badge: profileBadge, businessArea: profileArea, primaryIndustry: profileIndustry, notifyIndustries: profileNotifyIndustries, annualRevenueBand: profileRevenue, avatarUrl }));
     setProfilePhoto(null); setPhotoPreview(avatarUrl); setModal(null);
     await refreshBoard(); showToast('顔写真とプロフィールを保存しました。');
   }
@@ -151,6 +157,11 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
 
   function showToast(message: string) { setToast(message); window.setTimeout(() => setToast(''), 3800); }
   function scrollTo(id: string) { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  function toggleIndustry(value: string, selected: string[], setSelected: (values: string[]) => void, max: number) {
+    if (selected.includes(value)) return setSelected(selected.filter((item) => item !== value));
+    if (selected.length >= max) return showToast(`業種タグは${max}個まで選択できます。`);
+    setSelected([...selected, value]);
+  }
 
   return (
     <main className="app-shell" id="home">
@@ -181,6 +192,8 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <button className="quick-card camera" onClick={() => openCards('capture')}><span className="quick-icon">▣</span><span><b>名刺をまとめて読み取る</b><small>複数枚の撮影・写真選択に対応</small></span><i>›</i></button>
       </section>
 
+      <InstallAndNotificationPanel onNotice={showToast} />
+
       {!stats.avatarUrl && <button className="photo-required-banner" onClick={() => setModal('profile')}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・紹介ができます。</b><i>登録する →</i></button>}
 
       <section className="mobile-board" id="board">
@@ -197,6 +210,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
             <article className="need-card" key={need.id}>
               <div className="card-topline"><span className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</span><span className="deadline">あと{daysLeft(need.deadline)}日</span></div>
               <h3>{need.title}</h3><p className="need-body">{need.description}</p>
+              <div className="industry-tags" aria-label="関連業種">{need.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
               <dl className="details"><div><dt>予算</dt><dd>{need.budgetLabel}</dd></div><div><dt>エリア</dt><dd>{need.area}</dd></div></dl>
               <div className="card-person"><Avatar src={need.authorAvatarUrl} name={need.authorName} className="member-avatar" /><p><b>{need.authorName}</b><small>{need.authorPositionTitle && `${need.authorPositionTitle}｜`}{need.authorCompany || '会社名未設定'}</small></p><span>紹介 {need.introCount}件</span></div>
               <div className="member-context"><span>会場 {need.authorVenue}</span>{need.authorBusinessArea && <span>エリア {need.authorBusinessArea}</span>}{need.authorBadge && <span>{need.authorBadge}バッヂ</span>}{need.authorRevenueBand && <span>年商 {revenueBands[need.authorRevenueBand]}</span>}</div>
@@ -214,7 +228,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <button onClick={() => setModal('profile')}><span>●</span><small>マイ</small></button>
       </nav>
 
-      {modal === 'request' && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの<select name="category" required defaultValue=""><option value="" disabled>選択してください</option><option value="project">案件の発注先</option><option value="collaboration">協業パートナー</option><option value="consultation">相談相手・情報</option></select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容<textarea name="description" required maxLength={600} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア<input name="area" required maxLength={60} placeholder="例：東京都・オンライン" /></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><button className="submit-button" disabled={busy}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
+      {modal === 'request' && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの<select name="category" required defaultValue=""><option value="" disabled>選択してください</option><option value="project">案件の発注先</option><option value="collaboration">協業パートナー</option><option value="consultation">相談相手・情報</option></select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容<textarea name="description" required maxLength={600} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><fieldset className="tag-field"><legend>関連する業種 <small>必須・3個まで</small></legend><div className="tag-picker">{industries.map((industry) => <button type="button" key={industry} className={requestIndustries.includes(industry) ? 'selected' : ''} onClick={() => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)}>{industry}</button>)}</div></fieldset><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア<input name="area" required maxLength={60} placeholder="例：東京都・オンライン" /></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><button className="submit-button" disabled={busy || !requestIndustries.length}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
 
       {modal === 'intro' && selected && <Modal title="知っている人を紹介" lead={`「${selected.title}」への紹介です。`} onClose={() => setModal(null)}><form className="form" onSubmit={submitIntroduction}><label>お名前<input name="personName" required maxLength={60} /></label><label>会社・屋号<input name="personCompany" required maxLength={80} /></label><label>あなたとの関係<input name="relationship" required maxLength={120} placeholder="例：取引先、友人" /></label><label>紹介したい理由<textarea name="fitReason" required maxLength={400} rows={3} /></label><label className="consent"><input type="checkbox" name="consentConfirmed" required /> ご本人に紹介の了承を得ています</label><button className="submit-button" disabled={busy}>{busy ? '届けています…' : '紹介を届ける'}</button></form></Modal>}
 
@@ -226,6 +240,8 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <label>所属会場 <small>必須・正式な会場名</small><input value={profileVenue} onChange={(event) => setProfileVenue(event.target.value)} maxLength={60} placeholder="ひるのめぐろ会場" required /></label>
         <div className="profile-row"><label>肩書き <small>任意</small><input value={profilePosition} onChange={(event) => setProfilePosition(event.target.value)} maxLength={60} placeholder="代表取締役" /></label><label>バッヂ <small>任意</small><select value={profileBadge} onChange={(event) => setProfileBadge(event.target.value)}><option value="">選択しない</option><option value="緑">緑バッヂ</option><option value="赤">赤バッヂ</option><option value="ゴールド">ゴールドバッヂ</option><option value="ダイヤモンド">ダイヤモンドバッヂ</option></select></label></div>
         <label>活動エリア <small>任意・検索に使われます</small><select value={profileArea} onChange={(event) => setProfileArea(event.target.value)}><option value="">選択しない</option>{prefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
+        <label>自分の業種 <small>通知の設定に使われます</small><select value={profileIndustry} onChange={(event) => { const value = event.target.value; setProfileIndustry(value); if (value && !profileNotifyIndustries.includes(value)) setProfileNotifyIndustries((current) => [...current, value].slice(0, 6)); }}><option value="">選択してください</option>{industries.map((industry) => <option value={industry} key={industry}>{industry}</option>)}</select></label>
+        <fieldset className="tag-field profile-tag-field"><legend>通知を受けたい関連業種 <small>6個まで</small></legend><p>選んだ業種の探しごとが投稿されると通知します。</p><div className="tag-picker">{industries.map((industry) => <button type="button" key={industry} className={profileNotifyIndustries.includes(industry) ? 'selected' : ''} onClick={() => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, 6)}>{industry}</button>)}</div></fieldset>
         <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         <button onClick={saveProfile} disabled={busy || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : '顔写真とプロフィールを保存する'}</button>
       </div></Modal>}

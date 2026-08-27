@@ -9,6 +9,8 @@ export const members = sqliteTable('members', {
   positionTitle: text('position_title').notNull().default(''),
   badge: text('badge').notNull().default(''),
   businessArea: text('business_area').notNull().default(''),
+  primaryIndustry: text('primary_industry').notNull().default(''),
+  notifyIndustries: text('notify_industries').notNull().default('[]'),
   annualRevenueBand: text('annual_revenue_band').notNull().default(''),
   avatarKey: text('avatar_key').notNull().default(''),
   avatarVersion: integer('avatar_version').notNull().default(0),
@@ -26,12 +28,24 @@ export const requests = sqliteTable('requests', {
   description: text('description').notNull(),
   budgetLabel: text('budget_label').notNull(),
   area: text('area').notNull(),
+  industryTags: text('industry_tags').notNull().default('[]'),
   deadline: text('deadline').notNull(),
   status: text('status').notNull().default('open'),
   createdAt: text('created_at').notNull(),
 }, (table) => [
   index('idx_requests_status_created_at').on(table.status, table.createdAt),
   index('idx_requests_category').on(table.category),
+]);
+
+export const pushSubscriptions = sqliteTable('push_subscriptions', {
+  endpoint: text('endpoint').primaryKey(),
+  memberId: text('member_id').notNull().references(() => members.id),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  index('idx_push_subscriptions_member_id').on(table.memberId),
 ]);
 
 export const introductions = sqliteTable('introductions', {
