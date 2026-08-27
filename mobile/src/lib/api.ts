@@ -24,4 +24,4 @@ export const pushApi = {
   remove: (token: string) => apiFetch<{ ok: true }>('/api/mobile/push', { method: 'DELETE', body: JSON.stringify({ token }) }),
 };
 export type AppUser = { userId: string; email: string; displayName: string; fullName: string | null };
-export type MembershipAccess = { status: 'invited' | 'active' | 'past_due' | 'canceled'; source: 'direct_contract' | 'organization_contract'; currentPeriodEnd: string; organizationId: string; canUseApp: boolean };
+export type MembershipAccess = { status: 'invited' | 'active' | 'past_due' | 'canceled'; source: 'direct_contract' | 'organization_contract'; currentPeriodEnd: string | null; organizationId: string | null; canUseApp: boolean };
