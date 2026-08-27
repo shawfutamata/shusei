@@ -308,3 +308,15 @@ body { font-weight:600; }
 .industry-major-picker { margin:0; padding:3px 0 14px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; overflow:visible; }
 .industry-major-picker button,.profile-form .industry-major-picker button { width:100%; min-width:0; min-height:48px; padding:8px 6px; border:1px solid #cbd7e7; border-radius:11px; background:#fff; color:#51637d; font-size:12px; font-weight:900; line-height:1.35; white-space:normal; }
 .industry-major-picker button.selected,.profile-form .industry-major-picker button.selected { border-color:#2563eb; background:#2563eb; color:#fff; box-shadow:0 5px 13px rgba(37,99,235,.2); }
+
+/* Refine the request cards and category grid for a calmer mobile balance. */
+.industry-grid { gap:20px 8px; }
+.industry-grid button>span { width:56px; height:56px; border-radius:18px; }
+.industry-grid button img { width:35px; height:35px; }
+.industry-grid b { min-height:38px; margin-top:9px; line-height:1.45; }
+.industry-grid small { margin-top:1px; }
+.card-person { grid-template-columns:44px minmax(0,1fr) auto; gap:10px; }
+.member-avatar { width:44px; height:44px; font-size:14px; }
+.card-person p { min-width:0; }
+.intro-button { min-height:50px; padding:0 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-radius:12px; font-size:14px; line-height:1.35; text-align:left; }
+.intro-button span { float:none; margin:0; flex:0 0 auto; font-size:18px; line-height:1; }
