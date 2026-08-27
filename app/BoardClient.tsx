@@ -24,6 +24,14 @@ const revenueBands: Record<string, string> = {
 
 const rankNames = ['PEARL', 'EMERALD', 'SAPPHIRE', 'RUBY', 'DIAMOND'];
 const rankThresholds = [0, 3, 6, 10, 20];
+const industryIcons: Record<string, string> = {
+  'IT・システム': '💻', 'Web・広告': '📣', '映像・写真': '🎬', 'デザイン・印刷': '🎨',
+  '建設・不動産': '🏗️', '製造・卸売': '🏭', '小売・EC': '🛍️', '飲食・食品': '🍽️',
+  '美容・健康': '✨', '医療・福祉': '🏥', '士業・コンサル': '⚖️', '人材・教育': '👥',
+  '金融・保険': '💰', '運輸・物流': '🚚', 'イベント・エンタメ': '🎪', 'その他': '•••',
+};
+const historyStorageKey = 'give-hub-request-history-v1';
+const favoriteStorageKey = 'give-hub-request-favorites-v1';
 
 export default function BoardClient({ initialRequests, initialStats, userName }: { initialRequests: BoardRequest[]; initialStats: MemberStats; userName: string }) {
   const [requests, setRequests] = useState(initialRequests);
@@ -32,6 +40,12 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [revenueFilter, setRevenueFilter] = useState('all');
   const [venueFilter, setVenueFilter] = useState('all');
   const [areaFilter, setAreaFilter] = useState('all');
+  const [industryFilter, setIndustryFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState<'home' | 'search'>('home');
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const [viewedIds, setViewedIds] = useState<string[]>([]);
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const [localListsReady, setLocalListsReady] = useState(false);
   const [profileCompany, setProfileCompany] = useState(initialStats.company);
   const [profileVenue, setProfileVenue] = useState(initialStats.venue);
   const [profilePosition, setProfilePosition] = useState(initialStats.positionTitle);
@@ -49,7 +63,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [zoom, setZoom] = useState(1);
   const [croppedArea, setCroppedArea] = useState<Area | null>(null);
   const [cropping, setCropping] = useState(false);
-  const [modal, setModal] = useState<'request' | 'intro' | 'profile' | 'cards' | 'responses' | null>(initialStats.avatarUrl ? null : 'profile');
+  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'profile' | 'cards' | 'responses' | null>(initialStats.avatarUrl ? null : 'profile');
   const [cardStartMode, setCardStartMode] = useState<'list' | 'capture'>('list');
   const [selected, setSelected] = useState<BoardRequest | null>(null);
   const [busy, setBusy] = useState(false);
@@ -61,8 +75,11 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     (filter === 'all' || item.category === filter) &&
     (revenueFilter === 'all' || item.authorRevenueBand === revenueFilter) &&
     (venueFilter === 'all' || item.authorVenue === venueFilter) &&
-    (areaFilter === 'all' || item.authorBusinessArea === areaFilter)
-  ), [areaFilter, filter, revenueFilter, requests, venueFilter]);
+    (areaFilter === 'all' || item.authorBusinessArea === areaFilter) &&
+    (industryFilter === 'all' || item.industryTags.includes(industryFilter))
+  ), [areaFilter, filter, industryFilter, revenueFilter, requests, venueFilter]);
+  const viewedRequests = useMemo(() => viewedIds.map((id) => requests.find((item) => item.id === id)).filter((item): item is BoardRequest => Boolean(item)), [requests, viewedIds]);
+  const favoriteRequests = useMemo(() => favoriteIds.map((id) => requests.find((item) => item.id === id)).filter((item): item is BoardRequest => Boolean(item)), [favoriteIds, requests]);
   const count = (category: string) => category === 'all' ? requests.length : requests.filter((item) => item.category === category).length;
   const currentRankFloor = rankThresholds[stats.level - 1] ?? 0;
   const nextRankThreshold = rankThresholds[stats.level];
@@ -77,6 +94,32 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   useEffect(() => () => {
     if (cropSource.startsWith('blob:')) URL.revokeObjectURL(cropSource);
   }, [cropSource]);
+  useEffect(() => {
+    try {
+      const savedHistory = window.localStorage.getItem(historyStorageKey);
+      const savedFavorites = window.localStorage.getItem(favoriteStorageKey);
+      const parsedHistory = savedHistory ? JSON.parse(savedHistory) : [];
+      const parsedFavorites = savedFavorites ? JSON.parse(savedFavorites) : [];
+      setViewedIds(Array.isArray(parsedHistory) && parsedHistory.length ? parsedHistory : initialRequests.slice(0, 4).map((item) => item.id));
+      setFavoriteIds(Array.isArray(parsedFavorites) ? parsedFavorites : []);
+    } catch {
+      setViewedIds(initialRequests.slice(0, 4).map((item) => item.id));
+    } finally {
+      setLocalListsReady(true);
+    }
+  }, [initialRequests]);
+  useEffect(() => {
+    if (!localListsReady) return;
+    window.localStorage.setItem(historyStorageKey, JSON.stringify(viewedIds));
+  }, [localListsReady, viewedIds]);
+  useEffect(() => {
+    if (!localListsReady) return;
+    window.localStorage.setItem(favoriteStorageKey, JSON.stringify(favoriteIds));
+  }, [favoriteIds, localListsReady]);
+  useEffect(() => {
+    const timer = window.setInterval(() => setCarouselIndex((current) => (current + 1) % 4), 5500);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function refreshBoard() {
     const response = await fetch('/api/board');
@@ -155,8 +198,30 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
 
   function openCards(mode: 'list' | 'capture') { setCardStartMode(mode); setModal('cards'); }
 
+  function openNeed(need: BoardRequest) {
+    setViewedIds((current) => [need.id, ...current.filter((id) => id !== need.id)].slice(0, 12));
+    setSelected(need);
+    setModal('detail');
+  }
+
+  function toggleFavorite(need: BoardRequest) {
+    const isFavorite = favoriteIds.includes(need.id);
+    setFavoriteIds((current) => isFavorite ? current.filter((id) => id !== need.id) : [need.id, ...current]);
+    showToast(isFavorite ? 'お気に入りから外しました。' : 'お気に入りに保存しました。');
+  }
+
+  function showHome() {
+    setActiveTab('home');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function showSearch(industry = industryFilter) {
+    setIndustryFilter(industry);
+    setActiveTab('search');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   function showToast(message: string) { setToast(message); window.setTimeout(() => setToast(''), 3800); }
-  function scrollTo(id: string) { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   function toggleIndustry(value: string, selected: string[], setSelected: (values: string[]) => void, max: number) {
     if (selected.includes(value)) return setSelected(selected.filter((item) => item !== value));
     if (selected.length >= max) return showToast(`業種タグは${max}個まで選択できます。`);
@@ -166,38 +231,39 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   return (
     <main className="app-shell" id="home">
       <header className="mobile-header">
-        <a className="mobile-brand" href="#home"><span className="brand-mark">G</span><b>GIVE HUB</b></a>
+        <button className="mobile-brand" onClick={showHome}><span className="brand-mark">G</span><b>GIVE HUB</b></button>
         <button className="header-profile" onClick={() => setModal('profile')}><span><small>こんにちは</small><b>{userName}</b></span><Avatar src={stats.avatarUrl} name={userName} className="mini-avatar" /></button>
       </header>
 
-      <section className={`rank-card rank-${stats.rank.toLowerCase()}`} aria-label={`現在の会員ランクは${stats.rank}です`}>
-        <div className="rank-card-top"><span className="rank-crown">♛</span><b>GIVE HUB</b><small>SHUSEI CLUB MEMBER</small></div>
-        <div className="rank-emblem" aria-hidden="true"><span>✦</span></div>
-        <p className="rank-eyebrow">YOUR MEMBER GRADE</p>
-        <h1>{stats.rank}</h1>
-        <h2>MEMBER</h2>
-        <div className="rank-progress">
-          <div className="rank-progress-copy">
-            <b>紹介 {stats.introCount}件</b>
-            <span>{nextRankThreshold === undefined ? '最高ランクに到達しました' : `あと${Math.max(0, nextRankThreshold - stats.introCount)}件で ${nextRankName}`}</span>
+      {activeTab === 'home' ? <div className="home-dashboard">
+        <section className="hero-carousel" aria-label="GIVE HUBの使い方">
+          <div className={`hero-slide hero-slide-${carouselIndex}`}>
+            {carouselIndex === 0 && <><div className="hero-copy"><span>守成クラブの紹介掲示板</span><h1>こんな人、<br />探しています。</h1><p>困りごとを投稿して、信頼できる仲間から紹介をもらいましょう。</p><button onClick={openRequest}>探しごとを投稿する <i>→</i></button></div><div className="hero-visual"><b>GIVE</b><span>つながる</span><b>HUB</b></div></>}
+            {carouselIndex === 1 && <><div className="hero-copy"><span>届いた回答をまとめて確認</span><h1>紹介が届いたら<br />ここで確認。</h1><p>自分の探しごとに届いた紹介を、投稿ごとに見られます。</p><button onClick={() => setModal('responses')}>届いた紹介を見る <strong>{stats.receivedIntroCount}</strong><i>→</i></button></div><div className="hero-visual hero-inbox">✉<small>{stats.receivedIntroCount}</small></div></>}
+            {carouselIndex === 2 && <><div className="hero-copy"><span>紹介するほどグレードアップ</span><h1>{stats.rank}<br />MEMBER</h1><p>{nextRankThreshold === undefined ? '最高ランクに到達しました。' : `あと${Math.max(0, nextRankThreshold - stats.introCount)}件の紹介で ${nextRankName}。`}</p><button onClick={() => setModal('profile')}>ランクを確認する <i>→</i></button></div><div className="hero-rank"><b>♛</b><span>{stats.introCount}件紹介</span><i><em style={{ width: `${rankProgress}%` }} /></i></div></>}
+            {carouselIndex === 3 && <><div className="hero-copy"><span>複数枚をまとめて読み取り</span><h1>名刺交換を、<br />その場で記録。</h1><p>カメラや写真から名刺を読み取り、確認してから登録できます。</p><button onClick={() => openCards('capture')}>名刺を読み取る <i>→</i></button></div><div className="hero-visual hero-card">▣<small>名刺帳</small></div></>}
           </div>
-          <span className="rank-progress-track"><i style={{ width: `${rankProgress}%` }} /></span>
-        </div>
-        <div className="rank-card-bottom"><span><small>MEMBER</small><b>{userName}</b></span><span><small>VENUE</small><b>{stats.venue || '会場未設定'}</b></span><span><small>募集中</small><b>{requests.length}件</b></span></div>
-      </section>
+          <div className="carousel-dots" aria-label="バナーを切り替える">{[0,1,2,3].map((index) => <button key={index} aria-label={`${index + 1}枚目`} className={carouselIndex === index ? 'active' : ''} onClick={() => setCarouselIndex(index)} />)}</div>
+        </section>
 
-      <section className="quick-actions" aria-label="クイック操作">
-        <button className="quick-card primary" onClick={openRequest}><span className="quick-icon">＋</span><span><b>探しごとを投稿</b><small>案件・協業先を募集</small></span><i>›</i></button>
-        <button className="quick-card inbox" onClick={() => setModal('responses')}><span className="quick-icon">✉</span><span><b>届いた紹介を見る</b><small>自分の投稿への回答を確認</small></span><strong>{stats.receivedIntroCount}</strong><i>›</i></button>
-        <button className="quick-card camera" onClick={() => openCards('capture')}><span className="quick-icon">▣</span><span><b>名刺をまとめて読み取る</b><small>複数枚の撮影・写真選択に対応</small></span><i>›</i></button>
-      </section>
+        <HomeShelf title="閲覧履歴" count={viewedRequests.length} emptyTitle="まだ閲覧履歴がありません" emptyText="探しごとを開くと、ここからすぐ見返せます。" onMore={() => showSearch()}>
+          {viewedRequests.map((need) => <HomeRequestCard key={need.id} need={need} favorite={favoriteIds.includes(need.id)} onOpen={() => openNeed(need)} onFavorite={() => toggleFavorite(need)} />)}
+        </HomeShelf>
 
-      <InstallAndNotificationPanel onNotice={showToast} />
+        <HomeShelf title="お気に入り保存した探しごと" count={favoriteRequests.length} emptyTitle="気になる探しごとを保存できます" emptyText="カードのハートを押すと、ここにまとまります。" onMore={() => showSearch()}>
+          {favoriteRequests.map((need) => <HomeRequestCard key={need.id} need={need} favorite onOpen={() => openNeed(need)} onFavorite={() => toggleFavorite(need)} />)}
+        </HomeShelf>
 
-      {!stats.avatarUrl && <button className="photo-required-banner" onClick={() => setModal('profile')}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・紹介ができます。</b><i>登録する →</i></button>}
+        <section className="industry-home">
+          <div className="home-section-heading"><div><p>業種から探す</p><h2>ジャンル別の探しごと検索</h2></div><button onClick={() => showSearch('all')}>すべて見る</button></div>
+          <div className="industry-grid">{industries.map((industry) => <button key={industry} onClick={() => showSearch(industry)}><span>{industryIcons[industry]}</span><b>{industry}</b><small>{requests.filter((item) => item.industryTags.includes(industry)).length}件</small></button>)}</div>
+        </section>
 
-      <section className="mobile-board" id="board">
-        <div className="section-title"><div><p>REQUESTS</p><h2>みんなの探しごと</h2></div><span>{shown.length}件</span></div>
+        {!stats.avatarUrl && <button className="photo-required-banner" onClick={() => setModal('profile')}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・紹介ができます。</b><i>登録する →</i></button>}
+        <InstallAndNotificationPanel onNotice={showToast} />
+      </div> : <section className="mobile-board search-page" id="board">
+        <div className="section-title"><div><p>REQUESTS</p><h2>{industryFilter === 'all' ? 'みんなの探しごと' : industryFilter}</h2></div><span>{shown.length}件</span></div>
+        {industryFilter !== 'all' && <button className="clear-industry" onClick={() => setIndustryFilter('all')}><span>{industryIcons[industryFilter]}</span>{industryFilter}で絞り込み中 <i>×</i></button>}
         <div className="filters" role="group" aria-label="投稿を絞り込む">{[['all','すべて'],['project','案件'],['collaboration','協業先'],['consultation','相談']].map(([key,label]) => <button key={key} className={filter === key ? 'selected' : ''} onClick={() => setFilter(key)}>{label}<span>{count(key)}</span></button>)}</div>
         <div className="member-filters">
           <p>会員情報で絞り込む</p>
@@ -206,23 +272,23 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           <label className="wide"><span>会社の年商</span><select value={revenueFilter} onChange={(event) => setRevenueFilter(event.target.value)}><option value="all">すべての年商</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         </div>
         <div className="card-list">
-          {shown.length === 0 ? <div className="empty"><b>まだ投稿がありません</b><span>最初の探しごとを投稿してみましょう。</span></div> : shown.map((need) => (
-            <article className="need-card" key={need.id}>
-              <div className="card-topline"><span className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</span><span className="deadline">あと{daysLeft(need.deadline)}日</span></div>
+          {shown.length === 0 ? <div className="empty"><b>条件に合う投稿がありません</b><span>絞り込みを変えて探してみましょう。</span></div> : shown.map((need) => (
+            <article className="need-card" key={need.id} onClick={() => openNeed(need)}>
+              <div className="card-topline"><span className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</span><span className="card-top-actions"><span className="deadline">あと{daysLeft(need.deadline)}日</span><button className={favoriteIds.includes(need.id) ? 'card-heart active' : 'card-heart'} aria-label={favoriteIds.includes(need.id) ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={(event) => { event.stopPropagation(); toggleFavorite(need); }}>♥</button></span></div>
               <h3>{need.title}</h3><p className="need-body">{need.description}</p>
               <div className="industry-tags" aria-label="関連業種">{need.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
               <dl className="details"><div><dt>予算</dt><dd>{need.budgetLabel}</dd></div><div><dt>エリア</dt><dd>{need.area}</dd></div></dl>
               <div className="card-person"><Avatar src={need.authorAvatarUrl} name={need.authorName} className="member-avatar" /><p><b>{need.authorName}</b><small>{need.authorPositionTitle && `${need.authorPositionTitle}｜`}{need.authorCompany || '会社名未設定'}</small></p><span>紹介 {need.introCount}件</span></div>
               <div className="member-context"><span>会場 {need.authorVenue}</span>{need.authorBusinessArea && <span>エリア {need.authorBusinessArea}</span>}{need.authorBadge && <span>{need.authorBadge}</span>}{need.authorRevenueBand && <span>年商 {revenueBands[need.authorRevenueBand]}</span>}</div>
-              <button className="intro-button" onClick={() => openIntroduction(need)}>この人を紹介できる <span>→</span></button>
+              <button className="intro-button" onClick={(event) => { event.stopPropagation(); openIntroduction(need); }}>この人を紹介できる <span>→</span></button>
             </article>
           ))}
         </div>
-      </section>
+      </section>}
 
       <nav className="bottom-nav" aria-label="アプリメニュー">
-        <button className="active" onClick={() => scrollTo('home')}><span>⌂</span><small>ホーム</small></button>
-        <button onClick={() => scrollTo('board')}><span>⌕</span><small>探す</small></button>
+        <button className={activeTab === 'home' ? 'active' : ''} onClick={showHome}><span>⌂</span><small>ホーム</small></button>
+        <button className={activeTab === 'search' ? 'active' : ''} onClick={() => showSearch()}><span>⌕</span><small>探す</small></button>
         <button className="nav-post" onClick={openRequest} aria-label="探しごとを投稿する"><span>＋</span></button>
         <button onClick={() => openCards('list')}><span>▣</span><small>名刺</small></button>
         <button onClick={() => setModal('profile')}><span>●</span><small>マイ</small></button>
@@ -233,6 +299,15 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
       {modal === 'intro' && selected && <Modal title="知っている人を紹介" lead={`「${selected.title}」への紹介です。`} onClose={() => setModal(null)}><form className="form" onSubmit={submitIntroduction}><label>お名前<input name="personName" required maxLength={60} /></label><label>会社・屋号<input name="personCompany" required maxLength={80} /></label><label>あなたとの関係<input name="relationship" required maxLength={120} placeholder="例：取引先、友人" /></label><label>紹介したい理由<textarea name="fitReason" required maxLength={400} rows={3} /></label><label className="consent"><input type="checkbox" name="consentConfirmed" required /> ご本人に紹介の了承を得ています</label><button className="submit-button" disabled={busy}>{busy ? '届けています…' : '紹介を届ける'}</button></form></Modal>}
 
       {modal === 'responses' && <Modal title="届いた紹介" lead="あなたが投稿した探しごとへの紹介です。" onClose={() => setModal(null)}><ReceivedIntroductions /></Modal>}
+
+      {modal === 'detail' && selected && <Modal title="探しごとの詳細" lead={`${selected.authorName}さんの探しごとです。`} onClose={() => setModal(null)}><article className="need-detail">
+        <div className="card-topline"><span className={`kind ${categories[selected.category].className}`}>{categories[selected.category].label}</span><button className={favoriteIds.includes(selected.id) ? 'detail-heart active' : 'detail-heart'} onClick={() => toggleFavorite(selected)}>♥ {favoriteIds.includes(selected.id) ? '保存済み' : 'お気に入り'}</button></div>
+        <h3>{selected.title}</h3><p>{selected.description}</p>
+        <div className="industry-tags">{selected.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
+        <dl><div><dt>予算</dt><dd>{selected.budgetLabel}</dd></div><div><dt>希望エリア</dt><dd>{selected.area}</dd></div><div><dt>募集期限</dt><dd>{selected.deadline}</dd></div></dl>
+        <div className="detail-author"><Avatar src={selected.authorAvatarUrl} name={selected.authorName} className="member-avatar" /><p><b>{selected.authorName}</b><span>{selected.authorPositionTitle && `${selected.authorPositionTitle}｜`}{selected.authorCompany || '会社名未設定'}</span><small>{selected.authorVenue}{selected.authorBusinessArea && `・${selected.authorBusinessArea}`}</small></p></div>
+        <button className="submit-button" onClick={() => openIntroduction(selected)}>この人を紹介できる</button>
+      </article></Modal>}
 
       {modal === 'profile' && <Modal title="マイプロフィール" lead="会員情報と名刺帳のプロフィールを管理できます。" onClose={() => setModal(null)}><div className="profile-sheet compact"><Avatar src={photoPreview} name={userName} className="profile-avatar" /><h3>{userName}</h3><p>{stats.badge || '未設定'} · {stats.venue}</p><div><span><b>{stats.introCount}</b><small>紹介した数</small></span><span><b>{stats.points}</b><small>ポイント</small></span><span><b>{stats.rank}</b><small>会員ランク</small></span></div></div><div className="profile-form">
         <label className="photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />JPEG・PNG・WebP／5MBまで</small></span><i>{stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
@@ -250,6 +325,18 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
   );
+}
+
+function HomeShelf({ title, count, emptyTitle, emptyText, onMore, children }: { title: string; count: number; emptyTitle: string; emptyText: string; onMore: () => void; children: React.ReactNode }) {
+  return <section className="home-shelf"><div className="home-section-heading"><div><h2>{title}</h2><p>{count ? `${count}件` : 'まだありません'}</p></div><button onClick={onMore}>もっと見る</button></div>{count ? <div className="home-card-row">{children}</div> : <div className="home-empty"><span>♡</span><div><b>{emptyTitle}</b><p>{emptyText}</p></div><button onClick={onMore}>探してみる</button></div>}</section>;
+}
+
+function HomeRequestCard({ need, favorite, onOpen, onFavorite }: { need: BoardRequest; favorite: boolean; onOpen: () => void; onFavorite: () => void }) {
+  const primaryIndustry = need.industryTags[0] || 'その他';
+  return <article className="home-request-card"><button className={favorite ? 'home-heart active' : 'home-heart'} aria-label={favorite ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={onFavorite}>♥</button><button className="home-request-open" onClick={onOpen}>
+    <span className="home-request-cover"><i>{industryIcons[primaryIndustry] || '•'}</i><small>{primaryIndustry}</small></span>
+    <span className="home-request-copy"><small><b className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</b> あと{daysLeft(need.deadline)}日</small><strong>{need.title}</strong><span>{need.budgetLabel}</span><em>{need.authorName}・{need.authorVenue}</em></span>
+  </button></article>;
 }
 
 function Modal({ title, lead, onClose, children }: { title: string; lead: string; onClose: () => void; children: React.ReactNode }) { return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><span className="sheet-handle" /><button className="modal-close" onClick={onClose} aria-label="閉じる">×</button><h2 id="modal-title">{title}</h2><p className="modal-lead">{lead}</p>{children}</section></div>; }
