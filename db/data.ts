@@ -202,8 +202,11 @@ export async function ensureDatabase() {
   await env.DB.batch([
     env.DB.prepare("UPDATE members SET annual_revenue_band = 'revenue_30_70' WHERE id = 'demo-tanaka' AND annual_revenue_band = ''"),
     env.DB.prepare("UPDATE members SET annual_revenue_band = 'revenue_70_100' WHERE id = 'demo-sato' AND annual_revenue_band = ''"),
-    env.DB.prepare("UPDATE members SET position_title = '代表取締役', badge = '赤バッヂ', business_area = '東京都' WHERE id = 'demo-tanaka' AND business_area = ''"),
-    env.DB.prepare("UPDATE members SET position_title = 'オーナー', badge = '緑バッヂ', business_area = '東京都' WHERE id = 'demo-sato' AND business_area = ''"),
+    env.DB.prepare("UPDATE members SET position_title = '代表取締役', badge = '赤', business_area = '東京都' WHERE id = 'demo-tanaka' AND business_area = ''"),
+    env.DB.prepare("UPDATE members SET position_title = 'オーナー', badge = '緑', business_area = '東京都' WHERE id = 'demo-sato' AND business_area = ''"),
+    env.DB.prepare("UPDATE members SET badge = '赤' WHERE badge IN ('赤バッヂ', '赤バッジ')"),
+    env.DB.prepare("UPDATE members SET badge = '緑' WHERE badge IN ('緑バッヂ', '緑バッジ')"),
+    env.DB.prepare("UPDATE members SET badge = '' WHERE badge NOT IN ('', '緑', '赤', 'ゴールド', 'ダイヤモンド')"),
   ]);
   initialized = true;
 }

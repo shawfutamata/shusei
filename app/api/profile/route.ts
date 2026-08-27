@@ -3,6 +3,7 @@ import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { updateMemberProfile } from '@/db/data';
 
 const allowedBands = ['', 'revenue_10_30', 'revenue_30_70', 'revenue_70_100', 'revenue_100_plus'];
+const allowedBadges = ['', '緑', '赤', 'ゴールド', 'ダイヤモンド'];
 
 export async function PATCH(request: Request) {
   const user = await getChatGPTUser();
@@ -20,6 +21,9 @@ export async function PATCH(request: Request) {
   }
   if (!allowedBands.includes(annualRevenueBand)) {
     return NextResponse.json({ error: '年商の選択内容を確認してください。' }, { status: 400 });
+  }
+  if (!allowedBadges.includes(badge)) {
+    return NextResponse.json({ error: 'バッヂは緑・赤・ゴールド・ダイヤモンドから選択してください。' }, { status: 400 });
   }
   let avatarUpload: { bytes: ArrayBuffer; contentType: string } | undefined;
   if (avatar instanceof File && avatar.size > 0) {
