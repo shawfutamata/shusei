@@ -1,7 +1,9 @@
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { getChatGPTUser, type ChatGPTUser } from './chatgpt-auth';
 import { getMembershipAccess, getMobileSessionAccess, upsertMember, type MembershipAccess } from '@/db/data';
+
+export const SESSION_COOKIE = 'member_session';
 
 export type AppAccess = { user: ChatGPTUser; membership: MembershipAccess };
 
@@ -12,8 +14,13 @@ export async function getAppAccess(): Promise<AppAccess | null> {
     return { user: browserUser, membership: await getMembershipAccess(browserUser.userId) };
   }
 
-  const token = await getMobileBearerToken();
+  // アプリはBearer、Webはメール認証のCookie。どちらも同じセッションテーブルを見る。
+  const token = await getMobileBearerToken() || await getSessionCookieToken();
   return token ? getMobileSessionAccess(token) : null;
+}
+
+export async function getSessionCookieToken() {
+  return (await cookies()).get(SESSION_COOKIE)?.value?.trim() ?? '';
 }
 
 export async function requireActiveMember(): Promise<{ user: ChatGPTUser; response?: never } | { user?: never; response: NextResponse }> {

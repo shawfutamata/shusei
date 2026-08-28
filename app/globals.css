@@ -337,3 +337,11 @@ body { font-weight:600; }
 .profile-tag-field legend { color:#203a67; font-size:14px; }
 .profile-tag-field legend small { margin-left:3px; padding:3px 6px; border-radius:99px; background:#dbeafe; color:#2563eb; font-size:10px; }
 .profile-tag-field>p { margin:4px 0 14px; padding:11px 12px; border:1px solid #bfdbfe; border-radius:10px; background:#eaf3ff; color:#1d4ed8; font-size:13px; font-weight:900; line-height:1.6; }
+
+.signin-card .secondary-link { margin-top: 12px; color: #2563eb; font-size: 13px; font-weight: 800; text-decoration: none; }
+.signin-card .login-field { display: flex; flex-direction: column; gap: 7px; width: 100%; margin-top: 22px; text-align: left; }
+.signin-card .login-field span { color: #30425f; font-size: 14px; font-weight: 900; }
+.signin-card .login-field input { min-height: 54px; padding: 0 14px; border: 1px solid #cbd7e7; border-radius: 12px; background: #fafcff; color: #17233c; font-size: 16px; font-weight: 700; }
+.signin-card .login-field .login-code { text-align: center; font-size: 24px; letter-spacing: 9px; }
+.signin-card .login-message { margin: 12px 0 0; color: #1d4ed8; font-size: 13px; line-height: 1.7; font-weight: 800; }
+.signin-card .login-back { margin-top: 10px; border: 0; background: none; color: #2563eb; font-size: 13px; font-weight: 900; cursor: pointer; }
