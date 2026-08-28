@@ -44,7 +44,7 @@ npx wrangler d1 execute <D1_DATABASE> --remote \
   --command "UPDATE members SET membership_status = 'canceled' WHERE email = 'member@example.jp'"
 ```
 
-停止しても既存のBearerセッションは次のAPI呼び出しで無効になります（`getMobileSessionUser` が毎回 `membership_status` を見ます）。すぐに切りたい場合はセッションも削除します。
+停止しても既存のBearerセッションは次のAPI呼び出しで無効になります（`getMobileSessionAccess` が毎回 `membership_status` を見ます）。すぐに切りたい場合はセッションも削除します。
 
 ```bash
 npx wrangler d1 execute <D1_DATABASE> --remote \
@@ -55,12 +55,28 @@ npx wrangler d1 execute <D1_DATABASE> --remote \
 
 審査担当者はメールを受け取れないため、指定した1アドレスだけ固定コードでログインできる経路を用意しています（`configuredReviewCode`）。
 
-1. 審査用メールアドレスでアプリまたはWebに1度ログインし、`members` に行を作ります。作れない場合は運営が直接INSERTします。
-2. その行を `active` にし、顔写真・会社・会場・業種を登録します（顔写真がないと投稿できません）。
-3. Sitesの**秘密**環境変数に次を設定します。値はチャットやGitに残しません。
-   - `REVIEW_AUTH_EMAIL`: 審査用メールアドレス
-   - `REVIEW_AUTH_CODE`: 6桁の数字
-4. 両ストアの公開が確認できたら、`REVIEW_AUTH_CODE` と `REVIEW_AUTH_EMAIL` を削除し、審査用会員を `canceled` にします。
+**順序を守ること。** `requestMobileAuthCode` は登録済みかつ有効な会員でなければ400で拒否するので、行が先、ログインが後になる。「アプリでログインして行を作る」はできない。
+
+1. 行を直接作る。`<REVIEW_EMAIL>` は審査用アドレス。
+
+   ```bash
+   npx wrangler d1 execute <D1_DATABASE> --remote \
+     --command "INSERT INTO members (id, email, display_name, membership_status, created_at) VALUES ('store-review', '<REVIEW_EMAIL>', '審査用アカウント', 'active', '2026-08-28T00:00:00.000Z')"
+   ```
+
+2. Sitesの**秘密**環境変数に `REVIEW_AUTH_EMAIL` と `REVIEW_AUTH_CODE` を設定する（下記）。
+
+3. アプリ（Android preview APK で可）から `<REVIEW_EMAIL>` と固定コードでログインする。この経路はメールを送らないので、Resendが未設定でも通る。
+
+4. **アプリのマイページからプロフィールを埋める。** 顔写真は必須で、無いと投稿できず審査手順の4番目で詰まる。会社名・所属会場・業種も入れる。写真のアップロードはアプリからしかできないため、SQLでは代替できない。
+
+5. 審査担当者が見る中身を用意する。サンプルの探しごとを1件投稿し、可能なら別の会員から紹介を1件付けておく。空の画面だけ見せると「機能が動作しない」と判断されることがある。
+
+環境変数は次のとおり。値はチャットやGitに残さない。
+- `REVIEW_AUTH_EMAIL`: 審査用メールアドレス
+- `REVIEW_AUTH_CODE`: 6桁の数字
+
+両ストアの公開が確認できたら、`REVIEW_AUTH_CODE` と `REVIEW_AUTH_EMAIL` を削除し、審査用会員を `canceled` にする。
 
 固定コードが設定されている間、そのアドレスへは認証メールを送りません。他のアドレスは通常どおりResend経由のメールになります。
 
