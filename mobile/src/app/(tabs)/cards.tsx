@@ -17,7 +17,7 @@ export default function CardsScreen() {
   // 読み取りは有料機能。無料会員には画面そのものを出さない。
   // 価格・割引・購入への誘導はアプリ内に置かない（docs/billing-architecture.md）。
   const [pro, setPro] = useState<boolean | null>(null);
-  useEffect(() => { apiFetch<{ pro: boolean }>('/api/entitlements').then((result) => setPro(result.pro)).catch(() => setPro(true)); }, []);
+  useEffect(() => { apiFetch<{ canScanBusinessCards: boolean }>('/api/entitlements').then((result) => setPro(result.canScanBusinessCards)).catch(() => setPro(true)); }, []);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [images, setImages] = useState<string[]>([]);
   const [drafts, setDrafts] = useState<CardDraft[]>([]);
@@ -26,8 +26,15 @@ export default function CardsScreen() {
   const [readingIndex, setReadingIndex] = useState(0);
   const [saving, setSaving] = useState(false);
 
+  // 読み取りは解像度が要るので2400pxのまま。
   async function normalizeImage(uri: string) {
     const result = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 2400 } }], { compress: .94, format: ImageManipulator.SaveFormat.JPEG });
+    return result.uri;
+  }
+  // 保存する画像は「あとで見返せれば十分」なので小さくする。
+  // 読み取りは端末側で済ませてあるため、精度には影響しない。1枚あたり数MB→300KB前後になる。
+  async function storageImage(uri: string) {
+    const result = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 1400 } }], { compress: .8, format: ImageManipulator.SaveFormat.JPEG });
     return result.uri;
   }
   async function openCamera() {
@@ -71,7 +78,8 @@ export default function CardsScreen() {
         void uri;
         return { ...fields, isFavorite: false };
       })));
-      drafts.forEach((draft, index) => body.append(`image_${index}`, { uri: draft.uri, name: `business-card-${index + 1}.jpg`, type: 'image/jpeg' } as unknown as Blob));
+      const stored = await Promise.all(drafts.map((draft) => storageImage(draft.uri)));
+      stored.forEach((uri, index) => body.append(`image_${index}`, { uri, name: `business-card-${index + 1}.jpg`, type: 'image/jpeg' } as unknown as Blob));
       await apiFetch('/api/business-cards', { method: 'POST', body });
       const count = drafts.length; setDrafts([]); setImages([]);
       Alert.alert('名刺を登録しました', `${count}枚を本人専用の名刺リストへ保存しました。`);

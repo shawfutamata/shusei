@@ -50,6 +50,7 @@ const screens = [
     ['search', '困りごと一覧'],
     ['status:closed', '募集終了だけ'],
     ['mypage', 'マイページ・プラン・招待'],
+    ['mypage:plan', 'プランを開いたところ'],
     ['modal:post:limit', '投稿の上限に当たったとき'],
   ] },
   { group: 'モーダル', items: [
@@ -349,6 +350,7 @@ const html = `<title>GIVE HUB プレビュー</title>
     if (at('.home-section-heading button')) { event.preventDefault(); return go('search'); }
     if (at('.google-button')) { event.preventDefault(); return notice('Googleログインは、実際のサイトに置いてからでないと動きません。'); }
 
+    if (at('.plan-card > summary')) return;
     if (at('.profile-venue-select')) return;
     if (at('.hierarchical-industry-picker') || at('.selected-industry-list')) return;
     if (at('.modal .form input') || at('.modal .form textarea') || at('.modal .form select')) return;

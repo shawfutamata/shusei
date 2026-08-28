@@ -46,7 +46,7 @@ export const REFERRAL_CAP_PER_YEAR = 6;
 | 紹介した人 | 受け取るもの | データ上の扱い |
 |---|---|---|
 | 有料会員 | 請求から1ヶ月ぶん引く | `applied_month = ''` のまま残す。運営が請求時に消し込む |
-| 無料会員 | **有料機能が1ヶ月使える** | その場で `plan='pro'`、`plan_period_end` を1ヶ月延長、`plan_source='referral'`、`applied_month` に付与した月を記録 |
+| 無料会員 | **プレミアムが1ヶ月使える** | その場で `plan='premium'`、`plan_period_end` を1ヶ月延長、`plan_source='referral'`、`applied_month` に付与した月を記録 |
 
 無料会員にとっては「1人連れてくると有料機能を試せる」入口になる。線引きは `docs/pricing-plan-ja.md`。
 

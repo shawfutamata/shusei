@@ -19,7 +19,7 @@ const setStatus = (status) => execFileSync('python3', ['-c',
   'import sqlite3,sys;c=sqlite3.connect(sys.argv[1]);c.execute("UPDATE members SET membership_status=? WHERE id=?",(sys.argv[2],sys.argv[3]));c.commit()',
   localDb(), status, process.env.PREVIEW_MEMBER_ID || 'local_seedy']);
 const setPlan = (plan, end = '') => execFileSync('python3', ['-c',
-  'import sqlite3,sys;c=sqlite3.connect(sys.argv[1]);c.execute("UPDATE members SET plan=?, plan_period_end=?, plan_source=? WHERE id=?",(sys.argv[2],sys.argv[3],"direct" if sys.argv[2]=="pro" else "",sys.argv[4]));c.commit()',
+  'import sqlite3,sys;c=sqlite3.connect(sys.argv[1]);c.execute("UPDATE members SET plan=?, plan_period_end=?, plan_source=? WHERE id=?",(sys.argv[2],sys.argv[3],"" if sys.argv[2]=="free" else "direct",sys.argv[4]));c.commit()',
   localDb(), plan, end, process.env.PREVIEW_MEMBER_ID || 'local_seedy']);
 
 const states = {};
@@ -142,7 +142,7 @@ await page.locator('.invite-card').waitFor({ timeout: 15000 }).catch(() => conso
 await save('mypage', page);
 
 // 有料会員のマイページも撮る（プラン表示と招待カードの文言が変わる）
-setPlan('pro', '2027-03-31');
+setPlan('premium', '2027-03-31');
 await page.reload({ waitUntil: 'networkidle' });
 await nav(4).click();
 await page.locator('.invite-card').waitFor({ timeout: 15000 }).catch(() => undefined);
@@ -174,6 +174,12 @@ setPlan('free');
 await page.reload({ waitUntil: 'networkidle' });
 await nav(4).click();
 await page.waitForTimeout(600);
+// プランは折りたたみなので、開いた状態も撮っておく
+await page.locator('.plan-card > summary').click();
+await page.waitForTimeout(250);
+await save('mypage:plan', page);
+await page.locator('.plan-card > summary').click();
+await page.waitForTimeout(250);
 
 // 都道府県ごとの会場は、実際にselectを切り替えて読み取る
 const venuePicker = page.locator('.profile-venue-select select');

@@ -121,10 +121,12 @@ export default function BusinessCardManager({ initialMode, pro, onClose, onNotic
       delete fields.queueId;
       return fields;
     })));
-    drafts.forEach((draft, index) => {
+    // 保存する画像は「あとで見返せれば十分」なので縮小してから送る。
+    // 読み取りはブラウザ側で済ませてあるので、精度には影響しない。
+    for (const [index, draft] of drafts.entries()) {
       const source = queue.find((item) => item.id === draft.queueId);
-      if (source) body.set(`image_${index}`, source.file);
-    });
+      if (source) body.set(`image_${index}`, await shrinkForStorage(source.file));
+    }
     const response = await fetch('/api/business-cards', { method: 'POST', body });
     const result = await response.json() as { error?: string };
     setBusy(false);
@@ -235,6 +237,28 @@ function CardDetail({ card, editing, busy, onEditing, onChange, onSave, onFavori
 function CardFields({ card, onChange }: { card: BusinessCardInput; onChange: (field: keyof BusinessCardInput, value: string | boolean) => void }) {
   const field = (key: keyof BusinessCardInput, label: string, placeholder = '') => <label>{label}<input value={String(card[key] ?? '')} maxLength={key === 'memo' ? 500 : 180} placeholder={placeholder} onChange={(event) => onChange(key, event.target.value)} /></label>;
   return <div className="card-fields"><div className="field-row">{field('name', '氏名', '山田 太郎')}{field('company', '会社・屋号', '株式会社〇〇')}</div><div className="field-row">{field('positionTitle', '役職・肩書き')}{field('department', '部署')}</div><div className="field-row">{field('mobile', '携帯電話')}{field('phone', '会社電話')}</div>{field('email', 'メールアドレス')}{field('postalCode', '郵便番号（任意）', '記載がない場合は空欄')}{field('address', '住所')}{field('website', 'Webサイト')}{field('groupName', 'グループ', '例：ひるのめぐろ会場')}{field('exchangeDate', '名刺の交換日')}{field('memo', 'メモ', '次に話したいことなど')}</div>;
+}
+
+
+/** 名刺画像を保存用に縮小する。長辺1400px・JPEG品質0.8。うまくいかなければ元のまま送る。 */
+async function shrinkForStorage(file: File) {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1400 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const context = canvas.getContext('2d');
+    if (!context) return file;
+    context.imageSmoothingEnabled = true; context.imageSmoothingQuality = 'high';
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.8));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+  } catch {
+    return file;
+  }
 }
 
 function formatDate(value: string) { const [year, month, day] = value.split('-'); return `${year}年${Number(month)}月${Number(day)}日`; }

@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import type { ChatGPTUser } from '@/app/chatgpt-auth';
 import { cleanFacebookUrl } from '@/app/social-links';
-import { FREE_BUSINESS_CARDS, FREE_REQUESTS_PER_MONTH, extendedPlanEnd, isPro, isoDate, type Plan, type PlanState } from '@/app/entitlements';
+import { UNLIMITED, currentPlan, extendedPlanEnd, isPaid, limits, remainingBusinessCards, remainingRequests, toPlan, type Plan, type PlanState } from '@/app/entitlements';
 import { matchesIndustry } from '@/app/industry-options';
 
 export type BoardRequest = {
@@ -48,7 +48,8 @@ export type MemberStats = {
   rank: string;
   level: number;
   nextRankAt: number;
-  pro: boolean;
+  plan: Plan;
+  paid: boolean;
   planPeriodEnd: string;
   requestsThisMonth: number;
   requestLimit: number;
@@ -323,6 +324,7 @@ export async function ensureDatabase() {
     await env.DB.prepare("ALTER TABLE requests ADD COLUMN industry_tags TEXT NOT NULL DEFAULT '[]'").run();
   }
   await env.DB.prepare("UPDATE referral_credits SET status = 'waiting', earned_at = '' WHERE status = 'capped'").run();
+  await env.DB.prepare("UPDATE members SET plan = 'premium' WHERE plan = 'pro'").run();
   await seedDemoData();
   await env.DB.batch([
     env.DB.prepare("UPDATE members SET annual_revenue_band = 'revenue_30_70' WHERE id = 'demo-tanaka' AND annual_revenue_band = ''"),
@@ -657,7 +659,7 @@ export async function getBoardData(user: ChatGPTUser) {
   const { notifyIndustriesJson, ...memberFields } = baseMember;
   const plan = await getPlanSummary(user.userId);
   const stats = calculateRank({ ...memberFields, notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion),
-    pro: plan.pro, planPeriodEnd: plan.planPeriodEnd, requestsThisMonth: plan.requestsThisMonth, requestLimit: plan.requestLimit,
+    plan: plan.activePlan, paid: plan.paid, planPeriodEnd: plan.planPeriodEnd, requestsThisMonth: plan.requestsThisMonth, requestLimit: plan.requestLimit,
     businessCards: plan.businessCards, businessCardLimit: plan.businessCardLimit });
   const requests = requestsResult.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, industryTagsJson, ...request }) => ({
     ...request,
@@ -694,8 +696,10 @@ export async function updateMemberProfile(user: ChatGPTUser, input: { company: s
 export async function createRequest(user: ChatGPTUser, input: { category: string; title: string; description: string; budgetLabel: string; area: string; industryTags: string[]; deadline: string; }) {
   await upsertMember(user);
   await requireFacePhoto(user.userId);
-  if (!isPro(await getPlanState(user.userId)) && await countRequestsThisMonth(user.userId) >= FREE_REQUESTS_PER_MONTH) {
-    throw new Error(`無料会員が投稿できる探しごとは月${FREE_REQUESTS_PER_MONTH}件までです。今月ぶんはすでに投稿済みです。`);
+  const requestPlan = await getPlanState(user.userId);
+  const requestCap = limits(requestPlan).requestsPerMonth;
+  if (requestCap !== UNLIMITED && await countRequestsThisMonth(user.userId) >= requestCap) {
+    throw new Error(`いまのプランで投稿できる探しごとは月${requestCap}件までです。今月ぶんはすでに投稿済みです。`);
   }
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
@@ -836,10 +840,12 @@ export async function getBusinessCards(user: ChatGPTUser) {
 export async function createBusinessCards(user: ChatGPTUser, inputs: Array<{ card: BusinessCardInput; image: { bytes: ArrayBuffer; contentType: string } }>) {
   await upsertMember(user);
   if (!inputs.length || inputs.length > 20) throw new Error('名刺は1回につき1〜20枚まで保存できます。');
-  if (!isPro(await getPlanState(user.userId))) {
+  const cardPlan = await getPlanState(user.userId);
+  const cardCap = limits(cardPlan).businessCards;
+  if (cardCap !== UNLIMITED) {
     const stored = await countBusinessCards(user.userId);
-    if (stored + inputs.length > FREE_BUSINESS_CARDS) {
-      throw new Error(`無料会員が保存できる名刺は${FREE_BUSINESS_CARDS}枚までです（いま${stored}枚）。`);
+    if (stored + inputs.length > cardCap) {
+      throw new Error(`いまのプランで保存できる名刺は${cardCap}枚までです（いま${stored}枚）。`);
     }
   }
   const createdAt = new Date().toISOString();
@@ -1065,13 +1071,15 @@ export async function deleteRequestComment(user: ChatGPTUser, commentId: string)
 // 会員かどうか（membership_status）と、お金を払っているか（plan）は別の軸。
 // 判定そのものは app/entitlements.ts に置いてある。
 
-export type PlanSummary = PlanState & { pro: boolean; source: string; requestsThisMonth: number; requestLimit: number; businessCards: number; businessCardLimit: number };
+export type PlanSummary = PlanState & { activePlan: Plan; paid: boolean; source: string;
+  requestsThisMonth: number; requestLimit: number; requestsLeft: number;
+  businessCards: number; businessCardLimit: number; businessCardsLeft: number };
 
 export async function getPlanState(memberId: string): Promise<PlanState> {
   await ensureDatabase();
   const row = await env.DB.prepare('SELECT plan, plan_period_end AS planPeriodEnd FROM members WHERE id = ?')
-    .bind(memberId).first<{ plan: Plan; planPeriodEnd: string }>();
-  return { plan: row?.plan === 'pro' ? 'pro' : 'free', planPeriodEnd: row?.planPeriodEnd ?? '' };
+    .bind(memberId).first<{ plan: string; planPeriodEnd: string }>();
+  return { plan: toPlan(row?.plan), planPeriodEnd: row?.planPeriodEnd ?? '' };
 }
 
 export async function countRequestsThisMonth(memberId: string) {
@@ -1089,24 +1097,26 @@ export async function countBusinessCards(memberId: string) {
 
 export async function getPlanSummary(memberId: string): Promise<PlanSummary> {
   const state = await getPlanState(memberId);
-  const pro = isPro(state);
   const [requestsThisMonth, businessCards] = await Promise.all([
     countRequestsThisMonth(memberId), countBusinessCards(memberId),
   ]);
   const row = await env.DB.prepare('SELECT plan_source AS source FROM members WHERE id = ?')
     .bind(memberId).first<{ source: string }>();
+  const cap = limits(state);
   return {
-    ...state, pro, source: row?.source ?? '',
-    requestsThisMonth, requestLimit: pro ? -1 : FREE_REQUESTS_PER_MONTH,
-    businessCards, businessCardLimit: pro ? -1 : FREE_BUSINESS_CARDS,
+    ...state, activePlan: currentPlan(state), paid: isPaid(state), source: row?.source ?? '',
+    requestsThisMonth, requestLimit: cap.requestsPerMonth, requestsLeft: remainingRequests(state, requestsThisMonth),
+    businessCards, businessCardLimit: cap.businessCards, businessCardsLeft: remainingBusinessCards(state, businessCards),
   };
 }
 
 /** 無料月クレジット1件ぶん、有料期間を1ヶ月延ばす。運営の請求とは別に、無料会員へその場で効かせる。 */
 async function grantProMonth(memberId: string, source: string) {
   const state = await getPlanState(memberId);
-  await env.DB.prepare("UPDATE members SET plan = 'pro', plan_period_end = ?, plan_source = ? WHERE id = ?")
-    .bind(extendedPlanEnd(state.planPeriodEnd), source, memberId).run();
+  // 無料の人には上のプランを試してもらう。すでに有料なら、そのプランの期間を延ばす。
+  const plan: Plan = state.plan === 'free' ? 'premium' : state.plan;
+  await env.DB.prepare('UPDATE members SET plan = ?, plan_period_end = ?, plan_source = ? WHERE id = ?')
+    .bind(plan, extendedPlanEnd(state.planPeriodEnd), source, memberId).run();
 }
 // --- プランここまで ---------------------------------------------------------
 
@@ -1235,7 +1245,7 @@ async function reconcileReferralCredits(inviterId: string) {
 
   // 3. 無料会員には、その場で有料機能を1ヶ月ぶん開ける。試してもらうのがいちばんの入口になる。
   //    有料会員のぶんは請求で引くので、ここでは何もしない（applied_month が空のまま運営が使う）。
-  if (!isPro(await getPlanState(inviterId))) {
+  if (!isPaid(await getPlanState(inviterId))) {
     for (let index = 0; index < waiting.results.length; index += 1) await grantProMonth(inviterId, 'referral');
     await env.DB.prepare(`UPDATE referral_credits SET applied_month = ?
       WHERE inviter_id = ? AND status = 'earned' AND applied_month = ''`)
