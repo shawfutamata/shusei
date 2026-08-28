@@ -88,7 +88,7 @@ const html = `<title>TASUKI プレビュー</title>
 
   .rail { min-width:0; padding:26px 20px 40px; display:flex; flex-direction:column; gap:26px; border-right:1px solid var(--line); background:var(--panel); }
   .mark { display:flex; align-items:center; gap:10px; }
-  .mark span { width:32px; height:32px; display:grid; place-items:center; border-radius:9px; background:linear-gradient(140deg,#1d4ed8,#38bdf8); color:#fff; font-weight:900; font-size:16px; }
+  .mark svg { width:32px; height:32px; flex:0 0 auto; }
   .mark b { font-size:14px; letter-spacing:.04em; }
   .mark small { display:block; color:var(--faint); font-size:10px; font-weight:500; letter-spacing:.12em; }
   .rail-group h2 { margin:0 0 8px; color:var(--faint); font-size:10px; font-weight:700; letter-spacing:.18em; }
@@ -141,7 +141,7 @@ const html = `<title>TASUKI プレビュー</title>
 
 <div class="lab">
   <aside class="rail">
-    <div class="mark"><span>T</span><div><b>TASUKI</b><small>PREVIEW</small></div></div>
+    <div class="mark">${readFileSync('public/mark.svg', 'utf8')}<div><b>TASUKI</b><small>PREVIEW</small></div></div>
     ${nav}
     <p class="rail-note">画面のHTMLとCSSは、ローカルで動かした本物のTASUKIから、そのまま取り出したものです。<br>データは動作確認用の見本です。</p>
   </aside>

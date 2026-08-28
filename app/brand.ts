@@ -8,7 +8,4 @@
 //   - assets/givehub/ のファイル名（中身は同じ画像）
 export const serviceName = 'TASUKI';
 
-/** アイコンや丸バッヂに出す頭文字。 */
-export const serviceMark = 'T';
-
 export const serviceTagline = 'こんな人、探しています。';

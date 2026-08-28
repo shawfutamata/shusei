@@ -13,7 +13,8 @@ import { findVenuePrefecture, isListedVenue, OTHER_VENUE, venuePrefectures, venu
 import { UNLIMITED, plans } from './entitlements';
 import { planCardLimit, planCatalog, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
-import { serviceMark, serviceName } from './brand';
+import { serviceName } from './brand';
+import BrandMark from './BrandMark';
 
 const categories = {
   project: { label: '案件', className: 'project' },
@@ -301,7 +302,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   return (
     <main className="app-shell" id="home">
       <header className="mobile-header">
-        <button className="mobile-brand" onClick={showHome}><span className="brand-mark">{serviceMark}</span><b>{serviceName}</b></button>
+        <button className="mobile-brand" onClick={showHome}><BrandMark /><b>{serviceName}</b></button>
         <button className="header-profile" onClick={showProfile}><span><small>こんにちは</small><b>{userName}</b></span><Avatar src={stats.avatarUrl} name={userName} className="mini-avatar" /></button>
       </header>
 
