@@ -12,6 +12,7 @@ import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-op
 import { findVenuePrefecture, isListedVenue, OTHER_VENUE, venuePrefectures, venuesByPrefecture } from './venue-options';
 import { UNLIMITED, plans } from './entitlements';
 import { planCardLimit, planCatalog, planPostLimit, planPrice } from './plan-catalog';
+import RankCrest, { CrownMark } from './RankCrest';
 
 const categories = {
   project: { label: '案件', className: 'project' },
@@ -359,11 +360,14 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
       </section> : <section className="profile-page" aria-labelledby="profile-page-title">
         <header className="profile-page-heading"><p>MY PAGE</p><h1 id="profile-page-title">マイページ</h1><span>会員情報・おすすめ・ランクを管理できます。</span></header>
         <section className={`rank-card rank-${stats.rank.toLowerCase()} rank-card-slim`} aria-label={`${stats.rank}会員ランクカード`}>
-          <div className="rank-slim-row">
-            <Avatar src={photoPreview} name={userName} className="rank-member-avatar" />
-            <b className="rank-slim-name">{userName}</b>
-            <span className="rank-slim-badge">{stats.rank}</span>
-            <small className="rank-slim-meta">{[stats.badge, stats.venue].filter(Boolean).join('・') || 'バッヂ未設定'}</small>
+          <p className="rank-slim-top"><CrownMark /><b>GIVE HUB</b></p>
+          <RankCrest rank={stats.rank} />
+          <h2 className="rank-slim-title">{stats.rank}</h2>
+          <p className="rank-slim-sub">MEMBER</p>
+          <div className="rank-slim-foot">
+            <span><small>会員名</small><b>{userName}</b></span>
+            <span><small>バッヂ</small><b>{stats.badge || '未設定'}</b></span>
+            <span className="rank-slim-venue"><small>会場</small><b>{stats.venue || '未設定'}</b></span>
           </div>
           <div className="rank-progress"><div className="rank-progress-copy"><b>{stats.level >= rankThresholds.length ? '最高ランクに到達' : `あと${introductionsToNextRank}件でランクアップ`}</b><span>紹介 {stats.introCount}件・{stats.points}pt</span></div><span className="rank-progress-track"><i style={{ width: `${rankProgress}%` }} /></span></div>
         </section>
