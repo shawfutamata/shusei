@@ -1,9 +1,10 @@
 import type { MetadataRoute } from 'next';
+import { serviceName } from './brand';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'GIVE HUB｜守成クラブ紹介掲示板',
-    short_name: 'GIVE HUB',
+    name: `${serviceName}｜守成クラブ紹介掲示板`,
+    short_name: serviceName,
     description: '守成クラブの仲間同士で、探しごとと信頼できる紹介をつなぐ会員向けアプリ。',
     start_url: '/',
     scope: '/',

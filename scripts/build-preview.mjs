@@ -69,7 +69,7 @@ const nav = screens.map(({ group, items }) => `
         <ul>${items.map(([key, label]) => `<li><button type="button" data-state="${key}"><span>${label}</span><code>${key}</code></button></li>`).join('')}</ul>
       </section>`).join('');
 
-const html = `<title>GIVE HUB プレビュー</title>
+const html = `<title>TASUKI プレビュー</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
 <style>
   :root {
@@ -121,16 +121,6 @@ const html = `<title>GIVE HUB プレビュー</title>
   .flash { position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(14px); max-width:min(92vw,420px); padding:11px 16px; border:1px solid rgba(226,176,74,.4); border-radius:10px; background:#2a2417; color:var(--warn); font-size:12.5px; line-height:1.6; opacity:0; transition:opacity .18s ease, transform .18s ease; pointer-events:none; z-index:9; }
   .flash.on { opacity:1; transform:translateX(-50%) translateY(0); }
 
-  .legend { width:100%; max-width:880px; display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; }
-  .legend section { padding:15px 17px; border:1px solid var(--line-soft); border-radius:12px; background:var(--panel); }
-  .legend h3 { margin:0 0 7px; font-size:12px; font-weight:700; letter-spacing:.02em; }
-  .legend h3::before { content:''; display:inline-block; width:7px; height:7px; margin-right:8px; border-radius:2px; vertical-align:middle; }
-  .legend .live h3::before { background:#4ade80; }
-  .legend .flat h3::before { background:var(--warn); }
-  .legend .next h3::before { background:var(--beam); }
-  .legend p, .legend li { margin:0; color:var(--dim); font-size:12px; line-height:1.75; }
-  .legend code { overflow-wrap:anywhere; }
-  .legend ul { margin:0; padding-left:1.1em; display:flex; flex-direction:column; gap:3px; }
 
   @media (max-width:900px) {
     .lab { grid-template-columns:minmax(0,1fr); }
@@ -151,9 +141,9 @@ const html = `<title>GIVE HUB プレビュー</title>
 
 <div class="lab">
   <aside class="rail">
-    <div class="mark"><span>G</span><div><b>GIVE HUB</b><small>PREVIEW</small></div></div>
+    <div class="mark"><span>T</span><div><b>TASUKI</b><small>PREVIEW</small></div></div>
     ${nav}
-    <p class="rail-note">画面のHTMLとCSSは、ローカルで動かした本物のGIVE HUBから、そのまま取り出したものです。<br>データは動作確認用の見本です。</p>
+    <p class="rail-note">画面のHTMLとCSSは、ローカルで動かした本物のTASUKIから、そのまま取り出したものです。<br>データは動作確認用の見本です。</p>
   </aside>
 
   <main class="stage">
@@ -171,35 +161,8 @@ const html = `<title>GIVE HUB プレビュー</title>
       </div>
     </div>
 
-    <div class="device"><iframe id="screen" title="GIVE HUB の画面"></iframe></div>
+    <div class="device"><iframe id="screen" title="TASUKI の画面"></iframe></div>
 
-    <div class="legend">
-      <section class="live">
-        <h3>いま押せるところ</h3>
-        <ul>
-          <li>下のメニュー5つ（ホーム・困りごと・＋・名刺・マイページ）</li>
-          <li>トップのバナーと、その下の丸いページ送り</li>
-          <li>「業種から探す」の16マス</li>
-          <li>一覧の絞り込みタブ（すべて／案件／協業先／相談）</li>
-          <li>投稿カード → 詳細 →「この人を紹介できる」</li>
-          <li>右上の自分の名前 → マイページ</li>
-          <li>マイページの所属会場（都道府県 → 会場、その他は自由入力）</li>
-          <li>一覧の「募集状況」「業種」「会場」の絞り込み</li>
-          <li>投稿フォームの入力・選択・業種タグ（送信だけ本番のサイトで動きます）</li>
-          <li>探しごとの詳細にある「やり取り」（コメント）と、Facebookへの導線</li>
-          <li>マイページの招待カードと、招待リンクを受け取る画面（左のリスト）</li>
-          <li>上の<b>「無料会員／有料会員」</b>で見え方を切り替えられます</li>
-        </ul>
-      </section>
-      <section class="flat">
-        <h3>まだ動かないところ</h3>
-        <p>保存・投稿・紹介の送信と、写真の登録です。ここはサーバーにつながって初めて動くところなので、このプレビューでは押すと注意が出ます。見た目と画面の流れの確認に使ってください。</p>
-      </section>
-      <section class="next">
-        <h3>本物を動かすには</h3>
-        <p>いまの本番サイトは所有者だけが見られる状態なので、そのままステージングとして使えます。そこへデプロイすれば、Googleログインも含めて実際に動かせます。手順は <code>docs/release-runbook-ja.md</code> のW3〜W5にまとめてあります。</p>
-      </section>
-    </div>
   </main>
 </div>
 

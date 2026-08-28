@@ -2,7 +2,7 @@
 
 ## 変更可能な設定
 
-- 表示名: `APP_DISPLAY_NAME`（現在は GIVE HUB）
+- 表示名: `APP_DISPLAY_NAME`（現在は TASUKI）
 - Expo slug: `APP_SLUG`
 - iOS Bundle ID: `IOS_BUNDLE_ID`
 - Android Application ID: `ANDROID_PACKAGE`

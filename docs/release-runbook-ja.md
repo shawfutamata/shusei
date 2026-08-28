@@ -230,7 +230,7 @@ npx eas-cli submit --platform android --profile production
 |---|---|---|
 | iOS Bundle ID | `jp.everycounts.memberhub` | `mobile/app.config.ts` |
 | Android package | `jp.everycounts.memberhub` | 同上 |
-| 表示名 | `GIVE HUB`（B6で確定） | `APP_DISPLAY_NAME` |
+| 表示名 | `TASUKI`（B6で確定） | `APP_DISPLAY_NAME` |
 | バージョン | `1.0.0` | `mobile/app.config.ts` |
 | サポートURL | `https://give-hub-shusei.shaw-futamata.chatgpt.site/support` | `app/support/page.tsx` |
 | プライバシーポリシー | 同上 `/privacy` | `app/privacy/page.tsx` |

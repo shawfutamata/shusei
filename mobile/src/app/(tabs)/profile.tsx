@@ -7,6 +7,7 @@ import { AppColors } from '@/constants/app';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { hasRegisteredPushToken, registerForPushNotifications, unregisterPushNotifications } from '@/lib/notifications';
+import { serviceName } from '@/constants/brand';
 
 type Invite = { code: string; url: string; invitedCount: number; activeCount: number; waitingCount: number };
 type Stats = { displayName: string; venue: string; company: string; positionTitle: string; badge: string; businessArea: string; introCount: number; points: number; rank: string; nextRankAt: number };
@@ -46,7 +47,7 @@ export default function ProfileScreen() {
   useEffect(() => { apiFetch<Invite>('/api/invite').then(setInvite).catch(() => {}); }, []);
   async function shareInvite() {
     if (!invite) return;
-    await Share.share({ message: `GIVE HUBに招待します。\n${invite.url}` });
+    await Share.share({ message: `${serviceName}に招待します。\n${invite.url}` });
   }
   return <AppScreen title="マイページ" eyebrow="MY PAGE">
     {!stats ? <ActivityIndicator color={AppColors.blue} /> : <View style={[styles.rankCard, rankStyle(stats.rank)]}><View style={styles.rankTop}><View><Text style={[styles.rankBrand, { color: rankText(stats.rank) }]}>MEMBER RANK</Text><Text style={[styles.rankName, { color: rankText(stats.rank) }]}>{stats.rank}</Text></View><Ionicons name="diamond-outline" size={38} color={rankText(stats.rank)} /></View><View style={styles.person}><View style={styles.avatar}><Ionicons name="person" size={34} color="#fff" /></View><View style={{ flex: 1 }}><Text style={[styles.name, { color: rankText(stats.rank) }]}>{stats.displayName}</Text><Text style={[styles.meta, { color: rankText(stats.rank) }]}>{[stats.badge, stats.venue].filter(Boolean).join('・') || 'プロフィール未設定'}</Text><Text style={[styles.company, { color: rankText(stats.rank) }]}>{[stats.company, stats.positionTitle].filter(Boolean).join('｜')}</Text></View></View><View style={styles.rankStats}><Stat number={stats.introCount} label="紹介した数" color={rankText(stats.rank)} /><Stat number={stats.points} label="ポイント" color={rankText(stats.rank)} /><Stat number={Math.max(0, stats.nextRankAt - stats.introCount)} label="次ランクまで" color={rankText(stats.rank)} /></View></View>}

@@ -1,4 +1,4 @@
-# GIVE HUB / 守成クラブ会員向けアプリ 引き継ぎ
+# TASUKI / 守成クラブ会員向けアプリ 引き継ぎ
 
 更新: 2026-08-27（Claudeによる再検証・作業基点をGitHubへ移行）
 
@@ -28,7 +28,7 @@
 - Android package: `jp.everycounts.memberhub`
 - Expo SDK: 57
 - アプリ版: 1.0.0
-- 表示名: 現在 `GIVE HUB`。`mobile/app.config.ts` の `APP_DISPLAY_NAME` で後から変更可能
+- 表示名: 現在 `TASUKI`。表示名の正は `app/brand.ts`（アプリ側の写しが `mobile/src/constants/brand.ts`）。`mobile/app.config.ts` の `APP_DISPLAY_NAME` で後から変更可能
 - サービス名・機能はまだ確定前。ストア公開後はbundle ID / package変更を避ける
 
 ## 実装済み

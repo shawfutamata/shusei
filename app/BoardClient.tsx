@@ -13,6 +13,7 @@ import { findVenuePrefecture, isListedVenue, OTHER_VENUE, venuePrefectures, venu
 import { UNLIMITED, plans } from './entitlements';
 import { planCardLimit, planCatalog, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
+import { serviceMark, serviceName } from './brand';
 
 const categories = {
   project: { label: '案件', className: 'project' },
@@ -300,12 +301,12 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   return (
     <main className="app-shell" id="home">
       <header className="mobile-header">
-        <button className="mobile-brand" onClick={showHome}><span className="brand-mark">G</span><b>GIVE HUB</b></button>
+        <button className="mobile-brand" onClick={showHome}><span className="brand-mark">{serviceMark}</span><b>{serviceName}</b></button>
         <button className="header-profile" onClick={showProfile}><span><small>こんにちは</small><b>{userName}</b></span><Avatar src={stats.avatarUrl} name={userName} className="mini-avatar" /></button>
       </header>
 
       {activeTab === 'home' ? <div className="home-dashboard">
-        <section className="hero-carousel" aria-label="GIVE HUBの使い方">
+        <section className="hero-carousel" aria-label={`${serviceName}の使い方`}>
           <button key={carouselIndex} className="hero-image-slide" onClick={openCurrentBanner} aria-label={`${topBanners[carouselIndex].alt}を開く`}><img src={topBanners[carouselIndex].src} alt={topBanners[carouselIndex].alt} /></button>
           <div className="carousel-dots" aria-label="バナーを切り替える">{[0,1,2,3].map((index) => <button key={index} aria-label={`${index + 1}枚目`} className={carouselIndex === index ? 'active' : ''} onClick={() => setCarouselIndex(index)} />)}</div>
         </section>
@@ -360,7 +361,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
       </section> : <section className="profile-page" aria-labelledby="profile-page-title">
         <header className="profile-page-heading"><p>MY PAGE</p><h1 id="profile-page-title">マイページ</h1><span>会員情報・おすすめ・ランクを管理できます。</span></header>
         <section className={`rank-card rank-${stats.rank.toLowerCase()} rank-card-slim`} aria-label={`${stats.rank}会員ランクカード`}>
-          <p className="rank-slim-top"><CrownMark /><b>GIVE HUB</b></p>
+          <p className="rank-slim-top"><CrownMark /><b>{serviceName}</b></p>
           <RankCrest rank={stats.rank} />
           <h2 className="rank-slim-title">{stats.rank}</h2>
           <p className="rank-slim-sub">MEMBER</p>
@@ -369,8 +370,11 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
             <span><small>バッヂ</small><b>{stats.badge || '未設定'}</b></span>
             <span className="rank-slim-venue"><small>会場</small><b>{stats.venue || '未設定'}</b></span>
           </div>
-          <div className="rank-progress"><div className="rank-progress-copy"><b>{stats.level >= rankThresholds.length ? '最高ランクに到達' : `あと${introductionsToNextRank}件でランクアップ`}</b><span>紹介 {stats.introCount}件・{stats.points}pt</span></div><span className="rank-progress-track"><i style={{ width: `${rankProgress}%` }} /></span></div>
         </section>
+        <div className="rank-next">
+          <div className="rank-next-copy"><b>{stats.level >= rankThresholds.length ? '最高ランクに到達' : `あと${introductionsToNextRank}件でランクアップ`}</b><span>紹介 {stats.introCount}件・{stats.points}pt</span></div>
+          <span className="rank-next-track"><i style={{ width: `${rankProgress}%` }} /></span>
+        </div>
         <details className={`plan-card is-${stats.plan}`}>
           <summary>
             <span className="plan-now"><small>プラン</small><b>{planCatalog[stats.plan].name}</b></span>

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { serviceMark, serviceName } from '../../brand';
 import { findInviterByCode } from '@/db/data';
 
 export const dynamic = 'force-dynamic';
@@ -8,13 +9,13 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
   const inviter = await findInviterByCode(code);
 
   if (!inviter) {
-    return <main className="signin-page"><div className="signin-card"><span className="brand-mark">G</span><p className="eyebrow">MEMBERS ONLY</p><h1>GIVE HUB</h1><h2>この招待リンクは使えません。</h2><p>リンクの期限が切れているか、紹介者が会員でなくなっている可能性があります。お手数ですが、紹介者にもう一度リンクを送ってもらってください。</p><Link className="primary-button" href="/">トップへ</Link></div></main>;
+    return <main className="signin-page"><div className="signin-card"><span className="brand-mark">{serviceMark}</span><p className="eyebrow">MEMBERS ONLY</p><h1>{serviceName}</h1><h2>この招待リンクは使えません。</h2><p>リンクの期限が切れているか、紹介者が会員でなくなっている可能性があります。お手数ですが、紹介者にもう一度リンクを送ってもらってください。</p><Link className="primary-button" href="/">トップへ</Link></div></main>;
   }
 
   return <main className="signin-page"><div className="signin-card">
-    <span className="brand-mark">G</span>
+    <span className="brand-mark">{serviceMark}</span>
     <p className="eyebrow">INVITATION</p>
-    <h1>GIVE HUB</h1>
+    <h1>{serviceName}</h1>
     <p className="invite-from"><b>{inviter.displayName}</b>さん<small>{[inviter.company, inviter.venue].filter(Boolean).join('・')}</small></p>
     <h2>からのご招待です。</h2>
     <p>守成クラブの仲間同士で「こんな人を探しています」を共有し、信頼できる紹介を届ける会員向け掲示板です。</p>

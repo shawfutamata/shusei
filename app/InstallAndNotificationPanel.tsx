@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { serviceName } from './brand';
 
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -42,7 +43,7 @@ export default function InstallAndNotificationPanel({ onNotice }: { onNotice: (m
     }
     if (Notification.permission === 'denied') {
       setPushState('denied');
-      return onNotice('ブラウザーの設定からGIVE HUBの通知を許可してください。');
+      return onNotice(`ブラウザーの設定から${serviceName}の通知を許可してください。`);
     }
     try {
       const permission = await Notification.requestPermission();
@@ -74,14 +75,14 @@ export default function InstallAndNotificationPanel({ onNotice }: { onNotice: (m
   }
 
   async function installApp() {
-    if (installed) return onNotice('GIVE HUBはホーム画面から使えます。');
+    if (installed) return onNotice(`${serviceName}はホーム画面から使えます。`);
     if (!installPrompt) return onNotice('iPhoneは共有ボタンから「ホーム画面に追加」を選んでください。');
     await installPrompt.prompt();
     const result = await installPrompt.userChoice;
     if (result.outcome === 'accepted') {
       setInstalled(true);
       setInstallPrompt(null);
-      onNotice('GIVE HUBをホーム画面に追加しました。');
+      onNotice(`${serviceName}をホーム画面に追加しました。`);
     }
   }
 

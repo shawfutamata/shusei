@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
+import { serviceName } from '../brand';
 
-export const metadata: Metadata = { title: 'プライバシーポリシー｜GIVE HUB', description: 'GIVE HUBの個人情報の取扱いについて' };
+export const metadata: Metadata = { title: `プライバシーポリシー｜${serviceName}`, description: `${serviceName}の個人情報の取扱いについて` };
 
 const sections = [
   ['1. 取得する情報', '本サービスは、メールアドレス、氏名・顔写真・会社名・所属会場・役職・バッヂ・活動エリア・業種・任意の年商区分、投稿・紹介内容、名刺画像および名刺から登録した連絡先、端末の通知トークン、利用日時やエラー等の技術情報を取得します。'],
@@ -15,7 +16,7 @@ const sections = [
 ];
 
 export default function PrivacyPage() {
-  return <main style={styles.page}><article style={styles.card}><p style={styles.eyebrow}>PRIVACY POLICY</p><h1 style={styles.title}>プライバシーポリシー</h1><p style={styles.lead}>GIVE HUB（以下「本サービス」）は、守成クラブ会員向けの紹介・探しごとサービスとして、利用者の情報を次のとおり取り扱います。</p>{sections.map(([title, body]) => <section key={title} style={styles.section}><h2 style={styles.heading}>{title}</h2><p style={styles.body}>{body}</p></section>)}<section id="delete" style={styles.section}><h2 style={styles.heading}>10. お問い合わせ・削除依頼</h2><p style={styles.body}>アプリ内で削除できない場合や、個人情報の開示・訂正・削除に関するお問い合わせは <a href="mailto:shaw_futamata@every-counts.com" style={styles.link}>shaw_futamata@every-counts.com</a> までご連絡ください。</p></section><footer style={styles.footer}>制定日：2026年8月27日</footer></article></main>;
+  return <main style={styles.page}><article style={styles.card}><p style={styles.eyebrow}>PRIVACY POLICY</p><h1 style={styles.title}>プライバシーポリシー</h1><p style={styles.lead}>{serviceName}（以下「本サービス」）は、守成クラブ会員向けの紹介・探しごとサービスとして、利用者の情報を次のとおり取り扱います。</p>{sections.map(([title, body]) => <section key={title} style={styles.section}><h2 style={styles.heading}>{title}</h2><p style={styles.body}>{body}</p></section>)}<section id="delete" style={styles.section}><h2 style={styles.heading}>10. お問い合わせ・削除依頼</h2><p style={styles.body}>アプリ内で削除できない場合や、個人情報の開示・訂正・削除に関するお問い合わせは <a href="mailto:shaw_futamata@every-counts.com" style={styles.link}>shaw_futamata@every-counts.com</a> までご連絡ください。</p></section><footer style={styles.footer}>制定日：2026年8月27日</footer></article></main>;
 }
 
 const styles = {

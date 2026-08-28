@@ -1,6 +1,6 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
-const displayName = process.env.APP_DISPLAY_NAME || 'GIVE HUB';
+const displayName = process.env.APP_DISPLAY_NAME || 'TASUKI';
 const appSlug = process.env.APP_SLUG || 'member-hub';
 const iosBundleIdentifier = process.env.IOS_BUNDLE_ID || 'jp.everycounts.memberhub';
 const androidPackage = process.env.ANDROID_PACKAGE || 'jp.everycounts.memberhub';
