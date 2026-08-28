@@ -132,9 +132,12 @@ const html = `<title>TASUKI プレビュー</title>
     .rail-group button { padding:6px 12px; border:1px solid var(--line); background:var(--raised); white-space:nowrap; }
     .rail-group code { display:none; }
     .rail-note { display:none; }
-    .stage { padding:20px 14px 50px; }
-    .device { width:min(100%,462px,calc(68svh * .4614 + 20px)); padding:10px; border-radius:34px; }
-    .device iframe { width:100%; height:auto; aspect-ratio:430 / 932; border-radius:24px; }
+    .stage { padding:10px 3px 40px; gap:12px; }
+    .stage-head { padding:0 8px; gap:8px; }
+    .stage-head h1 { font-size:15px; }
+    .stage-head p { display:none; }
+    .device { width:100%; max-width:462px; padding:5px; border-radius:30px; }
+    .device iframe { width:100%; height:auto; aspect-ratio:430 / 932; border-radius:25px; }
   }
   @media (prefers-reduced-motion:reduce) { .flash { transition:none; } }
 </style>
