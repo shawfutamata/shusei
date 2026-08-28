@@ -345,3 +345,7 @@ body { font-weight:600; }
 .signin-card .login-field .login-code { text-align: center; font-size: 24px; letter-spacing: 9px; }
 .signin-card .login-message { margin: 12px 0 0; color: #1d4ed8; font-size: 13px; line-height: 1.7; font-weight: 800; }
 .signin-card .login-back { margin-top: 10px; border: 0; background: none; color: #2563eb; font-size: 13px; font-weight: 900; cursor: pointer; }
+
+.signin-card .google-button { display:flex; align-items:center; justify-content:center; gap:11px; background:#fff; color:#17233c; border:1px solid #d3dcec; box-shadow:0 2px 10px rgba(13,47,126,.08); }
+.signin-card .google-button svg { width:20px; height:20px; flex:none; }
+.signin-card .login-error { margin:20px 0 0; padding:13px 15px; border-radius:12px; background:#fff4f2; color:#a8321f; font-size:13px; line-height:1.8; font-weight:700; text-align:left; }

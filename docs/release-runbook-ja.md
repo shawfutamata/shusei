@@ -16,17 +16,37 @@ Web版はアプリとほぼ同じことができる。掲示板・投稿・紹�
 
 | # | やること | 状態 |
 |---|---|---|
-| W1 | Webのメール＋6桁コードログイン | 完了 |
+| W1 | WebのGoogleログイン | 完了 |
 | W2 | 有効会員だけを通すAPI境界 | 完了 |
 | W3 | 公開サポートページ `/support`、プライバシーポリシー `/privacy` | 完了 |
-| W4 | Resend のAPIキーと送信元をSitesの秘密環境変数へ | **未。ここが最優先** |
+| W4 | Google Cloud で OAuth クライアントを作り、Sitesの秘密環境変数へ | **未。ここが関門** |
 | W5 | 会員をD1に登録して `active` にする | 未。`docs/member-provisioning.md` |
 | W6 | Sites を公開アクセスへ変更 | 未 |
 | W7 | 会員へ案内し、ホーム画面への追加を案内する | 未 |
 
-**W4がフェーズ1の関門。** メールが送れないと誰もログインできない。W6まで終われば公開できる。
+**Webのログインは Googleのみ**（2026-08-28に決定）。会員はGoogleアカウントを持っている前提で進める。メール＋6桁コードの画面は `/login` に残してあるが、トップからは案内していない。Googleが使えない会員が出たときは、このURLを個別に案内すれば入れる（ただしそれには Resend の設定が要る）。
+
+### W4 の手順
+
+1. Google Cloud Console でプロジェクトを作る（既存でも可）
+2. 「APIとサービス」→「OAuth同意画面」を設定する。ユーザーの種類は外部、スコープは `email` のみ
+3. 「認証情報」→「OAuth 2.0 クライアント ID」を作る。種類は**ウェブアプリケーション**
+4. **承認済みのリダイレクト URI** に次を**完全一致**で登録する
+
+   ```
+   https://give-hub-shusei.shaw-futamata.chatgpt.site/api/auth/google/callback
+   ```
+
+5. 発行されたクライアントIDとシークレットを、Sitesの**秘密**環境変数へ
+
+   - `GOOGLE_CLIENT_ID`
+   - `GOOGLE_CLIENT_SECRET`
+
+独自ドメインに変える場合は、リダイレクトURIも登録し直す。ここが一致していないとGoogleが `redirect_uri_mismatch` で止める。
 
 Webプッシュを使うなら `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` も設定する。未設定でも通知以外は動く。
+
+Resend（`RESEND_API_KEY` / `AUTH_FROM_EMAIL`）はフェーズ1では不要。アプリはメール認証しか持たないので、**フェーズ2までには必要**になる。
 
 ## フェーズ2: アプリ公開（フェーズ1と並行して待てる）
 

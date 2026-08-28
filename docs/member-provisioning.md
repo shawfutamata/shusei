@@ -11,6 +11,8 @@
 | `past_due` | `membership_period_end` が未来なら可 | 支払い遅延中の猶予期間 |
 | `canceled` | 不可 | 解約済み |
 
+Webのログインは Googleアカウントで行います。**会員の `email` と、ログインに使うGoogleアカウントのメールアドレスが一致している必要があります。** 一致しないと「登録されていません」として弾かれます。
+
 新しく作成される `members` の行は必ず `invited` で始まります。運営が明示的に `active` へ更新するまで、Web掲示板もアプリも利用できません。ChatGPTログインだけで会員扱いになることはありません。
 
 ## 前提
@@ -88,6 +90,7 @@ npx wrangler d1 execute <D1_DATABASE> --remote \
 | `RESEND_API_KEY` | 認証メール送信 | 通常会員のコード送信が400で失敗 |
 | `AUTH_FROM_EMAIL` | 認証メールの送信元 | 同上 |
 | `REVIEW_AUTH_EMAIL` / `REVIEW_AUTH_CODE` | 審査用の固定コード | 審査用経路が無効（通常のメール認証のみ） |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | WebのGoogleログイン | Webのログインボタンが使えない |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | WebプッシュのVAPID鍵 | Webプッシュが無効。アプリのExpo Pushには影響しない |
 
 ## スキーマの正 (source of truth)

@@ -10,5 +10,7 @@ declare namespace Cloudflare {
     AUTH_FROM_EMAIL: string;
     REVIEW_AUTH_EMAIL: string;
     REVIEW_AUTH_CODE: string;
+    GOOGLE_CLIENT_ID: string;
+    GOOGLE_CLIENT_SECRET: string;
   }
 }

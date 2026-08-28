@@ -394,6 +394,32 @@ export async function verifyMobileAuthCode(rawEmail: string, rawCode: string) {
   return { token, expiresAt, user: { userId: member.id, email, displayName: member.displayName, fullName: member.displayName } satisfies ChatGPTUser };
 }
 
+export async function startMemberSessionByEmail(rawEmail: string) {
+  await ensureDatabase();
+  const email = normalizeAuthEmail(rawEmail);
+  if (!email) throw new Error('メールアドレスを確認できませんでした。');
+
+  const member = await env.DB.prepare(`SELECT id, display_name AS displayName,
+    membership_status AS membershipStatus, membership_period_end AS membershipPeriodEnd
+    FROM members WHERE email = ?`)
+    .bind(email).first<{ id: string; displayName: string; membershipStatus: MembershipStatus; membershipPeriodEnd: string }>();
+  if (!member) throw new Error('登録済みの会員メールアドレスでログインしてください。');
+  if (!canUseMembership(member.membershipStatus, member.membershipPeriodEnd)) {
+    throw new Error('このアカウントには現在利用権限がありません。運営窓口へお問い合わせください。');
+  }
+
+  const token = randomMobileToken();
+  const tokenHash = await hashMobileSecret(token);
+  const now = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + 30 * 86400_000).toISOString();
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM mobile_sessions WHERE expires_at < ?').bind(now),
+    env.DB.prepare(`INSERT INTO mobile_sessions (token_hash, member_id, expires_at, created_at, last_seen_at)
+      VALUES (?, ?, ?, ?, ?)`).bind(tokenHash, member.id, expiresAt, now, now),
+  ]);
+  return { token, expiresAt, user: { userId: member.id, email, displayName: member.displayName, fullName: member.displayName } satisfies ChatGPTUser };
+}
+
 export async function getMobileSessionAccess(token: string): Promise<{ user: ChatGPTUser; membership: MembershipAccess } | null> {
   await ensureDatabase();
   if (token.length < 32 || token.length > 256) return null;
