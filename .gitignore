@@ -39,6 +39,3 @@ next-env.d.ts
 
 # typescript incremental build cache
 tsconfig.tsbuildinfo
-
-# blog automation generated drafts
-/blog-automation/output/
