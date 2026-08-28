@@ -23,19 +23,19 @@
 
 1. 会員はそれぞれ**招待リンク**を持つ。`https://<ドメイン>/join/<8桁のコード>`
 2. リンクから登録した人は `membership_status = 'invited'`（利用不可）で作られる。**招待だけでは利用権限は付かない。** 運営が確認して `active` にする。
-3. 招待された人が `active` になって **60日** 続いたら、紹介した人に**無料1ヶ月**が確定する。
+3. 招待された人が `active` になって **30日** 続いたら、紹介した人に**無料1ヶ月**が確定する。
 4. 上限は**直近12ヶ月で6ヶ月ぶん**。ただし**枠を超えたぶんは消えない**。`waiting`（順番待ち）として残り、直近12ヶ月の枠が空いた時点で古い順に自動で確定する。
    - 「6枠を使い切ったら、それ以降の紹介はタダ働き」にはならない
    - 一方で、1年に受け取れるのは最大6ヶ月ぶんまで（＝最大でも半額）なので、売上は守られる
    - 12人紹介した年でも、会費が安くなるのは6ヶ月ぶん。残り6人ぶんは翌年へ回る
-5. 60日に届く前に解約した人は、無料月にならない。
+5. 30日に届く前に解約した人は、無料月にならない。
 6. すでに会員のメールアドレスで招待リンクを踏んでも、紹介は付かない。既存会員の付け替えを防ぐため。
 
 定数はコードの1箇所にある。変えるときはここ。
 
 ```ts
 // db/data.ts
-export const REFERRAL_QUALIFY_DAYS = 60;
+export const REFERRAL_QUALIFY_DAYS = 30;
 export const REFERRAL_CAP_PER_YEAR = 6;
 ```
 
@@ -69,7 +69,7 @@ npx wrangler d1 execute <D1_DATABASE> --remote \
              WHERE m.membership_status = 'invited' ORDER BY m.created_at DESC"
 ```
 
-契約が済んだら有効にする。`activated_at` を入れておくと、60日の起算日がはっきりする（省略するとシステムが気づいた日を入れる）。
+契約が済んだら有効にする。`activated_at` を入れておくと、30日の起算日がはっきりする（省略するとシステムが気づいた日を入れる）。
 
 ```bash
 npx wrangler d1 execute <D1_DATABASE> --remote \
@@ -120,7 +120,7 @@ App Storeのガイドライン3.1.1と `docs/billing-architecture.md` により�
 -- members
 invite_code   TEXT  -- 自分の招待コード。初回に自動生成
 invited_by    TEXT  -- 紹介してくれた会員のid
-activated_at  TEXT  -- activeになった日。60日の起算点
+activated_at  TEXT  -- activeになった日。30日の起算点
 
 -- referral_credits（招待された人1人につき最大1行）
 inviter_id     TEXT

@@ -45,15 +45,12 @@ const screens = [
     ['login:notmember', '会員でないアカウント'],
     ['denied', '利用権限が停止中'],
   ] },
-  { group: '無料会員として', items: [
+  { group: '会員として', items: [
     ['home', 'ホーム'],
     ['search', '困りごと一覧'],
     ['status:closed', '募集終了だけ'],
     ['mypage', 'マイページ・プラン・招待'],
-    ['modal:post:limit', '今月ぶんの投稿を使い切った'],
-  ] },
-  { group: '有料会員として', items: [
-    ['mypage:pro', 'マイページ（有料）'],
+    ['modal:post:limit', '投稿の上限に当たったとき'],
   ] },
   { group: 'モーダル', items: [
     ['modal:post', '探しごとを投稿'],
@@ -62,7 +59,7 @@ const screens = [
   ] },
 ];
 
-const payload = JSON.stringify({ css: data.css, states, detailTitles, introTitles, industries, selectValues: data.selectValues ?? {}, venuesByPrefecture: data.venuesByPrefecture ?? {} })
+const payload = JSON.stringify({ css: data.css, states, detailTitles, introTitles, industries, selectValues: data.selectValues ?? {}, venuesByPrefecture: data.venuesByPrefecture ?? {}, industryChildren: data.industryChildren ?? {} })
   .replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 
 const nav = screens.map(({ group, items }) => `
@@ -113,6 +110,9 @@ const html = `<title>GIVE HUB プレビュー</title>
   .toolbar button:hover { border-color:var(--beam-dim); }
   .toolbar button:disabled { opacity:.4; cursor:not-allowed; }
   .now { padding:5px 10px; border-radius:7px; background:var(--panel); color:var(--beam); font-family:var(--mono); font-size:11px; }
+  .plan-switch { display:flex; padding:3px; gap:3px; border:1px solid var(--line); border-radius:9px; background:var(--panel); }
+  .plan-switch button { padding:5px 12px; border:0; border-radius:6px; background:transparent; color:var(--dim); font:inherit; font-size:12px; cursor:pointer; }
+  .plan-switch button[aria-pressed="true"] { background:var(--beam-dim); color:#fff; font-weight:700; }
 
   .device { position:relative; width:458px; padding:16px; border:1px solid var(--line); border-radius:46px; background:linear-gradient(160deg,#252c38,#171c24); box-shadow:0 40px 80px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06); }
   .device iframe { width:430px; height:932px; display:block; border:0; border-radius:32px; background:#e8effa; }
@@ -160,6 +160,10 @@ const html = `<title>GIVE HUB プレビュー</title>
       <h1>触って確かめるプレビュー</h1>
       <p>下のスマホの中を、そのままスクロールして、ボタンを押してみてください。</p>
       <div class="toolbar">
+        <div class="plan-switch" role="group" aria-label="会員プランを切り替える">
+          <button type="button" id="plan-free" aria-pressed="true">無料会員</button>
+          <button type="button" id="plan-pro" aria-pressed="false">有料会員</button>
+        </div>
         <span class="now mono" id="now">home</span>
         <button type="button" id="back" disabled>戻る</button>
         <button type="button" id="reset">最初から</button>
@@ -179,9 +183,10 @@ const html = `<title>GIVE HUB プレビュー</title>
           <li>投稿カード → 詳細 →「この人を紹介できる」</li>
           <li>右上の自分の名前 → マイページ</li>
           <li>マイページの所属会場（都道府県 → 会場、その他は自由入力）</li>
-          <li>一覧の「募集状況」と「業種」の絞り込み</li>
+          <li>一覧の「募集状況」「業種」「会場」の絞り込み</li>
+          <li>投稿フォームの入力・選択・業種タグ（送信だけ本番のサイトで動きます）</li>
           <li>マイページの招待カードと、招待リンクを受け取る画面（左のリスト）</li>
-          <li>無料会員と有料会員のマイページ（左のリストで切り替え）</li>
+          <li>上の<b>「無料会員／有料会員」</b>で見え方を切り替えられます</li>
         </ul>
       </section>
       <section class="flat">
@@ -213,6 +218,16 @@ const html = `<title>GIVE HUB プレビュー</title>
   const bannerTargets = ['modal:post', 'modal:responses', 'mypage', 'modal:cards'];
   const isOverlay = (key) => /^(modal:|detail:|intro:)/.test(key);
 
+  // 有料に切り替えると、撮ってある有料版の画面に読み替える。
+  const proVariants = { mypage: 'mypage:pro', 'modal:cards': 'modal:cards:pro', 'modal:post:limit': 'modal:post' };
+  const freeVariants = Object.fromEntries(Object.entries(proVariants).map(([free, pro]) => [pro, free]));
+  let pro = false;
+  const forPlan = (key) => {
+    const free = freeVariants[key] || key;
+    const target = pro ? (proVariants[free] || free) : free;
+    return data.states[target] ? target : key;
+  };
+
   let current = '';
   let base = 'home';
   let history = [];
@@ -241,6 +256,8 @@ const html = `<title>GIVE HUB プレビュー</title>
     restoreSelects(doc, key);
     wireVenuePicker(doc);
     wireBoardFilters(doc);
+    wireIndustryPickers(doc);
+    wireForms(doc);
     // アプリのCSSは html { scroll-behavior:smooth } なので、位置の復元だけは即座に効かせる
     doc.documentElement.style.scrollBehavior = 'auto';
     const top = scrollMemory[key] ?? (isOverlay(key) ? (scrollMemory[base] ?? 0) : 0);
@@ -248,7 +265,8 @@ const html = `<title>GIVE HUB プレビュー</title>
     doc.body.scrollTop = top;
   }
 
-  function go(key, { push = true } = {}) {
+  function go(rawKey, { push = true } = {}) {
+    const key = forPlan(rawKey);
     if (!data.states[key]) return notice('この画面はプレビューに入っていません。');
     saveScroll();
     if (push && current) history.push(current);
@@ -257,7 +275,7 @@ const html = `<title>GIVE HUB プレビュー</title>
     render(key);
     nowLabel.textContent = key;
     backButton.disabled = history.length === 0;
-    navButtons.forEach((button) => button.setAttribute('aria-current', String(button.dataset.state === key)));
+    navButtons.forEach((button) => button.setAttribute('aria-current', String(forPlan(button.dataset.state) === key)));
   }
 
   function goByTitle(kind, title) {
@@ -305,6 +323,7 @@ const html = `<title>GIVE HUB プレビュー</title>
     const filterButton = at('.filters button');
     if (filterButton) { event.preventDefault(); return go('search:' + filterKeys[indexIn(filterButton)]); }
 
+    if (at('.modal .form .submit-button')) { event.preventDefault(); return notice('プレビューでは送信されません。本番のサイトでは掲示板に載ります。'); }
     const detailIntro = at('.need-detail .submit-button');
     if (detailIntro) {
       event.preventDefault();
@@ -326,6 +345,8 @@ const html = `<title>GIVE HUB プレビュー</title>
     if (at('.google-button')) { event.preventDefault(); return notice('Googleログインは、実際のサイトに置いてからでないと動きません。'); }
 
     if (at('.profile-venue-select')) return;
+    if (at('.hierarchical-industry-picker') || at('.selected-industry-list')) return;
+    if (at('.modal .form input') || at('.modal .form textarea') || at('.modal .form select')) return;
     const boardSelect = at('.member-filters select');
     if (boardSelect) return;
     if (at('button') || at('a') || at('select') || at('input[type="file"]')) {
@@ -392,6 +413,116 @@ const html = `<title>GIVE HUB プレビュー</title>
       select.addEventListener('change', () => notice('会場・エリア・年商での絞り込みは、本番のサイトで動きます。'));
     });
   }
+
+
+  // 業種ピッカー。大分類を押すと詳細業種が入れ替わり、詳細業種は上限まで選べる。
+  function wireIndustryPickers(doc) {
+    doc.querySelectorAll('.hierarchical-industry-picker').forEach((field) => {
+      const note = field.querySelector('legend small');
+      const max = note ? Number((note.textContent.match(/([0-9]+)個まで/) || [])[1] || 6) : 6;
+      const panel = field.querySelector('.industry-detail-panel');
+      const heading = panel && panel.querySelector('h4');
+      const picker = field.querySelector('.tag-picker');
+      if (!picker) return;
+
+      field.querySelectorAll('.industry-major-picker button').forEach((major) => {
+        major.addEventListener('click', (event) => {
+          event.preventDefault();
+          field.querySelectorAll('.industry-major-picker button').forEach((other) => other.classList.remove('selected'));
+          major.classList.add('selected');
+          const name = major.textContent.trim();
+          if (heading) heading.childNodes.forEach((node) => { if (node.nodeType === 3 && node.textContent.trim()) node.textContent = name; });
+          const chosen = selectedValues();
+          picker.innerHTML = '';
+          (data.industryChildren[name] || []).forEach((child) => {
+            const button = doc.createElement('button');
+            button.type = 'button'; button.textContent = child;
+            if (chosen.includes(child)) button.classList.add('selected');
+            picker.appendChild(button);
+          });
+          wireChips();
+        });
+      });
+
+      function selectedValues() {
+        return Array.from(field.querySelectorAll('.selected-industry-list button')).map((item) => item.firstChild.textContent.trim());
+      }
+
+      function redrawSelected() {
+        const chosen = selectedValues();
+        Array.from(picker.querySelectorAll('button')).forEach((chip) => {
+          const label = chip.textContent.trim();
+          chip.classList.toggle('selected', chosen.includes(label));
+        });
+        const submit = field.closest('.modal') && field.closest('.modal').querySelector('.submit-button');
+        if (submit) submit.disabled = chosen.length === 0;
+      }
+
+      function list() {
+        let box = field.querySelector('.selected-industry-list');
+        if (!box) {
+          box = doc.createElement('div');
+          box.className = 'selected-industry-list';
+          box.innerHTML = '<b>選択中</b>';
+          field.appendChild(box);
+        }
+        return box;
+      }
+
+      function wireChips() {
+        picker.querySelectorAll('button').forEach((chip) => {
+          if (chip.dataset.wired) return;
+          chip.dataset.wired = '1';
+          chip.addEventListener('click', (event) => {
+            event.preventDefault();
+            const label = chip.textContent.trim();
+            const box = list();
+            const existing = Array.from(box.querySelectorAll('button')).find((item) => item.firstChild.textContent.trim() === label);
+            if (existing) { existing.remove(); }
+            else {
+              if (box.querySelectorAll('button').length >= max) return notice('業種タグは' + max + '個まで選べます。');
+              const tag = doc.createElement('button');
+              tag.type = 'button';
+              tag.appendChild(doc.createTextNode(label));
+              const cross = doc.createElement('span'); cross.textContent = '×';
+              tag.appendChild(cross);
+              tag.addEventListener('click', (removeEvent) => { removeEvent.preventDefault(); tag.remove(); redrawSelected(); });
+              box.appendChild(tag);
+            }
+            redrawSelected();
+          });
+        });
+        Array.from(list().querySelectorAll('button')).forEach((tag) => {
+          if (tag.dataset.wired) return;
+          tag.dataset.wired = '1';
+          tag.addEventListener('click', (event) => { event.preventDefault(); tag.remove(); redrawSelected(); });
+        });
+      }
+      wireChips();
+      redrawSelected();
+    });
+  }
+
+  // 入力欄とselectは触れるようにする。送信だけ本番につながらない。
+  function wireForms(doc) {
+    doc.querySelectorAll('.modal .form input, .modal .form textarea, .modal .form select').forEach((field) => {
+      field.addEventListener('click', (event) => event.stopPropagation());
+    });
+  }
+
+
+  const freeButton = document.getElementById('plan-free');
+  const proButton = document.getElementById('plan-pro');
+  function setPlan(nextPro) {
+    if (pro === nextPro) return;
+    pro = nextPro;
+    freeButton.setAttribute('aria-pressed', String(!pro));
+    proButton.setAttribute('aria-pressed', String(pro));
+    go(current, { push: false });
+    notice(pro ? '有料会員として見ています。投稿は無制限、名刺はカメラで読み取れます。' : '無料会員として見ています。投稿は月1件、名刺の読み取りは有料です。');
+  }
+  freeButton.addEventListener('click', () => setPlan(false));
+  proButton.addEventListener('click', () => setPlan(true));
 
   navButtons.forEach((button) => button.addEventListener('click', () => go(button.dataset.state)));
   backButton.addEventListener('click', () => {

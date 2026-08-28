@@ -33,6 +33,7 @@ async function newPage({ signIn = false } = {}) {
 }
 
 const selectValues = {};
+const industryChildren = {};
 async function save(key, page, selector = SHELL) {
   await page.waitForTimeout(450);
   states[key] = await page.locator(selector).first().evaluate((node) => node.outerHTML);
@@ -145,7 +146,25 @@ await nav(4).click();
 await page.locator('.invite-card').waitFor({ timeout: 15000 }).catch(() => undefined);
 await save('mypage:pro', page);
 // 投稿フォームそのものは有料会員のうちに撮る（無料会員は上限の案内が出るため）
+// 後ろは一覧にしておく。閉じたときに戻る先が自然になる。
+await nav(3).click();
+await save('modal:cards:pro', page);
+await closeModal();
+await nav(1).click();
+await page.waitForTimeout(250);
 await nav(2).click();
+await save('modal:post', page);
+
+// 業種ピッカーは大分類で詳細業種が入れ替わる。実際に押して組み合わせを控える。
+const majors = page.locator('.modal .industry-major-picker button');
+const majorNames = (await majors.allTextContents()).map((name) => name.trim());
+for (const [index, name] of majorNames.entries()) {
+  await majors.nth(index).click();
+  await page.waitForTimeout(70);
+  industryChildren[name] = (await page.locator('.modal .tag-picker button').allTextContents()).map((child) => child.trim());
+}
+await majors.nth(0).click();
+await page.waitForTimeout(120);
 await save('modal:post', page);
 await closeModal();
 
@@ -222,5 +241,5 @@ await browser.close();
 const inline = (text) => [...assets].reduce((current, [path, uri]) => current.split(`"${path}"`).join(`"${uri}"`).split(`(${path})`).join(`(${uri})`), text);
 for (const key of Object.keys(states)) states[key] = inline(states[key]);
 
-writeFileSync(OUT, JSON.stringify({ css: inline(css), states, selectValues, venuesByPrefecture }));
+writeFileSync(OUT, JSON.stringify({ css: inline(css), states, selectValues, venuesByPrefecture, industryChildren }));
 console.log(`\n${Object.keys(states).length} states, ${assets.size} assets -> ${OUT}`);

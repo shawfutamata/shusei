@@ -1035,9 +1035,9 @@ async function grantProMonth(memberId: string, source: string) {
 
 // --- 会員紹介（招待）ここから -------------------------------------------------
 // ルールは docs/referral-program-ja.md が正。
-// 「紹介した人が入会して60日続いたら、紹介した人の会費が1ヶ月無料。年6ヶ月まで」
+// 「紹介した人が入会して30日続いたら、紹介した人の会費が1ヶ月無料。年6ヶ月まで」
 
-export const REFERRAL_QUALIFY_DAYS = 60;
+export const REFERRAL_QUALIFY_DAYS = 30;
 export const REFERRAL_CAP_PER_YEAR = 6;
 
 export type ReferralSummary = {
@@ -1045,7 +1045,7 @@ export type ReferralSummary = {
   invitedCount: number;      // 招待リンクから登録した人の数
   waitingCount: number;      // まだ運営の承認待ち
   activeCount: number;       // 承認されて利用中
-  qualifyingCount: number;   // 利用中だが60日に届いていない
+  qualifyingCount: number;   // 利用中だが30日に届いていない
   earnedMonths: number;      // 無料になった月の数（年の上限内）
   waitingCredits: number;    // 資格は満たしたが、年の枠が空くのを待っているぶん
   appliedMonths: number;     // 運営が請求で使い終わったぶん

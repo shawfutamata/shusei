@@ -87,7 +87,14 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [referral, setReferral] = useState<(ReferralSummary & { url: string }) | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
 
-  const venueOptions = useMemo(() => [...new Set(requests.map((item) => item.authorVenue).filter(Boolean))].sort(), [requests]);
+  // 全国の会場を都道府県ごとにまとめて出す。一覧に無い会場（その他で登録された人）も
+  // 投稿があるぶんだけ末尾に足して、絞り込めない会場が出ないようにする。
+  const venueGroups = useMemo(() => {
+    const listed = new Set(venuePrefectures.flatMap((prefecture) => venuesByPrefecture[prefecture]));
+    const extras = [...new Set(requests.map((item) => item.authorVenue).filter((venue) => venue && !listed.has(venue)))].sort();
+    const groups: Array<[string, string[]]> = venuePrefectures.map((prefecture) => [prefecture, venuesByPrefecture[prefecture]]);
+    return extras.length ? [...groups, ['その他', extras] as [string, string[]]] : groups;
+  }, [requests]);
   // 募集状況で先に切ってから、カテゴリの件数を数える。表示と件数がずれないようにする。
   const statusMatched = useMemo(() => requests.filter((item) => statusFilter === 'all' || (statusFilter === 'open') === isOpenRequest(item)), [requests, statusFilter]);
   const shown = useMemo(() => statusMatched.filter((item) =>
@@ -326,7 +333,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <div className="member-filters">
           <p>絞り込む</p>
           <label className="wide"><span>募集状況</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'open' | 'closed' | 'all')}><option value="open">募集中</option><option value="closed">募集終了</option><option value="all">すべて</option></select></label>
-          <label><span>所属会場</span><select value={venueFilter} onChange={(event) => setVenueFilter(event.target.value)}><option value="all">すべての会場</option>{venueOptions.map((value) => <option value={value} key={value}>{value}</option>)}</select></label>
+          <label><span>会場</span><select value={venueFilter} onChange={(event) => setVenueFilter(event.target.value)}><option value="all">すべての会場</option>{venueGroups.map(([prefecture, venues]) => <optgroup label={prefecture} key={prefecture}>{venues.map((venue) => <option value={venue} key={venue}>{venue}</option>)}</optgroup>)}</select></label>
           <label><span>エリア</span><select value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)}><option value="all">全国</option>{regions.map((region) => <option value={region.name} key={region.name}>{region.name}</option>)}</select></label>
           <label><span>業種</span><select value={getIndustryGroup(industryFilter)?.name ?? 'all'} onChange={(event) => setIndustryFilter(event.target.value)}><option value="all">すべての業種</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label>
           <label><span>会社の年商</span><select value={revenueFilter} onChange={(event) => setRevenueFilter(event.target.value)}><option value="all">すべての年商</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
@@ -360,7 +367,16 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
             <li><b>名刺帳</b><span>{stats.businessCardLimit < 0 ? 'カメラで一括読み取り・無制限' : `${stats.businessCards} / ${stats.businessCardLimit} 枚`}</span></li>
             <li><b>掲示板を見る・人を紹介する</b><span>無制限</span></li>
           </ul>
-          {!stats.pro && <p className="plan-note">仲間を1人招待すると、有料機能を1ヶ月お試しいただけます。ご契約は運営窓口へお問い合わせください。</p>}
+          {!stats.pro && <div className="plan-upsell">
+            <b>有料会員になると、こんなことができます</b>
+            <ul>
+              <li><em>探しごとを何件でも投稿</em>できます（無料は月{stats.requestLimit}件まで）</li>
+              <li>名刺を<em>カメラでまとめて読み取り</em>、何枚でも保存できます</li>
+              <li>会員を<em>業種・エリア・会場・年商から探せます</em></li>
+              <li>届いた紹介を<em>書き出して</em>手元で管理できます</li>
+            </ul>
+            <p>仲間を1人招待してご利用が続くと、<b>1ヶ月お試し</b>いただけます。ご契約は運営窓口へお問い合わせください。</p>
+          </div>}
         </section>
 
         {referral && <section className="invite-card" aria-label="仲間を招待する">
@@ -371,7 +387,12 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
             <div><dt>利用中</dt><dd>{referral.activeCount}<small>人</small></dd></div>
             <div><dt>{stats.pro ? '無料になった月' : '有料になった月'}</dt><dd>{referral.earnedMonths}<small>ヶ月</small></dd></div>
           </dl>
-          <p className="invite-note">{referral.waitingCount > 0 && `${referral.waitingCount}人が運営の確認待ちです。`}{referral.qualifyingCount > 0 && `${referral.qualifyingCount}人が${referral.qualifyDays}日経過待ちです。`}{referral.remainingThisYear > 0 ? `直近1年ではあと${referral.remainingThisYear}ヶ月ぶん受け取れます。` : `直近1年ぶんの${referral.capPerYear}ヶ月は使い切りました。`}{referral.waitingCredits > 0 && `${referral.waitingCredits}人ぶんが順番待ちです。枠が空きしだい自動で反映されるので、紹介が無駄になることはありません。`}</p>
+          <ul className="invite-note">
+            {referral.waitingCount > 0 && <li><b>{referral.waitingCount}人</b><span>運営がご入会を確認しています</span></li>}
+            {referral.qualifyingCount > 0 && <li><b>{referral.qualifyingCount}人</b><span>ご利用が{referral.qualifyDays}日続くと、1ヶ月ぶんが決まります</span></li>}
+            {referral.waitingCredits > 0 && <li><b>{referral.waitingCredits}人ぶん</b><span>順番待ちです。空きが出しだい自動で反映されます</span></li>}
+            <li><b>{referral.remainingThisYear > 0 ? `あと${referral.remainingThisYear}ヶ月ぶん` : '受け取り済み'}</b><span>{referral.remainingThisYear > 0 ? `この1年で受け取れる残りです（1年あたり${referral.capPerYear}ヶ月まで）` : `この1年ぶん（${referral.capPerYear}ヶ月）は受け取りました`}</span></li>
+          </ul>
         </section>}
 
         <div className="profile-form profile-page-form">
@@ -398,7 +419,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <button className={activeTab === 'search' ? 'active' : ''} onClick={() => showSearch()}><span>⌕</span><small>困りごと</small></button>
         <button className="nav-post" onClick={openRequest} aria-label="探しごとを投稿する"><span>＋</span></button>
         <button onClick={() => openCards('list')}><span>▣</span><small>名刺</small></button>
-        <button className={activeTab === 'profile' ? 'active' : ''} onClick={showProfile}><span>●</span><small>マイページ</small></button>
+        <button className={activeTab === 'profile' ? 'active' : ''} onClick={showProfile}><span><PersonIcon /></span><small>マイページ</small></button>
       </nav>
 
       {modal === 'request' && !canPostRequest && <Modal title="今月ぶんの投稿は完了しています" lead={`無料会員が投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、有料会員へお切り替えください。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 60}日続けてご利用いただくと、有料機能を1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showProfile(); }}>マイページを開く</button></div></Modal>}
@@ -423,6 +444,15 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
   );
+}
+
+function PersonIcon() {
+  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <defs><clipPath id="nav-person-clip"><circle cx="12" cy="12" r="9.4" /></clipPath></defs>
+    <circle cx="12" cy="12" r="9.4" />
+    <circle cx="12" cy="9.3" r="3.2" />
+    <rect x="6.6" y="14.7" width="10.8" height="9" rx="3.2" clipPath="url(#nav-person-clip)" />
+  </svg>;
 }
 
 function IndustryIcon({ group }: { group: string }) {
