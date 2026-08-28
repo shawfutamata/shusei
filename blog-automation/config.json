@@ -1,0 +1,57 @@
+{
+  "site": {
+    "company": "株式会社SEMON",
+    "gscSiteUrl": "sc-domain:semon-inc.com",
+    "blogBaseUrl": "https://www.semon-inc.com/blog"
+  },
+
+  "target": {
+    "primaryKeyword": "マスターv4",
+    "keywordVariants": [
+      "マスターv4",
+      "マスターV4",
+      "master v4",
+      "セラゼム マスターV4",
+      "CERAGEM MASTER V4",
+      "マスターブイフォー"
+    ],
+    "targetPosition": 1,
+    "watchPositionThreshold": 1.5,
+    "secondaryKeywords": [
+      "脊椎ケア",
+      "温熱 ベッド",
+      "自動整体 マシン",
+      "セラゼム",
+      "体験会"
+    ]
+  },
+
+  "product": {
+    "name": "マスターV4",
+    "regulatoryClass": "管理医療機器",
+    "certificationNumber": "",
+    "approvedEfficacy": "",
+    "generalName": ""
+  },
+
+  "editorial": {
+    "audience": "腰や背中の不調が気になる40〜70代の一般読者、および導入を検討するサロン・治療院オーナー",
+    "tone": "誠実で落ち着いた説明調。断定的な効能の約束をしない。体験会への来場を最終的な行動喚起にする",
+    "minChars": 2800,
+    "maxChars": 4500,
+    "postsPerWeek": 1,
+    "callToAction": "全国で開催しているマスターV4の無料体験会へのご案内"
+  },
+
+  "models": {
+    "article": "claude-opus-5",
+    "analysis": "claude-sonnet-5",
+    "image": "gpt-image-1",
+    "imageSize": "1536x1024"
+  },
+
+  "safety": {
+    "requireApprovedEfficacy": true,
+    "blockPublishOnYakkihoHit": true
+  }
+}
