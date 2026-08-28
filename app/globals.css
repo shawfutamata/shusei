@@ -115,7 +115,8 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .invite-from small { margin-top:4px; display:block; color:var(--muted); font-size:11px; font-weight:700; }
 
 /* Plan (superseded by the collapsible version below); kept: the note and the quota screen. */
-.plan-note { margin:0; color:#62728a; font-size:10px; line-height:1.75; }
+.plan-note { margin:0; padding:11px 13px; border-radius:12px; background:#f1f6fd; color:#4e5d75; font-size:10px; line-height:1.75; }
+.plan-note b { color:#8a6d2f; }
 .quota-block { display:grid; gap:13px; }
 .quota-block p { margin:0; color:#4c5a70; font-size:13px; line-height:1.8; }
 
@@ -134,12 +135,14 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 
 /* Plan: collapsed by default. Opening it shows the ladder. */
 .plan-card { margin:12px 14px 0; border:1px solid var(--line); border-radius:16px; background:#fff; box-shadow:0 5px 16px rgba(28,52,93,.05); }
-.plan-card.paid { border-color:#cbb27a; }
+.plan-card.is-standard { border-color:#c9dbfa; }
+.plan-card.is-premium { border-color:#e0cb98; }
 .plan-card>summary { min-height:58px; padding:0 15px; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:11px; cursor:pointer; list-style:none; }
 .plan-card>summary::-webkit-details-marker { display:none; }
 .plan-now small { display:block; color:#8794a7; font-size:8px; font-weight:900; letter-spacing:.14em; }
 .plan-now b { display:block; margin-top:2px; font-size:15px; }
-.plan-card.paid .plan-now b { color:#8a6d2f; }
+.plan-card.is-standard .plan-now b { color:var(--blue-dark); }
+.plan-card.is-premium .plan-now b { color:#8a6d2f; }
 .plan-usage { color:var(--navy); font-size:11px; font-weight:800; text-align:right; font-variant-numeric:tabular-nums; }
 .plan-card>summary i { color:#a8b3c4; font-size:13px; font-style:normal; transition:transform .18s ease; }
 .plan-card[open]>summary i { transform:rotate(180deg); }
@@ -147,19 +150,24 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .plan-card[open] .plan-body { display:grid; gap:11px; }
 .plan-until { margin:0; color:#8a6d2f; font-size:10px; font-weight:800; }
 .plan-list { margin:0; padding:0; list-style:none; display:grid; gap:7px; }
-.plan-list li { padding:9px 11px; border:1px solid #eaeef5; border-radius:11px; }
-.plan-list li.current { border-color:#bcd3ff; background:#f5f9ff; }
+.plan-list li { --bar:#c3ccdb; --tier-ink:#46536b; --tier-line:#e7ecf4; --tier-fill:#fff; --tier-tint:#eef1f7; position:relative; padding:9px 12px 9px 17px; overflow:hidden; border:1px solid var(--tier-line); border-radius:12px; background:var(--tier-fill); }
+.plan-list li::before { content:''; position:absolute; top:0; bottom:0; left:0; width:5px; background:var(--bar); }
+.plan-list li.plan-standard { --bar:linear-gradient(180deg,#2563eb,#38bdf8); --tier-ink:var(--blue-dark); --tier-line:#d5e3fb; --tier-tint:#e9f2ff; }
+.plan-list li.plan-premium { --bar:linear-gradient(180deg,#e7cd88,#a8843a); --tier-ink:#8a6d2f; --tier-line:#e9d8b0; --tier-fill:linear-gradient(135deg,#fffdf7,#fbf4e3); --tier-tint:linear-gradient(135deg,#fffaea,#f6e9cd); }
+.plan-list li.current { background:var(--tier-tint); box-shadow:0 5px 14px rgba(28,52,93,.09); }
 .plan-list p { margin:0; }
 .plan-list-head { display:flex; align-items:center; gap:6px; }
-.plan-list-head b { font-size:14px; font-weight:900; }
-.plan-list-head em { padding:2px 6px; border-radius:5px; background:var(--navy); color:#fff; font-size:9px; font-style:normal; font-weight:900; }
-.plan-list-head>span { margin-left:auto; color:var(--navy); font-size:12px; font-weight:900; white-space:nowrap; font-variant-numeric:tabular-nums; }
-.plan-list-what { margin-top:4px; display:flex; flex-wrap:wrap; gap:4px 14px; color:#4c5a70; font-size:11px; font-weight:700; }
+.plan-list-head b { color:var(--tier-ink); font-size:14px; font-weight:900; }
+.plan-list-head em { padding:2px 7px; border-radius:99px; background:var(--tier-ink); color:#fff; font-size:9px; font-style:normal; font-weight:900; letter-spacing:.06em; }
+.plan-list-head>span { margin-left:auto; color:var(--tier-ink); font-size:12px; font-weight:900; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.plan-list-what { margin-top:4px; display:flex; flex-wrap:wrap; gap:4px 14px; color:#5b6980; font-size:11px; font-weight:700; }
 .plan-list-what span { white-space:nowrap; }
-.plan-detail { margin:0; padding:0; list-style:none; display:grid; gap:8px; }
-.plan-detail li { display:grid; gap:1px; }
+.plan-detail { margin:0; padding:0; list-style:none; display:grid; gap:9px; }
+.plan-detail li { display:grid; justify-items:start; gap:3px; }
 .plan-detail b { font-size:11px; font-weight:800; line-height:1.5; }
-.plan-detail span { color:var(--navy); font-size:11px; font-weight:800; }
+.plan-detail span { padding:3px 10px; border-radius:99px; font-size:11px; font-weight:800; }
+.plan-detail li.only span { background:#faf0d7; color:#8a6d2f; }
+.plan-detail li.all span { background:#e8f1ff; color:var(--blue-dark); }
 
 /* Senior-friendly readability: larger, heavier text and touch targets. */
 :root { --muted:#536176; }

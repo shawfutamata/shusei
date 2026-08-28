@@ -367,7 +367,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           </div>
           <div className="rank-progress"><div className="rank-progress-copy"><b>{stats.level >= rankThresholds.length ? '最高ランクに到達' : `あと${introductionsToNextRank}件でランクアップ`}</b><span>紹介 {stats.introCount}件・{stats.points}pt</span></div><span className="rank-progress-track"><i style={{ width: `${rankProgress}%` }} /></span></div>
         </section>
-        <details className={stats.paid ? 'plan-card paid' : 'plan-card'}>
+        <details className={`plan-card is-${stats.plan}`}>
           <summary>
             <span className="plan-now"><small>プラン</small><b>{planCatalog[stats.plan].name}</b></span>
             <span className="plan-usage">今月の投稿 {stats.requestsThisMonth}{stats.requestLimit === UNLIMITED ? '' : ` / ${stats.requestLimit}`}件</span>
@@ -376,17 +376,17 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           <div className="plan-body">
             {stats.paid && stats.planPeriodEnd && <p className="plan-until">{stats.planPeriodEnd} までご利用いただけます</p>}
             <ul className="plan-list">
-              {plans.map((plan) => <li key={plan} className={plan === stats.plan ? 'current' : ''}>
+              {plans.map((plan) => <li key={plan} className={`plan-${plan}${plan === stats.plan ? ' current' : ''}`}>
                 <p className="plan-list-head"><b>{planCatalog[plan].name}</b>{plan === stats.plan && <em>いま</em>}<span>{planPrice(plan)}</span></p>
                 <p className="plan-list-what"><span>探しごと {planPostLimit(plan)}</span><span>名刺 {planCardLimit(plan)}</span></p>
               </li>)}
             </ul>
             <ul className="plan-detail">
-              <li><b>名刺をカメラで一括読み取り</b><span>プレミアムのみ</span></li>
-              <li><b>会員を探す、紹介を書き出す</b><span>プレミアムのみ</span></li>
-              <li><b>掲示板を見る、紹介する、やり取りする</b><span>どのプランでも無制限</span></li>
+              <li className="only"><b>名刺をカメラで一括読み取り</b><span>プレミアムのみ</span></li>
+              <li className="only"><b>会員を探す、紹介を書き出す</b><span>プレミアムのみ</span></li>
+              <li className="all"><b>掲示板を見る、紹介する、やり取りする</b><span>どのプランでも無制限</span></li>
             </ul>
-            <p className="plan-note">仲間を1人招待してご利用が続くと、<b>プレミアムを1ヶ月お試し</b>いただけます。ご契約は運営窓口へお問い合わせください。</p>
+            <p className="plan-note">仲間を1人招待してご利用が続くと、{stats.paid ? <><b>会費が1ヶ月ぶん無料</b>になります</> : <><b>プレミアムを1ヶ月お試し</b>いただけます</>}。ご契約は運営窓口へお問い合わせください。</p>
           </div>
         </details>
 
