@@ -9,8 +9,9 @@ type Mode = 'list' | 'capture' | 'scan' | 'review' | 'confirm' | 'complete' | 'd
 type QueueItem = { id: string; file: File; preview: string };
 type DraftCard = BusinessCardInput & { queueId: string };
 
-export default function BusinessCardManager({ initialMode, onClose, onNotice }: {
+export default function BusinessCardManager({ initialMode, pro, onClose, onNotice }: {
   initialMode: 'list' | 'capture';
+  pro: boolean;
   onClose: () => void;
   onNotice: (message: string) => void;
 }) {
@@ -176,12 +177,12 @@ export default function BusinessCardManager({ initialMode, onClose, onNotice }: 
   }
 
   return <div className="cardbook-backdrop"><section className="cardbook" role="dialog" aria-modal="true" aria-label="個人名刺帳">
-    <header className="cardbook-header"><button onClick={closeOrBack} disabled={mode === 'scan'} aria-label="戻る">‹</button><div><b>{mode === 'detail' ? '名刺詳細' : mode === 'capture' ? '名刺を追加' : mode === 'scan' ? '文字を読み取り中' : mode === 'review' ? '読み取り結果を確認' : mode === 'confirm' ? '登録内容を確認' : mode === 'complete' ? '登録完了' : '個人名刺帳'}</b><small>{mode === 'list' ? `${cards.length}枚を本人だけに保存` : mode === 'confirm' ? '登録前に内容を見直せます' : mode === 'complete' ? '名刺帳へ保存しました' : '複数枚をまとめて登録できます'}</small></div>{mode === 'list' ? <button className="cardbook-add" onClick={() => setMode('capture')}>＋追加</button> : <span />}</header>
+    <header className="cardbook-header"><button onClick={closeOrBack} disabled={mode === 'scan'} aria-label="戻る">‹</button><div><b>{mode === 'detail' ? '名刺詳細' : mode === 'capture' ? '名刺を追加' : mode === 'scan' ? '文字を読み取り中' : mode === 'review' ? '読み取り結果を確認' : mode === 'confirm' ? '登録内容を確認' : mode === 'complete' ? '登録完了' : '個人名刺帳'}</b><small>{mode === 'list' ? `${cards.length}枚を本人だけに保存` : mode === 'confirm' ? '登録前に内容を見直せます' : mode === 'complete' ? '名刺帳へ保存しました' : '複数枚をまとめて登録できます'}</small></div>{mode === 'list' && pro ? <button className="cardbook-add" onClick={() => setMode('capture')}>＋追加</button> : <span />}</header>
 
     {mode === 'list' && <div className="cardbook-body cardbook-list-view">
       <div className="cardbook-search"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="名前・会社・グループで検索" /></div>
       <div className="cardbook-tabs"><button className={!favoriteOnly ? 'active' : ''} onClick={() => setFavoriteOnly(false)}>すべて <span>{cards.length}</span></button><button className={favoriteOnly ? 'active' : ''} onClick={() => setFavoriteOnly(true)}>★ 重要 <span>{cards.filter((card) => card.isFavorite).length}</span></button></div>
-      {loading ? <div className="cardbook-empty">名刺帳を読み込んでいます…</div> : groupedCards.length === 0 ? <div className="cardbook-empty"><b>{cards.length ? '該当する名刺がありません' : '名刺帳はまだ空です'}</b><span>カメラで何枚でも続けて撮影できます。</span><button onClick={() => setMode('capture')}>最初の名刺を追加する</button></div> : groupedCards.map(([date, group]) => <section className="card-date-group" key={date}><h2>{formatDate(date)} <span>{group.length}枚</span></h2>{group.map((card) => <article className="cardbook-row" key={card.id}><button className={card.isFavorite ? 'card-star active' : 'card-star'} onClick={() => toggleFavorite(card)} aria-label="重要な名刺にする">★</button><button className="cardbook-open" onClick={() => openDetail(card)}><div><b>{card.name || '氏名未登録'}</b><span>{card.company || '会社名未登録'}</span><small>{[card.positionTitle, card.department].filter(Boolean).join('・') || '肩書き未登録'}</small></div><img src={card.imageUrl} alt={`${card.name || '登録済み'}の名刺`} /><i>›</i></button></article>)}</section>) }
+      {loading ? <div className="cardbook-empty">名刺帳を読み込んでいます…</div> : groupedCards.length === 0 ? <div className="cardbook-empty"><b>{cards.length ? '該当する名刺がありません' : '名刺帳はまだ空です'}</b><span>{pro ? 'カメラで何枚でも続けて撮影できます。' : '交換した名刺をここにまとめておけます。'}</span>{pro && <button onClick={() => setMode('capture')}>最初の名刺を追加する</button>}</div> : groupedCards.map(([date, group]) => <section className="card-date-group" key={date}><h2>{formatDate(date)} <span>{group.length}枚</span></h2>{group.map((card) => <article className="cardbook-row" key={card.id}><button className={card.isFavorite ? 'card-star active' : 'card-star'} onClick={() => toggleFavorite(card)} aria-label="重要な名刺にする">★</button><button className="cardbook-open" onClick={() => openDetail(card)}><div><b>{card.name || '氏名未登録'}</b><span>{card.company || '会社名未登録'}</span><small>{[card.positionTitle, card.department].filter(Boolean).join('・') || '肩書き未登録'}</small></div><img src={card.imageUrl} alt={`${card.name || '登録済み'}の名刺`} /><i>›</i></button></article>)}</section>) }
     </div>}
 
     {mode === 'capture' && <div className="cardbook-body capture-view">

@@ -45,11 +45,15 @@ const screens = [
     ['login:notmember', '会員でないアカウント'],
     ['denied', '利用権限が停止中'],
   ] },
-  { group: '会員として', items: [
+  { group: '無料会員として', items: [
     ['home', 'ホーム'],
     ['search', '困りごと一覧'],
     ['status:closed', '募集終了だけ'],
-    ['mypage', 'マイページ（招待）'],
+    ['mypage', 'マイページ・プラン・招待'],
+    ['modal:post:limit', '今月ぶんの投稿を使い切った'],
+  ] },
+  { group: '有料会員として', items: [
+    ['mypage:pro', 'マイページ（有料）'],
   ] },
   { group: 'モーダル', items: [
     ['modal:post', '探しごとを投稿'],
@@ -177,6 +181,7 @@ const html = `<title>GIVE HUB プレビュー</title>
           <li>マイページの所属会場（都道府県 → 会場、その他は自由入力）</li>
           <li>一覧の「募集状況」と「業種」の絞り込み</li>
           <li>マイページの招待カードと、招待リンクを受け取る画面（左のリスト）</li>
+          <li>無料会員と有料会員のマイページ（左のリストで切り替え）</li>
         </ul>
       </section>
       <section class="flat">
@@ -203,7 +208,7 @@ const html = `<title>GIVE HUB プレビュー</title>
   const flash = document.getElementById('flash');
   const navButtons = Array.from(document.querySelectorAll('.rail-group button'));
 
-  const navTargets = ['home', 'search', 'modal:post', 'modal:cards', 'mypage'];
+  const navTargets = ['home', 'search', 'modal:post:limit', 'modal:cards', 'mypage'];
   const filterKeys = ['all', 'project', 'collaboration', 'consultation'];
   const bannerTargets = ['modal:post', 'modal:responses', 'mypage', 'modal:cards'];
   const isOverlay = (key) => /^(modal:|detail:|intro:)/.test(key);

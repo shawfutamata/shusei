@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import type { ChatGPTUser } from '@/app/chatgpt-auth';
+import { FREE_BUSINESS_CARDS, FREE_REQUESTS_PER_MONTH, extendedPlanEnd, isPro, isoDate, type Plan, type PlanState } from '@/app/entitlements';
 import { matchesIndustry } from '@/app/industry-options';
 
 export type BoardRequest = {
@@ -43,6 +44,12 @@ export type MemberStats = {
   rank: string;
   level: number;
   nextRankAt: number;
+  pro: boolean;
+  planPeriodEnd: string;
+  requestsThisMonth: number;
+  requestLimit: number;
+  businessCards: number;
+  businessCardLimit: number;
 };
 
 export type ReceivedIntroduction = {
@@ -140,6 +147,9 @@ const statements = [
     invite_code TEXT NOT NULL DEFAULT '',
     invited_by TEXT NOT NULL DEFAULT '',
     activated_at TEXT NOT NULL DEFAULT '',
+    plan TEXT NOT NULL DEFAULT 'free',
+    plan_period_end TEXT NOT NULL DEFAULT '',
+    plan_source TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS referral_credits (
@@ -287,6 +297,9 @@ export async function ensureDatabase() {
     ['invite_code', "ALTER TABLE members ADD COLUMN invite_code TEXT NOT NULL DEFAULT ''"],
     ['invited_by', "ALTER TABLE members ADD COLUMN invited_by TEXT NOT NULL DEFAULT ''"],
     ['activated_at', "ALTER TABLE members ADD COLUMN activated_at TEXT NOT NULL DEFAULT ''"],
+    ['plan', "ALTER TABLE members ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'"],
+    ['plan_period_end', "ALTER TABLE members ADD COLUMN plan_period_end TEXT NOT NULL DEFAULT ''"],
+    ['plan_source', "ALTER TABLE members ADD COLUMN plan_source TEXT NOT NULL DEFAULT ''"],
   ];
   for (const [columnName, sql] of missingColumns) {
     if (!existingColumns.has(columnName)) await env.DB.prepare(sql).run();
@@ -627,7 +640,10 @@ export async function getBoardData(user: ChatGPTUser) {
 
   const baseMember = member ?? { displayName: user.displayName, venue: 'ひるのめぐろ会場', company: '', positionTitle: '', badge: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, dealCount: 0, points: 0 };
   const { notifyIndustriesJson, ...memberFields } = baseMember;
-  const stats = calculateRank({ ...memberFields, notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion) });
+  const plan = await getPlanSummary(user.userId);
+  const stats = calculateRank({ ...memberFields, notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion),
+    pro: plan.pro, planPeriodEnd: plan.planPeriodEnd, requestsThisMonth: plan.requestsThisMonth, requestLimit: plan.requestLimit,
+    businessCards: plan.businessCards, businessCardLimit: plan.businessCardLimit });
   const requests = requestsResult.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, industryTagsJson, ...request }) => ({
     ...request,
     industryTags: parseStringArray(industryTagsJson),
@@ -662,6 +678,9 @@ export async function updateMemberProfile(user: ChatGPTUser, input: { company: s
 export async function createRequest(user: ChatGPTUser, input: { category: string; title: string; description: string; budgetLabel: string; area: string; industryTags: string[]; deadline: string; }) {
   await upsertMember(user);
   await requireFacePhoto(user.userId);
+  if (!isPro(await getPlanState(user.userId)) && await countRequestsThisMonth(user.userId) >= FREE_REQUESTS_PER_MONTH) {
+    throw new Error(`無料会員が投稿できる探しごとは月${FREE_REQUESTS_PER_MONTH}件までです。今月ぶんはすでに投稿済みです。`);
+  }
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   await env.DB.prepare('INSERT INTO requests (id, author_id, category, title, description, budget_label, area, industry_tags, deadline, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
@@ -801,6 +820,12 @@ export async function getBusinessCards(user: ChatGPTUser) {
 export async function createBusinessCards(user: ChatGPTUser, inputs: Array<{ card: BusinessCardInput; image: { bytes: ArrayBuffer; contentType: string } }>) {
   await upsertMember(user);
   if (!inputs.length || inputs.length > 20) throw new Error('名刺は1回につき1〜20枚まで保存できます。');
+  if (!isPro(await getPlanState(user.userId))) {
+    const stored = await countBusinessCards(user.userId);
+    if (stored + inputs.length > FREE_BUSINESS_CARDS) {
+      throw new Error(`無料会員が保存できる名刺は${FREE_BUSINESS_CARDS}枚までです（いま${stored}枚）。`);
+    }
+  }
   const createdAt = new Date().toISOString();
   const rows = [] as Array<{ id: string; imageKey: string; imageVersion: number; card: BusinessCardInput; contentType: string }>;
   for (const item of inputs) {
@@ -958,6 +983,55 @@ function calculateRank(member: Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'
   return { ...member, rank: names[level - 1], level, nextRankAt: thresholds[level] ?? member.introCount };
 }
 
+// --- プラン（無料 / 有料）ここから ------------------------------------------
+// 会員かどうか（membership_status）と、お金を払っているか（plan）は別の軸。
+// 判定そのものは app/entitlements.ts に置いてある。
+
+export type PlanSummary = PlanState & { pro: boolean; source: string; requestsThisMonth: number; requestLimit: number; businessCards: number; businessCardLimit: number };
+
+export async function getPlanState(memberId: string): Promise<PlanState> {
+  await ensureDatabase();
+  const row = await env.DB.prepare('SELECT plan, plan_period_end AS planPeriodEnd FROM members WHERE id = ?')
+    .bind(memberId).first<{ plan: Plan; planPeriodEnd: string }>();
+  return { plan: row?.plan === 'pro' ? 'pro' : 'free', planPeriodEnd: row?.planPeriodEnd ?? '' };
+}
+
+export async function countRequestsThisMonth(memberId: string) {
+  const monthStart = `${new Date().toISOString().slice(0, 7)}-01`;
+  const row = await env.DB.prepare('SELECT COUNT(*) AS count FROM requests WHERE author_id = ? AND created_at >= ?')
+    .bind(memberId, monthStart).first<{ count: number }>();
+  return Number(row?.count ?? 0);
+}
+
+export async function countBusinessCards(memberId: string) {
+  const row = await env.DB.prepare('SELECT COUNT(*) AS count FROM business_cards WHERE owner_id = ?')
+    .bind(memberId).first<{ count: number }>();
+  return Number(row?.count ?? 0);
+}
+
+export async function getPlanSummary(memberId: string): Promise<PlanSummary> {
+  const state = await getPlanState(memberId);
+  const pro = isPro(state);
+  const [requestsThisMonth, businessCards] = await Promise.all([
+    countRequestsThisMonth(memberId), countBusinessCards(memberId),
+  ]);
+  const row = await env.DB.prepare('SELECT plan_source AS source FROM members WHERE id = ?')
+    .bind(memberId).first<{ source: string }>();
+  return {
+    ...state, pro, source: row?.source ?? '',
+    requestsThisMonth, requestLimit: pro ? -1 : FREE_REQUESTS_PER_MONTH,
+    businessCards, businessCardLimit: pro ? -1 : FREE_BUSINESS_CARDS,
+  };
+}
+
+/** 無料月クレジット1件ぶん、有料期間を1ヶ月延ばす。運営の請求とは別に、無料会員へその場で効かせる。 */
+async function grantProMonth(memberId: string, source: string) {
+  const state = await getPlanState(memberId);
+  await env.DB.prepare("UPDATE members SET plan = 'pro', plan_period_end = ?, plan_source = ? WHERE id = ?")
+    .bind(extendedPlanEnd(state.planPeriodEnd), source, memberId).run();
+}
+// --- プランここまで ---------------------------------------------------------
+
 // --- 会員紹介（招待）ここから -------------------------------------------------
 // ルールは docs/referral-program-ja.md が正。
 // 「紹介した人が入会して60日続いたら、紹介した人の会費が1ヶ月無料。年6ヶ月まで」
@@ -1066,12 +1140,23 @@ async function reconcileReferralCredits(inviterId: string) {
     WHERE inviter_id = ? AND status = 'earned' AND earned_at >= ?`).bind(inviterId, yearAgo).first<{ count: number }>();
   let earnedThisYear = Number(earnedRow?.count ?? 0);
 
+  let granted = 0;
   await env.DB.batch(pending.results.map(({ id }) => {
     const status = earnedThisYear < REFERRAL_CAP_PER_YEAR ? 'earned' : 'capped';
-    if (status === 'earned') earnedThisYear += 1;
+    if (status === 'earned') { earnedThisYear += 1; granted += 1; }
     return env.DB.prepare(`INSERT OR IGNORE INTO referral_credits (id, inviter_id, invitee_id, status, earned_at, created_at)
       VALUES (?, ?, ?, ?, ?, ?)`).bind(crypto.randomUUID(), inviterId, id, status, nowIso, nowIso);
   }));
+
+  // 無料会員には、その場で有料機能を1ヶ月ぶん開ける。試してもらうのがいちばんの入口になる。
+  // 有料会員のぶんは請求で引くので、ここでは何もしない（applied_month が空のまま運営が使う）。
+  const state = await getPlanState(inviterId);
+  if (granted > 0 && !isPro(state)) {
+    for (let index = 0; index < granted; index += 1) await grantProMonth(inviterId, 'referral');
+    await env.DB.prepare(`UPDATE referral_credits SET applied_month = ?
+      WHERE inviter_id = ? AND status = 'earned' AND applied_month = ''`)
+      .bind(nowIso.slice(0, 7), inviterId).run();
+  }
 }
 
 export async function getReferralSummary(memberId: string): Promise<ReferralSummary> {

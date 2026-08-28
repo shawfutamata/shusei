@@ -18,6 +18,9 @@ const localDb = () => join(D1_DIR, readdirSync(D1_DIR).find((name) => name.endsW
 const setStatus = (status) => execFileSync('python3', ['-c',
   'import sqlite3,sys;c=sqlite3.connect(sys.argv[1]);c.execute("UPDATE members SET membership_status=? WHERE id=?",(sys.argv[2],sys.argv[3]));c.commit()',
   localDb(), status, process.env.PREVIEW_MEMBER_ID || 'local_seedy']);
+const setPlan = (plan, end = '') => execFileSync('python3', ['-c',
+  'import sqlite3,sys;c=sqlite3.connect(sys.argv[1]);c.execute("UPDATE members SET plan=?, plan_period_end=?, plan_source=? WHERE id=?",(sys.argv[2],sys.argv[3],"direct" if sys.argv[2]=="pro" else "",sys.argv[4]));c.commit()',
+  localDb(), plan, end, process.env.PREVIEW_MEMBER_ID || 'local_seedy']);
 
 const states = {};
 const browser = await chromium.launch({ executablePath: BROWSER, args: ['--no-sandbox'] });
@@ -120,7 +123,7 @@ for (const [index, name] of industryNames.entries()) {
 // モーダル各種
 await nav(1).click();
 await nav(2).click();
-await save('modal:post', page);
+await save('modal:post:limit', page);
 await closeModal();
 await nav(3).click();
 await save('modal:cards', page);
@@ -134,6 +137,22 @@ await closeModal();
 await nav(4).click();
 await page.locator('.invite-card').waitFor({ timeout: 15000 }).catch(() => console.warn('\n招待カードが出ませんでした'));
 await save('mypage', page);
+
+// 有料会員のマイページも撮る（プラン表示と招待カードの文言が変わる）
+setPlan('pro', '2027-03-31');
+await page.reload({ waitUntil: 'networkidle' });
+await nav(4).click();
+await page.locator('.invite-card').waitFor({ timeout: 15000 }).catch(() => undefined);
+await save('mypage:pro', page);
+// 投稿フォームそのものは有料会員のうちに撮る（無料会員は上限の案内が出るため）
+await nav(2).click();
+await save('modal:post', page);
+await closeModal();
+
+setPlan('free');
+await page.reload({ waitUntil: 'networkidle' });
+await nav(4).click();
+await page.waitForTimeout(600);
 
 // 都道府県ごとの会場は、実際にselectを切り替えて読み取る
 const venuePicker = page.locator('.profile-venue-select select');

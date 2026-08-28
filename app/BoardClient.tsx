@@ -104,6 +104,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   ).slice(0, 12), [requests, stats.notifyIndustries, userName]);
   const viewedRequests = useMemo(() => viewedIds.map((id) => requests.find((item) => item.id === id)).filter((item): item is BoardRequest => Boolean(item)), [requests, viewedIds]);
   const favoriteRequests = useMemo(() => favoriteIds.map((id) => requests.find((item) => item.id === id)).filter((item): item is BoardRequest => Boolean(item)), [favoriteIds, requests]);
+  const canPostRequest = stats.requestLimit < 0 || stats.requestsThisMonth < stats.requestLimit;
   const count = (category: string) => category === 'all' ? statusMatched.length : statusMatched.filter((item) => item.category === category).length;
   const rankStart = rankThresholds[Math.max(0, stats.level - 1)] ?? 0;
   const rankProgress = stats.level >= rankThresholds.length ? 100 : Math.max(0, Math.min(100, ((stats.introCount - rankStart) / Math.max(1, stats.nextRankAt - rankStart)) * 100));
@@ -352,13 +353,23 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           <div className="rank-progress"><div className="rank-progress-copy"><b>{stats.level >= rankThresholds.length ? '最高ランクに到達' : `あと${introductionsToNextRank}件でランクアップ`}</b><span>紹介実績 {stats.introCount}件</span></div><span className="rank-progress-track"><i style={{ width: `${rankProgress}%` }} /></span></div>
           <div className="rank-card-bottom"><span><small>MEMBER</small><b>{userName}</b></span><span><small>VENUE</small><b>{stats.venue}</b></span><span><small>POINTS</small><b>{stats.points}</b></span></div>
         </section>
+        <section className={stats.pro ? 'plan-card pro' : 'plan-card'} aria-label="ご利用プラン">
+          <div className="plan-heading"><p>PLAN</p><h2>{stats.pro ? '有料会員' : '無料会員'}</h2>{stats.pro && stats.planPeriodEnd && <span>{stats.planPeriodEnd} まで</span>}</div>
+          <ul className="plan-lines">
+            <li><b>探しごとの投稿</b><span>{stats.requestLimit < 0 ? '無制限' : `今月 ${stats.requestsThisMonth} / ${stats.requestLimit} 件`}</span></li>
+            <li><b>名刺帳</b><span>{stats.businessCardLimit < 0 ? 'カメラで一括読み取り・無制限' : `${stats.businessCards} / ${stats.businessCardLimit} 枚`}</span></li>
+            <li><b>掲示板を見る・人を紹介する</b><span>無制限</span></li>
+          </ul>
+          {!stats.pro && <p className="plan-note">仲間を1人招待すると、有料機能を1ヶ月お試しいただけます。ご契約は運営窓口へお問い合わせください。</p>}
+        </section>
+
         {referral && <section className="invite-card" aria-label="仲間を招待する">
-          <div className="invite-heading"><p>INVITE</p><h2>仲間を招待する</h2><span>あなたの招待リンクから入会して{referral.qualifyDays}日続いた方1人につき、会費が1ヶ月無料になります（年{referral.capPerYear}ヶ月まで）。</span></div>
+          <div className="invite-heading"><p>INVITE</p><h2>仲間を招待する</h2><span>あなたの招待リンクから入会して{referral.qualifyDays}日続いた方1人につき、{stats.pro ? '会費が1ヶ月無料になります' : '有料機能が1ヶ月使えます'}（年{referral.capPerYear}ヶ月まで）。</span></div>
           <button className="invite-link" onClick={copyInviteLink}><span>{referral.url.replace(/^https?:\/\//, '')}</span><i>{inviteCopied ? 'コピーしました' : 'リンクをコピー'}</i></button>
           <dl className="invite-stats">
             <div><dt>招待した人</dt><dd>{referral.invitedCount}<small>人</small></dd></div>
             <div><dt>利用中</dt><dd>{referral.activeCount}<small>人</small></dd></div>
-            <div><dt>無料になった月</dt><dd>{referral.earnedMonths}<small>ヶ月</small></dd></div>
+            <div><dt>{stats.pro ? '無料になった月' : '有料になった月'}</dt><dd>{referral.earnedMonths}<small>ヶ月</small></dd></div>
           </dl>
           <p className="invite-note">{referral.waitingCount > 0 && `${referral.waitingCount}人が運営の確認待ちです。`}{referral.qualifyingCount > 0 && `${referral.qualifyingCount}人が${referral.qualifyDays}日経過待ちです。`}{referral.remainingThisYear > 0 ? `今年はあと${referral.remainingThisYear}ヶ月ぶん受け取れます。` : '今年ぶんの上限に達しました。ここから先の紹介は会員ランクに反映されます。'}</p>
         </section>}
@@ -390,7 +401,9 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <button className={activeTab === 'profile' ? 'active' : ''} onClick={showProfile}><span>●</span><small>マイページ</small></button>
       </nav>
 
-      {modal === 'request' && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの<select name="category" required defaultValue=""><option value="" disabled>選択してください</option><option value="project">案件の発注先</option><option value="collaboration">協業パートナー</option><option value="consultation">相談相手・情報</option></select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容<textarea name="description" required maxLength={600} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア<input name="area" required maxLength={60} placeholder="例：東京都・オンライン" /></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><button className="submit-button" disabled={busy || !requestIndustries.length}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
+      {modal === 'request' && !canPostRequest && <Modal title="今月ぶんの投稿は完了しています" lead={`無料会員が投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、有料会員へお切り替えください。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 60}日続けてご利用いただくと、有料機能を1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showProfile(); }}>マイページを開く</button></div></Modal>}
+
+      {modal === 'request' && canPostRequest && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの<select name="category" required defaultValue=""><option value="" disabled>選択してください</option><option value="project">案件の発注先</option><option value="collaboration">協業パートナー</option><option value="consultation">相談相手・情報</option></select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容<textarea name="description" required maxLength={600} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア<input name="area" required maxLength={60} placeholder="例：東京都・オンライン" /></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><button className="submit-button" disabled={busy || !requestIndustries.length}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
 
       {modal === 'intro' && selected && <Modal title="知っている人を紹介" lead={`「${selected.title}」への紹介です。`} onClose={() => setModal(null)}><form className="form" onSubmit={submitIntroduction}><label>お名前<input name="personName" required maxLength={60} /></label><label>会社・屋号<input name="personCompany" required maxLength={80} /></label><label>あなたとの関係<input name="relationship" required maxLength={120} placeholder="例：取引先、友人" /></label><label>紹介したい理由<textarea name="fitReason" required maxLength={400} rows={3} /></label><label className="consent"><input type="checkbox" name="consentConfirmed" required /> ご本人に紹介の了承を得ています</label><button className="submit-button" disabled={busy}>{busy ? '届けています…' : '紹介を届ける'}</button></form></Modal>}
 
@@ -405,7 +418,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <button className="submit-button" onClick={() => openIntroduction(selected)}>この人を紹介できる</button>
       </article></Modal>}
 
-      {modal === 'cards' && <BusinessCardManager initialMode={cardStartMode} onClose={() => setModal(null)} onNotice={showToast} />}
+      {modal === 'cards' && <BusinessCardManager initialMode={stats.pro ? cardStartMode : 'list'} pro={stats.pro} onClose={() => setModal(null)} onNotice={showToast} />}
       {cropSource && <div className="crop-backdrop"><section className="crop-dialog" role="dialog" aria-modal="true" aria-labelledby="crop-title"><header><button onClick={() => setCropSource('')}>キャンセル</button><div><h2 id="crop-title">顔写真を調整</h2><p>指で動かして、顔が中央に来るようにします</p></div><button className="crop-confirm" onClick={confirmCrop} disabled={cropping || !croppedArea}>{cropping ? '処理中' : '決定'}</button></header><div className="crop-stage"><Cropper image={cropSource} crop={crop} zoom={zoom} aspect={1} cropShape="round" showGrid={false} minZoom={1} maxZoom={4} zoomSpeed={0.35} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_, pixels) => setCroppedArea(pixels)} disableAutomaticStylesInjection /></div><div className="crop-controls"><label><span>顔の大きさ</span><input type="range" min="1" max="4" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} aria-label="顔写真の拡大率" /><b>{Math.round(zoom * 100)}%</b></label><p>写真を指で動かせます。丸の中がプロフィール写真に表示されます。</p></div></section></div>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
