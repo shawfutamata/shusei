@@ -8,5 +8,7 @@ declare namespace Cloudflare {
     AUTH_CODE_PEPPER: string;
     RESEND_API_KEY: string;
     AUTH_FROM_EMAIL: string;
+    REVIEW_AUTH_EMAIL: string;
+    REVIEW_AUTH_CODE: string;
   }
 }

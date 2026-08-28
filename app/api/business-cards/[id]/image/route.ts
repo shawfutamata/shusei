@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getAppUser } from '@/app/app-auth';
+import { requireActiveMember } from '@/app/app-auth';
 import { getBusinessCardImage } from '@/db/data';
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await getAppUser();
-  if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
+  const gate = await requireActiveMember();
+  if (gate.response) return gate.response;
+  const user = gate.user;
   const { id } = await context.params;
   const object = await getBusinessCardImage(user, id);
   if (!object) return NextResponse.json({ error: '名刺画像が見つかりません。' }, { status: 404 });

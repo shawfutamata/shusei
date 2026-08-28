@@ -12,7 +12,7 @@ export const members = sqliteTable('members', {
   primaryIndustry: text('primary_industry').notNull().default(''),
   notifyIndustries: text('notify_industries').notNull().default('[]'),
   annualRevenueBand: text('annual_revenue_band').notNull().default(''),
-  membershipStatus: text('membership_status').notNull().default('active'),
+  membershipStatus: text('membership_status').notNull().default('invited'),
   membershipSource: text('membership_source').notNull().default('direct_contract'),
   membershipPeriodEnd: text('membership_period_end').notNull().default(''),
   organizationId: text('organization_id').notNull().default(''),

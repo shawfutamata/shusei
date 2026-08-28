@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getAppUser } from '@/app/app-auth';
+import { requireActiveMember } from '@/app/app-auth';
 import { deleteMobilePushToken, saveMobilePushToken } from '@/db/data';
 
 export async function POST(request: Request) {
-  const user = await getAppUser();
-  if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
+  const gate = await requireActiveMember();
+  if (gate.response) return gate.response;
+  const user = gate.user;
   try {
     const body = await request.json() as Record<string, unknown>;
     const token = typeof body.token === 'string' ? body.token.trim() : '';
@@ -17,8 +18,9 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const user = await getAppUser();
-  if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
+  const gate = await requireActiveMember();
+  if (gate.response) return gate.response;
+  const user = gate.user;
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
   const token = typeof body.token === 'string' ? body.token.trim() : '';
   if (token) await deleteMobilePushToken(user, token);

@@ -1,19 +1,24 @@
 # GIVE HUB / 守成クラブ会員向けアプリ 引き継ぎ
 
-更新: 2026-08-27
+更新: 2026-08-27（Claudeによる再検証・作業基点をGitHubへ移行）
 
 ## ゴール
 
 守成クラブ会員向けの「こんな人を探しています」掲示板を、WebサービスとiOS / Androidアプリとして完成させ、両ストアで正式公開する。
 
-## 作業場所
+## 作業基点
 
-- Web / API: `/Users/shawfutamata/Documents/ChatGPT/private/shusei-give-board`
-- Expoアプリ: `/Users/shawfutamata/Documents/ChatGPT/private/shusei-give-board/mobile`
+作業の正はこのGitHubリポジトリ `shawfutamata/shusei`。実装・検証・コミットはリポジトリ側で完結させる。
+
+- 開発ブランチ: `claude/codex-chat-handoff-dbw0m2`
+- Web / API: リポジトリ直下（Next.js on Cloudflare Sites）
+- Expoアプリ: `mobile/`
 - 公開Web: `https://give-hub-shusei.shaw-futamata.chatgpt.site`
 - Expo project: `@shusei_system/member-hub`
 - EAS project ID: `fdcf0a27-45e7-4fb0-b198-4f0eb165e2d9`
 - Expo dashboard: `https://expo.dev/accounts/shusei_system/projects/member-hub`
+
+ローカルMac（`/Users/shawfutamata/Documents/ChatGPT/private/shusei-give-board`）が要るのは、Apple / Expo / ストアの対話ログインを伴う操作だけ。コードはGitHubから取得する。
 
 ## アプリ識別子
 
@@ -28,7 +33,7 @@
 
 - Expo RouterによるiOS / Android共通アプリ
 - メールOTP認証、30日Bearerセッション、SecureStore保存
-- 有効会員だけを許可するサーバー側利用権限ゲート
+- 有効会員だけを許可するサーバー側利用権限ゲート（Web・アプリ両経路）
 - 下部5タブ: ホーム、困りごと、投稿、名刺、マイページ
 - 探しごとの投稿、一覧、詳細、紹介回答、閲覧履歴、お気に入り
 - 大分類 / 詳細業種の2階層タグと関連業種通知設定
@@ -45,12 +50,15 @@
 
 主要資料:
 
+- `docs/release-runbook-ja.md`（ゴールから逆算した進め方。まずこれを読む）
 - `docs/release-checklist.md`
+- `docs/member-provisioning.md`
 - `docs/store-listing-ja.md`
 - `docs/app-review-notes-ja.md`
 - `docs/privacy-declarations-ja.md`
 - `docs/store-screenshot-plan-ja.md`
 - `docs/store-assets.md`
+- `docs/billing-architecture.md`
 
 ## 課金方針
 
@@ -65,7 +73,21 @@
 
 契約・決済・解約はアプリ外で独立して行い、アプリはサーバーの有効会員判定だけを見る。Apple手数料回避を目的に見える誘導は審査リスクがあるため、提出前に販売形態と最新ガイドラインを再確認する。
 
+## 利用権限（2026-08-27に変更）
+
+利用可否は `members.membership_status` だけで決まる。運用手順は `docs/member-provisioning.md`。
+
+- 初回ログインで自動作成される行は `invited`。運営が `active` にするまでWebもアプリも使えない
+- 既存の有効会員の状態は変えていない。新規行の既定値だけを変更した
+- 401（未ログイン）と403（利用権限なし）をWeb・アプリの全16ハンドラで統一
+
+**変更前は、ChatGPTでログインしただけの第三者が自動的に有効会員になっていた。** Sitesを公開アクセスへ切り替えていたら掲示板・会員プロフィール・顔写真が誰でも見える状態だったため、公開前提の前提条件として先に塞いだ。
+
+利用権限が切れた状態はアプリ内で説明する。`/api/mobile/auth/session` は有効なセッションであれば200で会員状態を返し、アプリは理由と運営窓口を出す。その画面からアカウント削除もできる（App Store 5.1.1(v)）。
+
 ## EAS / ビルド状況
+
+このリポジトリからは検証できないため、以下は前任セッションの申告をそのまま残す。再開時にExpo dashboardで現況を確認すること。
 
 Expo CLIログイン済み:
 
@@ -86,7 +108,6 @@ iOS preview buildは未完了。Apple ID入力待ちのCLIをユーザー側へ�
 再開はユーザーが見える通常のMacターミナルで実行する:
 
 ```bash
-cd /Users/shawfutamata/Documents/ChatGPT/private/shusei-give-board/mobile
 npx eas-cli build --platform ios --profile preview
 ```
 
@@ -94,62 +115,63 @@ npx eas-cli build --platform ios --profile preview
 
 ## Web / API状況
 
+前任セッションの申告（このリポジトリからは未検証）:
+
 - Sites本番バージョン37をデプロイ済み
 - 現状は所有者限定公開（許可ユーザー1、グループ0、外部訪問者0）
 - 未登録メールの `/api/mobile/auth/request-code` はHTTP 400で拒否されることを本番確認済み
+
+リポジトリで確認済み:
+
 - APIベースURLは `mobile/app.config.ts` と `mobile/.env.example` に設定済み
-- 公開アクセス変更は、認証と審査用会員を用意してから明示確認を取って実施する
+- 本番のテーブル定義を作るのは `db/data.ts` の `ensureDatabase()`。`db/schema.ts` と `drizzle/` は参照用で実行時には適用されない
 
 未設定:
 
 - `RESEND_API_KEY`
 - `AUTH_FROM_EMAIL`
 - 審査専用メールを有効会員として登録
-- 審査専用6桁コードをSitesの秘密環境変数に設定
+- 審査専用6桁コード（`REVIEW_AUTH_EMAIL` / `REVIEW_AUTH_CODE`）をSitesの秘密環境変数に設定
 - FCM V1 / APNsの本番通知資格情報と実機通知確認
 
-## 検証済み
+## 検証済み（2026-08-27、クリーンなクローンで実行）
 
-- TypeScriptチェック通過
-- Expo lint通過
-- iOS / Android Metro production bundle通過
-- iOS / Android native prebuild通過
-- `expo-doctor` は20/21。唯一の警告は `rn-mlkit-ocr` のNew Architecture未検証
-- Android EASクラウドビルド成功により、Androidネイティブビルドは実証済み
+| 検証 | 結果 |
+|---|---|
+| `npm run lint` | 通過（`<img>` 警告6件のみ） |
+| `npm run typecheck` | 通過 |
+| `npm run build`（vinext） | 通過 |
+| `mobile` の `npx tsc --noEmit` | 通過 |
+
+修正した点:
+
+- ルートの `tsconfig.json` が `mobile/` まで型検査対象にしていたため、`mobile/node_modules` がある環境でしか `tsc` が通らなかった。ルートをWebアプリだけに限定した
+- その裏に隠れていた型エラー10件を修正した。つまり**前回の「TypeScriptチェック通過」はクリーンなクローンでは再現しない状態だった**
+- `tsconfig.tsbuildinfo` はビルド生成物なのでGit追跡から外した
+- GitHub ActionsでWeb（lint / typecheck / build）とExpo（tsc）をpushごとに検証する
+
+注意: `mobile` には eslint の設定も依存も無いため、`npx expo lint` は何も検査せずに終了0を返す。前回の「Expo lint通過」は実質的に無検査。Expo側のlintを効かせるなら設定の追加が必要。
+
+`expo-doctor` は前任セッションで20/21。唯一の警告は `rn-mlkit-ocr` のNew Architecture未検証。
 
 ## Git
 
-最新コミット:
-
-```text
-f0b87e0 Connect native app to EAS project
-34ab59e Enforce active member access for mobile
-e4945ca Persist request history and favorites on mobile
-dac8351 Route push notifications to matching requests
-64a2d36 Harden mobile notification and store policy flows
-d2c06ee Add secure store review login path
-```
-
-`main`へpush済み。現在の既存未コミット変更は `tsconfig.tsbuildinfo` のみで、ユーザー由来として触らない。この引き継ぎファイル自体は新規未コミット。
+- `main` と開発ブランチ `claude/codex-chat-handoff-dbw0m2` にpush済み
+- この引き継ぎファイルは既にコミット済み（前回の「未コミット」は解消済み）
+- `tsconfig.tsbuildinfo` は追跡対象外
 
 ## 次に行う順序
 
-1. Android APKを実機へ入れ、ログイン以外の画面起動、カメラ、複数名刺OCR、プロフィール写真、投稿遷移を確認
-2. 通常のMacターミナルでiOS EAS buildを再開し、ユーザー本人にApple認証を入力してもらう
-3. iOS previewを実機へ入れ、同じ主要導線を確認
-4. Resendと送信元をSitesへ設定し、通常OTPメールを実機確認
-5. 審査専用の有効会員と固定コードを安全な秘密環境変数へ設定
-6. Sites公開アクセスへ変更し、未認証・無効会員・有効会員のAPI境界を再検証
-7. APNs / FCMとExpo Pushを両実機で確認
-8. サービス名、契約形態、ストア文面を最終確定
-9. App Store Connect / Google Play Consoleにアプリを作成し、素材・データ申告・審査情報を登録
-10. production buildを作成して両ストアへ提出
-11. 審査指摘へ対応し、公開確認後に審査専用固定コードを削除して審査会員を停止
+順序と依存関係は `docs/release-runbook-ja.md` に移した。要点だけ:
+
+**待ち時間が最長なのは開発者アカウントの登録。** Google Playを個人アカウントで新規に作る場合、本番公開の前にクローズドテストの実施期間が課される（数週間規模）。法人アカウントなら課されない。Apple Developer Programも本人確認に日数がかかる。**ここが決まらないと提出以降が全部止まるので、最初に着手する。**
+
+リポジトリ側で先に潰せる残りは、販売形態とサービス名の確定にともなうストア文面・プライバシー申告の同期（`docs/release-runbook-ja.md` のB6）と、利用権限運用の自動化（B7、公開後でも可）。
 
 ## 注意事項
 
 - Apple ID / パスワード / 2FAコードはチャットで受け取らない
 - Secretsをコマンド出力やGitへ残さない
-- `tsconfig.tsbuildinfo` を勝手にrevert / stageしない
 - Webの公開URLが見えるだけでは完了扱いにせず、アクセス範囲と実機導線を確認する
 - ストア承認まではサービス名と機能を変更可能。ただしストア素材、審査文面、プライバシー申告と必ず同期する
+- DBのカラムを足すときは `db/schema.ts` だけでなく `db/data.ts` の `ensureDatabase()` を必ず更新する

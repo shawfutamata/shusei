@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getAppUser, getMobileBearerToken } from '@/app/app-auth';
-import { getMembershipAccess, revokeMobileSession } from '@/db/data';
+import { getAppAccess, getMobileBearerToken } from '@/app/app-auth';
+import { revokeMobileSession } from '@/db/data';
 
 export async function GET() {
-  const user = await getAppUser();
-  if (!user) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
-  return NextResponse.json({ user, membership: await getMembershipAccess(user.userId) });
+  const access = await getAppAccess();
+  if (!access) return NextResponse.json({ error: 'ログインが必要です。' }, { status: 401 });
+  return NextResponse.json({ user: access.user, membership: access.membership });
 }
 
 export async function DELETE() {

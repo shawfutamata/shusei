@@ -43,10 +43,26 @@
 
 これらはサービス提供のための処理委託先として扱い、広告目的の共有は行わない。
 
+## iOS プライバシーマニフェスト
+
+`mobile/app.config.ts` の `ios.privacyManifests` から `PrivacyInfo.xcprivacy` を生成する。宣言しているのは required reason API の2件だけ。
+
+| API種別 | 理由コード | 該当箇所 |
+|---|---|---|
+| `NSPrivacyAccessedAPICategoryFileTimestamp` | `C617.1` | 利用者が選んだ名刺・顔写真の画像を扱うため（expo-image-picker / expo-image-manipulator） |
+| `NSPrivacyAccessedAPICategoryUserDefaults` | `CA92.1` | アプリ自身の設定保存（expo-modules-core） |
+
+`NSPrivacyTracking` は `false`、`NSPrivacyTrackingDomains` は空。
+
+`NSPrivacyCollectedDataTypes` は意図的に空にしている。アプリが集める情報の開示は App Store Connect の App Privacy 質問票（上表「収集データ」）が正であり、二重管理して食い違わせないため。SDK側の申告は各Expoモジュール・React Nativeが同梱する `PrivacyInfo.xcprivacy` が担う。
+
+`app.config.ts` を変更したら `npx expo prebuild --platform ios --clean` で生成結果を確認する。
+
 ## 提出直前の再確認
 
 - [ ] 実際のアプリバイナリに分析・クラッシュSDKが追加されていない
-- [ ] Apple Privacy Manifestと使用SDK一覧を照合
+- [x] Apple Privacy Manifest（`ios.privacyManifests`）を設定し、生成を確認
+- [ ] 提出前にビルド後の警告（ITMS-91053 / ITMS-91061）を確認し、指摘があれば宣言を追加
 - [ ] Google Play SDK IndexとData safety回答を照合
 - [ ] プライバシーポリシー本文と本表が一致
 - [ ] アカウント削除URLが公開アクセス可能

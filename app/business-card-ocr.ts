@@ -5,6 +5,10 @@ type OCRLine = { text: string; bbox: { x0: number; y0: number; x1: number; y1: n
 
 export type OCRStage = 'orientation' | 'primary' | 'contrast' | 'name';
 
+type PageSegMode = NonNullable<Parameters<OCRWorker['setParameters']>[0]['tessedit_pageseg_mode']>;
+const sparseTextMode = '11' as PageSegMode;
+const rawLineMode = '13' as PageSegMode;
+
 export async function scanBusinessCardImage(
   file: File,
   worker: OCRWorker,
@@ -27,7 +31,7 @@ export async function scanBusinessCardImage(
   const enhanced = enhanceCanvas(oriented, 'grayscale');
   const highContrast = enhanceCanvas(oriented, 'threshold', 180);
 
-  await worker.setParameters({ tessedit_pageseg_mode: '11', user_defined_dpi: '300', preserve_interword_spaces: '1' });
+  await worker.setParameters({ tessedit_pageseg_mode: sparseTextMode, user_defined_dpi: '300', preserve_interword_spaces: '1' });
   onStage?.('primary');
   const primary = await worker.recognize(enhanced, {}, { text: true, blocks: true });
   onStage?.('contrast');
@@ -40,7 +44,7 @@ export async function scanBusinessCardImage(
   if (romanNameLine) {
     const nameImage = createNameCrop(oriented, romanNameLine);
     if (nameImage) {
-      await worker.setParameters({ tessedit_pageseg_mode: '13', user_defined_dpi: '300', preserve_interword_spaces: '1' });
+      await worker.setParameters({ tessedit_pageseg_mode: rawLineMode, user_defined_dpi: '300', preserve_interword_spaces: '1' });
       onStage?.('name');
       const nameResult = await worker.recognize(nameImage);
       texts.push(nameResult.data.text);
@@ -48,7 +52,7 @@ export async function scanBusinessCardImage(
   } else if (directNameLine) {
     const nameImage = createDirectNameCrop(oriented, directNameLine);
     if (nameImage) {
-      await worker.setParameters({ tessedit_pageseg_mode: '13', user_defined_dpi: '300', preserve_interword_spaces: '1' });
+      await worker.setParameters({ tessedit_pageseg_mode: rawLineMode, user_defined_dpi: '300', preserve_interword_spaces: '1' });
       onStage?.('name');
       texts.push((await worker.recognize(nameImage)).data.text);
     }
@@ -57,7 +61,7 @@ export async function scanBusinessCardImage(
   if (titleLine) {
     const titleImage = createDirectLineCrop(oriented, titleLine, 0.65, 0.25, 190);
     if (titleImage) {
-      await worker.setParameters({ tessedit_pageseg_mode: '13', user_defined_dpi: '300', preserve_interword_spaces: '1' });
+      await worker.setParameters({ tessedit_pageseg_mode: rawLineMode, user_defined_dpi: '300', preserve_interword_spaces: '1' });
       onStage?.('name');
       texts.push((await worker.recognize(titleImage)).data.text);
     }
@@ -66,7 +70,7 @@ export async function scanBusinessCardImage(
   for (const detailLine of detailLines) {
     const detailImage = createDirectLineCrop(oriented, detailLine, 0.12, 0.18, 185);
     if (!detailImage) continue;
-    await worker.setParameters({ tessedit_pageseg_mode: '13', user_defined_dpi: '300', preserve_interword_spaces: '1' });
+    await worker.setParameters({ tessedit_pageseg_mode: rawLineMode, user_defined_dpi: '300', preserve_interword_spaces: '1' });
     onStage?.('name');
     texts.push((await worker.recognize(detailImage)).data.text);
   }
