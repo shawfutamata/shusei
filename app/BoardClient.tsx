@@ -371,7 +371,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
             <div><dt>利用中</dt><dd>{referral.activeCount}<small>人</small></dd></div>
             <div><dt>{stats.pro ? '無料になった月' : '有料になった月'}</dt><dd>{referral.earnedMonths}<small>ヶ月</small></dd></div>
           </dl>
-          <p className="invite-note">{referral.waitingCount > 0 && `${referral.waitingCount}人が運営の確認待ちです。`}{referral.qualifyingCount > 0 && `${referral.qualifyingCount}人が${referral.qualifyDays}日経過待ちです。`}{referral.remainingThisYear > 0 ? `今年はあと${referral.remainingThisYear}ヶ月ぶん受け取れます。` : '今年ぶんの上限に達しました。ここから先の紹介は会員ランクに反映されます。'}</p>
+          <p className="invite-note">{referral.waitingCount > 0 && `${referral.waitingCount}人が運営の確認待ちです。`}{referral.qualifyingCount > 0 && `${referral.qualifyingCount}人が${referral.qualifyDays}日経過待ちです。`}{referral.remainingThisYear > 0 ? `直近1年ではあと${referral.remainingThisYear}ヶ月ぶん受け取れます。` : `直近1年ぶんの${referral.capPerYear}ヶ月は使い切りました。`}{referral.waitingCredits > 0 && `${referral.waitingCredits}人ぶんが順番待ちです。枠が空きしだい自動で反映されるので、紹介が無駄になることはありません。`}</p>
         </section>}
 
         <div className="profile-form profile-page-form">

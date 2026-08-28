@@ -308,6 +308,7 @@ export async function ensureDatabase() {
   if (!requestColumns.results.some((column) => column.name === 'industry_tags')) {
     await env.DB.prepare("ALTER TABLE requests ADD COLUMN industry_tags TEXT NOT NULL DEFAULT '[]'").run();
   }
+  await env.DB.prepare("UPDATE referral_credits SET status = 'waiting', earned_at = '' WHERE status = 'capped'").run();
   await seedDemoData();
   await env.DB.batch([
     env.DB.prepare("UPDATE members SET annual_revenue_band = 'revenue_30_70' WHERE id = 'demo-tanaka' AND annual_revenue_band = ''"),
@@ -1046,7 +1047,7 @@ export type ReferralSummary = {
   activeCount: number;       // 承認されて利用中
   qualifyingCount: number;   // 利用中だが60日に届いていない
   earnedMonths: number;      // 無料になった月の数（年の上限内）
-  cappedMonths: number;      // 上限を超えたぶん
+  waitingCredits: number;    // 資格は満たしたが、年の枠が空くのを待っているぶん
   appliedMonths: number;     // 運営が請求で使い終わったぶん
   remainingThisYear: number; // 今年あと何ヶ月ぶん受け取れるか
   capPerYear: number;
@@ -1126,6 +1127,7 @@ async function reconcileReferralCredits(inviterId: string) {
   await env.DB.prepare(`UPDATE members SET activated_at = ? WHERE membership_status = 'active' AND activated_at = ''`)
     .bind(nowIso).run();
 
+  // 1. 資格を満たした招待は、まず「順番待ち」として記録する。ここで枠の判定はしない。
   const qualifiedBefore = new Date(now.getTime() - REFERRAL_QUALIFY_DAYS * 86400000).toISOString();
   const pending = await env.DB.prepare(`SELECT m.id
     FROM members m
@@ -1133,26 +1135,31 @@ async function reconcileReferralCredits(inviterId: string) {
     WHERE m.invited_by = ? AND m.membership_status = 'active' AND m.activated_at != '' AND m.activated_at <= ?
       AND c.id IS NULL
     ORDER BY m.activated_at`).bind(inviterId, qualifiedBefore).all<{ id: string }>();
-  if (!pending.results.length) return;
+  if (pending.results.length) {
+    await env.DB.batch(pending.results.map(({ id }) =>
+      env.DB.prepare(`INSERT OR IGNORE INTO referral_credits (id, inviter_id, invitee_id, status, earned_at, created_at)
+        VALUES (?, ?, ?, 'waiting', '', ?)`).bind(crypto.randomUUID(), inviterId, id, nowIso)));
+  }
 
+  // 2. 直近12ヶ月の枠が空いていれば、古い順番待ちから確定させる。紹介が無駄にならないようにする。
   const yearAgo = new Date(now.getTime() - 365 * 86400000).toISOString();
   const earnedRow = await env.DB.prepare(`SELECT COUNT(*) AS count FROM referral_credits
     WHERE inviter_id = ? AND status = 'earned' AND earned_at >= ?`).bind(inviterId, yearAgo).first<{ count: number }>();
-  let earnedThisYear = Number(earnedRow?.count ?? 0);
+  const free = REFERRAL_CAP_PER_YEAR - Number(earnedRow?.count ?? 0);
+  if (free <= 0) return;
 
-  let granted = 0;
-  await env.DB.batch(pending.results.map(({ id }) => {
-    const status = earnedThisYear < REFERRAL_CAP_PER_YEAR ? 'earned' : 'capped';
-    if (status === 'earned') { earnedThisYear += 1; granted += 1; }
-    return env.DB.prepare(`INSERT OR IGNORE INTO referral_credits (id, inviter_id, invitee_id, status, earned_at, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)`).bind(crypto.randomUUID(), inviterId, id, status, nowIso, nowIso);
-  }));
+  const waiting = await env.DB.prepare(`SELECT id FROM referral_credits
+    WHERE inviter_id = ? AND status = 'waiting' ORDER BY created_at LIMIT ?`)
+    .bind(inviterId, free).all<{ id: string }>();
+  if (!waiting.results.length) return;
 
-  // 無料会員には、その場で有料機能を1ヶ月ぶん開ける。試してもらうのがいちばんの入口になる。
-  // 有料会員のぶんは請求で引くので、ここでは何もしない（applied_month が空のまま運営が使う）。
-  const state = await getPlanState(inviterId);
-  if (granted > 0 && !isPro(state)) {
-    for (let index = 0; index < granted; index += 1) await grantProMonth(inviterId, 'referral');
+  await env.DB.batch(waiting.results.map(({ id }) =>
+    env.DB.prepare("UPDATE referral_credits SET status = 'earned', earned_at = ? WHERE id = ?").bind(nowIso, id)));
+
+  // 3. 無料会員には、その場で有料機能を1ヶ月ぶん開ける。試してもらうのがいちばんの入口になる。
+  //    有料会員のぶんは請求で引くので、ここでは何もしない（applied_month が空のまま運営が使う）。
+  if (!isPro(await getPlanState(inviterId))) {
+    for (let index = 0; index < waiting.results.length; index += 1) await grantProMonth(inviterId, 'referral');
     await env.DB.prepare(`UPDATE referral_credits SET applied_month = ?
       WHERE inviter_id = ? AND status = 'earned' AND applied_month = ''`)
       .bind(nowIso.slice(0, 7), inviterId).run();
@@ -1175,7 +1182,7 @@ export async function getReferralSummary(memberId: string): Promise<ReferralSumm
   const yearAgo = new Date(Date.now() - 365 * 86400000).toISOString();
   const credits = await env.DB.prepare(`SELECT
       SUM(CASE WHEN status = 'earned' THEN 1 ELSE 0 END) AS earnedMonths,
-      SUM(CASE WHEN status = 'capped' THEN 1 ELSE 0 END) AS cappedMonths,
+      SUM(CASE WHEN status IN ('waiting', 'capped') THEN 1 ELSE 0 END) AS waitingCredits,
       SUM(CASE WHEN status = 'earned' AND applied_month != '' THEN 1 ELSE 0 END) AS appliedMonths,
       SUM(CASE WHEN status = 'earned' AND earned_at >= ? THEN 1 ELSE 0 END) AS earnedThisYear
     FROM referral_credits WHERE inviter_id = ?`).bind(yearAgo, memberId).first<Record<string, number>>();
@@ -1188,7 +1195,7 @@ export async function getReferralSummary(memberId: string): Promise<ReferralSumm
     activeCount: Number(counts?.activeCount ?? 0),
     qualifyingCount: Number(counts?.qualifyingCount ?? 0),
     earnedMonths: Number(credits?.earnedMonths ?? 0),
-    cappedMonths: Number(credits?.cappedMonths ?? 0),
+    waitingCredits: Number(credits?.waitingCredits ?? 0),
     appliedMonths: Number(credits?.appliedMonths ?? 0),
     remainingThisYear: Math.max(0, REFERRAL_CAP_PER_YEAR - earnedThisYear),
     capPerYear: REFERRAL_CAP_PER_YEAR,
