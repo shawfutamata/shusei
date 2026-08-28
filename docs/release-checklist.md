@@ -1,11 +1,12 @@
 # 正式公開チェックリスト
 
-進める順序は `docs/release-runbook-ja.md`。ここは状態の一覧。
+進める順序は `docs/release-runbook-ja.md`（**Web先行 → アプリ**）。ここは状態の一覧。
 
 ## 現在完了
 
 - [x] React Native / Expo SDK 57 のiOS・Android共通実装
-- [x] メールOTP認証と30日Bearerセッション
+- [x] メールOTP認証（アプリはBearer、WebはHttpOnly Cookie。セッションは共通）
+- [x] Webのメールログイン画面 `/login`
 - [x] 有効化済み会員だけを許可するサーバー側利用権限ゲート（Web・アプリ両経路。運用は `docs/member-provisioning.md`）
 - [x] SecureStoreへの端末セッション保存
 - [x] ホーム、困りごと、投稿、名刺、マイページの5タブ
