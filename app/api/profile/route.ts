@@ -3,6 +3,7 @@ import { requireActiveMember } from '@/app/app-auth';
 import { updateMemberProfile } from '@/db/data';
 import { prefectures, type Prefecture } from '@/app/profile-options';
 import { isIndustry } from '@/app/industry-options';
+import { cleanFacebookUrl } from '@/app/social-links';
 
 const allowedBands = ['', 'revenue_10_30', 'revenue_30_70', 'revenue_70_100', 'revenue_100_plus'];
 const allowedBadges = ['', '緑', '赤', 'ゴールド', 'ダイヤモンド'];
@@ -20,6 +21,12 @@ export async function PATCH(request: Request) {
   const primaryIndustry = clean(body.get('primaryIndustry'), 40);
   const notifyIndustries = cleanIndustries(body.get('notifyIndustries'), 6);
   const annualRevenueBand = clean(body.get('annualRevenueBand'), 30);
+  // 入力そのままではなく、Facebookのプロフィールとして通る形だけを保存する。
+  const rawFacebook = clean(body.get('facebookUrl'), 200);
+  const facebookUrl = cleanFacebookUrl(rawFacebook);
+  if (rawFacebook && !facebookUrl) {
+    return NextResponse.json({ error: 'FacebookのURLを確認してください。例：https://www.facebook.com/your.name' }, { status: 400 });
+  }
   const avatar = body.get('avatar');
   if (!company || !venue) {
     return NextResponse.json({ error: '会社名と所属会場を入力してください。' }, { status: 400 });
@@ -45,8 +52,8 @@ export async function PATCH(request: Request) {
     avatarUpload = { bytes, contentType: avatar.type };
   }
   try {
-    const avatarUrl = await updateMemberProfile(user, { company, venue, positionTitle, badge, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, avatar: avatarUpload });
-    return NextResponse.json({ company, venue, positionTitle, badge, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, avatarUrl });
+    const avatarUrl = await updateMemberProfile(user, { company, venue, positionTitle, badge, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, avatar: avatarUpload });
+    return NextResponse.json({ company, venue, positionTitle, badge, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, avatarUrl });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'プロフィールを保存できませんでした。' }, { status: 400 });
   }

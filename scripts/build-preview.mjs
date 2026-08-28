@@ -185,6 +185,7 @@ const html = `<title>GIVE HUB プレビュー</title>
           <li>マイページの所属会場（都道府県 → 会場、その他は自由入力）</li>
           <li>一覧の「募集状況」「業種」「会場」の絞り込み</li>
           <li>投稿フォームの入力・選択・業種タグ（送信だけ本番のサイトで動きます）</li>
+          <li>探しごとの詳細にある「やり取り」（コメント）と、Facebookへの導線</li>
           <li>マイページの招待カードと、招待リンクを受け取る画面（左のリスト）</li>
           <li>上の<b>「無料会員／有料会員」</b>で見え方を切り替えられます</li>
         </ul>
@@ -324,7 +325,11 @@ const html = `<title>GIVE HUB プレビュー</title>
     if (filterButton) { event.preventDefault(); return go('search:' + filterKeys[indexIn(filterButton)]); }
 
     if (at('.modal .form .submit-button')) { event.preventDefault(); return notice('プレビューでは送信されません。本番のサイトでは掲示板に載ります。'); }
-    const detailIntro = at('.need-detail .submit-button');
+    // コメント欄は詳細の中にあるので、紹介ボタンより先に見分ける。
+    if (at('.comment-form textarea')) return;
+    if (at('.comment-form .submit-button')) { event.preventDefault(); return notice('コメントはプレビューでは送信されません。本番のサイトではやり取りが残ります。'); }
+    if (at('.facebook-link')) { event.preventDefault(); return notice('Facebookへのリンクです。本番のサイトでは本人のページが開きます。'); }
+    const detailIntro = at('.need-detail > .submit-button');
     if (detailIntro) {
       event.preventDefault();
       const heading = at('.need-detail').querySelector('h3');
@@ -505,9 +510,15 @@ const html = `<title>GIVE HUB プレビュー</title>
 
   // 入力欄とselectは触れるようにする。送信だけ本番につながらない。
   function wireForms(doc) {
-    doc.querySelectorAll('.modal .form input, .modal .form textarea, .modal .form select').forEach((field) => {
+    doc.querySelectorAll('.modal .form input, .modal .form textarea, .modal .form select, .comment-form textarea').forEach((field) => {
       field.addEventListener('click', (event) => event.stopPropagation());
     });
+    // コメント欄は、書き始めたら送信ボタンが押せるようにする（本番と同じ挙動）
+    const commentBox = doc.querySelector('.comment-form textarea');
+    const commentSend = doc.querySelector('.comment-form .submit-button');
+    if (commentBox && commentSend) {
+      commentBox.addEventListener('input', () => { commentSend.disabled = !commentBox.value.trim(); });
+    }
   }
 
 

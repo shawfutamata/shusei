@@ -105,8 +105,10 @@ await statusSelect.selectOption('open');
 const cardCount = await page.locator('.card-list .need-card').count();
 for (let index = 0; index < cardCount; index += 1) {
   await page.locator('.card-list .need-card h3').nth(index).click();
+  await page.locator('.comments').waitFor({ timeout: 8000 }).catch(() => undefined);
+  await page.waitForTimeout(400);
   await save(`detail:${index}`, page);
-  await page.locator('.need-detail .submit-button').click();
+  await page.locator('.need-detail > .submit-button').click();
   await save(`intro:${index}`, page);
   await closeModal();
   await page.locator('.filters button').nth(0).click();

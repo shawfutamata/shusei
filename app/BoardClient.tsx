@@ -5,6 +5,8 @@ import Cropper, { type Area } from 'react-easy-crop';
 import type { BoardRequest, MemberStats, ReferralSummary } from '@/db/data';
 import BusinessCardManager from './BusinessCardManager';
 import ReceivedIntroductions from './ReceivedIntroductions';
+import RequestComments from './RequestComments';
+import FacebookLink from './FacebookLink';
 import { getRegion, prefectures, regions, type Prefecture } from './profile-options';
 import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-options';
 import { findVenuePrefecture, isListedVenue, OTHER_VENUE, venuePrefectures, venuesByPrefecture } from './venue-options';
@@ -69,6 +71,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [profileNotifyIndustries, setProfileNotifyIndustries] = useState(initialStats.notifyIndustries);
   const [profileNotifyGroup, setProfileNotifyGroup] = useState<string>(getIndustryGroup(initialStats.notifyIndustries[0] ?? '')?.name ?? 'IT・システム');
   const [profileRevenue, setProfileRevenue] = useState(initialStats.annualRevenueBand);
+  const [profileFacebook, setProfileFacebook] = useState(initialStats.facebookUrl);
   const [requestIndustries, setRequestIndustries] = useState<string[]>([]);
   const [requestIndustryGroup, setRequestIndustryGroup] = useState('IT・システム');
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
@@ -191,13 +194,13 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     const body = new FormData();
     body.set('company', profileCompany); body.set('venue', profileVenue); body.set('positionTitle', profilePosition);
     body.set('badge', profileBadge); body.set('businessArea', profileArea); body.set('primaryIndustry', profileIndustry);
-    body.set('notifyIndustries', JSON.stringify(profileNotifyIndustries)); body.set('annualRevenueBand', profileRevenue);
+    body.set('notifyIndustries', JSON.stringify(profileNotifyIndustries)); body.set('annualRevenueBand', profileRevenue); body.set('facebookUrl', profileFacebook);
     if (profilePhoto) body.set('avatar', profilePhoto);
     const response = await fetch('/api/profile', { method: 'PATCH', body });
     const result = await response.json() as { error?: string; avatarUrl?: string }; setBusy(false);
     if (!response.ok) return showToast(result.error ?? 'プロフィールを保存できませんでした。');
     const avatarUrl = result.avatarUrl ?? stats.avatarUrl;
-    setStats((current) => ({ ...current, company: profileCompany, venue: profileVenue, positionTitle: profilePosition, badge: profileBadge, businessArea: profileArea, primaryIndustry: profileIndustry, notifyIndustries: profileNotifyIndustries, annualRevenueBand: profileRevenue, avatarUrl }));
+    setStats((current) => ({ ...current, company: profileCompany, venue: profileVenue, positionTitle: profilePosition, badge: profileBadge, businessArea: profileArea, primaryIndustry: profileIndustry, notifyIndustries: profileNotifyIndustries, annualRevenueBand: profileRevenue, facebookUrl: profileFacebook, avatarUrl }));
     setProfilePhoto(null); setPhotoPreview(avatarUrl);
     await refreshBoard(); showToast('顔写真とプロフィールを保存しました。');
   }
@@ -346,7 +349,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
               <div className="industry-tags" aria-label="関連業種">{need.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
               <dl className="details"><div><dt>予算</dt><dd>{need.budgetLabel}</dd></div><div><dt>エリア</dt><dd>{need.area}</dd></div></dl>
               <div className="card-person"><Avatar src={need.authorAvatarUrl} name={need.authorName} className="member-avatar" /><p><b>{need.authorName}</b><small>{need.authorPositionTitle && `${need.authorPositionTitle}｜`}{need.authorCompany || '会社名未設定'}</small></p><span>紹介 {need.introCount}件</span></div>
-              <div className="member-context"><span>会場 {need.authorVenue}</span>{need.authorBusinessArea && <span>エリア {need.authorBusinessArea}</span>}{need.authorBadge && <span>{need.authorBadge}</span>}{need.authorRevenueBand && <span>年商 {revenueBands[need.authorRevenueBand]}</span>}</div>
+              <div className="member-context">{need.commentCount > 0 && <span className="comment-count">やり取り {need.commentCount}件</span>}<span>会場 {need.authorVenue}</span>{need.authorBusinessArea && <span>エリア {need.authorBusinessArea}</span>}{need.authorBadge && <span>{need.authorBadge}</span>}{need.authorRevenueBand && <span>年商 {revenueBands[need.authorRevenueBand]}</span>}</div>
               <button className="intro-button" onClick={(event) => { event.stopPropagation(); openIntroduction(need); }}>この人を紹介できる <span>→</span></button>
             </article>
           ))}
@@ -410,6 +413,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           <div className="profile-industry-select"><p>自分の業種 <small>おすすめの設定に使われます</small></p><label>大分類<select value={profileIndustryGroup} onChange={(event) => { setProfileIndustryGroup(event.target.value); setProfileIndustry(''); }}><option value="">選択してください</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label><label>詳細業種<select value={profileIndustry} onChange={(event) => { const value = event.target.value; setProfileIndustry(value); if (value && !profileNotifyIndustries.includes(value)) setProfileNotifyIndustries((current) => [...current, value].slice(0, 6)); }} disabled={!profileIndustryGroup}><option value="">詳細業種を選択</option>{profileIndustry === profileIndustryGroup && <option value={profileIndustryGroup}>大分類のみ（旧設定）</option>}{industryGroups.find((group) => group.name === profileIndustryGroup)?.children.map((industry) => <option value={industry} key={industry}>{industry}</option>)}</select></label></div>
           <IndustryPicker legend="おすすめに出したい業種" note="6個まで" description="選んだ詳細業種の探しごとが、ホームの「あなたにおすすめ」に出ます。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, 6)} className="profile-tag-field" />
           <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+          <label>Facebook <small>任意・紹介のあとに直接やり取りできます</small><input value={profileFacebook} onChange={(event) => setProfileFacebook(event.target.value)} maxLength={200} placeholder="https://www.facebook.com/your.name" inputMode="url" /></label>
           <button className="profile-save-button" onClick={saveProfile} disabled={busy || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
         </div>
       </section>}
@@ -435,8 +439,9 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <h3>{selected.title}</h3><p>{selected.description}</p>
         <div className="industry-tags">{selected.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
         <dl><div><dt>予算</dt><dd>{selected.budgetLabel}</dd></div><div><dt>希望エリア</dt><dd>{selected.area}</dd></div><div><dt>募集期限</dt><dd>{selected.deadline}</dd></div></dl>
-        <div className="detail-author"><Avatar src={selected.authorAvatarUrl} name={selected.authorName} className="member-avatar" /><p><b>{selected.authorName}</b><span>{selected.authorPositionTitle && `${selected.authorPositionTitle}｜`}{selected.authorCompany || '会社名未設定'}</span><small>{selected.authorVenue}{selected.authorBusinessArea && `・${selected.authorBusinessArea}`}</small></p></div>
+        <div className="detail-author"><Avatar src={selected.authorAvatarUrl} name={selected.authorName} className="member-avatar" /><p><b>{selected.authorName}</b><span>{selected.authorPositionTitle && `${selected.authorPositionTitle}｜`}{selected.authorCompany || '会社名未設定'}</span><small>{selected.authorVenue}{selected.authorBusinessArea && `・${selected.authorBusinessArea}`}</small></p><FacebookLink url={selected.authorFacebookUrl} name={selected.authorName} /></div>
         <button className="submit-button" onClick={() => openIntroduction(selected)}>この人を紹介できる</button>
+        <RequestComments requestId={selected.id} onCountChange={(count) => setRequests((current) => current.map((item) => item.id === selected.id ? { ...item, commentCount: count } : item))} />
       </article></Modal>}
 
       {modal === 'cards' && <BusinessCardManager initialMode={stats.pro ? cardStartMode : 'list'} pro={stats.pro} onClose={() => setModal(null)} onNotice={showToast} />}

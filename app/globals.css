@@ -139,6 +139,36 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .quota-block { display:grid; gap:13px; }
 .quota-block p { margin:0; color:#4c5a70; font-size:13px; line-height:1.8; }
 
+/* Facebook link and the comment thread on a request. */
+.facebook-link { min-height:32px; margin-top:7px; padding:0 11px; display:inline-flex; align-items:center; gap:6px; border:1px solid #c7d9f5; border-radius:99px; background:#f2f7ff; color:#1877f2; font-size:10px; font-weight:800; }
+.facebook-link svg { width:14px; height:14px; flex:0 0 auto; }
+.facebook-link span { overflow:hidden; max-width:150px; text-overflow:ellipsis; white-space:nowrap; }
+
+.comments { margin-top:20px; padding-top:17px; display:grid; gap:12px; border-top:1px solid var(--line); }
+.comments-heading { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.comments-heading b { font-size:15px; }
+.comments-heading span { color:#8794a7; font-size:11px; font-weight:800; }
+.comments-empty { margin:0; color:#7b8ca4; font-size:12px; line-height:1.7; }
+.comment-list { margin:0; padding:0; list-style:none; display:grid; gap:11px; }
+.comment { padding:12px; display:grid; grid-template-columns:auto 1fr; gap:10px; border:1px solid var(--line); border-radius:14px; background:#fff; }
+.comment.owner { border-color:#bfdbfe; background:#f5f9ff; }
+.comment .member-avatar { width:38px; height:38px; }
+.comment-who { margin:0; display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; }
+.comment-who b { font-size:13px; }
+.comment-who em { padding:2px 6px; border-radius:5px; background:#dbeafe; color:#1d4ed8; font-size:9px; font-style:normal; font-weight:900; }
+.comment-who small { width:100%; color:#8794a7; font-size:10px; font-weight:700; }
+.comment-body { margin:7px 0 0; color:#33425a; font-size:13px; line-height:1.8; white-space:pre-wrap; overflow-wrap:anywhere; }
+.comment-foot { margin-top:7px; display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.comment-foot time { color:#98a4b8; font-size:10px; font-weight:700; }
+.comment-foot .facebook-link { margin-top:0; }
+.comment-form { display:grid; gap:8px; }
+.comment-form textarea { min-height:84px; padding:12px; border:1px solid #d5dfec; border-radius:12px; background:#fbfcfe; color:var(--ink); font-size:14px; line-height:1.7; resize:vertical; }
+.comment-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.comment-actions small { color:#98a4b8; font-size:10px; font-variant-numeric:tabular-nums; }
+.comment-actions .submit-button { width:auto; min-height:44px; padding:0 20px; }
+.comment-error { margin:0; color:#b42318; font-size:11px; }
+.comment-count { background:#eef6ff !important; color:#1d4ed8 !important; }
+
 /* Senior-friendly readability: larger, heavier text and touch targets. */
 :root { --muted:#536176; }
 body { font-weight:600; }
@@ -212,6 +242,11 @@ body { font-weight:600; }
 .plan-upsell>b { font-size:13px; }
 .plan-upsell li { font-size:12px; }
 .plan-upsell p { font-size:11px; }
+.facebook-link { font-size:11px; }
+.comments-heading b { font-size:17px; }
+.comment-who b { font-size:14px; }
+.comment-body { font-size:14px; }
+.comment-form textarea { font-size:16px; }
 
 .need-card { padding:20px 18px 17px; }
 .kind,.deadline { font-size:12px; font-weight:900; }

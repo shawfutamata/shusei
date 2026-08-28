@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import type { ChatGPTUser } from '@/app/chatgpt-auth';
+import { cleanFacebookUrl } from '@/app/social-links';
 import { FREE_BUSINESS_CARDS, FREE_REQUESTS_PER_MONTH, extendedPlanEnd, isPro, isoDate, type Plan, type PlanState } from '@/app/entitlements';
 import { matchesIndustry } from '@/app/industry-options';
 
@@ -23,7 +24,9 @@ export type BoardRequest = {
   authorBusinessArea: string;
   authorRevenueBand: string;
   authorAvatarUrl: string;
+  authorFacebookUrl: string;
   introCount: number;
+  commentCount: number;
 };
 
 export type MemberStats = {
@@ -36,6 +39,7 @@ export type MemberStats = {
   primaryIndustry: string;
   notifyIndustries: string[];
   annualRevenueBand: string;
+  facebookUrl: string;
   avatarUrl: string;
   introCount: number;
   receivedIntroCount: number;
@@ -67,6 +71,7 @@ export type ReceivedIntroduction = {
   introducerCompany: string;
   introducerVenue: string;
   introducerAvatarUrl: string;
+  introducerFacebookUrl: string;
 };
 
 export type AttendancePerson = {
@@ -150,6 +155,14 @@ const statements = [
     plan TEXT NOT NULL DEFAULT 'free',
     plan_period_end TEXT NOT NULL DEFAULT '',
     plan_source TEXT NOT NULL DEFAULT '',
+    facebook_url TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS request_comments (
+    id TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL REFERENCES requests(id),
+    member_id TEXT NOT NULL REFERENCES members(id),
+    body TEXT NOT NULL,
     created_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS referral_credits (
@@ -300,6 +313,7 @@ export async function ensureDatabase() {
     ['plan', "ALTER TABLE members ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'"],
     ['plan_period_end', "ALTER TABLE members ADD COLUMN plan_period_end TEXT NOT NULL DEFAULT ''"],
     ['plan_source', "ALTER TABLE members ADD COLUMN plan_source TEXT NOT NULL DEFAULT ''"],
+    ['facebook_url', "ALTER TABLE members ADD COLUMN facebook_url TEXT NOT NULL DEFAULT ''"],
   ];
   for (const [columnName, sql] of missingColumns) {
     if (!existingColumns.has(columnName)) await env.DB.prepare(sql).run();
@@ -622,24 +636,24 @@ export async function getBoardData(user: ChatGPTUser) {
     m.business_area AS authorBusinessArea,
     m.annual_revenue_band AS authorRevenueBand,
     m.id AS authorId, m.avatar_key AS authorAvatarKey, m.avatar_version AS authorAvatarVersion,
-    COUNT(i.id) AS introCount
+    m.facebook_url AS authorFacebookUrl,
+    (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id) AS introCount,
+    (SELECT COUNT(*) FROM request_comments c WHERE c.request_id = r.id) AS commentCount
     FROM requests r
     JOIN members m ON m.id = r.author_id
-    LEFT JOIN introductions i ON i.request_id = r.id
-    GROUP BY r.id
     ORDER BY r.created_at DESC`).all<Omit<BoardRequest, 'industryTags'> & { industryTagsJson: string; authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
 
   const member = await env.DB.prepare(`SELECT display_name AS displayName, venue, company,
     position_title AS positionTitle, badge, business_area AS businessArea,
     primary_industry AS primaryIndustry, notify_industries AS notifyIndustriesJson,
-    annual_revenue_band AS annualRevenueBand,
+    annual_revenue_band AS annualRevenueBand, facebook_url AS facebookUrl,
     avatar_key AS avatarKey, avatar_version AS avatarVersion,
     intro_count AS introCount, deal_count AS dealCount, points,
     (SELECT COUNT(*) FROM introductions i JOIN requests r ON r.id = i.request_id
       WHERE r.author_id = members.id) AS receivedIntroCount
     FROM members WHERE id = ?`).bind(user.userId).first<Omit<MemberStats, 'rank' | 'level' | 'nextRankAt' | 'avatarUrl' | 'notifyIndustries'> & { notifyIndustriesJson: string; avatarKey: string; avatarVersion: number }>();
 
-  const baseMember = member ?? { displayName: user.displayName, venue: 'ひるのめぐろ会場', company: '', positionTitle: '', badge: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, dealCount: 0, points: 0 };
+  const baseMember = member ?? { displayName: user.displayName, venue: 'ひるのめぐろ会場', company: '', positionTitle: '', badge: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', facebookUrl: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, dealCount: 0, points: 0 };
   const { notifyIndustriesJson, ...memberFields } = baseMember;
   const plan = await getPlanSummary(user.userId);
   const stats = calculateRank({ ...memberFields, notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion),
@@ -653,7 +667,7 @@ export async function getBoardData(user: ChatGPTUser) {
   return { requests, stats };
 }
 
-export async function updateMemberProfile(user: ChatGPTUser, input: { company: string; venue: string; positionTitle: string; badge: string; businessArea: string; primaryIndustry: string; notifyIndustries: string[]; annualRevenueBand: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {
+export async function updateMemberProfile(user: ChatGPTUser, input: { company: string; venue: string; positionTitle: string; badge: string; businessArea: string; primaryIndustry: string; notifyIndustries: string[]; annualRevenueBand: string; facebookUrl: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {
   await upsertMember(user);
   const existing = await env.DB.prepare('SELECT avatar_key AS avatarKey, avatar_version AS avatarVersion FROM members WHERE id = ?')
     .bind(user.userId).first<{ avatarKey: string; avatarVersion: number }>();
@@ -670,9 +684,10 @@ export async function updateMemberProfile(user: ChatGPTUser, input: { company: s
   if (!avatarKey) throw new Error('顔写真を登録してください。');
   await env.DB.prepare(`UPDATE members SET company = ?, venue = ?, position_title = ?, badge = ?,
     business_area = ?, primary_industry = ?, notify_industries = ?, annual_revenue_band = ?,
-    avatar_key = ?, avatar_version = ? WHERE id = ?`)
+    facebook_url = ?, avatar_key = ?, avatar_version = ? WHERE id = ?`)
     .bind(input.company, input.venue, input.positionTitle, input.badge, input.businessArea,
-      input.primaryIndustry, JSON.stringify(input.notifyIndustries), input.annualRevenueBand, avatarKey, avatarVersion, user.userId).run();
+      input.primaryIndustry, JSON.stringify(input.notifyIndustries), input.annualRevenueBand,
+      cleanFacebookUrl(input.facebookUrl), avatarKey, avatarVersion, user.userId).run();
   return avatarUrl(user.userId, avatarKey, avatarVersion);
 }
 
@@ -725,7 +740,7 @@ export async function getReceivedIntroductions(user: ChatGPTUser) {
   const result = await env.DB.prepare(`SELECT i.id, i.request_id AS requestId, r.title AS requestTitle,
     r.category AS requestCategory, i.person_name AS personName, i.person_company AS personCompany,
     i.relationship, i.fit_reason AS fitReason, i.status, i.created_at AS createdAt,
-    m.display_name AS introducerName, m.company AS introducerCompany, m.venue AS introducerVenue,
+    m.display_name AS introducerName, m.company AS introducerCompany, m.venue AS introducerVenue, m.facebook_url AS introducerFacebookUrl,
     m.id AS introducerId, m.avatar_key AS introducerAvatarKey, m.avatar_version AS introducerAvatarVersion
     FROM introductions i
     JOIN requests r ON r.id = i.request_id
@@ -983,6 +998,68 @@ function calculateRank(member: Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'
   thresholds.forEach((threshold, index) => { if (member.introCount >= threshold) level = index + 1; });
   return { ...member, rank: names[level - 1], level, nextRankAt: thresholds[level] ?? member.introCount };
 }
+
+// --- 探しごとへのコメント ここから -----------------------------------------
+// 紹介の前後で、投稿した人と答える人がその場でやり取りできるようにするための機能。
+// ギブ側の行動なので、無料会員でも使える（docs/pricing-plan-ja.md）。
+
+export type RequestComment = {
+  id: string;
+  requestId: string;
+  body: string;
+  createdAt: string;
+  authorId: string;
+  authorName: string;
+  authorCompany: string;
+  authorVenue: string;
+  authorAvatarUrl: string;
+  authorFacebookUrl: string;
+  isAuthorOfRequest: boolean;
+};
+
+export const COMMENT_MAX_LENGTH = 600;
+
+export async function getRequestComments(requestId: string) {
+  await ensureDatabase();
+  const rows = await env.DB.prepare(`SELECT c.id, c.request_id AS requestId, c.body, c.created_at AS createdAt,
+    m.id AS authorId, m.display_name AS authorName, m.company AS authorCompany, m.venue AS authorVenue,
+    m.avatar_key AS authorAvatarKey, m.avatar_version AS authorAvatarVersion, m.facebook_url AS authorFacebookUrl,
+    r.author_id AS requestAuthorId
+    FROM request_comments c
+    JOIN members m ON m.id = c.member_id
+    JOIN requests r ON r.id = c.request_id
+    WHERE c.request_id = ?
+    ORDER BY c.created_at`).bind(requestId).all<Omit<RequestComment, 'authorAvatarUrl' | 'isAuthorOfRequest'> & { authorAvatarKey: string; authorAvatarVersion: number; requestAuthorId: string }>();
+
+  return rows.results.map(({ authorAvatarKey, authorAvatarVersion, requestAuthorId, ...comment }) => ({
+    ...comment,
+    authorAvatarUrl: avatarUrl(comment.authorId, authorAvatarKey, authorAvatarVersion),
+    isAuthorOfRequest: comment.authorId === requestAuthorId,
+  }));
+}
+
+export async function addRequestComment(user: ChatGPTUser, requestId: string, rawBody: string) {
+  await upsertMember(user);
+  const body = rawBody.trim().slice(0, COMMENT_MAX_LENGTH);
+  if (!body) throw new Error('コメントを入力してください。');
+
+  const request = await env.DB.prepare('SELECT id FROM requests WHERE id = ?').bind(requestId).first<{ id: string }>();
+  if (!request) throw new Error('この探しごとは見つかりませんでした。');
+
+  const now = new Date().toISOString();
+  await env.DB.prepare('INSERT INTO request_comments (id, request_id, member_id, body, created_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(crypto.randomUUID(), requestId, user.userId, body, now).run();
+  return getRequestComments(requestId);
+}
+
+export async function deleteRequestComment(user: ChatGPTUser, commentId: string) {
+  await ensureDatabase();
+  // 自分が書いたコメントだけ消せる。
+  const result = await env.DB.prepare('DELETE FROM request_comments WHERE id = ? AND member_id = ?')
+    .bind(commentId, user.userId).run();
+  if (!result.meta.changes) throw new Error('このコメントは削除できません。');
+}
+// --- 探しごとへのコメント ここまで -----------------------------------------
 
 // --- プラン（無料 / 有料）ここから ------------------------------------------
 // 会員かどうか（membership_status）と、お金を払っているか（plan）は別の軸。
