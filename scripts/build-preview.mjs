@@ -261,6 +261,7 @@ const html = `<title>TASUKI プレビュー</title>
     if (!target.closest) return;
     const at = (selector) => target.closest(selector);
 
+    if (at('.cardbook-add')) { event.preventDefault(); return notice('名刺の撮影と読み取りは端末のカメラを使うので、プレビューでは再現していません。'); }
     if (at('.modal-close') || at('.cardbook-header > button')) { event.preventDefault(); return go(base); }
     if (target.classList && target.classList.contains('modal-backdrop')) { event.preventDefault(); return go(base); }
 

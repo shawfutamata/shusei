@@ -258,11 +258,13 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   }
 
   function showHome() {
+    setModal(null);
     setActiveTab('home');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function showSearch(industry = industryFilter) {
+    setModal(null);
     setIndustryFilter(industry);
     setActiveTab('search');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -436,11 +438,11 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
       </section>}
 
       <nav className="bottom-nav" aria-label="アプリメニュー">
-        <button className={activeTab === 'home' ? 'active' : ''} onClick={showHome}><span>⌂</span><small>ホーム</small></button>
-        <button className={activeTab === 'search' ? 'active' : ''} onClick={() => showSearch()}><span>⌕</span><small>困りごと</small></button>
+        <button className={modal !== 'cards' && activeTab === 'home' ? 'active' : ''} onClick={showHome}><span>⌂</span><small>ホーム</small></button>
+        <button className={modal !== 'cards' && activeTab === 'search' ? 'active' : ''} onClick={() => showSearch()}><span>⌕</span><small>困りごと</small></button>
         <button className="nav-post" onClick={openRequest} aria-label="探しごとを投稿する"><span>＋</span></button>
-        <button onClick={() => openCards('list')}><span>▣</span><small>名刺</small></button>
-        <button className={activeTab === 'profile' ? 'active' : ''} onClick={showProfile}><span><PersonIcon /></span><small>マイページ</small></button>
+        <button className={modal === 'cards' ? 'active' : ''} onClick={() => openCards('list')}><span>▣</span><small>名刺</small></button>
+        <button className={modal !== 'cards' && activeTab === 'profile' ? 'active' : ''} onClick={showProfile}><span><PersonIcon /></span><small>マイページ</small></button>
       </nav>
 
       {modal === 'request' && !canPostRequest && <Modal title="今月ぶんの投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、上のプランへお切り替えください（スタンダード 月額1,000円で月2件、プレミアム 月額5,000円で何件でも）。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、プレミアムを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showProfile(); }}>マイページを開く</button></div></Modal>}
