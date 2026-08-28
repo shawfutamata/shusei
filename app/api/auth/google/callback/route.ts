@@ -1,12 +1,14 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE } from '@/app/app-auth';
-import { GOOGLE_STATE_COOKIE, exchangeGoogleCode, googleRedirectUri } from '@/app/google-auth';
-import { startMemberSessionByEmail } from '@/db/data';
+import { GOOGLE_INVITE_COOKIE, GOOGLE_STATE_COOKIE, exchangeGoogleCode, googleRedirectUri } from '@/app/google-auth';
+import { registerInvitedMember, startMemberSessionByEmail } from '@/db/data';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const expectedState = (await cookies()).get(GOOGLE_STATE_COOKIE)?.value ?? '';
+  const jar = await cookies();
+  const expectedState = jar.get(GOOGLE_STATE_COOKIE)?.value ?? '';
+  const inviteCode = jar.get(GOOGLE_INVITE_COOKIE)?.value ?? '';
   const state = url.searchParams.get('state') ?? '';
   const code = url.searchParams.get('code') ?? '';
 
@@ -15,13 +17,24 @@ export async function GET(request: Request) {
     return redirectHome(request, 'failed');
   }
 
+  let account;
+  try {
+    account = await exchangeGoogleCode(code, googleRedirectUri(request));
+  } catch {
+    return redirectHome(request, 'failed');
+  }
+
   let session;
   try {
-    const email = await exchangeGoogleCode(code, googleRedirectUri(request));
-    session = await startMemberSessionByEmail(email);
+    session = await startMemberSessionByEmail(account.email);
   } catch (error) {
-    const reason = error instanceof Error && error.message.includes('利用権限') ? 'denied' : 'notmember';
-    return redirectHome(request, reason);
+    if (error instanceof Error && error.message.includes('利用権限')) return redirectHome(request, 'denied');
+    // 会員ではない。招待リンクから来ていれば、承認待ちとして登録だけする。
+    if (inviteCode) {
+      const registered = await registerInvitedMember(account.email, account.name, inviteCode);
+      if (registered) return redirectHome(request, registered.alreadyMember ? 'denied' : 'pending');
+    }
+    return redirectHome(request, 'notmember');
   }
 
   const response = redirectHome(request);
@@ -34,6 +47,8 @@ export async function GET(request: Request) {
 function redirectHome(request: Request, login?: string) {
   const target = new URL(login ? `/?login=${login}` : '/', request.url);
   const response = NextResponse.redirect(target);
-  response.cookies.set(GOOGLE_STATE_COOKIE, '', { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 0 });
+  for (const name of [GOOGLE_STATE_COOKIE, GOOGLE_INVITE_COOKIE]) {
+    response.cookies.set(name, '', { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 0 });
+  }
   return response;
 }

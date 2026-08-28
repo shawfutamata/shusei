@@ -93,6 +93,10 @@ npx wrangler d1 execute <D1_DATABASE> --remote \
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | WebのGoogleログイン | Webのログインボタンが使えない |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | WebプッシュのVAPID鍵 | Webプッシュが無効。アプリのExpo Pushには影響しない |
 
+## 招待リンクから来た人
+
+会員の招待リンク（`/join/<コード>`）から登録した人も、`membership_status = 'invited'` で作られます。**招待だけでは利用権限は付きません。** 誰の紹介かは `invited_by` に入ります。承認の手順と、紹介した人への無料月の扱いは `docs/referral-program-ja.md` を見てください。
+
 ## 会場一覧の正 (source of truth)
 
 プロフィールの所属会場は、都道府県 → 会場の2段階で選ぶ。一覧は `app/venue-options.ts`。

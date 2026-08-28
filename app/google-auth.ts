@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 
 export const GOOGLE_STATE_COOKIE = 'google_oauth_state';
+export const GOOGLE_INVITE_COOKIE = 'google_oauth_invite';
 
 export function googleRedirectUri(request: Request) {
   return `${new URL(request.url).origin}/api/auth/google/callback`;
@@ -30,7 +31,7 @@ export async function exchangeGoogleCode(code: string, redirectUri: string) {
   const claims = decodeJwtPayload(idToken);
   if (claims.email_verified !== true) throw new Error('Googleアカウントのメールアドレスが未確認です。');
   if (!claims.email) throw new Error('Googleからメールアドレスを取得できませんでした。');
-  return claims.email;
+  return { email: claims.email, name: (claims.name ?? '').trim() };
 }
 
 function decodeJwtPayload(token: string) {
@@ -38,5 +39,5 @@ function decodeJwtPayload(token: string) {
   if (!payload) throw new Error('Googleからアカウント情報を取得できませんでした。');
   const base64 = payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payload.length / 4) * 4, '=');
   const json = new TextDecoder().decode(Uint8Array.from(atob(base64), (character) => character.charCodeAt(0)));
-  return JSON.parse(json) as { email?: string; email_verified?: boolean };
+  return JSON.parse(json) as { email?: string; email_verified?: boolean; name?: string };
 }

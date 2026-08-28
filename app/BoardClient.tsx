@@ -2,10 +2,10 @@
 
 import { ChangeEvent, CSSProperties, FormEvent, useEffect, useMemo, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
-import type { BoardRequest, MemberStats } from '@/db/data';
+import type { BoardRequest, MemberStats, ReferralSummary } from '@/db/data';
 import BusinessCardManager from './BusinessCardManager';
 import ReceivedIntroductions from './ReceivedIntroductions';
-import { prefectures, type Prefecture } from './profile-options';
+import { getRegion, prefectures, regions, type Prefecture } from './profile-options';
 import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-options';
 import { findVenuePrefecture, isListedVenue, OTHER_VENUE, venuePrefectures, venuesByPrefecture } from './venue-options';
 
@@ -48,7 +48,8 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [filter, setFilter] = useState('all');
   const [revenueFilter, setRevenueFilter] = useState('all');
   const [venueFilter, setVenueFilter] = useState('all');
-  const [areaFilter, setAreaFilter] = useState('all');
+  const [regionFilter, setRegionFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<'open' | 'closed' | 'all'>('open');
   const [industryFilter, setIndustryFilter] = useState('all');
   const [activeTab, setActiveTab] = useState<'home' | 'search' | 'profile'>(initialStats.avatarUrl ? 'home' : 'profile');
   const [carouselIndex, setCarouselIndex] = useState(0);
@@ -83,19 +84,27 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [selected, setSelected] = useState<BoardRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
+  const [referral, setReferral] = useState<(ReferralSummary & { url: string }) | null>(null);
+  const [inviteCopied, setInviteCopied] = useState(false);
 
   const venueOptions = useMemo(() => [...new Set(requests.map((item) => item.authorVenue).filter(Boolean))].sort(), [requests]);
-  const areaOptions = useMemo(() => [...new Set(requests.map((item) => item.authorBusinessArea).filter(Boolean))].sort(), [requests]);
-  const shown = useMemo(() => requests.filter((item) =>
+  // 募集状況で先に切ってから、カテゴリの件数を数える。表示と件数がずれないようにする。
+  const statusMatched = useMemo(() => requests.filter((item) => statusFilter === 'all' || (statusFilter === 'open') === isOpenRequest(item)), [requests, statusFilter]);
+  const shown = useMemo(() => statusMatched.filter((item) =>
     (filter === 'all' || item.category === filter) &&
     (revenueFilter === 'all' || item.authorRevenueBand === revenueFilter) &&
     (venueFilter === 'all' || item.authorVenue === venueFilter) &&
-    (areaFilter === 'all' || item.authorBusinessArea === areaFilter) &&
+    (regionFilter === 'all' || getRegion(item.authorBusinessArea) === regionFilter) &&
     matchesIndustry(item.industryTags, industryFilter)
-  ), [areaFilter, filter, industryFilter, revenueFilter, requests, venueFilter]);
+  ), [filter, industryFilter, regionFilter, revenueFilter, statusMatched, venueFilter]);
+  // 通知はアプリを出してから。それまでは選んだ業種をホームのおすすめに使う。
+  const recommended = useMemo(() => requests.filter((item) =>
+    isOpenRequest(item) && item.authorName !== userName &&
+    stats.notifyIndustries.some((industry) => matchesIndustry(item.industryTags, getIndustryGroup(industry)?.name ?? industry))
+  ).slice(0, 12), [requests, stats.notifyIndustries, userName]);
   const viewedRequests = useMemo(() => viewedIds.map((id) => requests.find((item) => item.id === id)).filter((item): item is BoardRequest => Boolean(item)), [requests, viewedIds]);
   const favoriteRequests = useMemo(() => favoriteIds.map((id) => requests.find((item) => item.id === id)).filter((item): item is BoardRequest => Boolean(item)), [favoriteIds, requests]);
-  const count = (category: string) => category === 'all' ? requests.length : requests.filter((item) => item.category === category).length;
+  const count = (category: string) => category === 'all' ? statusMatched.length : statusMatched.filter((item) => item.category === category).length;
   const rankStart = rankThresholds[Math.max(0, stats.level - 1)] ?? 0;
   const rankProgress = stats.level >= rankThresholds.length ? 100 : Math.max(0, Math.min(100, ((stats.introCount - rankStart) / Math.max(1, stats.nextRankAt - rankStart)) * 100));
   const introductionsToNextRank = Math.max(0, stats.nextRankAt - stats.introCount);
@@ -134,6 +143,14 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     const timer = window.setInterval(() => setCarouselIndex((current) => (current + 1) % 4), 5500);
     return () => window.clearInterval(timer);
   }, []);
+  useEffect(() => {
+    if (activeTab !== 'profile' || referral) return;
+    let alive = true;
+    fetch('/api/referral').then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (alive && data) setReferral(data as ReferralSummary & { url: string }); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [activeTab, referral]);
 
   async function refreshBoard() {
     const response = await fetch('/api/board');
@@ -248,6 +265,17 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     openCards('capture');
   }
 
+  async function copyInviteLink() {
+    if (!referral) return;
+    try {
+      await navigator.clipboard.writeText(referral.url);
+      setInviteCopied(true);
+      window.setTimeout(() => setInviteCopied(false), 2600);
+    } catch {
+      showToast('コピーできませんでした。リンクを長押しして選択してください。');
+    }
+  }
+
   function showToast(message: string) { setToast(message); window.setTimeout(() => setToast(''), 3800); }
   function toggleIndustry(value: string, selected: string[], setSelected: (values: string[]) => void, max: number) {
     if (selected.includes(value)) return setSelected(selected.filter((item) => item !== value));
@@ -267,6 +295,13 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           <button key={carouselIndex} className="hero-image-slide" onClick={openCurrentBanner} aria-label={`${topBanners[carouselIndex].alt}を開く`}><img src={topBanners[carouselIndex].src} alt={topBanners[carouselIndex].alt} /></button>
           <div className="carousel-dots" aria-label="バナーを切り替える">{[0,1,2,3].map((index) => <button key={index} aria-label={`${index + 1}枚目`} className={carouselIndex === index ? 'active' : ''} onClick={() => setCarouselIndex(index)} />)}</div>
         </section>
+
+        <HomeShelf title="あなたにおすすめの探しごと" count={recommended.length}
+          emptyTitle={stats.notifyIndustries.length ? '今はおすすめできる探しごとがありません' : 'おすすめに出したい業種を選びましょう'}
+          emptyText={stats.notifyIndustries.length ? '選んだ業種の探しごとが投稿されると、ここに並びます。' : 'マイページで業種を選ぶと、関係のありそうな探しごとがここに並びます。'}
+          onMore={() => stats.notifyIndustries.length ? showSearch() : showProfile()}>
+          {recommended.map((need) => <HomeRequestCard key={need.id} need={need} favorite={favoriteIds.includes(need.id)} onOpen={() => openNeed(need)} onFavorite={() => toggleFavorite(need)} />)}
+        </HomeShelf>
 
         <HomeShelf title="閲覧履歴" count={viewedRequests.length} emptyTitle="まだ閲覧履歴がありません" emptyText="探しごとを開くと、ここからすぐ見返せます。" onMore={() => showSearch()}>
           {viewedRequests.map((need) => <HomeRequestCard key={need.id} need={need} favorite={favoriteIds.includes(need.id)} onOpen={() => openNeed(need)} onFavorite={() => toggleFavorite(need)} />)}
@@ -288,15 +323,17 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         {industryFilter !== 'all' && getIndustryGroup(industryFilter) && <div className="subindustry-filter" aria-label="詳細業種で絞り込む"><button className={industryFilter === getIndustryGroup(industryFilter)?.name ? 'selected' : ''} onClick={() => setIndustryFilter(getIndustryGroup(industryFilter)?.name ?? 'all')}>すべて</button>{getIndustryGroup(industryFilter)?.children.map((industry) => <button key={industry} className={industryFilter === industry ? 'selected' : ''} onClick={() => setIndustryFilter(industry)}>{industry}</button>)}</div>}
         <div className="filters" role="group" aria-label="投稿を絞り込む">{[['all','すべて'],['project','案件'],['collaboration','協業先'],['consultation','相談']].map(([key,label]) => <button key={key} className={filter === key ? 'selected' : ''} onClick={() => setFilter(key)}>{label}<span>{count(key)}</span></button>)}</div>
         <div className="member-filters">
-          <p>会員情報で絞り込む</p>
+          <p>絞り込む</p>
+          <label className="wide"><span>募集状況</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'open' | 'closed' | 'all')}><option value="open">募集中</option><option value="closed">募集終了</option><option value="all">すべて</option></select></label>
           <label><span>所属会場</span><select value={venueFilter} onChange={(event) => setVenueFilter(event.target.value)}><option value="all">すべての会場</option>{venueOptions.map((value) => <option value={value} key={value}>{value}</option>)}</select></label>
-          <label><span>活動エリア</span><select value={areaFilter} onChange={(event) => setAreaFilter(event.target.value)}><option value="all">すべてのエリア</option>{areaOptions.map((value) => <option value={value} key={value}>{value}</option>)}</select></label>
-          <label className="wide"><span>会社の年商</span><select value={revenueFilter} onChange={(event) => setRevenueFilter(event.target.value)}><option value="all">すべての年商</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+          <label><span>エリア</span><select value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)}><option value="all">全国</option>{regions.map((region) => <option value={region.name} key={region.name}>{region.name}</option>)}</select></label>
+          <label><span>業種</span><select value={getIndustryGroup(industryFilter)?.name ?? 'all'} onChange={(event) => setIndustryFilter(event.target.value)}><option value="all">すべての業種</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label>
+          <label><span>会社の年商</span><select value={revenueFilter} onChange={(event) => setRevenueFilter(event.target.value)}><option value="all">すべての年商</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         </div>
         <div className="card-list">
           {shown.length === 0 ? <div className="empty"><b>条件に合う投稿がありません</b><span>絞り込みを変えて探してみましょう。</span></div> : shown.map((need) => (
-            <article className="need-card" key={need.id} onClick={() => openNeed(need)}>
-              <div className="card-topline"><span className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</span><span className="card-top-actions"><span className="deadline">あと{daysLeft(need.deadline)}日</span><button className={favoriteIds.includes(need.id) ? 'card-heart active' : 'card-heart'} aria-label={favoriteIds.includes(need.id) ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={(event) => { event.stopPropagation(); toggleFavorite(need); }}>♥</button></span></div>
+            <article className={isOpenRequest(need) ? 'need-card' : 'need-card closed'} key={need.id} onClick={() => openNeed(need)}>
+              <div className="card-topline"><span className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</span><span className="card-top-actions">{isOpenRequest(need) ? <span className="deadline">あと{daysLeft(need.deadline)}日</span> : <span className="deadline ended">募集終了</span>}<button className={favoriteIds.includes(need.id) ? 'card-heart active' : 'card-heart'} aria-label={favoriteIds.includes(need.id) ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={(event) => { event.stopPropagation(); toggleFavorite(need); }}>♥</button></span></div>
               <h3>{need.title}</h3><p className="need-body">{need.description}</p>
               <div className="industry-tags" aria-label="関連業種">{need.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
               <dl className="details"><div><dt>予算</dt><dd>{need.budgetLabel}</dd></div><div><dt>エリア</dt><dd>{need.area}</dd></div></dl>
@@ -307,7 +344,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           ))}
         </div>
       </section> : <section className="profile-page" aria-labelledby="profile-page-title">
-        <header className="profile-page-heading"><p>MY PAGE</p><h1 id="profile-page-title">マイページ</h1><span>会員情報・通知設定・ランクを管理できます。</span></header>
+        <header className="profile-page-heading"><p>MY PAGE</p><h1 id="profile-page-title">マイページ</h1><span>会員情報・おすすめ・ランクを管理できます。</span></header>
         <section className={`rank-card rank-${stats.rank.toLowerCase()} profile-rank-card`} aria-label={`${stats.rank}会員ランクカード`}>
           <div className="rank-card-top"><span className="rank-crown">♛</span><b>GIVE HUB</b><small>MEMBER RANK</small></div>
           <div className="rank-member-row"><Avatar src={photoPreview} name={userName} className="rank-member-avatar" /><span><b>{userName}</b><small>{stats.badge || 'バッヂ未設定'} · {stats.venue}</small></span></div>
@@ -315,6 +352,17 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           <div className="rank-progress"><div className="rank-progress-copy"><b>{stats.level >= rankThresholds.length ? '最高ランクに到達' : `あと${introductionsToNextRank}件でランクアップ`}</b><span>紹介実績 {stats.introCount}件</span></div><span className="rank-progress-track"><i style={{ width: `${rankProgress}%` }} /></span></div>
           <div className="rank-card-bottom"><span><small>MEMBER</small><b>{userName}</b></span><span><small>VENUE</small><b>{stats.venue}</b></span><span><small>POINTS</small><b>{stats.points}</b></span></div>
         </section>
+        {referral && <section className="invite-card" aria-label="仲間を招待する">
+          <div className="invite-heading"><p>INVITE</p><h2>仲間を招待する</h2><span>あなたの招待リンクから入会して{referral.qualifyDays}日続いた方1人につき、会費が1ヶ月無料になります（年{referral.capPerYear}ヶ月まで）。</span></div>
+          <button className="invite-link" onClick={copyInviteLink}><span>{referral.url.replace(/^https?:\/\//, '')}</span><i>{inviteCopied ? 'コピーしました' : 'リンクをコピー'}</i></button>
+          <dl className="invite-stats">
+            <div><dt>招待した人</dt><dd>{referral.invitedCount}<small>人</small></dd></div>
+            <div><dt>利用中</dt><dd>{referral.activeCount}<small>人</small></dd></div>
+            <div><dt>無料になった月</dt><dd>{referral.earnedMonths}<small>ヶ月</small></dd></div>
+          </dl>
+          <p className="invite-note">{referral.waitingCount > 0 && `${referral.waitingCount}人が運営の確認待ちです。`}{referral.qualifyingCount > 0 && `${referral.qualifyingCount}人が${referral.qualifyDays}日経過待ちです。`}{referral.remainingThisYear > 0 ? `今年はあと${referral.remainingThisYear}ヶ月ぶん受け取れます。` : '今年ぶんの上限に達しました。ここから先の紹介は会員ランクに反映されます。'}</p>
+        </section>}
+
         <div className="profile-form profile-page-form">
           <div className="profile-form-heading"><b>プロフィール情報</b><span>入力内容は探しごとや紹介時に表示されます。</span></div>
           <label className="photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />JPEG・PNG・WebP／5MBまで</small></span><i>{stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
@@ -327,8 +375,8 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           </div>
           <div className="profile-row"><label>肩書き <small>任意</small><input value={profilePosition} onChange={(event) => setProfilePosition(event.target.value)} maxLength={60} placeholder="世話人" /></label><label>バッヂ <small>任意</small><select value={profileBadge} onChange={(event) => setProfileBadge(event.target.value)}><option value="">選択しない</option><option value="緑">緑</option><option value="赤">赤</option><option value="ゴールド">ゴールド</option><option value="ダイヤモンド">ダイヤモンド</option></select></label></div>
           <label>活動エリア <small>任意・検索に使われます</small><select value={profileArea} onChange={(event) => setProfileArea(event.target.value)}><option value="">選択しない</option>{prefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
-          <div className="profile-industry-select"><p>自分の業種 <small>通知の設定に使われます</small></p><label>大分類<select value={profileIndustryGroup} onChange={(event) => { setProfileIndustryGroup(event.target.value); setProfileIndustry(''); }}><option value="">選択してください</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label><label>詳細業種<select value={profileIndustry} onChange={(event) => { const value = event.target.value; setProfileIndustry(value); if (value && !profileNotifyIndustries.includes(value)) setProfileNotifyIndustries((current) => [...current, value].slice(0, 6)); }} disabled={!profileIndustryGroup}><option value="">詳細業種を選択</option>{profileIndustry === profileIndustryGroup && <option value={profileIndustryGroup}>大分類のみ（旧設定）</option>}{industryGroups.find((group) => group.name === profileIndustryGroup)?.children.map((industry) => <option value={industry} key={industry}>{industry}</option>)}</select></label></div>
-          <IndustryPicker legend="通知を受けたい関連業種" note="6個まで" description="選んだ詳細業種の探しごとが投稿されると通知します。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, 6)} className="profile-tag-field" />
+          <div className="profile-industry-select"><p>自分の業種 <small>おすすめの設定に使われます</small></p><label>大分類<select value={profileIndustryGroup} onChange={(event) => { setProfileIndustryGroup(event.target.value); setProfileIndustry(''); }}><option value="">選択してください</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label><label>詳細業種<select value={profileIndustry} onChange={(event) => { const value = event.target.value; setProfileIndustry(value); if (value && !profileNotifyIndustries.includes(value)) setProfileNotifyIndustries((current) => [...current, value].slice(0, 6)); }} disabled={!profileIndustryGroup}><option value="">詳細業種を選択</option>{profileIndustry === profileIndustryGroup && <option value={profileIndustryGroup}>大分類のみ（旧設定）</option>}{industryGroups.find((group) => group.name === profileIndustryGroup)?.children.map((industry) => <option value={industry} key={industry}>{industry}</option>)}</select></label></div>
+          <IndustryPicker legend="おすすめに出したい業種" note="6個まで" description="選んだ詳細業種の探しごとが、ホームの「あなたにおすすめ」に出ます。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, 6)} className="profile-tag-field" />
           <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
           <button className="profile-save-button" onClick={saveProfile} disabled={busy || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
         </div>
@@ -389,6 +437,9 @@ function HomeRequestCard({ need, favorite, onOpen, onFavorite }: { need: BoardRe
 
 function Modal({ title, lead, onClose, children }: { title: string; lead: string; onClose: () => void; children: React.ReactNode }) { return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><span className="sheet-handle" /><button className="modal-close" onClick={onClose} aria-label="閉じる">×</button><h2 id="modal-title">{title}</h2><p className="modal-lead">{lead}</p>{children}</section></div>; }
 function Avatar({ src, name, className }: { src: string; name: string; className: string }) { return <span className={className}>{src ? <img src={src} alt={`${name}さんの顔写真`} /> : <span>{name.slice(0, 1)}</span>}</span>; }
+function isOpenRequest(need: BoardRequest) {
+  return need.status === 'open' && new Date(`${need.deadline}T23:59:59+09:00`).getTime() >= Date.now();
+}
 function daysLeft(value: string) { const deadline = new Date(`${value}T23:59:59+09:00`).getTime(); return Math.max(0, Math.ceil((deadline - Date.now()) / 86400000)); }
 
 async function makeCroppedPhoto(source: string, area: Area, originalName: string) {

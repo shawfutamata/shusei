@@ -137,6 +137,18 @@ const statements = [
     intro_count INTEGER NOT NULL DEFAULT 0,
     deal_count INTEGER NOT NULL DEFAULT 0,
     points INTEGER NOT NULL DEFAULT 0,
+    invite_code TEXT NOT NULL DEFAULT '',
+    invited_by TEXT NOT NULL DEFAULT '',
+    activated_at TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS referral_credits (
+    id TEXT PRIMARY KEY,
+    inviter_id TEXT NOT NULL REFERENCES members(id),
+    invitee_id TEXT NOT NULL UNIQUE REFERENCES members(id),
+    status TEXT NOT NULL DEFAULT 'earned',
+    earned_at TEXT NOT NULL,
+    applied_month TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS requests (
@@ -272,6 +284,9 @@ export async function ensureDatabase() {
     ['organization_id', "ALTER TABLE members ADD COLUMN organization_id TEXT NOT NULL DEFAULT ''"],
     ['avatar_key', "ALTER TABLE members ADD COLUMN avatar_key TEXT NOT NULL DEFAULT ''"],
     ['avatar_version', 'ALTER TABLE members ADD COLUMN avatar_version INTEGER NOT NULL DEFAULT 0'],
+    ['invite_code', "ALTER TABLE members ADD COLUMN invite_code TEXT NOT NULL DEFAULT ''"],
+    ['invited_by', "ALTER TABLE members ADD COLUMN invited_by TEXT NOT NULL DEFAULT ''"],
+    ['activated_at', "ALTER TABLE members ADD COLUMN activated_at TEXT NOT NULL DEFAULT ''"],
   ];
   for (const [columnName, sql] of missingColumns) {
     if (!existingColumns.has(columnName)) await env.DB.prepare(sql).run();
@@ -597,7 +612,6 @@ export async function getBoardData(user: ChatGPTUser) {
     FROM requests r
     JOIN members m ON m.id = r.author_id
     LEFT JOIN introductions i ON i.request_id = r.id
-    WHERE r.status = 'open'
     GROUP BY r.id
     ORDER BY r.created_at DESC`).all<Omit<BoardRequest, 'industryTags'> & { industryTagsJson: string; authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
 
@@ -943,3 +957,157 @@ function calculateRank(member: Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'
   thresholds.forEach((threshold, index) => { if (member.introCount >= threshold) level = index + 1; });
   return { ...member, rank: names[level - 1], level, nextRankAt: thresholds[level] ?? member.introCount };
 }
+
+// --- 会員紹介（招待）ここから -------------------------------------------------
+// ルールは docs/referral-program-ja.md が正。
+// 「紹介した人が入会して60日続いたら、紹介した人の会費が1ヶ月無料。年6ヶ月まで」
+
+export const REFERRAL_QUALIFY_DAYS = 60;
+export const REFERRAL_CAP_PER_YEAR = 6;
+
+export type ReferralSummary = {
+  code: string;
+  invitedCount: number;      // 招待リンクから登録した人の数
+  waitingCount: number;      // まだ運営の承認待ち
+  activeCount: number;       // 承認されて利用中
+  qualifyingCount: number;   // 利用中だが60日に届いていない
+  earnedMonths: number;      // 無料になった月の数（年の上限内）
+  cappedMonths: number;      // 上限を超えたぶん
+  appliedMonths: number;     // 運営が請求で使い終わったぶん
+  remainingThisYear: number; // 今年あと何ヶ月ぶん受け取れるか
+  capPerYear: number;
+  qualifyDays: number;
+};
+
+const inviteAlphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+
+function randomInviteCode() {
+  return [...crypto.getRandomValues(new Uint8Array(8))].map((byte) => inviteAlphabet[byte % inviteAlphabet.length]).join('');
+}
+
+/** 会員の招待コード。無ければ作る。 */
+export async function getOrCreateInviteCode(memberId: string) {
+  await ensureDatabase();
+  const existing = await env.DB.prepare('SELECT invite_code AS inviteCode FROM members WHERE id = ?')
+    .bind(memberId).first<{ inviteCode: string }>();
+  if (existing?.inviteCode) return existing.inviteCode;
+
+  // 衝突しても致命的ではないが、念のため空いているコードを探す。
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const code = randomInviteCode();
+    const taken = await env.DB.prepare('SELECT id FROM members WHERE invite_code = ?').bind(code).first<{ id: string }>();
+    if (taken) continue;
+    await env.DB.prepare('UPDATE members SET invite_code = ? WHERE id = ? AND invite_code = \'\'').bind(code, memberId).run();
+    const saved = await env.DB.prepare('SELECT invite_code AS inviteCode FROM members WHERE id = ?')
+      .bind(memberId).first<{ inviteCode: string }>();
+    if (saved?.inviteCode) return saved.inviteCode;
+  }
+  throw new Error('招待リンクを作れませんでした。');
+}
+
+/** 招待コードの持ち主。利用中の会員でなければ招待は無効。 */
+export async function findInviterByCode(code: string) {
+  await ensureDatabase();
+  const trimmed = code.trim().toUpperCase();
+  if (!trimmed) return null;
+  const inviter = await env.DB.prepare(`SELECT id, display_name AS displayName, venue, company, membership_status AS status
+    FROM members WHERE invite_code = ?`).bind(trimmed).first<{ id: string; displayName: string; venue: string; company: string; status: MembershipStatus }>();
+  if (!inviter || inviter.status !== 'active') return null;
+  return inviter;
+}
+
+/**
+ * 招待リンクから来た人を登録する。ここでは利用権限を与えない。
+ * 運営が `active` にするまでは `invited` のまま。招待でゲートを緩めない。
+ */
+export async function registerInvitedMember(rawEmail: string, displayName: string, code: string) {
+  await ensureDatabase();
+  const email = rawEmail.trim().toLowerCase();
+  const inviter = await findInviterByCode(code);
+  if (!email || !inviter) return null;
+
+  const existing = await env.DB.prepare('SELECT id, invited_by AS invitedBy FROM members WHERE email = ?')
+    .bind(email).first<{ id: string; invitedBy: string }>();
+  if (existing) {
+    // すでに会員なら紹介は付けない。既存会員の付け替えを防ぐ。
+    return { alreadyMember: true, inviterName: inviter.displayName };
+  }
+
+  const now = new Date().toISOString();
+  await env.DB.prepare(`INSERT INTO members (id, email, display_name, membership_status, invited_by, created_at)
+    VALUES (?, ?, ?, 'invited', ?, ?)`)
+    .bind(`invited-${crypto.randomUUID()}`, email, displayName.trim() || email.split('@')[0], inviter.id, now).run();
+  return { alreadyMember: false, inviterName: inviter.displayName };
+}
+
+/**
+ * 紹介の資格を判定して、無料月を確定させる。何度呼んでも同じ結果になる。
+ * - `activated_at` が空の利用中会員には、気づいた時点の日付を入れる（運営が手で入れてもよい）
+ * - 利用中かつ `REFERRAL_QUALIFY_DAYS` 日を超えた招待者ぶんだけ確定する
+ * - 年の上限を超えたぶんは `capped` として記録し、無料月にはしない
+ */
+async function reconcileReferralCredits(inviterId: string) {
+  const now = new Date();
+  const nowIso = now.toISOString();
+  await env.DB.prepare(`UPDATE members SET activated_at = ? WHERE membership_status = 'active' AND activated_at = ''`)
+    .bind(nowIso).run();
+
+  const qualifiedBefore = new Date(now.getTime() - REFERRAL_QUALIFY_DAYS * 86400000).toISOString();
+  const pending = await env.DB.prepare(`SELECT m.id
+    FROM members m
+    LEFT JOIN referral_credits c ON c.invitee_id = m.id
+    WHERE m.invited_by = ? AND m.membership_status = 'active' AND m.activated_at != '' AND m.activated_at <= ?
+      AND c.id IS NULL
+    ORDER BY m.activated_at`).bind(inviterId, qualifiedBefore).all<{ id: string }>();
+  if (!pending.results.length) return;
+
+  const yearAgo = new Date(now.getTime() - 365 * 86400000).toISOString();
+  const earnedRow = await env.DB.prepare(`SELECT COUNT(*) AS count FROM referral_credits
+    WHERE inviter_id = ? AND status = 'earned' AND earned_at >= ?`).bind(inviterId, yearAgo).first<{ count: number }>();
+  let earnedThisYear = Number(earnedRow?.count ?? 0);
+
+  await env.DB.batch(pending.results.map(({ id }) => {
+    const status = earnedThisYear < REFERRAL_CAP_PER_YEAR ? 'earned' : 'capped';
+    if (status === 'earned') earnedThisYear += 1;
+    return env.DB.prepare(`INSERT OR IGNORE INTO referral_credits (id, inviter_id, invitee_id, status, earned_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)`).bind(crypto.randomUUID(), inviterId, id, status, nowIso, nowIso);
+  }));
+}
+
+export async function getReferralSummary(memberId: string): Promise<ReferralSummary> {
+  await ensureDatabase();
+  const code = await getOrCreateInviteCode(memberId);
+  await reconcileReferralCredits(memberId);
+
+  const qualifiedBefore = new Date(Date.now() - REFERRAL_QUALIFY_DAYS * 86400000).toISOString();
+  const counts = await env.DB.prepare(`SELECT
+      COUNT(*) AS invitedCount,
+      SUM(CASE WHEN membership_status = 'invited' THEN 1 ELSE 0 END) AS waitingCount,
+      SUM(CASE WHEN membership_status = 'active' THEN 1 ELSE 0 END) AS activeCount,
+      SUM(CASE WHEN membership_status = 'active' AND (activated_at = '' OR activated_at > ?) THEN 1 ELSE 0 END) AS qualifyingCount
+    FROM members WHERE invited_by = ?`).bind(qualifiedBefore, memberId).first<Record<string, number>>();
+
+  const yearAgo = new Date(Date.now() - 365 * 86400000).toISOString();
+  const credits = await env.DB.prepare(`SELECT
+      SUM(CASE WHEN status = 'earned' THEN 1 ELSE 0 END) AS earnedMonths,
+      SUM(CASE WHEN status = 'capped' THEN 1 ELSE 0 END) AS cappedMonths,
+      SUM(CASE WHEN status = 'earned' AND applied_month != '' THEN 1 ELSE 0 END) AS appliedMonths,
+      SUM(CASE WHEN status = 'earned' AND earned_at >= ? THEN 1 ELSE 0 END) AS earnedThisYear
+    FROM referral_credits WHERE inviter_id = ?`).bind(yearAgo, memberId).first<Record<string, number>>();
+
+  const earnedThisYear = Number(credits?.earnedThisYear ?? 0);
+  return {
+    code,
+    invitedCount: Number(counts?.invitedCount ?? 0),
+    waitingCount: Number(counts?.waitingCount ?? 0),
+    activeCount: Number(counts?.activeCount ?? 0),
+    qualifyingCount: Number(counts?.qualifyingCount ?? 0),
+    earnedMonths: Number(credits?.earnedMonths ?? 0),
+    cappedMonths: Number(credits?.cappedMonths ?? 0),
+    appliedMonths: Number(credits?.appliedMonths ?? 0),
+    remainingThisYear: Math.max(0, REFERRAL_CAP_PER_YEAR - earnedThisYear),
+    capPerYear: REFERRAL_CAP_PER_YEAR,
+    qualifyDays: REFERRAL_QUALIFY_DAYS,
+  };
+}
+// --- 会員紹介（招待）ここまで -------------------------------------------------

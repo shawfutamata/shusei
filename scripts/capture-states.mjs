@@ -44,6 +44,8 @@ async function save(key, page, selector = SHELL) {
   await save('login', page, 'main.signin-page');
   await page.goto(`${BASE}/?login=notmember`, { waitUntil: 'networkidle' });
   await save('login:notmember', page, 'main.signin-page');
+  await page.goto(`${BASE}/?login=pending`, { waitUntil: 'networkidle' });
+  await save('login:pending', page, 'main.signin-page');
   await page.context().close();
 }
 setStatus('invited');
@@ -86,6 +88,15 @@ for (const [index, key] of filterKeys.entries()) {
 }
 await page.locator('.filters button').nth(0).click();
 
+// 募集中・募集終了・すべて
+const statusSelect = page.locator('.member-filters select').first();
+for (const status of ['closed', 'all', 'open']) {
+  await statusSelect.selectOption(status);
+  await page.waitForTimeout(180);
+  await save(`status:${status}`, page);
+}
+await statusSelect.selectOption('open');
+
 // カード1枚ずつの詳細と紹介フォーム
 const cardCount = await page.locator('.card-list .need-card').count();
 for (let index = 0; index < cardCount; index += 1) {
@@ -121,6 +132,7 @@ await save('modal:responses', page);
 await closeModal();
 
 await nav(4).click();
+await page.locator('.invite-card').waitFor({ timeout: 15000 }).catch(() => console.warn('\n招待カードが出ませんでした'));
 await save('mypage', page);
 
 // 都道府県ごとの会場は、実際にselectを切り替えて読み取る
@@ -146,6 +158,19 @@ const css = await page.evaluate(async () => {
   }
   return parts.join('\n');
 });
+
+// 招待リンクの受け取り画面。コードは会員のマイページから取る。
+{
+  const inviteUrl = await page.locator('.invite-link > span').textContent().catch(() => '');
+  if (inviteUrl) {
+    const guest = await newPage();
+    await guest.goto(`${BASE}/join/${inviteUrl.trim().split('/').pop()}`, { waitUntil: 'networkidle' });
+    await save('join', guest, 'main.signin-page');
+    await guest.goto(`${BASE}/join/ZZZZZZZZ`, { waitUntil: 'networkidle' });
+    await save('join:invalid', guest, 'main.signin-page');
+    await guest.context().close();
+  }
+}
 
 // --- 同一オリジンの画像をdata URIに置き換える（認証済みのページから取りに行く） ---
 const paths = new Set();

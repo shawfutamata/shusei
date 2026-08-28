@@ -9,6 +9,7 @@ const loginErrors: Record<string, string> = {
   denied: 'このアカウントには現在利用権限がありません。運営窓口へお問い合わせください。',
   failed: 'ログインを完了できませんでした。お手数ですが、もう一度お試しください。',
   unconfigured: 'ただいまログインをご利用いただけません。運営窓口へお問い合わせください。',
+  pending: '登録を受け付けました。運営が確認したうえでご案内しますので、少しお待ちください。',
 };
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ login?: string }> }) {
@@ -16,7 +17,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ l
   if (!access) {
     const { login } = await searchParams;
     const error = login ? loginErrors[login] ?? loginErrors.failed : '';
-    return <main className="signin-page"><div className="signin-card"><span className="brand-mark">G</span><p className="eyebrow">MEMBERS ONLY</p><h1>GIVE HUB</h1><h2>紹介から、商売が生まれる。</h2><p>守成クラブの仲間同士で「こんな人を探しています」を共有し、信頼できる紹介を届ける会員向け掲示板です。</p>{!!error && <p className="login-error">{error}</p>}<a className="primary-button google-button" href="/api/auth/google/start"><GoogleMark />Googleでログイン</a><small>守成クラブに登録済みのメールアドレスのGoogleアカウントでログインしてください</small></div></main>;
+    return <main className="signin-page"><div className="signin-card"><span className="brand-mark">G</span><p className="eyebrow">MEMBERS ONLY</p><h1>GIVE HUB</h1><h2>紹介から、商売が生まれる。</h2><p>守成クラブの仲間同士で「こんな人を探しています」を共有し、信頼できる紹介を届ける会員向け掲示板です。</p>{!!error && <p className={login === 'pending' ? 'login-message' : 'login-error'}>{error}</p>}<a className="primary-button google-button" href="/api/auth/google/start"><GoogleMark />Googleでログイン</a><small>守成クラブに登録済みのメールアドレスのGoogleアカウントでログインしてください</small></div></main>;
   }
   if (!access.membership.canUseApp) {
     return <main className="signin-page"><div className="signin-card"><span className="brand-mark">G</span><p className="eyebrow">MEMBERS ONLY</p><h1>GIVE HUB</h1><h2>まだ利用権限がありません。</h2><p>{access.user.email} は会員として登録されていないか、現在利用権限が停止しています。ご入会手続きや状態のご確認は運営窓口までお問い合わせください。</p><small>登録済みの会員メールアドレスでログインし直すと利用できます</small></div></main>;

@@ -39,13 +39,17 @@ const industries = Object.keys(states).filter((key) => key.startsWith('industry:
 const screens = [
   { group: 'ログイン前', items: [
     ['login', 'ログイン画面'],
+    ['join', '招待リンクを受け取る'],
+    ['join:invalid', '招待リンクが無効'],
+    ['login:pending', '登録して承認待ち'],
     ['login:notmember', '会員でないアカウント'],
     ['denied', '利用権限が停止中'],
   ] },
   { group: '会員として', items: [
     ['home', 'ホーム'],
     ['search', '困りごと一覧'],
-    ['mypage', 'マイページ'],
+    ['status:closed', '募集終了だけ'],
+    ['mypage', 'マイページ（招待）'],
   ] },
   { group: 'モーダル', items: [
     ['modal:post', '探しごとを投稿'],
@@ -171,6 +175,8 @@ const html = `<title>GIVE HUB プレビュー</title>
           <li>投稿カード → 詳細 →「この人を紹介できる」</li>
           <li>右上の自分の名前 → マイページ</li>
           <li>マイページの所属会場（都道府県 → 会場、その他は自由入力）</li>
+          <li>一覧の「募集状況」と「業種」の絞り込み</li>
+          <li>マイページの招待カードと、招待リンクを受け取る画面（左のリスト）</li>
         </ul>
       </section>
       <section class="flat">
@@ -229,6 +235,7 @@ const html = `<title>GIVE HUB プレビュー</title>
     doc.addEventListener('submit', (event) => { event.preventDefault(); notice('送信はプレビューでは動きません。本番のサイトでは保存されます。'); });
     restoreSelects(doc, key);
     wireVenuePicker(doc);
+    wireBoardFilters(doc);
     // アプリのCSSは html { scroll-behavior:smooth } なので、位置の復元だけは即座に効かせる
     doc.documentElement.style.scrollBehavior = 'auto';
     const top = scrollMemory[key] ?? (isOverlay(key) ? (scrollMemory[base] ?? 0) : 0);
@@ -314,6 +321,8 @@ const html = `<title>GIVE HUB プレビュー</title>
     if (at('.google-button')) { event.preventDefault(); return notice('Googleログインは、実際のサイトに置いてからでないと動きません。'); }
 
     if (at('.profile-venue-select')) return;
+    const boardSelect = at('.member-filters select');
+    if (boardSelect) return;
     if (at('button') || at('a') || at('select') || at('input[type="file"]')) {
       event.preventDefault();
       notice('この操作はプレビューでは再現していません。本番のサイトでは動きます。');
@@ -364,6 +373,19 @@ const html = `<title>GIVE HUB プレビュー</title>
       picker.appendChild(label);
       input.focus();
     }
+  }
+
+  // 一覧の絞り込みのうち、撮影してある組み合わせは実際に切り替える。
+  function wireBoardFilters(doc) {
+    const selects = doc.querySelectorAll('.member-filters select');
+    if (!selects.length) return;
+    const [status, , , industry] = selects;
+    if (status) status.addEventListener('change', () => go(status.value === 'open' ? 'search' : 'status:' + status.value));
+    if (industry) industry.addEventListener('change', () => go(industry.value === 'all' ? 'search' : 'industry:' + industry.value));
+    selects.forEach((select) => {
+      if (select === status || select === industry) return;
+      select.addEventListener('change', () => notice('会場・エリア・年商での絞り込みは、本番のサイトで動きます。'));
+    });
   }
 
   navButtons.forEach((button) => button.addEventListener('click', () => go(button.dataset.state)));
