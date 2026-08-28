@@ -29,9 +29,11 @@ async function newPage({ signIn = false } = {}) {
   return page;
 }
 
+const selectValues = {};
 async function save(key, page, selector = SHELL) {
   await page.waitForTimeout(450);
   states[key] = await page.locator(selector).first().evaluate((node) => node.outerHTML);
+  selectValues[key] = await page.evaluate(() => Array.from(document.querySelectorAll('select')).map((select) => select.value));
   process.stdout.write(`${key} `);
 }
 
@@ -121,6 +123,17 @@ await closeModal();
 await nav(4).click();
 await save('mypage', page);
 
+// 都道府県ごとの会場は、実際にselectを切り替えて読み取る
+const venuePicker = page.locator('.profile-venue-select select');
+const prefectures = await venuePicker.first().locator('option').evaluateAll((nodes) => nodes.map((node) => node.value).filter(Boolean));
+const venuesByPrefecture = {};
+for (const prefecture of prefectures) {
+  await venuePicker.first().selectOption(prefecture);
+  await page.waitForTimeout(60);
+  venuesByPrefecture[prefecture] = await venuePicker.nth(1).locator('option').evaluateAll((nodes) => nodes.map((node) => ({ value: node.value, label: node.textContent })));
+}
+console.log(`\n会場ピッカー: ${prefectures.length}都道府県`);
+
 // --- CSS を全部集める ---
 const css = await page.evaluate(async () => {
   const parts = [];
@@ -165,5 +178,5 @@ await browser.close();
 const inline = (text) => [...assets].reduce((current, [path, uri]) => current.split(`"${path}"`).join(`"${uri}"`).split(`(${path})`).join(`(${uri})`), text);
 for (const key of Object.keys(states)) states[key] = inline(states[key]);
 
-writeFileSync(OUT, JSON.stringify({ css: inline(css), states }));
+writeFileSync(OUT, JSON.stringify({ css: inline(css), states, selectValues, venuesByPrefecture }));
 console.log(`\n${Object.keys(states).length} states, ${assets.size} assets -> ${OUT}`);

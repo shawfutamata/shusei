@@ -1,12 +1,13 @@
 'use client';
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, CSSProperties, FormEvent, useEffect, useMemo, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import type { BoardRequest, MemberStats } from '@/db/data';
 import BusinessCardManager from './BusinessCardManager';
 import ReceivedIntroductions from './ReceivedIntroductions';
 import { prefectures, type Prefecture } from './profile-options';
 import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-options';
+import { findVenuePrefecture, isListedVenue, OTHER_VENUE, venuePrefectures, venuesByPrefecture } from './venue-options';
 
 const categories = {
   project: { label: '案件', className: 'project' },
@@ -55,7 +56,10 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [localListsReady, setLocalListsReady] = useState(false);
   const [profileCompany, setProfileCompany] = useState(initialStats.company);
-  const [profileVenue, setProfileVenue] = useState(initialStats.venue);
+  const [venuePrefecture, setVenuePrefecture] = useState(findVenuePrefecture(initialStats.venue));
+  const [venueChoice, setVenueChoice] = useState(initialStats.venue ? (isListedVenue(initialStats.venue) ? initialStats.venue : OTHER_VENUE) : '');
+  const [venueOther, setVenueOther] = useState(isListedVenue(initialStats.venue) ? '' : initialStats.venue);
+  const profileVenue = venueChoice === OTHER_VENUE ? venueOther.trim() : venueChoice;
   const [profilePosition, setProfilePosition] = useState(initialStats.positionTitle);
   const [profileBadge, setProfileBadge] = useState(initialStats.badge);
   const [profileArea, setProfileArea] = useState(prefectures.includes(initialStats.businessArea as Prefecture) ? initialStats.businessArea : '');
@@ -274,13 +278,13 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
 
         <section className="industry-home">
           <div className="home-section-heading"><div><p>業種から探す</p><h2>ジャンル別の探しごと検索</h2></div><button onClick={() => showSearch('all')}>すべて見る</button></div>
-          <div className="industry-grid">{industryGroups.map((group) => <button key={group.name} onClick={() => showSearch(group.name)}><span><img src={industryIcons[group.name]} alt="" /></span><b>{group.name}</b><small>{requests.filter((item) => matchesIndustry(item.industryTags, group.name)).length}件</small></button>)}</div>
+          <div className="industry-grid">{industryGroups.map((group) => <button key={group.name} onClick={() => showSearch(group.name)}><span><IndustryIcon group={group.name} /></span><b>{group.name}</b><small>{requests.filter((item) => matchesIndustry(item.industryTags, group.name)).length}件</small></button>)}</div>
         </section>
 
         {!stats.avatarUrl && <button className="photo-required-banner" onClick={showProfile}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・紹介ができます。</b><i>登録する →</i></button>}
       </div> : activeTab === 'search' ? <section className="mobile-board search-page" id="board">
         <div className="section-title"><div><p>REQUESTS</p><h2>{industryFilter === 'all' ? 'みんなの探しごと' : industryFilter}</h2></div><span>{shown.length}件</span></div>
-        {industryFilter !== 'all' && <button className="clear-industry" onClick={() => setIndustryFilter('all')}><img src={industryIcons[getIndustryGroup(industryFilter)?.name ?? 'その他']} alt="" />{industryFilter}で絞り込み中 <i>×</i></button>}
+        {industryFilter !== 'all' && <button className="clear-industry" onClick={() => setIndustryFilter('all')}><IndustryIcon group={getIndustryGroup(industryFilter)?.name ?? 'その他'} />{industryFilter}で絞り込み中 <i>×</i></button>}
         {industryFilter !== 'all' && getIndustryGroup(industryFilter) && <div className="subindustry-filter" aria-label="詳細業種で絞り込む"><button className={industryFilter === getIndustryGroup(industryFilter)?.name ? 'selected' : ''} onClick={() => setIndustryFilter(getIndustryGroup(industryFilter)?.name ?? 'all')}>すべて</button>{getIndustryGroup(industryFilter)?.children.map((industry) => <button key={industry} className={industryFilter === industry ? 'selected' : ''} onClick={() => setIndustryFilter(industry)}>{industry}</button>)}</div>}
         <div className="filters" role="group" aria-label="投稿を絞り込む">{[['all','すべて'],['project','案件'],['collaboration','協業先'],['consultation','相談']].map(([key,label]) => <button key={key} className={filter === key ? 'selected' : ''} onClick={() => setFilter(key)}>{label}<span>{count(key)}</span></button>)}</div>
         <div className="member-filters">
@@ -315,7 +319,12 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           <div className="profile-form-heading"><b>プロフィール情報</b><span>入力内容は探しごとや紹介時に表示されます。</span></div>
           <label className="photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />JPEG・PNG・WebP／5MBまで</small></span><i>{stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
           <label>会社名 <small>必須</small><input value={profileCompany} onChange={(event) => setProfileCompany(event.target.value)} maxLength={80} placeholder="株式会社〇〇" required /></label>
-          <label>所属会場 <small>必須・正式な会場名</small><input value={profileVenue} onChange={(event) => setProfileVenue(event.target.value)} maxLength={60} placeholder="ひるのめぐろ会場" required /></label>
+          <div className="profile-venue-select">
+            <p>所属会場 <small>必須</small></p>
+            <label>都道府県<select value={venuePrefecture} onChange={(event) => { setVenuePrefecture(event.target.value); setVenueChoice(''); }}><option value="">選択してください</option>{venuePrefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
+            <label>会場<select value={venueChoice} onChange={(event) => setVenueChoice(event.target.value)} disabled={!venuePrefecture && venueChoice !== OTHER_VENUE}><option value="">会場を選択</option>{(venuesByPrefecture[venuePrefecture] ?? []).map((venue) => <option value={venue} key={venue}>{venue}</option>)}<option value={OTHER_VENUE}>その他（自由入力）</option></select></label>
+            {venueChoice === OTHER_VENUE && <label className="wide">会場名 <small>正式な会場名を入力</small><input value={venueOther} onChange={(event) => setVenueOther(event.target.value)} maxLength={60} placeholder="例：ひるのめぐろ会場" /></label>}
+          </div>
           <div className="profile-row"><label>肩書き <small>任意</small><input value={profilePosition} onChange={(event) => setProfilePosition(event.target.value)} maxLength={60} placeholder="世話人" /></label><label>バッヂ <small>任意</small><select value={profileBadge} onChange={(event) => setProfileBadge(event.target.value)}><option value="">選択しない</option><option value="緑">緑</option><option value="赤">赤</option><option value="ゴールド">ゴールド</option><option value="ダイヤモンド">ダイヤモンド</option></select></label></div>
           <label>活動エリア <small>任意・検索に使われます</small><select value={profileArea} onChange={(event) => setProfileArea(event.target.value)}><option value="">選択しない</option>{prefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
           <div className="profile-industry-select"><p>自分の業種 <small>通知の設定に使われます</small></p><label>大分類<select value={profileIndustryGroup} onChange={(event) => { setProfileIndustryGroup(event.target.value); setProfileIndustry(''); }}><option value="">選択してください</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label><label>詳細業種<select value={profileIndustry} onChange={(event) => { const value = event.target.value; setProfileIndustry(value); if (value && !profileNotifyIndustries.includes(value)) setProfileNotifyIndustries((current) => [...current, value].slice(0, 6)); }} disabled={!profileIndustryGroup}><option value="">詳細業種を選択</option>{profileIndustry === profileIndustryGroup && <option value={profileIndustryGroup}>大分類のみ（旧設定）</option>}{industryGroups.find((group) => group.name === profileIndustryGroup)?.children.map((industry) => <option value={industry} key={industry}>{industry}</option>)}</select></label></div>
@@ -355,6 +364,11 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   );
 }
 
+function IndustryIcon({ group }: { group: string }) {
+  const source = industryIcons[group] ?? industryIcons['その他'];
+  return <i className="industry-icon" style={{ '--icon': `url(${source})` } as CSSProperties} aria-hidden="true" />;
+}
+
 function HomeShelf({ title, count, emptyTitle, emptyText, onMore, children }: { title: string; count: number; emptyTitle: string; emptyText: string; onMore: () => void; children: React.ReactNode }) {
   return <section className="home-shelf"><div className="home-section-heading"><div><h2>{title}</h2><p>{count ? `${count}件` : 'まだありません'}</p></div><button onClick={onMore}>もっと見る</button></div>{count ? <div className="home-card-row">{children}</div> : <div className="home-empty"><span>♡</span><div><b>{emptyTitle}</b><p>{emptyText}</p></div><button onClick={onMore}>探してみる</button></div>}</section>;
 }
@@ -368,7 +382,7 @@ function HomeRequestCard({ need, favorite, onOpen, onFavorite }: { need: BoardRe
   const primaryIndustry = need.industryTags[0] || 'その他';
   const primaryGroup = getIndustryGroup(primaryIndustry)?.name ?? 'その他';
   return <article className="home-request-card"><button className={favorite ? 'home-heart active' : 'home-heart'} aria-label={favorite ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={onFavorite}>♥</button><button className="home-request-open" onClick={onOpen}>
-    <span className="home-request-cover"><img src={industryIcons[primaryGroup]} alt="" /><small>{primaryIndustry}</small></span>
+    <span className="home-request-cover"><IndustryIcon group={primaryGroup} /><small>{primaryIndustry}</small></span>
     <span className="home-request-copy"><small><b className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</b> あと{daysLeft(need.deadline)}日</small><strong>{need.title}</strong><span>{need.budgetLabel}</span><em>{need.authorName}・{need.authorVenue}</em></span>
   </button></article>;
 }

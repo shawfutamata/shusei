@@ -93,6 +93,21 @@ npx wrangler d1 execute <D1_DATABASE> --remote \
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | WebのGoogleログイン | Webのログインボタンが使えない |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | WebプッシュのVAPID鍵 | Webプッシュが無効。アプリのExpo Pushには影響しない |
 
+## 会場一覧の正 (source of truth)
+
+プロフィールの所属会場は、都道府県 → 会場の2段階で選ぶ。一覧は `app/venue-options.ts`。
+2026-08-28時点で、本部サイト（shusei-honbu.jp）の全国会場案内を主に、shusei-soushin.com と
+shusei-iwamizawa.com の一覧で補って作った。**会場は新設・統合・改称があるので、公開前に本部の
+一覧と必ず突き合わせること。** 一覧に無い会場は「その他（自由入力）」から登録できるので、
+多少の抜けがあっても会員は登録できる。
+
+アプリ側の `mobile/src/constants/venues.ts` は自動生成。編集しないこと。
+
+```bash
+npm run sync:venues    # app/venue-options.ts から書き出す
+npm run check:venues   # ずれていたら失敗する（CIでも実行）
+```
+
 ## スキーマの正 (source of truth)
 
 本番のテーブル定義は `db/data.ts` の `ensureDatabase()`（`CREATE TABLE IF NOT EXISTS` と不足カラムの `ALTER TABLE`）が作ります。`db/schema.ts` と `drizzle/` は型と参照用で、実行時には適用されません。カラムを追加するときは `ensureDatabase()` 側も必ず更新します。

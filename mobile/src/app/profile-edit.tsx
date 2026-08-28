@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AppScreen, commonStyles } from '@/components/app-screen';
 import { AppColors, industryGroups, prefectures } from '@/constants/app';
+import { findVenuePrefecture, isListedVenue, venuePrefectures, venuesByPrefecture } from '@/constants/venues';
 import { apiFetch } from '@/lib/api';
 
 type Stats = { company: string; venue: string; positionTitle: string; badge: string; businessArea: string; primaryIndustry: string; notifyIndustries: string[]; annualRevenueBand: string; avatarUrl: string };
@@ -16,7 +17,8 @@ const revenues = [['revenue_10_30','1000万〜3000万'],['revenue_30_70','3000�
 export default function ProfileEditScreen() {
   const [form, setForm] = useState<Stats>({ company: '', venue: '', positionTitle: '', badge: '', businessArea: '', primaryIndustry: '', notifyIndustries: [], annualRevenueBand: '', avatarUrl: '' });
   const [avatar, setAvatar] = useState(''); const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false);
-  useEffect(() => { apiFetch<{ stats: Stats }>('/api/board').then((result) => setForm(result.stats)).catch((error) => Alert.alert('読み込めませんでした', error instanceof Error ? error.message : '')).finally(() => setLoading(false)); }, []);
+  const [venuePrefecture, setVenuePrefecture] = useState(''); const [venueOther, setVenueOther] = useState(false);
+  useEffect(() => { apiFetch<{ stats: Stats }>('/api/board').then((result) => { setForm(result.stats); setVenuePrefecture(findVenuePrefecture(result.stats.venue)); setVenueOther(Boolean(result.stats.venue) && !isListedVenue(result.stats.venue)); }).catch((error) => Alert.alert('読み込めませんでした', error instanceof Error ? error.message : '')).finally(() => setLoading(false)); }, []);
   function change<K extends keyof Stats>(key: K, value: Stats[K]) { setForm((current) => ({ ...current, [key]: value })); }
   async function pickAvatar() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -43,7 +45,9 @@ export default function ProfileEditScreen() {
   if (loading) return <View style={styles.loading}><ActivityIndicator color={AppColors.blue} /></View>;
   return <AppScreen title="プロフィール編集" eyebrow="PROFILE" action={<Pressable onPress={() => router.back()}><Ionicons name="close" size={29} color={AppColors.ink} /></Pressable>}>
     <View style={styles.avatarArea}><View style={styles.avatar}>{avatar || form.avatarUrl ? <Image source={{ uri: avatar || form.avatarUrl }} style={StyleSheet.absoluteFill} contentFit="cover" alt="プロフィールの顔写真" /> : <Ionicons name="person" size={48} color="#fff" />}</View><Pressable style={styles.photoButton} onPress={pickAvatar}><Ionicons name="crop-outline" size={19} color={AppColors.blue} /><Text style={styles.photoButtonText}>写真を選んで顔をトリミング</Text></Pressable><Text style={styles.required}>顔写真は必須です</Text></View>
-    <Field label="会社・屋号（必須）" value={form.company} onChangeText={(value) => change('company', value)} placeholder="株式会社〇〇" /><Field label="所属会場（必須）" value={form.venue} onChangeText={(value) => change('venue', value)} placeholder="例：ひるのめぐろ会場" /><Field label="役職・肩書き" value={form.positionTitle} onChangeText={(value) => change('positionTitle', value)} placeholder="例：世話人" />
+    <Field label="会社・屋号（必須）" value={form.company} onChangeText={(value) => change('company', value)} placeholder="株式会社〇〇" />
+    <SelectBlock label="所属会場（必須）"><Text style={styles.guideText}>都道府県を選ぶと、その中の会場が出ます。一覧にない会場は「その他」から入力してください。</Text><ChipList values={[...venuePrefectures, 'その他']} selected={[venueOther ? 'その他' : venuePrefecture]} onPress={(value) => { if (value === 'その他') { setVenueOther(true); setVenuePrefecture(''); change('venue', ''); } else { setVenueOther(false); setVenuePrefecture(value); change('venue', ''); } }} />{venueOther ? <Field label="会場名" value={form.venue} onChangeText={(value) => change('venue', value)} placeholder="例：ひるのめぐろ会場" /> : venuePrefecture ? <ChipList values={venuesByPrefecture[venuePrefecture] ?? []} selected={[form.venue]} onPress={(value) => change('venue', value)} /> : null}</SelectBlock>
+    <Field label="役職・肩書き" value={form.positionTitle} onChangeText={(value) => change('positionTitle', value)} placeholder="例：世話人" />
     <SelectBlock label="色"><ChipList values={badges} selected={[form.badge]} onPress={(value) => change('badge', form.badge === value ? '' : value)} /></SelectBlock>
     <SelectBlock label="活動エリア（47都道府県）"><ChipList values={[...prefectures]} selected={[form.businessArea]} onPress={(value) => change('businessArea', value)} /></SelectBlock>
     <SelectBlock label="主な業種"><ChipList values={industryGroups.map(([name]) => name)} selected={[form.primaryIndustry]} onPress={(value) => change('primaryIndustry', value)} /></SelectBlock>

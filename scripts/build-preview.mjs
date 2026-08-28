@@ -54,7 +54,7 @@ const screens = [
   ] },
 ];
 
-const payload = JSON.stringify({ css: data.css, states, detailTitles, introTitles, industries })
+const payload = JSON.stringify({ css: data.css, states, detailTitles, introTitles, industries, selectValues: data.selectValues ?? {}, venuesByPrefecture: data.venuesByPrefecture ?? {} })
   .replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 
 const nav = screens.map(({ group, items }) => `
@@ -170,11 +170,12 @@ const html = `<title>GIVE HUB プレビュー</title>
           <li>一覧の絞り込みタブ（すべて／案件／協業先／相談）</li>
           <li>投稿カード → 詳細 →「この人を紹介できる」</li>
           <li>右上の自分の名前 → マイページ</li>
+          <li>マイページの所属会場（都道府県 → 会場、その他は自由入力）</li>
         </ul>
       </section>
       <section class="flat">
         <h3>まだ動かないところ</h3>
-        <p>入力欄への文字入力と、保存・投稿・紹介の送信です。ここはサーバーにつながって初めて動くところなので、このプレビューでは押すと注意が出ます。見た目と画面の流れの確認に使ってください。</p>
+        <p>保存・投稿・紹介の送信と、写真の登録です。ここはサーバーにつながって初めて動くところなので、このプレビューでは押すと注意が出ます。見た目と画面の流れの確認に使ってください。</p>
       </section>
       <section class="next">
         <h3>本物を動かすには</h3>
@@ -226,6 +227,8 @@ const html = `<title>GIVE HUB プレビュー</title>
     doc.close();
     doc.addEventListener('click', route, true);
     doc.addEventListener('submit', (event) => { event.preventDefault(); notice('送信はプレビューでは動きません。本番のサイトでは保存されます。'); });
+    restoreSelects(doc, key);
+    wireVenuePicker(doc);
     // アプリのCSSは html { scroll-behavior:smooth } なので、位置の復元だけは即座に効かせる
     doc.documentElement.style.scrollBehavior = 'auto';
     const top = scrollMemory[key] ?? (isOverlay(key) ? (scrollMemory[base] ?? 0) : 0);
@@ -310,9 +313,56 @@ const html = `<title>GIVE HUB プレビュー</title>
     if (at('.home-section-heading button')) { event.preventDefault(); return go('search'); }
     if (at('.google-button')) { event.preventDefault(); return notice('Googleログインは、実際のサイトに置いてからでないと動きません。'); }
 
+    if (at('.profile-venue-select')) return;
     if (at('button') || at('a') || at('select') || at('input[type="file"]')) {
       event.preventDefault();
       notice('この操作はプレビューでは再現していません。本番のサイトでは動きます。');
+    }
+  }
+
+  // selectの選択値はReactがDOMプロパティで持つので、保存したHTMLには残らない。撮影時の値を戻す。
+  function restoreSelects(doc, key) {
+    const values = data.selectValues[key];
+    if (!values) return;
+    doc.querySelectorAll('select').forEach((select, index) => {
+      if (values[index] !== undefined) select.value = values[index];
+    });
+  }
+
+  // 会場は都道府県で選択肢が入れ替わる。撮影しておいた組み合わせで、ここでも実際に切り替える。
+  function wireVenuePicker(doc) {
+    const picker = doc.querySelector('.profile-venue-select');
+    if (!picker) return;
+    const [prefectureSelect, venueSelect] = picker.querySelectorAll('select');
+    if (!prefectureSelect || !venueSelect) return;
+
+    const fill = (prefecture) => {
+      const options = data.venuesByPrefecture[prefecture] || [{ value: '', label: '会場を選択' }, { value: '__other__', label: 'その他（自由入力）' }];
+      venueSelect.innerHTML = '';
+      options.forEach(({ value, label }) => {
+        const option = doc.createElement('option');
+        option.value = value; option.textContent = label;
+        venueSelect.appendChild(option);
+      });
+      venueSelect.disabled = false;
+    };
+
+    prefectureSelect.addEventListener('change', () => { fill(prefectureSelect.value); toggleOther(); });
+    venueSelect.addEventListener('change', toggleOther);
+
+    function toggleOther() {
+      const existing = picker.querySelector('.preview-venue-other');
+      if (venueSelect.value !== '__other__') return existing && existing.remove();
+      if (existing) return;
+      const label = doc.createElement('label');
+      label.className = 'wide preview-venue-other';
+      label.innerHTML = '会場名 <small>正式な会場名を入力</small>';
+      const input = doc.createElement('input');
+      input.placeholder = '例：ひるのめぐろ会場';
+      input.maxLength = 60;
+      label.appendChild(input);
+      picker.appendChild(label);
+      input.focus();
     }
   }
 
