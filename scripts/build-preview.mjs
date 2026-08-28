@@ -116,7 +116,7 @@ const html = `<title>TASUKI プレビュー</title>
   .plan-switch button[aria-pressed="true"] { background:var(--beam-dim); color:#fff; font-weight:700; }
 
   .device { position:relative; width:458px; padding:16px; border:1px solid var(--line); border-radius:46px; background:linear-gradient(160deg,#252c38,#171c24); box-shadow:0 40px 80px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06); }
-  .device iframe { width:430px; height:932px; display:block; border:0; border-radius:32px; background:#e8effa; }
+  .device iframe { width:430px; height:932px; aspect-ratio:430 / 932; display:block; border:0; border-radius:32px; background:#e8effa; }
 
   .flash { position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(14px); max-width:min(92vw,420px); padding:11px 16px; border:1px solid rgba(226,176,74,.4); border-radius:10px; background:#2a2417; color:var(--warn); font-size:12.5px; line-height:1.6; opacity:0; transition:opacity .18s ease, transform .18s ease; pointer-events:none; z-index:9; }
   .flash.on { opacity:1; transform:translateX(-50%) translateY(0); }
@@ -133,8 +133,8 @@ const html = `<title>TASUKI プレビュー</title>
     .rail-group code { display:none; }
     .rail-note { display:none; }
     .stage { padding:20px 14px 50px; }
-    .device { width:100%; max-width:462px; padding:10px; border-radius:34px; }
-    .device iframe { width:100%; height:min(880px,78vh); border-radius:24px; }
+    .device { width:min(100%,462px,calc(68svh * .4614 + 20px)); padding:10px; border-radius:34px; }
+    .device iframe { width:100%; height:auto; aspect-ratio:430 / 932; border-radius:24px; }
   }
   @media (prefers-reduced-motion:reduce) { .flash { transition:none; } }
 </style>
