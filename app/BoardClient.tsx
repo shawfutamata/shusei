@@ -361,8 +361,9 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <section className={`rank-card rank-${stats.rank.toLowerCase()} rank-card-slim`} aria-label={`${stats.rank}会員ランクカード`}>
           <div className="rank-slim-row">
             <Avatar src={photoPreview} name={userName} className="rank-member-avatar" />
-            <div className="rank-slim-who"><b>{userName}</b><small>{[stats.badge, stats.venue].filter(Boolean).join('・') || 'バッヂ未設定'}</small></div>
+            <b className="rank-slim-name">{userName}</b>
             <span className="rank-slim-badge">{stats.rank}</span>
+            <small className="rank-slim-meta">{[stats.badge, stats.venue].filter(Boolean).join('・') || 'バッヂ未設定'}</small>
           </div>
           <div className="rank-progress"><div className="rank-progress-copy"><b>{stats.level >= rankThresholds.length ? '最高ランクに到達' : `あと${introductionsToNextRank}件でランクアップ`}</b><span>紹介 {stats.introCount}件・{stats.points}pt</span></div><span className="rank-progress-track"><i style={{ width: `${rankProgress}%` }} /></span></div>
         </section>
@@ -374,20 +375,16 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           </summary>
           <div className="plan-body">
             {stats.paid && stats.planPeriodEnd && <p className="plan-until">{stats.planPeriodEnd} までご利用いただけます</p>}
-            <table className="plan-table">
-              <thead><tr><th>プラン</th><th>探しごと</th><th>月額</th></tr></thead>
-              <tbody>
-                {plans.map((plan) => <tr key={plan} className={plan === stats.plan ? 'current' : ''}>
-                  <th scope="row">{planCatalog[plan].name}{plan === stats.plan && <em>いま</em>}</th>
-                  <td>{planPostLimit(plan)}</td>
-                  <td>{planPrice(plan)}</td>
-                </tr>)}
-              </tbody>
-            </table>
+            <ul className="plan-list">
+              {plans.map((plan) => <li key={plan} className={plan === stats.plan ? 'current' : ''}>
+                <p className="plan-list-head"><b>{planCatalog[plan].name}</b>{plan === stats.plan && <em>いま</em>}<span>{planPrice(plan)}</span></p>
+                <p className="plan-list-what"><span>探しごと {planPostLimit(plan)}</span><span>名刺 {planCardLimit(plan)}</span></p>
+              </li>)}
+            </ul>
             <ul className="plan-detail">
-              <li><b>名刺帳</b><span>{planCardLimit(stats.plan)}{stats.plan === 'premium' ? '・カメラで一括読み取り' : ''}</span></li>
-              <li><b>掲示板を見る・紹介する・やり取りする</b><span>どのプランでも無制限</span></li>
-              <li><b>会員を探す／紹介の書き出し</b><span>プレミアムのみ</span></li>
+              <li><b>名刺をカメラで一括読み取り</b><span>プレミアムのみ</span></li>
+              <li><b>会員を探す、紹介を書き出す</b><span>プレミアムのみ</span></li>
+              <li><b>掲示板を見る、紹介する、やり取りする</b><span>どのプランでも無制限</span></li>
             </ul>
             <p className="plan-note">仲間を1人招待してご利用が続くと、<b>プレミアムを1ヶ月お試し</b>いただけます。ご契約は運営窓口へお問い合わせください。</p>
           </div>

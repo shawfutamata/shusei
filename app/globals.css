@@ -122,11 +122,11 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 /* Rank card, slim. The full-bleed version took too much of the page. */
 .rank-card.rank-card-slim { min-height:0; margin:14px 14px 0; padding:15px 16px; display:grid; gap:12px; }
 .rank-card.rank-card-slim::before { inset:5px; }
-.rank-slim-row { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:11px; }
-.rank-slim-who { min-width:0; }
-.rank-slim-who b { display:block; overflow:hidden; font-size:15px; text-overflow:ellipsis; white-space:nowrap; }
-.rank-slim-who small { display:block; margin-top:3px; overflow:hidden; color:var(--rank-muted); font-size:10px; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
-.rank-slim-badge { padding:5px 11px; border:1px solid var(--rank-line); border-radius:99px; font-size:10px; font-weight:900; letter-spacing:.1em; }
+.rank-slim-row { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:3px 11px; }
+.rank-slim-row .rank-member-avatar { grid-row:1 / 3; }
+.rank-slim-name { grid-column:2; min-width:0; overflow:hidden; font-size:15px; text-overflow:ellipsis; white-space:nowrap; }
+.rank-slim-badge { grid-column:3; grid-row:1; padding:5px 11px; border:1px solid var(--rank-line); border-radius:99px; font-size:10px; font-weight:900; letter-spacing:.1em; }
+.rank-slim-meta { grid-column:2 / 4; color:var(--rank-muted); font-size:11px; font-weight:700; line-height:1.5; }
 .rank-card.rank-card-slim .rank-member-avatar { width:46px; height:46px; }
 .rank-card.rank-card-slim .rank-progress { margin-top:0; }
 .rank-card.rank-card-slim .rank-progress-copy b { font-size:12px; }
@@ -146,18 +146,20 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .plan-body { padding:2px 15px 15px; }
 .plan-card[open] .plan-body { display:grid; gap:11px; }
 .plan-until { margin:0; color:#8a6d2f; font-size:10px; font-weight:800; }
-.plan-table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
-.plan-table th, .plan-table td { padding:8px 6px; border-bottom:1px solid #eef1f6; text-align:left; }
-.plan-table thead th { color:#8794a7; font-size:9px; font-weight:900; letter-spacing:.06em; }
-.plan-table tbody th { font-size:12px; font-weight:800; }
-.plan-table tbody th em { margin-left:5px; padding:2px 5px; border-radius:5px; background:#dbeafe; color:#1d4ed8; font-size:8px; font-style:normal; font-weight:900; }
-.plan-table td { color:#4c5a70; font-size:11px; font-weight:700; }
-.plan-table td:last-child { color:var(--navy); font-weight:900; text-align:right; }
-.plan-table tr.current { background:#f5f9ff; }
-.plan-detail { margin:0; padding:0; list-style:none; display:grid; gap:6px; }
-.plan-detail li { display:grid; grid-template-columns:1fr auto; align-items:baseline; gap:10px; }
-.plan-detail b { font-size:11px; font-weight:800; }
-.plan-detail span { color:#62728a; font-size:10px; font-weight:700; text-align:right; }
+.plan-list { margin:0; padding:0; list-style:none; display:grid; gap:7px; }
+.plan-list li { padding:9px 11px; border:1px solid #eaeef5; border-radius:11px; }
+.plan-list li.current { border-color:#bcd3ff; background:#f5f9ff; }
+.plan-list p { margin:0; }
+.plan-list-head { display:flex; align-items:center; gap:6px; }
+.plan-list-head b { font-size:14px; font-weight:900; }
+.plan-list-head em { padding:2px 6px; border-radius:5px; background:var(--navy); color:#fff; font-size:9px; font-style:normal; font-weight:900; }
+.plan-list-head>span { margin-left:auto; color:var(--navy); font-size:12px; font-weight:900; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.plan-list-what { margin-top:4px; display:flex; flex-wrap:wrap; gap:4px 14px; color:#4c5a70; font-size:11px; font-weight:700; }
+.plan-list-what span { white-space:nowrap; }
+.plan-detail { margin:0; padding:0; list-style:none; display:grid; gap:8px; }
+.plan-detail li { display:grid; gap:1px; }
+.plan-detail b { font-size:11px; font-weight:800; line-height:1.5; }
+.plan-detail span { color:var(--navy); font-size:11px; font-weight:800; }
 
 /* Senior-friendly readability: larger, heavier text and touch targets. */
 :root { --muted:#536176; }
@@ -227,13 +229,13 @@ body { font-weight:600; }
 .invite-note span { font-size:11px; }
 .plan-now b { font-size:16px; }
 .plan-usage { font-size:12px; }
-.plan-table tbody th { font-size:13px; }
-.plan-table td { font-size:12px; }
+.plan-list-head b { font-size:15px; }
+.plan-list-head>span { font-size:13px; }
+.plan-list-what { font-size:12px; }
 .plan-detail b { font-size:12px; }
-.plan-detail span { font-size:11px; }
-.rank-slim-who b { font-size:16px; }
-.plan-lines b { font-size:13px; }
-.plan-lines span { font-size:13px; }
+.plan-detail span { font-size:12px; }
+.rank-slim-name { font-size:16px; }
+.rank-slim-meta { font-size:12px; }
 .plan-note { font-size:11px; }
 .facebook-link { font-size:11px; }
 .comments-heading b { font-size:17px; }
