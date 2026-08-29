@@ -492,7 +492,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         </details>
 
         {referral && <section className="invite-card" aria-label="仲間を招待する">
-          <div className="invite-heading"><p>INVITE</p><h2>仲間を招待する</h2><span>あなたの招待リンクから入会して{referral.qualifyDays}日続いた方1人につき、{stats.paid ? '会費が1ヶ月無料になります' : 'プレミアムが1ヶ月使えます'}（年{referral.capPerYear}ヶ月まで）。</span></div>
+          <div className="invite-heading"><p>INVITE</p><h2>仲間を招待する</h2><span>あなたの招待リンクから入会して{referral.qualifyDays}日続いた方1人につき、{stats.paid ? '会費が1ヶ月無料になります' : 'プレミアムが1ヶ月使えます'}（合計{referral.capTotal}ヶ月まで）。</span></div>
           <button className="invite-link" onClick={copyInviteLink}><span>{referral.url.replace(/^https?:\/\//, '')}</span><i>{inviteCopied ? 'コピーしました' : 'リンクをコピー'}</i></button>
           <dl className="invite-stats">
             <div><dt>招待した人</dt><dd>{referral.invitedCount}<small>人</small></dd></div>
@@ -502,8 +502,8 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           <ul className="invite-note">
             {referral.waitingCount > 0 && <li><b>{referral.waitingCount}人</b><span>いまご利用を停止しています</span></li>}
             {!!referral.billing?.creditPerReferralYen && <li><b>1人につき {referral.billing.creditPerReferralYen.toLocaleString('ja-JP')}円</b><span>{referral.billing.cycle === 'year' ? '次回の年額のお支払いから引かれます' : '次回の請求から引かれます'}</span></li>}
-            {referral.qualifyingCount > 0 && <li><b>{referral.qualifyingCount}人</b><span>ご利用が{referral.qualifyDays}日続くと、1ヶ月分の利用料が無料になります</span></li>}
-            {referral.waitingCredits > 0 && <li><b>{referral.waitingCredits}人ぶん</b><span>順番待ちです。空きが出しだい自動で反映されます</span></li>}
+            {referral.remaining > 0 && referral.qualifyingCount > 0 && <li><b>{referral.qualifyingCount}人</b><span>ご利用が{referral.qualifyDays}日続くと、1ヶ月分の利用料が無料になります</span></li>}
+            {referral.waitingCredits > 0 && <li><b>受け取り済み</b><span>合計{referral.capTotal}ヶ月ぶんの上限に達しました。ご紹介はいつでも歓迎ですが、これ以上の無料月は付きません</span></li>}
           </ul>
           <p className="invite-terms">この特典は、予告なく内容の変更または終了をすることがあります。すでに確定したぶんは、そのままご利用いただけます。</p>
         </section>}

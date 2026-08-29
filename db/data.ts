@@ -1307,10 +1307,11 @@ export async function markReferralCreditsApplied(ids: string[], month: string) {
 
 // --- 会員紹介（招待）ここから -------------------------------------------------
 // ルールは docs/referral-program-ja.md が正。
-// 「紹介した人が入会して30日続いたら、紹介した人の会費が1ヶ月無料。年6ヶ月まで」
+// 「紹介した人が入会して30日続いたら、紹介した人の会費が1ヶ月無料。通算6ヶ月まで」
 
 export const REFERRAL_QUALIFY_DAYS = 30;
-export const REFERRAL_CAP_PER_YEAR = 6;
+/** 1人が受け取れる無料月の合計。年ごとではなく、通算の上限。 */
+export const REFERRAL_CAP_TOTAL = 6;
 
 export type ReferralSummary = {
   code: string;
@@ -1321,8 +1322,8 @@ export type ReferralSummary = {
   earnedMonths: number;      // 無料になった月の数（年の上限内）
   waitingCredits: number;    // 資格は満たしたが、年の枠が空くのを待っているぶん
   appliedMonths: number;     // 運営が請求で使い終わったぶん
-  remainingThisYear: number; // 今年あと何ヶ月ぶん受け取れるか
-  capPerYear: number;
+  remaining: number;         // あと何ヶ月ぶん受け取れるか（通算）
+  capTotal: number;
   qualifyDays: number;
 };
 
@@ -1413,11 +1414,10 @@ async function reconcileReferralCredits(inviterId: string) {
         VALUES (?, ?, ?, 'waiting', '', ?)`).bind(crypto.randomUUID(), inviterId, id, nowIso)));
   }
 
-  // 2. 直近12ヶ月の枠が空いていれば、古い順番待ちから確定させる。紹介が無駄にならないようにする。
-  const yearAgo = new Date(now.getTime() - 365 * 86400000).toISOString();
+  // 2. 通算の上限に余りがあれば、古い順番待ちから確定させる。使い切ったらそこまで。
   const earnedRow = await env.DB.prepare(`SELECT COUNT(*) AS count FROM referral_credits
-    WHERE inviter_id = ? AND status = 'earned' AND earned_at >= ?`).bind(inviterId, yearAgo).first<{ count: number }>();
-  const free = REFERRAL_CAP_PER_YEAR - Number(earnedRow?.count ?? 0);
+    WHERE inviter_id = ? AND status = 'earned'`).bind(inviterId).first<{ count: number }>();
+  const free = REFERRAL_CAP_TOTAL - Number(earnedRow?.count ?? 0);
   if (free <= 0) return;
 
   const waiting = await env.DB.prepare(`SELECT id FROM referral_credits
@@ -1451,15 +1451,13 @@ export async function getReferralSummary(memberId: string): Promise<ReferralSumm
       SUM(CASE WHEN membership_status = 'active' AND (activated_at = '' OR activated_at > ?) THEN 1 ELSE 0 END) AS qualifyingCount
     FROM members WHERE invited_by = ?`).bind(qualifiedBefore, memberId).first<Record<string, number>>();
 
-  const yearAgo = new Date(Date.now() - 365 * 86400000).toISOString();
   const credits = await env.DB.prepare(`SELECT
       SUM(CASE WHEN status = 'earned' THEN 1 ELSE 0 END) AS earnedMonths,
       SUM(CASE WHEN status IN ('waiting', 'capped') THEN 1 ELSE 0 END) AS waitingCredits,
-      SUM(CASE WHEN status = 'earned' AND applied_month != '' THEN 1 ELSE 0 END) AS appliedMonths,
-      SUM(CASE WHEN status = 'earned' AND earned_at >= ? THEN 1 ELSE 0 END) AS earnedThisYear
-    FROM referral_credits WHERE inviter_id = ?`).bind(yearAgo, memberId).first<Record<string, number>>();
+      SUM(CASE WHEN status = 'earned' AND applied_month != '' THEN 1 ELSE 0 END) AS appliedMonths
+    FROM referral_credits WHERE inviter_id = ?`).bind(memberId).first<Record<string, number>>();
 
-  const earnedThisYear = Number(credits?.earnedThisYear ?? 0);
+  const earnedTotal = Number(credits?.earnedMonths ?? 0);
   return {
     code,
     invitedCount: Number(counts?.invitedCount ?? 0),
@@ -1469,8 +1467,8 @@ export async function getReferralSummary(memberId: string): Promise<ReferralSumm
     earnedMonths: Number(credits?.earnedMonths ?? 0),
     waitingCredits: Number(credits?.waitingCredits ?? 0),
     appliedMonths: Number(credits?.appliedMonths ?? 0),
-    remainingThisYear: Math.max(0, REFERRAL_CAP_PER_YEAR - earnedThisYear),
-    capPerYear: REFERRAL_CAP_PER_YEAR,
+    remaining: Math.max(0, REFERRAL_CAP_TOTAL - earnedTotal),
+    capTotal: REFERRAL_CAP_TOTAL,
     qualifyDays: REFERRAL_QUALIFY_DAYS,
   };
 }
