@@ -53,6 +53,7 @@ const screens = [
     ['mypage:plan', 'プランを開いたところ'],
     ['mypage:perks', 'ランクの特典'],
     ['mypage:ad', 'トップバナーの出稿枠'],
+    ['mypage:ad:stats', '広告の成果（アナリティクス）'],
     ['mypage:ad:form', '広告の入稿（文字だけで作る）'],
     ['modal:post:limit', '投稿の上限に当たったとき'],
   ] },

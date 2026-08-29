@@ -203,6 +203,16 @@ await closeModal();
 await page.locator('.ad-entry-open').click();
 await page.waitForTimeout(700);
 await save('mypage:ad', page);
+// 成果のグラフも撮る。出稿した人がいちばん見る画面なので。
+const adStats = page.locator('.ad-stats-open').first();
+if (await adStats.count()) {
+  await adStats.click();
+  await page.locator('.ad-chart').first().waitFor({ timeout: 10000 }).catch(() => console.warn('\nグラフが出ませんでした'));
+  await page.waitForTimeout(500);
+  await save('mypage:ad:stats', page);
+  await adStats.click();
+  await page.waitForTimeout(300);
+}
 const adEdit = page.locator('.ad-slot-foot button').first();
 if (await adEdit.count()) {
   await adEdit.click();
