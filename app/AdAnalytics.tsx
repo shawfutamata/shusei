@@ -24,23 +24,23 @@ export default function AdAnalytics({ slot, days }: Props) {
   }, [days]);
 
   if (!days.length) {
-    return <p className="ad-analytics-empty">掲載が始まると、その日から数字がたまっていきます。</p>;
+    return <p className="ad-analytics-empty">掲載開始日から、日ごとの実績を記録します。</p>;
   }
 
   return <section className="ad-analytics" aria-label="掲載の成果">
     <p className="ad-analytics-lead">
-      <b>{summary.views.toLocaleString('ja-JP')}人</b>が見て、<b>{summary.clicks.toLocaleString('ja-JP')}回</b>押されました
-      <span>{formatRange(slot.startDate, slot.endDate)}・{days.length}日ぶん</span>
+      <b>{summary.views.toLocaleString('ja-JP')}人</b>に表示され、<b>{summary.clicks.toLocaleString('ja-JP')}回</b>クリックされました
+      <span>掲載期間 {formatRange(slot.startDate, slot.endDate)}／集計 {days.length}日分</span>
     </p>
     <ul className="ad-analytics-facts">
-      <li><b>{summary.rate}%</b><span>見た人のうち押した割合</span></li>
-      <li><b>{Math.round(summary.views / days.length)}人</b><span>1日あたりの平均</span></li>
-      {summary.best && summary.best.views > 0 && <li><b>{formatDay(summary.best.date)}</b><span>いちばん見られた日（{summary.best.views}人）</span></li>}
+      <li><b>{summary.rate}%</b><span>クリック率</span></li>
+      <li><b>{Math.round(summary.views / days.length)}人</b><span>1日あたりの平均表示数</span></li>
+      {summary.best && summary.best.views > 0 && <li><b>{formatDay(summary.best.date)}</b><span>最も表示された日（{summary.best.views}人）</span></li>}
     </ul>
 
     {asTable
       ? <table className="ad-analytics-table">
-          <thead><tr><th>日</th><th>見た人</th><th>押された</th></tr></thead>
+          <thead><tr><th>日付</th><th>表示</th><th>クリック</th></tr></thead>
           <tbody>{[...days].reverse().map((day) => <tr key={day.date}>
             <td>{formatDay(day.date)}</td>
             <td>{day.views.toLocaleString('ja-JP')}</td>
@@ -48,11 +48,11 @@ export default function AdAnalytics({ slot, days }: Props) {
           </tr>)}</tbody>
         </table>
       : <>
-          <DayBars title="見た人" days={days} pick={(day) => day.views} color={BLUE} unit="人" />
-          <DayBars title="押された" days={days} pick={(day) => day.clicks} color={ORANGE} unit="回" compact />
+          <DayBars title="表示された人数" days={days} pick={(day) => day.views} color={BLUE} unit="人" />
+          <DayBars title="クリック数" days={days} pick={(day) => day.clicks} color={ORANGE} unit="回" compact />
         </>}
 
-    <button className="ad-analytics-toggle" onClick={() => setAsTable(!asTable)}>{asTable ? 'グラフで見る' : '数字で見る'}</button>
+    <button className="ad-analytics-toggle" onClick={() => setAsTable(!asTable)}>{asTable ? 'グラフで表示' : '数値で表示'}</button>
   </section>;
 }
 

@@ -52,11 +52,11 @@ const screens = [
     ['mypage', 'マイページ・プラン・招待'],
     ['mypage:plan', 'プランを開いたところ'],
     ['mypage:perks', 'ランクの特典'],
-    ['mypage:ad', 'トップバナーの出稿枠'],
-    ['mypage:ad:stats', '広告の成果（アナリティクス）'],
-    ['mypage:ad:step1', '広告を出す①内容'],
-    ['mypage:ad:step2', '広告を出す②期間'],
-    ['mypage:ad:step3', '広告を出す③確認'],
+    ['mypage:ad', 'トップバナー広告'],
+    ['mypage:ad:stats', '広告の掲載レポート'],
+    ['mypage:ad:step1', '広告①掲載内容'],
+    ['mypage:ad:step2', '広告②掲載期間'],
+    ['mypage:ad:step3', '広告③ご確認'],
     ['modal:post:limit', '投稿の上限に当たったとき'],
   ] },
   { group: 'モーダル', items: [
@@ -273,9 +273,9 @@ const html = `<title>TASUKI プレビュー</title>
     if (at('.owner-tools-row button')) { event.preventDefault(); return notice('ランクの特典です。本番では、その場で期限がのびたり、一覧のいちばん上に出たりします。'); }
 
     if (at('.ad-calendar-grid button')) { event.preventDefault(); return notice('本番では、押した日から掲載が始まります。空きのある日だけ選べます。'); }
-    if (at('.ad-stats-open')) { event.preventDefault(); return notice('本番では、ここに日ごとの表示とクリックのグラフが開きます。'); }
-    if (at('.ad-analytics-toggle')) { event.preventDefault(); return notice('本番では、グラフと数字の表を切り替えられます。'); }
-    if (at('.ad-slot-foot button')) { event.preventDefault(); return notice('本番では、ここで掲載中の内容を入れ替えられます。'); }
+    if (at('.ad-stats-open')) { event.preventDefault(); return notice('本番では、日ごとの表示とクリックのレポートが開きます。'); }
+    if (at('.ad-analytics-toggle')) { event.preventDefault(); return notice('本番では、グラフと数値の表を切り替えられます。'); }
+    if (at('.ad-slot-foot button')) { event.preventDefault(); return notice('本番では、ここで掲載中の内容を変更できます。'); }
     if (at('.ad-fields input')) { event.preventDefault(); return notice('本番では、打ちながら「ホームでの見え方」が変わります。'); }
     if (at('.ad-step-actions button:first-child')) { event.preventDefault(); return go(current === 'mypage:ad:step3' ? 'mypage:ad:step2' : current === 'mypage:ad:step2' ? 'mypage:ad:step1' : 'mypage:ad'); }
     if (at('.ad-step-actions .submit-button')) { event.preventDefault(); return go(current === 'mypage:ad:step1' ? 'mypage:ad:step2' : current === 'mypage:ad:step2' ? 'mypage:ad:step3' : 'mypage:ad:step3'); }
