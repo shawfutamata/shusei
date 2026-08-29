@@ -7,6 +7,10 @@ import { matchesIndustry } from '@/app/industry-options';
 
 export type BoardRequest = {
   id: string;
+  /** 一覧に出す小さい画像。無ければ空。業種アイコンを出す。 */
+  thumbUrl: string;
+  /** 詳細で出す大きい画像。無ければ空。 */
+  imageUrl: string;
   category: 'project' | 'collaboration' | 'consultation';
   title: string;
   description: string;
@@ -186,6 +190,7 @@ const statements = [
     industry_tags TEXT NOT NULL DEFAULT '[]',
     deadline TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'open',
+    image_version INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS introductions (
@@ -322,8 +327,12 @@ export async function ensureDatabase() {
     if (!existingColumns.has(columnName)) await env.DB.prepare(sql).run();
   }
   const requestColumns = await env.DB.prepare('PRAGMA table_info(requests)').all<{ name: string }>();
-  if (!requestColumns.results.some((column) => column.name === 'industry_tags')) {
+  const requestColumnNames = new Set(requestColumns.results.map((column) => column.name));
+  if (!requestColumnNames.has('industry_tags')) {
     await env.DB.prepare("ALTER TABLE requests ADD COLUMN industry_tags TEXT NOT NULL DEFAULT '[]'").run();
+  }
+  if (!requestColumnNames.has('image_version')) {
+    await env.DB.prepare('ALTER TABLE requests ADD COLUMN image_version INTEGER NOT NULL DEFAULT 0').run();
   }
   await env.DB.prepare("UPDATE referral_credits SET status = 'waiting', earned_at = '' WHERE status = 'capped'").run();
   // 登録した人はその場で使えるようにしたので、承認待ちで止まっていた人を通す。
@@ -639,7 +648,7 @@ export async function getBoardData(user: ChatGPTUser) {
   await upsertMember(user);
   const requestsResult = await env.DB.prepare(`SELECT r.id, r.category, r.title, r.description,
     r.budget_label AS budgetLabel, r.area, r.industry_tags AS industryTagsJson,
-    r.deadline, r.status, r.created_at AS createdAt,
+    r.deadline, r.status, r.image_version AS imageVersion, r.created_at AS createdAt,
     m.display_name AS authorName, m.company AS authorCompany, m.venue AS authorVenue,
     m.position_title AS authorPositionTitle, m.badge AS authorBadge,
     m.business_area AS authorBusinessArea,
@@ -650,7 +659,7 @@ export async function getBoardData(user: ChatGPTUser) {
     (SELECT COUNT(*) FROM request_comments c WHERE c.request_id = r.id) AS commentCount
     FROM requests r
     JOIN members m ON m.id = r.author_id
-    ORDER BY r.created_at DESC`).all<Omit<BoardRequest, 'industryTags'> & { industryTagsJson: string; authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
+    ORDER BY r.created_at DESC`).all<Omit<BoardRequest, 'industryTags' | 'thumbUrl' | 'imageUrl'> & { industryTagsJson: string; imageVersion: number; authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
 
   const member = await env.DB.prepare(`SELECT display_name AS displayName, venue, company,
     position_title AS positionTitle, badge, business_area AS businessArea,
@@ -668,9 +677,11 @@ export async function getBoardData(user: ChatGPTUser) {
   const stats = calculateRank({ ...memberFields, notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion),
     plan: plan.activePlan, paid: plan.paid, planPeriodEnd: plan.planPeriodEnd, requestsThisMonth: plan.requestsThisMonth, requestLimit: plan.requestLimit,
     businessCards: plan.businessCards, businessCardLimit: plan.businessCardLimit });
-  const requests = requestsResult.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, industryTagsJson, ...request }) => ({
+  const requests = requestsResult.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, industryTagsJson, imageVersion, ...request }) => ({
     ...request,
     industryTags: parseStringArray(industryTagsJson),
+    thumbUrl: requestImageUrl(request.id, imageVersion, 'thumb'),
+    imageUrl: requestImageUrl(request.id, imageVersion, 'full'),
     authorAvatarUrl: avatarUrl(authorId, authorAvatarKey, authorAvatarVersion),
   }));
   return { requests, stats };
@@ -700,7 +711,9 @@ export async function updateMemberProfile(user: ChatGPTUser, input: { company: s
   return avatarUrl(user.userId, avatarKey, avatarVersion);
 }
 
-export async function createRequest(user: ChatGPTUser, input: { category: string; title: string; description: string; budgetLabel: string; area: string; industryTags: string[]; deadline: string; }) {
+export type RequestImageUpload = { thumb: { bytes: ArrayBuffer; contentType: string }; full: { bytes: ArrayBuffer; contentType: string } };
+
+export async function createRequest(user: ChatGPTUser, input: { category: string; title: string; description: string; budgetLabel: string; area: string; industryTags: string[]; deadline: string; image?: RequestImageUpload }) {
   await upsertMember(user);
   await requireFacePhoto(user.userId);
   const requestPlan = await getPlanState(user.userId);
@@ -710,8 +723,23 @@ export async function createRequest(user: ChatGPTUser, input: { category: string
   }
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
-  await env.DB.prepare('INSERT INTO requests (id, author_id, category, title, description, budget_label, area, industry_tags, deadline, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, user.userId, input.category, input.title, input.description, input.budgetLabel, input.area, JSON.stringify(input.industryTags), input.deadline, 'open', createdAt).run();
+  // 縮小は投稿する人の端末で済ませてある。サーバーでは変換しない（Workersの計算時間は従量）。
+  let imageVersion = 0;
+  if (input.image) {
+    imageVersion = Date.now();
+    await Promise.all([
+      env.AVATARS.put(requestImageKey(id, 'thumb'), input.image.thumb.bytes, {
+        httpMetadata: { contentType: input.image.thumb.contentType },
+        customMetadata: { ownerId: user.userId, requestId: id },
+      }),
+      env.AVATARS.put(requestImageKey(id, 'full'), input.image.full.bytes, {
+        httpMetadata: { contentType: input.image.full.contentType },
+        customMetadata: { ownerId: user.userId, requestId: id },
+      }),
+    ]);
+  }
+  await env.DB.prepare('INSERT INTO requests (id, author_id, category, title, description, budget_label, area, industry_tags, deadline, status, image_version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, user.userId, input.category, input.title, input.description, input.budgetLabel, input.area, JSON.stringify(input.industryTags), input.deadline, 'open', imageVersion, createdAt).run();
   await sendMatchingPushNotifications(user.userId, { id, title: input.title, industryTags: input.industryTags }).catch(() => undefined);
   await sendMatchingMobileNotifications(user.userId, { id, title: input.title, industryTags: input.industryTags }).catch(() => undefined);
   return id;
@@ -919,6 +947,28 @@ async function requireFacePhoto(memberId: string) {
 
 function avatarUrl(memberId: string, avatarKey: string, avatarVersion: number) {
   return avatarKey ? `/api/avatar/${encodeURIComponent(memberId)}?v=${avatarVersion}` : '';
+}
+
+function requestImageKey(id: string, size: 'thumb' | 'full') {
+  return size === 'thumb' ? `request-thumbs/${id}` : `request-images/${id}`;
+}
+
+/** 探しごとの画像を返す。会員なら誰でも見られる（掲示板に出ているもの）。 */
+export async function getRequestImage(id: string, size: 'thumb' | 'full') {
+  await ensureDatabase();
+  const row = await env.DB.prepare('SELECT image_version AS imageVersion FROM requests WHERE id = ?')
+    .bind(id).first<{ imageVersion: number }>();
+  if (!row?.imageVersion) return null;
+  return env.AVATARS.get(requestImageKey(id, size));
+}
+
+/**
+ * 探しごとの画像。一覧用の小さい版と、詳細用の大きい版を別に持つ。
+ * 一覧は1画面に何件も並ぶので、小さい版を分けておかないと読み出しが重くなる。
+ * 版番号がURLに入るので、1年キャッシュしても差し替えは効く。
+ */
+function requestImageUrl(id: string, version: number, size: 'thumb' | 'full') {
+  return version ? `/api/request-image/${encodeURIComponent(id)}?v=${version}&size=${size}` : '';
 }
 
 function businessCardImageUrl(id: string, version: number) {

@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
-import { createRequest, getBoardData } from '@/db/data';
+import { createRequest, getBoardData, type RequestImageUpload } from '@/db/data';
 import { isIndustry } from '@/app/industry-options';
+
+// 画像は投稿する人の端末で縮小してから送る。ここでは受け取るだけで変換しない。
+// 一覧用は長辺480px・詳細用は長辺1400pxを想定していて、この上限は
+// 「万一そのまま送られてきたとき」の歯止め。
+const MAX_THUMB_BYTES = 400 * 1024;
+const MAX_FULL_BYTES = 2 * 1024 * 1024;
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 export async function GET() {
   const gate = await requireActiveMember();
@@ -14,22 +21,69 @@ export async function POST(request: Request) {
   const gate = await requireActiveMember();
   if (gate.response) return gate.response;
   const user = gate.user;
-  const body = await request.json() as Record<string, unknown>;
-  const category = clean(body.category, 32);
-  const title = clean(body.title, 90);
-  const description = clean(body.description, 600);
-  const budgetLabel = clean(body.budgetLabel, 60);
-  const area = clean(body.area, 60);
-  const industryTags = cleanIndustries(body.industryTags, 3);
-  const deadline = clean(body.deadline, 10);
+
+  // 写真を付けるときだけ multipart。アプリからのJSONもそのまま受ける。
+  const multipart = (request.headers.get('content-type') ?? '').includes('multipart/form-data');
+  const form = multipart ? await request.formData() : null;
+  const read = (name: string) => form ? form.get(name) : undefined;
+  const body = multipart ? {} as Record<string, unknown> : await request.json() as Record<string, unknown>;
+  const field = (name: string) => multipart ? read(name) : body[name];
+
+  const category = clean(field('category'), 32);
+  const title = clean(field('title'), 90);
+  const description = clean(field('description'), 600);
+  const budgetLabel = clean(field('budgetLabel'), 60);
+  const area = clean(field('area'), 60);
+  const industryTags = multipart ? parseIndustries(field('industryTags'), 3) : cleanIndustries(field('industryTags'), 3);
+  const deadline = clean(field('deadline'), 10);
   if (!['project', 'collaboration', 'consultation'].includes(category) || !title || !description || !budgetLabel || !area || !industryTags.length || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
     return NextResponse.json({ error: '入力内容を確認してください。' }, { status: 400 });
   }
+
+  let image: RequestImageUpload | undefined;
+  if (form) {
+    const thumb = form.get('imageThumb');
+    const full = form.get('imageFull');
+    if (thumb instanceof File && full instanceof File && thumb.size > 0 && full.size > 0) {
+      const checked = await readImagePair(thumb, full);
+      if ('error' in checked) return NextResponse.json({ error: checked.error }, { status: 400 });
+      image = checked.image;
+    }
+  }
+
   try {
-    const id = await createRequest(user, { category, title, description, budgetLabel, area, industryTags, deadline });
+    const id = await createRequest(user, { category, title, description, budgetLabel, area, industryTags, deadline, image });
     return NextResponse.json({ id }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : '投稿できませんでした。' }, { status: 400 });
+  }
+}
+
+async function readImagePair(thumb: File, full: File): Promise<{ image: RequestImageUpload } | { error: string }> {
+  if (!IMAGE_TYPES.includes(thumb.type) || !IMAGE_TYPES.includes(full.type)) {
+    return { error: '写真はJPEG・PNG・WebPに対応しています。' };
+  }
+  if (thumb.size > MAX_THUMB_BYTES || full.size > MAX_FULL_BYTES) {
+    return { error: '写真のサイズが大きすぎます。もう一度お試しください。' };
+  }
+  const [thumbBytes, fullBytes] = await Promise.all([thumb.arrayBuffer(), full.arrayBuffer()]);
+  if (!isSupportedImage(thumbBytes, thumb.type) || !isSupportedImage(fullBytes, full.type)) {
+    return { error: '画像ファイルを確認してください。' };
+  }
+  return {
+    image: {
+      thumb: { bytes: thumbBytes, contentType: thumb.type },
+      full: { bytes: fullBytes, contentType: full.type },
+    },
+  };
+}
+
+function parseIndustries(value: unknown, max: number) {
+  if (typeof value !== 'string') return [];
+  try {
+    return cleanIndustries(JSON.parse(value), max);
+  } catch {
+    return [];
   }
 }
 
@@ -40,4 +94,11 @@ function cleanIndustries(value: unknown, max: number) {
 
 function clean(value: unknown, max: number) {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
+}
+
+function isSupportedImage(buffer: ArrayBuffer, contentType: string) {
+  const bytes = new Uint8Array(buffer);
+  if (contentType === 'image/jpeg') return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (contentType === 'image/png') return bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+  return bytes.length >= 12 && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP';
 }

@@ -15,6 +15,7 @@ import { planCardLimit, planCatalog, planPostLimit, planPrice } from './plan-cat
 import RankCrest, { CrownMark } from './RankCrest';
 import { serviceName } from './brand';
 import BrandMark from './BrandMark';
+import { detailImage, listThumbnail } from './resize-image';
 
 const categories = {
   project: { label: '案件', className: 'project' },
@@ -92,6 +93,8 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [selected, setSelected] = useState<BoardRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
+  const [requestPhoto, setRequestPhoto] = useState<File | null>(null);
+  const [requestPhotoPreview, setRequestPhotoPreview] = useState('');
   const [referral, setReferral] = useState<(ReferralSummary & { url: string; billing?: { ready: boolean; hasCustomer: boolean } }) | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
 
@@ -184,13 +187,35 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     setRequests(data.requests); setStats(data.stats);
   }
 
+  function chooseRequestPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) { showToast('写真は15MB以下を選んでください。'); event.target.value = ''; return; }
+    setRequestPhoto(file);
+    setRequestPhotoPreview((previous) => { if (previous.startsWith('blob:')) URL.revokeObjectURL(previous); return URL.createObjectURL(file); });
+  }
+
+  function clearRequestPhoto() {
+    setRequestPhoto(null);
+    setRequestPhotoPreview((previous) => { if (previous.startsWith('blob:')) URL.revokeObjectURL(previous); return ''; });
+  }
+
   async function submitRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true);
     const form = event.currentTarget;
-    const response = await fetch('/api/board', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...Object.fromEntries(new FormData(form)), industryTags: requestIndustries }) });
+    const body = new FormData(form);
+    body.delete('photo');
+    body.set('industryTags', JSON.stringify(requestIndustries));
+    if (requestPhoto) {
+      // 一覧用と詳細用を端末で作ってから送る。サーバーは変換しない。
+      const [thumb, full] = await Promise.all([listThumbnail(requestPhoto), detailImage(requestPhoto)]);
+      body.set('imageThumb', thumb);
+      body.set('imageFull', full);
+    }
+    const response = await fetch('/api/board', { method: 'POST', body });
     const result = await response.json() as { error?: string }; setBusy(false);
     if (!response.ok) return showToast(result.error ?? '投稿できませんでした。');
-    setModal(null); form.reset(); setRequestIndustries([]); await refreshBoard(); showToast('探しごとを投稿しました。関連業種の会員へ通知します。');
+    setModal(null); form.reset(); setRequestIndustries([]); clearRequestPhoto(); await refreshBoard(); showToast('探しごとを投稿しました。関連業種の会員へ通知します。');
   }
 
   async function submitIntroduction(event: FormEvent<HTMLFormElement>) {
@@ -391,7 +416,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           {shown.length === 0 ? <div className="empty"><b>条件に合う投稿がありません</b><span>絞り込みを変えて探してみましょう。</span></div> : shown.map((need) => (
             <article className={isOpenRequest(need) ? 'need-card' : 'need-card closed'} key={need.id} onClick={() => openNeed(need)}>
               <div className="card-topline"><span className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</span><span className="card-top-actions">{isOpenRequest(need) ? <span className="deadline">あと{daysLeft(need.deadline)}日</span> : <span className="deadline ended">募集終了</span>}<button className={favoriteIds.includes(need.id) ? 'card-heart active' : 'card-heart'} aria-label={favoriteIds.includes(need.id) ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={(event) => { event.stopPropagation(); toggleFavorite(need); }}>♥</button></span></div>
-              <h3>{need.title}</h3><p className="need-body">{need.description}</p>
+              <h3>{need.title}</h3>{need.thumbUrl && <img className="need-thumb" src={need.thumbUrl} alt="" loading="lazy" decoding="async" />}<p className="need-body">{need.description}</p>
               <div className="industry-tags" aria-label="関連業種">{need.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
               <dl className="details"><div><dt>予算</dt><dd>{need.budgetLabel}</dd></div><div><dt>エリア</dt><dd>{need.area}</dd></div></dl>
               <div className="card-person"><Avatar src={need.authorAvatarUrl} name={need.authorName} className="member-avatar" /><p><b>{need.authorName}</b><small>{need.authorPositionTitle && `${need.authorPositionTitle}｜`}{need.authorCompany || '会社名未設定'}</small></p><span>紹介 {need.introCount}件</span></div>
@@ -489,7 +514,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
 
       {modal === 'request' && !canPostRequest && <Modal title="今月ぶんの投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、上のプランへお切り替えください（スタンダード 月額1,000円で月2件、プレミアム 月額5,000円で何件でも）。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、プレミアムを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showProfile(); }}>マイページを開く</button></div></Modal>}
 
-      {modal === 'request' && canPostRequest && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの<select name="category" required defaultValue=""><option value="" disabled>選択してください</option><option value="project">案件の発注先</option><option value="collaboration">協業パートナー</option><option value="consultation">相談相手・情報</option></select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容<textarea name="description" required maxLength={600} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア<input name="area" required maxLength={60} placeholder="例：東京都・オンライン" /></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><button className="submit-button" disabled={busy || !requestIndustries.length}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
+      {modal === 'request' && canPostRequest && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの<select name="category" required defaultValue=""><option value="" disabled>選択してください</option><option value="project">案件の発注先</option><option value="collaboration">協業パートナー</option><option value="consultation">相談相手・情報</option></select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容<textarea name="description" required maxLength={600} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア<input name="area" required maxLength={60} placeholder="例：東京都・オンライン" /></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><label className="request-photo"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseRequestPhoto} />{requestPhotoPreview ? <img src={requestPhotoPreview} alt="添付する写真のプレビュー" /> : <span className="request-photo-empty">＋</span>}<span className="request-photo-copy"><b>写真を付ける <em>任意</em></b><small>{requestPhoto ? '一覧で目印になります。押すと選び直せます' : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></span>{requestPhoto && <i onClick={(event) => { event.preventDefault(); clearRequestPhoto(); }}>削除</i>}</label><button className="submit-button" disabled={busy || !requestIndustries.length}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
 
       {modal === 'intro' && selected && <Modal title="知っている人を紹介" lead={`「${selected.title}」への紹介です。`} onClose={() => setModal(null)}><form className="form" onSubmit={submitIntroduction}><label>お名前<input name="personName" required maxLength={60} /></label><label>会社・屋号<input name="personCompany" required maxLength={80} /></label><label>あなたとの関係<input name="relationship" required maxLength={120} placeholder="例：取引先、友人" /></label><label>紹介したい理由<textarea name="fitReason" required maxLength={400} rows={3} /></label><label className="consent"><input type="checkbox" name="consentConfirmed" required /> ご本人に紹介の了承を得ています</label><button className="submit-button" disabled={busy}>{busy ? '届けています…' : '紹介を届ける'}</button></form></Modal>}
 
@@ -497,7 +522,9 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
 
       {modal === 'detail' && selected && <Modal title="探しごとの詳細" lead={`${selected.authorName}さんの探しごとです。`} onClose={() => setModal(null)}><article className="need-detail">
         <div className="card-topline"><span className={`kind ${categories[selected.category].className}`}>{categories[selected.category].label}</span><button className={favoriteIds.includes(selected.id) ? 'detail-heart active' : 'detail-heart'} onClick={() => toggleFavorite(selected)}>♥ {favoriteIds.includes(selected.id) ? '保存済み' : 'お気に入り'}</button></div>
-        <h3>{selected.title}</h3><p>{selected.description}</p>
+        <h3>{selected.title}</h3>
+        {selected.imageUrl && <img className="need-photo" src={selected.imageUrl} alt={`${selected.title}に添えられた写真`} loading="lazy" decoding="async" />}
+        <p>{selected.description}</p>
         <div className="industry-tags">{selected.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
         <dl><div><dt>予算</dt><dd>{selected.budgetLabel}</dd></div><div><dt>希望エリア</dt><dd>{selected.area}</dd></div><div><dt>募集期限</dt><dd>{selected.deadline}</dd></div></dl>
         <div className="detail-author"><Avatar src={selected.authorAvatarUrl} name={selected.authorName} className="member-avatar" /><p><b>{selected.authorName}</b><span>{selected.authorPositionTitle && `${selected.authorPositionTitle}｜`}{selected.authorCompany || '会社名未設定'}</span><small>{selected.authorVenue}{selected.authorBusinessArea && `・${selected.authorBusinessArea}`}</small></p><FacebookLink url={selected.authorFacebookUrl} name={selected.authorName} /></div>
@@ -539,7 +566,7 @@ function HomeRequestCard({ need, favorite, onOpen, onFavorite }: { need: BoardRe
   const primaryIndustry = need.industryTags[0] || 'その他';
   const primaryGroup = getIndustryGroup(primaryIndustry)?.name ?? 'その他';
   return <article className="home-request-card"><button className={favorite ? 'home-heart active' : 'home-heart'} aria-label={favorite ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={onFavorite}>♥</button><button className="home-request-open" onClick={onOpen}>
-    <span className="home-request-cover"><IndustryIcon group={primaryGroup} /><small>{primaryIndustry}</small></span>
+    <span className={need.thumbUrl ? 'home-request-cover has-photo' : 'home-request-cover'}>{need.thumbUrl ? <img src={need.thumbUrl} alt="" loading="lazy" decoding="async" /> : <IndustryIcon group={primaryGroup} />}<small>{primaryIndustry}</small></span>
     <span className="home-request-copy"><small><b className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</b> あと{daysLeft(need.deadline)}日</small><strong>{need.title}</strong><span>{need.budgetLabel}</span><em>{need.authorName}・{need.authorVenue}</em></span>
   </button></article>;
 }

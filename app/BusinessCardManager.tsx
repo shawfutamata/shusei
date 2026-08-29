@@ -4,6 +4,7 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import type { BusinessCard, BusinessCardInput } from '@/db/data';
 import { emptyBusinessCard, scanBusinessCardImage, type OCRStage } from './business-card-ocr';
+import { detailImage } from './resize-image';
 
 type Mode = 'list' | 'capture' | 'scan' | 'review' | 'confirm' | 'complete' | 'detail';
 type QueueItem = { id: string; file: File; preview: string };
@@ -125,7 +126,7 @@ export default function BusinessCardManager({ initialMode, pro, onClose, onNotic
     // 読み取りはブラウザ側で済ませてあるので、精度には影響しない。
     for (const [index, draft] of drafts.entries()) {
       const source = queue.find((item) => item.id === draft.queueId);
-      if (source) body.set(`image_${index}`, await shrinkForStorage(source.file));
+      if (source) body.set(`image_${index}`, await detailImage(source.file));
     }
     const response = await fetch('/api/business-cards', { method: 'POST', body });
     const result = await response.json() as { error?: string };
@@ -241,26 +242,6 @@ function CardFields({ card, onChange }: { card: BusinessCardInput; onChange: (fi
 
 
 /** 名刺画像を保存用に縮小する。長辺1400px・JPEG品質0.8。うまくいかなければ元のまま送る。 */
-async function shrinkForStorage(file: File) {
-  try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, 1400 / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(bitmap.width * scale);
-    canvas.height = Math.round(bitmap.height * scale);
-    const context = canvas.getContext('2d');
-    if (!context) return file;
-    context.imageSmoothingEnabled = true; context.imageSmoothingQuality = 'high';
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.8));
-    if (!blob || blob.size >= file.size) return file;
-    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
-  } catch {
-    return file;
-  }
-}
-
 function formatDate(value: string) { const [year, month, day] = value.split('-'); return `${year}年${Number(month)}月${Number(day)}日`; }
 function normalizeUrl(value: string) { return /^https?:\/\//i.test(value) ? value : `https://${value}`; }
 
