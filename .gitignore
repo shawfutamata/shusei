@@ -39,3 +39,7 @@ next-env.d.ts
 
 # typescript incremental build cache
 tsconfig.tsbuildinfo
+
+# ローカルの秘密（Stripeなど）。絶対にコミットしない。
+.dev.vars
+.dev.vars.*

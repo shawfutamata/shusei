@@ -12,5 +12,10 @@ declare namespace Cloudflare {
     REVIEW_AUTH_CODE: string;
     GOOGLE_CLIENT_ID: string;
     GOOGLE_CLIENT_SECRET: string;
+    // Stripe。Web専用。アプリからは決済に触れない（App Store 3.1.1）。
+    STRIPE_SECRET_KEY: string;
+    STRIPE_WEBHOOK_SECRET: string;
+    STRIPE_PRICE_STANDARD: string;
+    STRIPE_PRICE_PREMIUM: string;
   }
 }

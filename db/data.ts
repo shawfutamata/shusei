@@ -141,7 +141,7 @@ const statements = [
     primary_industry TEXT NOT NULL DEFAULT '',
     notify_industries TEXT NOT NULL DEFAULT '[]',
     annual_revenue_band TEXT NOT NULL DEFAULT '',
-    membership_status TEXT NOT NULL DEFAULT 'invited',
+    membership_status TEXT NOT NULL DEFAULT 'active',
     membership_source TEXT NOT NULL DEFAULT 'direct_contract',
     membership_period_end TEXT NOT NULL DEFAULT '',
     organization_id TEXT NOT NULL DEFAULT '',
@@ -315,6 +315,8 @@ export async function ensureDatabase() {
     ['plan_period_end', "ALTER TABLE members ADD COLUMN plan_period_end TEXT NOT NULL DEFAULT ''"],
     ['plan_source', "ALTER TABLE members ADD COLUMN plan_source TEXT NOT NULL DEFAULT ''"],
     ['facebook_url', "ALTER TABLE members ADD COLUMN facebook_url TEXT NOT NULL DEFAULT ''"],
+    ['stripe_customer_id', "ALTER TABLE members ADD COLUMN stripe_customer_id TEXT NOT NULL DEFAULT ''"],
+    ['stripe_subscription_id', "ALTER TABLE members ADD COLUMN stripe_subscription_id TEXT NOT NULL DEFAULT ''"],
   ];
   for (const [columnName, sql] of missingColumns) {
     if (!existingColumns.has(columnName)) await env.DB.prepare(sql).run();
@@ -324,6 +326,11 @@ export async function ensureDatabase() {
     await env.DB.prepare("ALTER TABLE requests ADD COLUMN industry_tags TEXT NOT NULL DEFAULT '[]'").run();
   }
   await env.DB.prepare("UPDATE referral_credits SET status = 'waiting', earned_at = '' WHERE status = 'capped'").run();
+  // 登録した人はその場で使えるようにしたので、承認待ちで止まっていた人を通す。
+  // 以後 'invited' は作られない。利用を止めるときは 'suspended' を使うこと。
+  await env.DB.prepare(`UPDATE members SET membership_status = 'active',
+      activated_at = CASE WHEN activated_at = '' THEN created_at ELSE activated_at END
+    WHERE membership_status = 'invited'`).run();
   await env.DB.prepare("UPDATE members SET plan = 'premium' WHERE plan = 'pro'").run();
   await seedDemoData();
   await env.DB.batch([
@@ -623,9 +630,9 @@ async function seedDemoData() {
 export async function upsertMember(user: ChatGPTUser) {
   await ensureDatabase();
   const now = new Date().toISOString();
-  await env.DB.prepare(`INSERT INTO members (id, email, display_name, membership_status, created_at)
-    VALUES (?, ?, ?, 'invited', ?)
-    ON CONFLICT(id) DO UPDATE SET email = excluded.email, display_name = excluded.display_name`).bind(user.userId, user.email, user.displayName, now).run();
+  await env.DB.prepare(`INSERT INTO members (id, email, display_name, membership_status, activated_at, created_at)
+    VALUES (?, ?, ?, 'active', ?, ?)
+    ON CONFLICT(id) DO UPDATE SET email = excluded.email, display_name = excluded.display_name`).bind(user.userId, user.email, user.displayName, now, now).run();
 }
 
 export async function getBoardData(user: ChatGPTUser) {
@@ -1120,6 +1127,66 @@ async function grantProMonth(memberId: string, source: string) {
 }
 // --- プランここまで ---------------------------------------------------------
 
+// --- Stripe と会員の対応づけ -------------------------------------------------
+// 決済そのものは app/api/billing/ が扱う。ここは保存と読み出しだけ。
+
+export type StripeLink = { customerId: string; subscriptionId: string; email: string; displayName: string };
+
+export async function getStripeLink(memberId: string): Promise<StripeLink> {
+  await ensureDatabase();
+  const row = await env.DB.prepare(`SELECT stripe_customer_id AS customerId, stripe_subscription_id AS subscriptionId,
+      email, display_name AS displayName FROM members WHERE id = ?`)
+    .bind(memberId).first<StripeLink>();
+  return { customerId: row?.customerId ?? '', subscriptionId: row?.subscriptionId ?? '', email: row?.email ?? '', displayName: row?.displayName ?? '' };
+}
+
+export async function saveStripeCustomer(memberId: string, customerId: string) {
+  await env.DB.prepare('UPDATE members SET stripe_customer_id = ? WHERE id = ?').bind(customerId, memberId).run();
+}
+
+/** Stripeの顧客IDから会員を引く。webhookは会員IDを持たないことがあるため。 */
+export async function findMemberByStripeCustomer(customerId: string) {
+  await ensureDatabase();
+  const row = await env.DB.prepare('SELECT id FROM members WHERE stripe_customer_id = ?')
+    .bind(customerId).first<{ id: string }>();
+  return row?.id ?? '';
+}
+
+/**
+ * Stripeの購読状態をこちらのプランに反映する。webhookからだけ呼ぶ。
+ * 期限は Stripe が持っているので、こちらの plan_period_end は
+ * 「いつまで使えるか」を写しておくだけ。解約されたら free に戻す。
+ */
+export async function applyStripeSubscription(input: {
+  memberId: string; plan: Plan; subscriptionId: string; periodEnd: string; active: boolean;
+}) {
+  await ensureDatabase();
+  const plan = input.active ? input.plan : 'free';
+  await env.DB.prepare(`UPDATE members SET plan = ?, plan_period_end = ?, plan_source = ?, stripe_subscription_id = ?
+    WHERE id = ?`)
+    .bind(plan, input.active ? input.periodEnd : '', input.active ? 'stripe' : '', input.active ? input.subscriptionId : '', input.memberId)
+    .run();
+}
+
+/** 請求に当てていない無料月クレジットを、古い順に取り出す。 */
+export async function unappliedReferralCredits(memberId: string) {
+  await ensureDatabase();
+  const rows = await env.DB.prepare(`SELECT id FROM referral_credits
+    WHERE inviter_id = ? AND status = 'earned' AND applied_month = '' ORDER BY earned_at`)
+    .bind(memberId).all<{ id: string }>();
+  return rows.results.map((row) => row.id);
+}
+
+/** 無料月クレジットを使ったことにする。二重に使わないため。 */
+export async function markReferralCreditsApplied(ids: string[], month: string) {
+  if (!ids.length) return;
+  const placeholders = ids.map(() => '?').join(',');
+  await env.DB.prepare(`UPDATE referral_credits SET applied_month = ? WHERE id IN (${placeholders})`)
+    .bind(month, ...ids).run();
+}
+// --- Stripe ここまで ---------------------------------------------------------
+
+
 // --- 会員紹介（招待）ここから -------------------------------------------------
 // ルールは docs/referral-program-ja.md が正。
 // 「紹介した人が入会して30日続いたら、紹介した人の会費が1ヶ月無料。年6ヶ月まで」
@@ -1130,7 +1197,7 @@ export const REFERRAL_CAP_PER_YEAR = 6;
 export type ReferralSummary = {
   code: string;
   invitedCount: number;      // 招待リンクから登録した人の数
-  waitingCount: number;      // まだ運営の承認待ち
+  waitingCount: number;      // 利用を止めている人（承認待ちは廃止したので通常は0）
   activeCount: number;       // 承認されて利用中
   qualifyingCount: number;   // 利用中だが30日に届いていない
   earnedMonths: number;      // 無料になった月の数（年の上限内）
@@ -1196,9 +1263,9 @@ export async function registerInvitedMember(rawEmail: string, displayName: strin
   }
 
   const now = new Date().toISOString();
-  await env.DB.prepare(`INSERT INTO members (id, email, display_name, membership_status, invited_by, created_at)
-    VALUES (?, ?, ?, 'invited', ?, ?)`)
-    .bind(`invited-${crypto.randomUUID()}`, email, displayName.trim() || email.split('@')[0], inviter.id, now).run();
+  await env.DB.prepare(`INSERT INTO members (id, email, display_name, membership_status, invited_by, activated_at, created_at)
+    VALUES (?, ?, ?, 'active', ?, ?, ?)`)
+    .bind(`invited-${crypto.randomUUID()}`, email, displayName.trim() || email.split('@')[0], inviter.id, now, now).run();
   return { alreadyMember: false, inviterName: inviter.displayName };
 }
 
@@ -1261,7 +1328,7 @@ export async function getReferralSummary(memberId: string): Promise<ReferralSumm
   const qualifiedBefore = new Date(Date.now() - REFERRAL_QUALIFY_DAYS * 86400000).toISOString();
   const counts = await env.DB.prepare(`SELECT
       COUNT(*) AS invitedCount,
-      SUM(CASE WHEN membership_status = 'invited' THEN 1 ELSE 0 END) AS waitingCount,
+      SUM(CASE WHEN membership_status NOT IN ('active', 'past_due') THEN 1 ELSE 0 END) AS waitingCount,
       SUM(CASE WHEN membership_status = 'active' THEN 1 ELSE 0 END) AS activeCount,
       SUM(CASE WHEN membership_status = 'active' AND (activated_at = '' OR activated_at > ?) THEN 1 ELSE 0 END) AS qualifyingCount
     FROM members WHERE invited_by = ?`).bind(qualifiedBefore, memberId).first<Record<string, number>>();

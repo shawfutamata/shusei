@@ -10,7 +10,7 @@ import FacebookLink from './FacebookLink';
 import { getRegion, prefectures, regions, type Prefecture } from './profile-options';
 import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-options';
 import { findVenuePrefecture, isListedVenue, OTHER_VENUE, venuePrefectures, venuesByPrefecture } from './venue-options';
-import { UNLIMITED, plans } from './entitlements';
+import { UNLIMITED, plans, type Plan } from './entitlements';
 import { planCardLimit, planCatalog, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
 import { serviceName } from './brand';
@@ -92,7 +92,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [selected, setSelected] = useState<BoardRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
-  const [referral, setReferral] = useState<(ReferralSummary & { url: string }) | null>(null);
+  const [referral, setReferral] = useState<(ReferralSummary & { url: string; billing?: { ready: boolean; hasCustomer: boolean } }) | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
 
   // 全国の会場を都道府県ごとにまとめて出す。一覧に無い会場（その他で登録された人）も
@@ -124,6 +124,15 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const rankStart = rankThresholds[Math.max(0, stats.level - 1)] ?? 0;
   const rankProgress = stats.level >= rankThresholds.length ? 100 : Math.max(0, Math.min(100, ((stats.introCount - rankStart) / Math.max(1, stats.nextRankAt - rankStart)) * 100));
   const introductionsToNextRank = Math.max(0, stats.nextRankAt - stats.introCount);
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get('billing');
+    if (!result) return;
+    window.history.replaceState(null, '', window.location.pathname);
+    showToast(result === 'done'
+      ? 'お手続きありがとうございます。プランの反映まで少しお待ちください。'
+      : 'お手続きを中断しました。プランは変わっていません。');
+  }, []);
+
   useEffect(() => () => {
     if (photoPreview.startsWith('blob:')) URL.revokeObjectURL(photoPreview);
   }, [photoPreview]);
@@ -244,6 +253,36 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   }
 
   function openCards(mode: 'list' | 'capture') { setCardStartMode(mode); setModal('cards'); }
+
+  async function startBilling(plan: Plan) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const response = await fetch('/api/billing/checkout', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ plan }),
+      });
+      const data = await response.json() as { url?: string; error?: string };
+      if (data.url) { window.location.href = data.url; return; }
+      showToast(data.error || 'お支払い画面を開けませんでした。');
+    } catch {
+      showToast('通信に失敗しました。時間をおいてお試しください。');
+    }
+    setBusy(false);
+  }
+
+  async function openBillingPortal() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const response = await fetch('/api/billing/portal', { method: 'POST' });
+      const data = await response.json() as { url?: string; error?: string };
+      if (data.url) { window.location.href = data.url; return; }
+      showToast(data.error || 'お支払いの管理画面を開けませんでした。');
+    } catch {
+      showToast('通信に失敗しました。時間をおいてお試しください。');
+    }
+    setBusy(false);
+  }
 
   function openNeed(need: BoardRequest) {
     setViewedIds((current) => [need.id, ...current.filter((id) => id !== need.id)].slice(0, 12));
@@ -390,6 +429,8 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
               {plans.map((plan) => <li key={plan} className={`plan-${plan}${plan === stats.plan ? ' current' : ''}`}>
                 <p className="plan-list-head"><b>{planCatalog[plan].name}</b>{plan === stats.plan && <em>いま</em>}<span>{planPrice(plan)}</span></p>
                 <p className="plan-list-what"><span>探しごと {planPostLimit(plan)}</span><span>名刺 {planCardLimit(plan)}</span></p>
+                {referral?.billing?.ready && plan !== 'free' && plan !== stats.plan
+                  && <button className="plan-pick" onClick={() => startBilling(plan)} disabled={busy}>このプランにする</button>}
               </li>)}
             </ul>
             <ul className="plan-detail">
@@ -397,7 +438,8 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
               <li className="only"><b>会員を探す、紹介を書き出す</b><span>プレミアムのみ</span></li>
               <li className="all"><b>掲示板を見る、紹介する、やり取りする</b><span>どのプランでも無制限</span></li>
             </ul>
-            <p className="plan-note">仲間を1人招待してご利用が続くと、{stats.paid ? <><b>会費が1ヶ月ぶん無料</b>になります</> : <><b>プレミアムを1ヶ月お試し</b>いただけます</>}。ご契約は運営窓口へお問い合わせください。</p>
+            {referral?.billing?.hasCustomer && <button className="plan-manage" onClick={openBillingPortal} disabled={busy}>お支払い・解約の手続き</button>}
+            <p className="plan-note">仲間を1人招待してご利用が続くと、{stats.paid ? <><b>会費が1ヶ月ぶん無料</b>になります</> : <><b>プレミアムを1ヶ月お試し</b>いただけます</>}。{referral?.billing?.ready ? 'このページからお申し込みいただけます。解約はいつでもできます。' : 'ご契約は運営窓口へお問い合わせください。'}</p>
           </div>
         </details>
 
@@ -410,7 +452,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
             <div><dt>{stats.paid ? '無料になった月' : '有料になった月'}</dt><dd>{referral.earnedMonths}<small>ヶ月</small></dd></div>
           </dl>
           <ul className="invite-note">
-            {referral.waitingCount > 0 && <li><b>{referral.waitingCount}人</b><span>運営がご入会を確認しています</span></li>}
+            {referral.waitingCount > 0 && <li><b>{referral.waitingCount}人</b><span>いまご利用を停止しています</span></li>}
             {referral.qualifyingCount > 0 && <li><b>{referral.qualifyingCount}人</b><span>ご利用が{referral.qualifyDays}日続くと、1ヶ月ぶんが決まります</span></li>}
             {referral.waitingCredits > 0 && <li><b>{referral.waitingCredits}人ぶん</b><span>順番待ちです。空きが出しだい自動で反映されます</span></li>}
             <li><b>{referral.remainingThisYear > 0 ? `あと${referral.remainingThisYear}ヶ月ぶん` : '受け取り済み'}</b><span>{referral.remainingThisYear > 0 ? `この1年で受け取れる残りです（1年あたり${referral.capPerYear}ヶ月まで）` : `この1年ぶん（${referral.capPerYear}ヶ月）は受け取りました`}</span></li>

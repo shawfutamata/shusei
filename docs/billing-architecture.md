@@ -1,6 +1,6 @@
 # 課金・契約アーキテクチャ
 
-更新日: 2026-08-27
+更新日: 2026-08-29
 
 ## 採用する形
 
@@ -32,12 +32,65 @@ iOS / Androidはログイン後に権限を確認
 
 Web側の会員データに次の権限情報を持たせる。データ構造とログイン時の判定は実装済みで、決済サービス確定後はWebhookまたは運営管理画面から状態を更新する。
 
-- `membership_status`: `active` / `past_due` / `canceled` / `invited`
+- `membership_status`: `active`（既定）/ `past_due` / `suspended` / `canceled`
 - `membership_source`: `direct_contract` / `organization_contract`
 - `current_period_end`
 - `organization_id`（法人・会場単位契約の場合）
 
 決済Webhookまたは運営管理画面がこの権限だけを更新する。モバイルアプリは決済サービスへ直接接続せず、ログインAPIから返る利用可否だけを見る。
+
+## Stripeの入れ方（実装済み）
+
+決済はStripeのサブスクリプションで行う。**Webだけ**に置き、アプリからは触れない。
+
+### 設定する値
+
+Sitesのプロジェクト設定（またはCloudflareのシークレット）に4つ入れる。**コードにも、やり取りの記録にも書かない。**
+
+| 名前 | 何を入れるか |
+|---|---|
+| `STRIPE_SECRET_KEY` | Stripeのシークレットキー（`sk_live_...`／テストは `sk_test_...`） |
+| `STRIPE_WEBHOOK_SECRET` | Webhookエンドポイントの署名シークレット（`whsec_...`） |
+| `STRIPE_PRICE_STANDARD` | スタンダード（月1,000円）の価格ID（`price_...`） |
+| `STRIPE_PRICE_PREMIUM` | プレミアム（月5,000円）の価格ID（`price_...`） |
+
+4つそろうまで、画面に申し込みボタンは出ない（`stripeConfigured()` が false のため）。
+
+### Stripeのダッシュボードで作るもの
+
+1. **商品を2つ**。「TASUKI スタンダード」＝月額1,000円 JPY、「TASUKI プレミアム」＝月額5,000円 JPY。どちらも**継続（サブスクリプション）**。作ったら価格IDを控える
+2. **Webhookエンドポイント**。宛先は `https://<ドメイン>/api/billing/webhook`。送るイベントは次の4つ
+   - `checkout.session.completed`
+   - `customer.subscription.created`
+   - `customer.subscription.updated`
+   - `customer.subscription.deleted`
+3. **カスタマーポータル**を有効化（設定 → 請求 → カスタマーポータル）。解約・カード変更・領収書はここに任せる
+
+### コードの構成
+
+| 場所 | 役割 |
+|---|---|
+| `app/stripe.ts` | クライアントの生成と、プラン↔価格IDの対応。**Web専用** |
+| `app/api/billing/checkout` | 支払い画面のURLを作る。顧客が無ければ作り、紹介の無料月を残高に入れる |
+| `app/api/billing/portal` | 解約・カード変更の画面へ送る |
+| `app/api/billing/webhook` | 署名を確かめて、購読状態を `members.plan` へ写す |
+
+`members` に `stripe_customer_id` と `stripe_subscription_id` を持つ。プランの正はStripe側で、こちらは写しを持つだけ。解約されたら `plan='free'` に戻る。
+
+### 紹介の無料月はStripeの残高で相殺する
+
+紹介で確定した無料月は、申し込みのときに**顧客の残高（クレジット）**として入れる。次回以降の請求から自動で引かれるので、運営が手で消し込む必要はない。使ったクレジットは `referral_credits.applied_month` に記録して、二重に使われないようにしている。
+
+### 動作確認
+
+テストキーで、Stripeのテストカード `4242 4242 4242 4242` を使う。
+
+1. マイページ → プラン欄 →「このプランにする」
+2. 支払いを済ませると `/?billing=done` に戻る
+3. 数秒後、webhookが届いてプラン欄が切り替わる
+4. 「お支払い・解約の手続き」から解約すると、`customer.subscription.deleted` で無料に戻る
+
+webhookが届いているかはStripeダッシュボードの「開発者 → Webhook」で確認できる。
 
 ## ストア審査での説明
 

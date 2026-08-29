@@ -6,14 +6,22 @@
 
 | status | 利用可否 | 用途 |
 |---|---|---|
-| `invited` | 不可 | 初回ログインで自動作成された未承認の行。既定値 |
-| `active` | 可 | 契約中の会員 |
+| `active` | 可 | 登録した人。**既定値** |
 | `past_due` | `membership_period_end` が未来なら可 | 支払い遅延中の猶予期間 |
-| `canceled` | 不可 | 解約済み |
+| `suspended` | 不可 | 運営が利用を止めた人 |
+| `canceled` | 不可 | 退会した人 |
+| `invited` | 不可 | 旧・承認待ち。**もう作られない**（既存の行は自動で `active` に移行済み） |
 
 Webのログインは Googleアカウントで行います。**会員の `email` と、ログインに使うGoogleアカウントのメールアドレスが一致している必要があります。** 一致しないと「登録されていません」として弾かれます。
 
-新しく作成される `members` の行は必ず `invited` で始まります。運営が明示的に `active` へ更新するまで、Web掲示板もアプリも利用できません。ChatGPTログインだけで会員扱いになることはありません。
+**登録した人はその場で使えます。** 承認待ちはありません。新しく作成される `members` の行は `active` で始まり、`activated_at` にその日時が入ります（紹介の30日はここから数えます）。
+
+利用を止めるときは `suspended` にします。`invited` はもう使いません。
+
+```bash
+npx wrangler d1 execute <D1_DATABASE> --remote \
+  --command "UPDATE members SET membership_status = 'suspended' WHERE email = 'member@example.jp'"
+```
 
 ## 前提
 
