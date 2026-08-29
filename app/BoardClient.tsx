@@ -1,6 +1,6 @@
 'use client';
 
-import { ChangeEvent, CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, CSSProperties, FormEvent, useEffect, useMemo, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import type { AdSlot, BoardRequest, MemberStats, ReferralSummary } from '@/db/data';
 import ReceivedIntroductions from './ReceivedIntroductions';
@@ -141,7 +141,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [zoom, setZoom] = useState(1);
   const [croppedArea, setCroppedArea] = useState<Area | null>(null);
   const [cropping, setCropping] = useState(false);
-  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'responses' | null>(null);
+  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'responses' | 'ads' | null>(null);
   const [selected, setSelected] = useState<BoardRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
@@ -160,8 +160,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [adPreview, setAdPreview] = useState('');
   const [adUpload, setAdUpload] = useState<File | null>(null);
   const [adMonth, setAdMonth] = useState('');
-  // 決済から戻った人を、出稿カードまで連れていくための目印。
-  const wantsAdScroll = useRef(adReturn === 'done');
 
   function showToast(message: string) { setToast(message); window.setTimeout(() => setToast(''), 3800); }
 
@@ -241,18 +239,19 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     fetch('/api/referral').then((response) => response.ok ? response.json() : null)
       .then((data) => { if (alive && data) setReferral(data as ReferralSummary & { url: string }); })
       .catch(() => {});
-    // 出稿枠はWebだけの機能。マイページを開いたときに空き枠を見る。
-    fetch('/api/ads').then((response) => response.ok ? response.json() : null)
-      .then((data) => {
-        if (!alive || !data) return;
-        setAdInfo(data as AdOffer);
-        if (!wantsAdScroll.current) return;
-        wantsAdScroll.current = false;
-        window.setTimeout(() => document.getElementById('ad-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
-      })
-      .catch(() => {});
     return () => { alive = false; };
   }, [activeTab, referral]);
+
+  // 出稿枠はWebだけの機能。下のメニューからいつでも開けるので、タブに関係なく読む。
+  // 設定を開いた時点でも読み直して、他の人に取られた枠が残って見えないようにする。
+  useEffect(() => {
+    if (activeTab === 'search' && modal !== 'ads') return;
+    let alive = true;
+    fetch('/api/ads').then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (alive && data) setAdInfo(data as AdOffer); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [activeTab, modal]);
 
   // 文字だけのバナーは、打ちながら見え方が変わるようにする。
   useEffect(() => {
@@ -263,14 +262,16 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     return () => window.clearTimeout(timer);
   }, [editingAd, adMode, adTitle, adTheme, stats.company, userName]);
 
-  // 決済から戻ったときの案内。どの画面を開くかはサーバー側で決めているので、
-  // ここは知らせるだけ。URLに残った印はすぐ消す（再読込で二度出さないため）。
+  // 決済から戻ったときの案内。買った直後の人には、出稿の設定をそのまま開く。
+  // URLに残った印はすぐ消す（再読込で二度出さないため）。
   useEffect(() => {
     if (!adReturn) return;
     window.history.replaceState(null, '', window.location.pathname);
-    const timer = window.setTimeout(() => showToast(adReturn === 'cancel'
-      ? 'お申し込みを取りやめました。枠は解放されます。'
-      : '枠を確保しました。掲載する内容を入れてください。'), 60);
+    const timer = window.setTimeout(() => {
+      if (adReturn === 'cancel') return showToast('お申し込みを取りやめました。枠は解放されます。');
+      setModal('ads');
+      showToast('枠を確保しました。掲載する内容を入れてください。');
+    }, 60);
     return () => window.clearTimeout(timer);
   }, [adReturn]);
 
@@ -373,7 +374,15 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
 
   // 選んでいる月。まだ選んでいなければ、空いている一番近い月を初期値にする。
-  const selectableMonth = adMonth || adInfo?.months.find((entry) => entry.remaining > 0)?.month || '';
+  const nextOpenMonth = adInfo?.months.find((entry) => entry.remaining > 0);
+  const selectableMonth = adMonth || nextOpenMonth?.month || '';
+  // マイページの入口に出す、いま掲載中の1枠。
+  const liveAd = adInfo?.slots.find((ad) => ad.imageUrl && adState(ad).tone === 'live');
+
+  function openAdSettings() {
+    setEditingAd('');
+    setModal('ads');
+  }
 
   async function buyAdSlot() {
     if (busy || !selectableMonth) return;
@@ -711,9 +720,73 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <p className="invite-terms">この特典は、予告なく内容の変更または終了をすることがあります。すでに確定したぶんは、そのままご利用いただけます。</p>
         </section>}
 
-        {adInfo && <section className="ad-card" id="ad-card" aria-label="トップバナーへの出稿">
+        {adInfo && <section className="ad-entry" aria-label="トップバナーへの出稿">
           <div className="ad-heading"><p>TOP BANNER</p><h2>トップバナーに出す</h2><span>ホームのいちばん上、いちばん先に目に入る場所に、1ヶ月あいだ自分の告知を出せます。{rankNames[adInfo.minRankLevel - 1]}以上の方の特典です。</span></div>
 
+          {!adInfo.eligible
+            ? <div className="ad-locked">
+                <b>いまは{adInfo.rank}です</b>
+                <span>紹介をあと{Math.max(0, rankThresholds[adInfo.minRankLevel - 1] - stats.introCount)}件で{rankNames[adInfo.minRankLevel - 1]}になり、この枠をお申し込みいただけるようになります。</span>
+                <span className="ad-locked-why">枠を上位ランクの方に限っているのは、紹介を重ねてきた方から順に、より多くの目に留まる場所をお使いいただくためです。</span>
+              </div>
+            : <>
+                {liveAd && <div className="ad-entry-live">
+                  <div className="ad-slot-shot"><img src={liveAd.imageUrl} alt={`${liveAd.title}のバナー`} /><span className="hero-ad-tag">PR<em>{stats.company || userName}</em></span></div>
+                  <p className="ad-entry-state"><b>{monthLabel(liveAd.month)}・掲載中</b><span>見た人 {liveAd.viewCount.toLocaleString('ja-JP')}人／押された {liveAd.clickCount.toLocaleString('ja-JP')}回</span></p>
+                </div>}
+                <button className="ad-entry-open" onClick={openAdSettings}>
+                  <span><b>{adInfo.slots.length ? '掲載の設定を開く' : '出稿枠を申し込む'}</b><small>{adInfo.slots.length ? `お持ちの枠 ${adInfo.slots.length}件・見出しや画像はここから変えられます` : `${adSlotPrice()}／1枠・${nextOpenMonth ? `${monthLabel(nextOpenMonth.month)}はのこり${nextOpenMonth.remaining}枠` : 'ただいま満枠です'}`}</small></span>
+                  <i aria-hidden="true">›</i>
+                </button>
+              </>}
+        </section>}
+
+        <section className="feedback-card" aria-label="機能改善のご意見">
+          <div className="feedback-heading"><p>YOUR VOICE</p><h2>こうしてほしい、を聞かせてください</h2><span>{serviceName}は作っている途中です。使ってみて足りないところ、使いにくいところを教えてください。いただいたご意見は運営が必ず読みます。</span></div>
+          {feedbackSent ? <div className="feedback-done"><b>お送りいただきました</b><span>ありがとうございます。続けてお気づきの点があれば、また送ってください。</span><button onClick={() => setFeedbackSent(false)}>もう1件送る</button></div> : <form className="feedback-form" onSubmit={submitFeedback}>
+            <label><span>種類</span><select name="category" defaultValue="feature">{feedbackCategories.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select></label>
+            <label><span>内容</span><textarea name="body" required maxLength={1000} rows={4} placeholder="例：会場ごとの探しごとをまとめて見たい／会場での集まりの告知も出したい" /></label>
+            <button className="submit-button" disabled={busy}>{busy ? '送信しています…' : '送る'}</button>
+          </form>}
+        </section>
+
+
+        <div className="profile-form profile-page-form">
+          <div className="profile-form-heading"><b>プロフィール情報</b><span>入力内容は探しごとや紹介時に表示されます。</span></div>
+          <label className="photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />JPEG・PNG・WebP／5MBまで</small></span><i>{stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
+          <label>会社名 <small className="req">必須</small><input value={profileCompany} onChange={(event) => setProfileCompany(event.target.value)} maxLength={80} placeholder="株式会社〇〇" required /></label>
+          <div className="profile-venue-select">
+            <p>所属会場 <small className="req">必須</small></p>
+            <label>都道府県<select value={venuePrefecture} onChange={(event) => { setVenuePrefecture(event.target.value); setVenueChoice(''); }}><option value="">選択してください</option>{venuePrefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
+            <label>会場<select value={venueChoice} onChange={(event) => setVenueChoice(event.target.value)} disabled={!venuePrefecture && venueChoice !== OTHER_VENUE}><option value="">会場を選択</option>{(venuesByPrefecture[venuePrefecture] ?? []).map((venue) => <option value={venue} key={venue}>{venue}</option>)}<option value={OTHER_VENUE}>その他（自由入力）</option></select></label>
+            {venueChoice === OTHER_VENUE && <label className="wide">会場名 <small>正式な会場名を入力</small><input value={venueOther} onChange={(event) => setVenueOther(event.target.value)} maxLength={60} placeholder="例：ひるのめぐろ会場" /></label>}
+          </div>
+          <div className="profile-row"><label>肩書き <small>任意</small><input value={profilePosition} onChange={(event) => setProfilePosition(event.target.value)} maxLength={60} placeholder="世話人" /></label><label>バッヂ <small>任意</small><select value={profileBadge} onChange={(event) => setProfileBadge(event.target.value)}><option value="">選択しない</option><option value="緑">緑</option><option value="赤">赤</option><option value="ゴールド">ゴールド</option><option value="ダイヤモンド">ダイヤモンド</option></select></label></div>
+          <label>活動エリア <small>任意・検索に使われます</small><select value={profileArea} onChange={(event) => setProfileArea(event.target.value)}><option value="">選択しない</option>{prefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
+          <div className="profile-industry-select"><p>自分の業種 <small>おすすめの設定に使われます</small></p><label>大分類<select value={profileIndustryGroup} onChange={(event) => { setProfileIndustryGroup(event.target.value); setProfileIndustry(''); }}><option value="">選択してください</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label><label>詳細業種<select value={profileIndustry} onChange={(event) => { const value = event.target.value; setProfileIndustry(value); if (value && !profileNotifyIndustries.includes(value)) setProfileNotifyIndustries((current) => [...current, value].slice(0, 6)); }} disabled={!profileIndustryGroup}><option value="">詳細業種を選択</option>{profileIndustry === profileIndustryGroup && <option value={profileIndustryGroup}>大分類のみ（旧設定）</option>}{industryGroups.find((group) => group.name === profileIndustryGroup)?.children.map((industry) => <option value={industry} key={industry}>{industry}</option>)}</select></label></div>
+          <IndustryPicker legend="おすすめに出したい業種" note="6個まで" description="選んだ詳細業種の探しごとが、ホームの「あなたにおすすめ」に出ます。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, 6)} className="profile-tag-field" />
+          <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+          <label>Facebook <small>任意・紹介のあとに直接やり取りできます</small><input value={profileFacebook} onChange={(event) => setProfileFacebook(event.target.value)} maxLength={200} placeholder="https://www.facebook.com/your.name" inputMode="url" /></label>
+          <button className="profile-save-button" onClick={saveProfile} disabled={busy || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
+        </div>
+      </section>}
+
+      <nav className="bottom-nav" aria-label="アプリメニュー">
+        <button className={activeTab === 'home' ? 'active' : ''} onClick={showHome}><span>⌂</span><small>ホーム</small></button>
+        <button className={activeTab === 'search' ? 'active' : ''} onClick={() => showSearch()}><span>⌕</span><small>困りごと</small></button>
+        <button className="nav-post" onClick={openRequest} aria-label="探しごとを投稿する"><span>＋</span></button>
+        <button className={modal === 'ads' ? 'active' : ''} onClick={openAdSettings}><span><BannerIcon /></span><small>広告</small></button>
+        <button className={modal !== 'ads' && activeTab === 'profile' ? 'active' : ''} onClick={showProfile}><span><PersonIcon /></span><small>マイページ</small></button>
+      </nav>
+
+      {modal === 'request' && !canPostRequest && <Modal title="今月ぶんの投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showProfile(); }}>マイページを開く</button></div></Modal>}
+
+      {modal === 'request' && canPostRequest && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの<select name="category" required defaultValue=""><option value="" disabled>選択してください</option><option value="project">案件の発注先</option><option value="collaboration">協業パートナー</option><option value="consultation">相談相手・情報</option></select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容<textarea name="description" required maxLength={600} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア<input name="area" required maxLength={60} placeholder="例：東京都・オンライン" /></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><label className="request-photo"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseRequestPhoto} />{requestPhotoPreview ? <img src={requestPhotoPreview} alt="添付する写真のプレビュー" /> : <span className="request-photo-empty">＋</span>}<span className="request-photo-copy"><b>写真を付ける <em>任意</em></b><small>{requestPhoto ? '一覧で目印になります。押すと選び直せます' : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></span>{requestPhoto && <i onClick={(event) => { event.preventDefault(); clearRequestPhoto(); }}>削除</i>}</label><button className="submit-button" disabled={busy || !requestIndustries.length}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
+
+      {modal === 'intro' && selected && <Modal title="知っている人を紹介" lead={`「${selected.title}」への紹介です。`} onClose={() => setModal(null)}><form className="form" onSubmit={submitIntroduction}><label>お名前<input name="personName" required maxLength={60} /></label><label>会社・屋号<input name="personCompany" required maxLength={80} /></label><label>あなたとの関係<input name="relationship" required maxLength={120} placeholder="例：取引先、友人" /></label><label>紹介したい理由<textarea name="fitReason" required maxLength={400} rows={3} /></label><label className="consent"><input type="checkbox" name="consentConfirmed" required /> ご本人に紹介の了承を得ています</label><button className="submit-button" disabled={busy}>{busy ? '届けています…' : '紹介を届ける'}</button></form></Modal>}
+
+      {modal === 'ads' && adInfo && <Modal title="トップバナーに出す" lead={`ホームのいちばん先に目に入る場所に、1ヶ月あいだ告知を出せます。お支払いは1回きりで、自動更新はありません。掲載内容は掲載中でも何度でも変えられます。`} onClose={() => { setModal(null); setEditingAd(''); }}>
+        <div className="ad-panel">
           {adInfo.slots.length > 0 && <ul className="ad-slot-list">{adInfo.slots.map((ad) => {
             const state = adState(ad);
             return <li key={ad.id} className={`ad-slot is-${state.tone}`}>
@@ -755,73 +828,25 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             </li>;
           })}</ul>}
 
-          {!adInfo.eligible
-            ? <div className="ad-locked">
-                <b>いまは{adInfo.rank}です</b>
-                <span>紹介をあと{Math.max(0, rankThresholds[adInfo.minRankLevel - 1] - stats.introCount)}件で{rankNames[adInfo.minRankLevel - 1]}になり、この枠をお申し込みいただけるようになります。</span>
-                <span className="ad-locked-why">枠を上位ランクの方に限っているのは、紹介を重ねてきた方から順に、より多くの目に留まる場所をお使いいただくためです。</span>
-              </div>
-            : !adInfo.ready
-              ? <p className="ad-note">出稿枠のお申し込みは準備中です。ご希望の方は運営窓口へお問い合わせください。</p>
-              : <div className="ad-buy">
-                  <p className="ad-buy-label">掲載する月をお選びください</p>
-                  <div className="ad-months" role="group" aria-label="掲載する月">{adInfo.months.map((entry) => <button key={entry.month} type="button" disabled={entry.remaining === 0} className={adMonth === entry.month ? 'active' : ''} onClick={() => setAdMonth(entry.month)}>
-                    <b>{monthParts(entry.month).month}</b>
-                    <small>{monthParts(entry.month).year}</small>
-                    <em>{entry.remaining === 0 ? '満枠' : `のこり${entry.remaining}`}</em>
-                  </button>)}</div>
-                  <dl className="ad-buy-facts">
-                    <div><dt>料金</dt><dd><small className="ad-buy-year">1枠あたり</small>{adSlotPrice()}</dd></div>
-                    <div><dt>掲載</dt><dd><small className="ad-buy-year">まるまる</small>1ヶ月</dd></div>
-                    <div><dt>枠数</dt><dd><small className="ad-buy-year">1ヶ月</small>{adInfo.months.length ? `${AD_SLOTS_PER_MONTH}枠` : '—'}</dd></div>
-                  </dl>
-                  <button className="submit-button" onClick={buyAdSlot} disabled={busy || !selectableMonth}>{selectableMonth ? `${monthLabel(selectableMonth)}の枠を申し込む` : 'この先の月はすべて満枠です'}</button>
-                  <p className="ad-note">枠は早い者勝ちです。お支払いは1回きりで、自動更新はありません。掲載内容は、お申し込みのあとにこの画面から入れられます。内容は掲載中でも何度でも変えられます。</p>
-                </div>}
-        </section>}
-
-        <section className="feedback-card" aria-label="機能改善のご意見">
-          <div className="feedback-heading"><p>YOUR VOICE</p><h2>こうしてほしい、を聞かせてください</h2><span>{serviceName}は作っている途中です。使ってみて足りないところ、使いにくいところを教えてください。いただいたご意見は運営が必ず読みます。</span></div>
-          {feedbackSent ? <div className="feedback-done"><b>お送りいただきました</b><span>ありがとうございます。続けてお気づきの点があれば、また送ってください。</span><button onClick={() => setFeedbackSent(false)}>もう1件送る</button></div> : <form className="feedback-form" onSubmit={submitFeedback}>
-            <label><span>種類</span><select name="category" defaultValue="feature">{feedbackCategories.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select></label>
-            <label><span>内容</span><textarea name="body" required maxLength={1000} rows={4} placeholder="例：会場ごとの探しごとをまとめて見たい／会場での集まりの告知も出したい" /></label>
-            <button className="submit-button" disabled={busy}>{busy ? '送信しています…' : '送る'}</button>
-          </form>}
-        </section>
-
-
-        <div className="profile-form profile-page-form">
-          <div className="profile-form-heading"><b>プロフィール情報</b><span>入力内容は探しごとや紹介時に表示されます。</span></div>
-          <label className="photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />JPEG・PNG・WebP／5MBまで</small></span><i>{stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
-          <label>会社名 <small className="req">必須</small><input value={profileCompany} onChange={(event) => setProfileCompany(event.target.value)} maxLength={80} placeholder="株式会社〇〇" required /></label>
-          <div className="profile-venue-select">
-            <p>所属会場 <small className="req">必須</small></p>
-            <label>都道府県<select value={venuePrefecture} onChange={(event) => { setVenuePrefecture(event.target.value); setVenueChoice(''); }}><option value="">選択してください</option>{venuePrefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
-            <label>会場<select value={venueChoice} onChange={(event) => setVenueChoice(event.target.value)} disabled={!venuePrefecture && venueChoice !== OTHER_VENUE}><option value="">会場を選択</option>{(venuesByPrefecture[venuePrefecture] ?? []).map((venue) => <option value={venue} key={venue}>{venue}</option>)}<option value={OTHER_VENUE}>その他（自由入力）</option></select></label>
-            {venueChoice === OTHER_VENUE && <label className="wide">会場名 <small>正式な会場名を入力</small><input value={venueOther} onChange={(event) => setVenueOther(event.target.value)} maxLength={60} placeholder="例：ひるのめぐろ会場" /></label>}
-          </div>
-          <div className="profile-row"><label>肩書き <small>任意</small><input value={profilePosition} onChange={(event) => setProfilePosition(event.target.value)} maxLength={60} placeholder="世話人" /></label><label>バッヂ <small>任意</small><select value={profileBadge} onChange={(event) => setProfileBadge(event.target.value)}><option value="">選択しない</option><option value="緑">緑</option><option value="赤">赤</option><option value="ゴールド">ゴールド</option><option value="ダイヤモンド">ダイヤモンド</option></select></label></div>
-          <label>活動エリア <small>任意・検索に使われます</small><select value={profileArea} onChange={(event) => setProfileArea(event.target.value)}><option value="">選択しない</option>{prefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
-          <div className="profile-industry-select"><p>自分の業種 <small>おすすめの設定に使われます</small></p><label>大分類<select value={profileIndustryGroup} onChange={(event) => { setProfileIndustryGroup(event.target.value); setProfileIndustry(''); }}><option value="">選択してください</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label><label>詳細業種<select value={profileIndustry} onChange={(event) => { const value = event.target.value; setProfileIndustry(value); if (value && !profileNotifyIndustries.includes(value)) setProfileNotifyIndustries((current) => [...current, value].slice(0, 6)); }} disabled={!profileIndustryGroup}><option value="">詳細業種を選択</option>{profileIndustry === profileIndustryGroup && <option value={profileIndustryGroup}>大分類のみ（旧設定）</option>}{industryGroups.find((group) => group.name === profileIndustryGroup)?.children.map((industry) => <option value={industry} key={industry}>{industry}</option>)}</select></label></div>
-          <IndustryPicker legend="おすすめに出したい業種" note="6個まで" description="選んだ詳細業種の探しごとが、ホームの「あなたにおすすめ」に出ます。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, 6)} className="profile-tag-field" />
-          <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-          <label>Facebook <small>任意・紹介のあとに直接やり取りできます</small><input value={profileFacebook} onChange={(event) => setProfileFacebook(event.target.value)} maxLength={200} placeholder="https://www.facebook.com/your.name" inputMode="url" /></label>
-          <button className="profile-save-button" onClick={saveProfile} disabled={busy || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
+          {!adInfo.ready
+            ? <p className="ad-note">出稿枠のお申し込みは準備中です。ご希望の方は運営窓口へお問い合わせください。</p>
+            : <div className="ad-buy">
+                <p className="ad-buy-label">{adInfo.slots.length ? 'もう1枠、お申し込みになりますか' : '掲載する月をお選びください'}</p>
+                <div className="ad-months" role="group" aria-label="掲載する月">{adInfo.months.map((entry) => <button key={entry.month} type="button" disabled={entry.remaining === 0} className={selectableMonth === entry.month ? 'active' : ''} onClick={() => setAdMonth(entry.month)}>
+                  <b>{monthParts(entry.month).month}</b>
+                  <small>{monthParts(entry.month).year}</small>
+                  <em>{entry.remaining === 0 ? '満枠' : `のこり${entry.remaining}`}</em>
+                </button>)}</div>
+                <dl className="ad-buy-facts">
+                  <div><dt>料金</dt><dd><small className="ad-buy-year">1枠あたり</small>{adSlotPrice()}</dd></div>
+                  <div><dt>掲載</dt><dd><small className="ad-buy-year">まるまる</small>1ヶ月</dd></div>
+                  <div><dt>枠数</dt><dd><small className="ad-buy-year">1ヶ月</small>{AD_SLOTS_PER_MONTH}枠</dd></div>
+                </dl>
+                <button className="submit-button" onClick={buyAdSlot} disabled={busy || !selectableMonth}>{selectableMonth ? `${monthLabel(selectableMonth)}の枠を申し込む` : 'この先の月はすべて満枠です'}</button>
+                <p className="ad-note">枠は早い者勝ちです。掲載内容は、お申し込みのあとにこの画面から入れられます。</p>
+              </div>}
         </div>
-      </section>}
-
-      <nav className="bottom-nav" aria-label="アプリメニュー">
-        <button className={activeTab === 'home' ? 'active' : ''} onClick={showHome}><span>⌂</span><small>ホーム</small></button>
-        <button className={activeTab === 'search' ? 'active' : ''} onClick={() => showSearch()}><span>⌕</span><small>困りごと</small></button>
-        <button className="nav-post" onClick={openRequest} aria-label="探しごとを投稿する"><span>＋</span></button>
-        <button className={activeTab === 'profile' ? 'active' : ''} onClick={showProfile}><span><PersonIcon /></span><small>マイページ</small></button>
-      </nav>
-
-      {modal === 'request' && !canPostRequest && <Modal title="今月ぶんの投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showProfile(); }}>マイページを開く</button></div></Modal>}
-
-      {modal === 'request' && canPostRequest && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの<select name="category" required defaultValue=""><option value="" disabled>選択してください</option><option value="project">案件の発注先</option><option value="collaboration">協業パートナー</option><option value="consultation">相談相手・情報</option></select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容<textarea name="description" required maxLength={600} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア<input name="area" required maxLength={60} placeholder="例：東京都・オンライン" /></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><label className="request-photo"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseRequestPhoto} />{requestPhotoPreview ? <img src={requestPhotoPreview} alt="添付する写真のプレビュー" /> : <span className="request-photo-empty">＋</span>}<span className="request-photo-copy"><b>写真を付ける <em>任意</em></b><small>{requestPhoto ? '一覧で目印になります。押すと選び直せます' : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></span>{requestPhoto && <i onClick={(event) => { event.preventDefault(); clearRequestPhoto(); }}>削除</i>}</label><button className="submit-button" disabled={busy || !requestIndustries.length}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
-
-      {modal === 'intro' && selected && <Modal title="知っている人を紹介" lead={`「${selected.title}」への紹介です。`} onClose={() => setModal(null)}><form className="form" onSubmit={submitIntroduction}><label>お名前<input name="personName" required maxLength={60} /></label><label>会社・屋号<input name="personCompany" required maxLength={80} /></label><label>あなたとの関係<input name="relationship" required maxLength={120} placeholder="例：取引先、友人" /></label><label>紹介したい理由<textarea name="fitReason" required maxLength={400} rows={3} /></label><label className="consent"><input type="checkbox" name="consentConfirmed" required /> ご本人に紹介の了承を得ています</label><button className="submit-button" disabled={busy}>{busy ? '届けています…' : '紹介を届ける'}</button></form></Modal>}
+      </Modal>}
 
       {modal === 'responses' && <Modal title="届いた紹介" lead="あなたが投稿した探しごとへの紹介です。" onClose={() => setModal(null)}><ReceivedIntroductions /></Modal>}
 
@@ -841,6 +866,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
   );
+}
+
+function BannerIcon() {
+  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <rect x="2.6" y="4.4" width="18.8" height="11.4" rx="2.2" />
+    <path d="M6.4 8.6h7.4M6.4 11.8h4.6" />
+    <path d="M12 15.8v3.8M8.6 19.6h6.8" />
+  </svg>;
 }
 
 function PersonIcon() {

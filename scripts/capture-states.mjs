@@ -142,14 +142,14 @@ await page.locator('.hero-image-slide').click();
 await save('modal:responses', page);
 await closeModal();
 
-await nav(3).click();
+await nav(4).click();
 await page.locator('.invite-card').waitFor({ timeout: 15000 }).catch(() => console.warn('\n招待カードが出ませんでした'));
 await save('mypage', page);
 
 // 有料会員のマイページも撮る（プラン表示と招待カードの文言が変わる）
 setPlan('standard', '2027-03-31');
 await page.reload({ waitUntil: 'networkidle' });
-await nav(3).click();
+await nav(4).click();
 await page.locator('.invite-card').waitFor({ timeout: 15000 }).catch(() => undefined);
 await save('mypage:pro', page);
 // 投稿フォームそのものは有料会員のうちに撮る（無料会員は上限の案内が出るため）
@@ -174,7 +174,7 @@ await closeModal();
 
 setPlan('free');
 await page.reload({ waitUntil: 'networkidle' });
-await nav(3).click();
+await nav(4).click();
 await page.waitForTimeout(600);
 // プランは折りたたみなので、開いた状態も撮っておく
 await page.locator('.plan-card > summary').click();
@@ -187,7 +187,7 @@ await page.waitForTimeout(250);
 const introCount = getIntroCount();
 setIntroCount(12);
 await page.reload({ waitUntil: 'networkidle' });
-await nav(3).click();
+await nav(4).click();
 await page.locator('.ad-card').waitFor({ timeout: 15000 }).catch(() => console.warn('\n出稿カードが出ませんでした'));
 await save('mypage:ad', page);
 // 入稿の画面も撮る。写真を持っていない人向けの「文字だけで作る」が見えるように。
@@ -201,7 +201,7 @@ if (await adEdit.count()) {
 }
 setIntroCount(introCount);
 await page.reload({ waitUntil: 'networkidle' });
-await nav(3).click();
+await nav(4).click();
 await page.waitForTimeout(600);
 
 // 都道府県ごとの会場は、実際にselectを切り替えて読み取る

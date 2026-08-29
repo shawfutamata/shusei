@@ -182,7 +182,7 @@ const html = `<title>TASUKI プレビュー</title>
   const flash = document.getElementById('flash');
   const navButtons = Array.from(document.querySelectorAll('.rail-group button'));
 
-  const navTargets = ['home', 'search', 'modal:post:limit', 'mypage'];
+  const navTargets = ['home', 'search', 'modal:post:limit', 'mypage:ad', 'mypage'];
   const filterKeys = ['all', 'project', 'collaboration', 'consultation'];
   const bannerTargets = ['modal:post', 'modal:responses', 'mypage'];
   const isOverlay = (key) => /^(modal:|detail:|intro:)/.test(key);
