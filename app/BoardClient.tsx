@@ -164,6 +164,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [editingAd, setEditingAd] = useState('');
   const [adFileName, setAdFileName] = useState('');
   const [adDraft, setAdDraft] = useState<AdDraft>(emptyAdDraft);
+  // 出す流れは3つの手順に分ける。1画面に全部出すと、どこまでやったか分からなくなる。
+  const [adFlow, setAdFlow] = useState(false);
+  const [adStep, setAdStep] = useState(0);
   const [adStart, setAdStart] = useState('');
   const [adDays, setAdDays] = useState(30);
   const [openStats, setOpenStats] = useState('');
@@ -263,7 +266,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     if (activeTab === 'search' && modal !== 'ads') return;
     let alive = true;
     fetch('/api/ads').then((response) => response.ok ? response.json() : null)
-      .then((data) => { if (alive && data) setAdInfo(data as AdOffer); })
+      .then((data) => {
+        if (!alive || !data) return;
+        const offer = data as AdOffer;
+        setAdInfo(offer);
+        // まだ1枠も持っていない人は、そのまま出す流れから始める。
+        if (offer.eligible && offer.ready && !offer.slots.length) setAdFlow(true);
+      })
       .catch(() => {});
     return () => { alive = false; };
   }, [activeTab, modal]);
@@ -464,9 +473,31 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   function openAdSettings() {
     setEditingAd('');
     setOpenStats('');
+    setModal('ads');
+  }
+
+  function closeAdSettings() {
+    setModal(null);
+    setEditingAd('');
+    setOpenStats('');
+    closeAdFlow();
+  }
+
+  function startAdFlow() {
     setAdFileName('');
     setAdDraft(emptyAdDraft);
-    setModal('ads');
+    setAdStep(0);
+    setAdFlow(true);
+  }
+
+  function closeAdFlow() {
+    setAdFlow(false);
+    setAdStep(0);
+    setAdFileName('');
+    setAdDraft((current) => {
+      if (current.imagePreview.startsWith('blob:')) URL.revokeObjectURL(current.imagePreview);
+      return emptyAdDraft;
+    });
   }
 
   // カレンダーを開いた時点で、空いている一番近い日を選んでおく。
@@ -931,19 +962,20 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </div>
       </Modal>}
 
-      {modal === 'ads' && adInfo && <Modal title="トップバナーに出す" lead="ホームのいちばん先に目に入る場所に、選んだ期間だけ告知を出せます。お支払いは1回きりで、自動更新はありません。" onClose={() => { setModal(null); setEditingAd(''); setOpenStats(''); }}>
+      {modal === 'ads' && adInfo && <Modal title="トップバナーに出す" lead={`ホームの先頭に、選んだ期間だけ告知を出せます。1枠 ${adSlotPrice()}（税込）のお支払いが1回だけ。`} onClose={closeAdSettings}>
         <div className="ad-panel">
-          {adInfo.slots.length > 0 && <ul className="ad-slot-list">{adInfo.slots.map((ad) => {
+          {/* いま持っている枠。ここは見るところで、申し込みは下の流れで行う。 */}
+          {adInfo.slots.length > 0 && !adFlow && <ul className="ad-slot-list">{adInfo.slots.map((ad) => {
             const state = adState(ad);
             return <li key={ad.id} className={`ad-slot is-${state.tone}`}>
               <div className="ad-slot-head"><b>{formatRange(ad.startDate, ad.endDate)}</b><span className={`ad-state is-${state.tone}`}>{state.label}</span></div>
               {editingAd !== ad.id && <AdBanner ad={{ title: ad.title, description: ad.description, imageUrl: ad.imageUrl, by: stats.company || userName }} />}
 
               {editingAd === ad.id
-                ? <form className="ad-form" onSubmit={(event) => saveAd(event, ad.id)}>
+                ? <form className="ad-fields" onSubmit={(event) => saveAd(event, ad.id)}>
                     <AdFields offer={adInfo} draft={adDraft} onChange={setAdDraft} onImage={chooseAdImage} imageName={adFileName} keepImage={Boolean(ad.imageUrl)} />
                     <AdPreview draft={adDraft} fallbackImage={ad.imageUrl} by={stats.company || userName} />
-                    <div className="ad-form-actions"><button type="button" onClick={() => setEditingAd('')} disabled={busy}>やめる</button><button className="submit-button" disabled={busy}>{busy ? '保存しています…' : '保存する'}</button></div>
+                    <div className="ad-step-actions"><button type="button" onClick={() => setEditingAd('')} disabled={busy}>やめる</button><button className="submit-button" disabled={busy}>{busy ? '保存しています…' : '保存する'}</button></div>
                   </form>
                 : <>
                     <div className="ad-slot-foot"><b>{ad.linkUrl ? ad.linkUrl.replace(/^https?:\/\//, '') : 'リンクなし'}</b>{state.editable && <button onClick={() => startEditingAd(ad)}>内容を変える</button>}</div>
@@ -955,23 +987,52 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
           {!adInfo.ready
             ? <p className="ad-note">出稿枠のお申し込みは準備中です。ご希望の方は運営窓口へお問い合わせください。</p>
-            : <form className="ad-buy" onSubmit={buyAdSlot}>
-                <p className="ad-buy-label">{adInfo.slots.length ? 'もう1枠、出しますか' : '出す内容を入れてください'}</p>
-                <AdFields offer={adInfo} draft={adDraft} onChange={setAdDraft} onImage={chooseAdImage} imageName={adFileName} />
-                <AdPreview draft={adDraft} by={stats.company || userName} />
+            : !adFlow
+              ? <button className="ad-entry-open ad-flow-open" onClick={startAdFlow}>
+                  <span><b>新しく出す</b><small>3つの手順で終わります。{adSlotPrice()}（税込・1回きり）</small></span>
+                  <i aria-hidden="true">›</i>
+                </button>
+              : <form className="ad-flow" onSubmit={buyAdSlot}>
+                  <ol className="ad-steps" aria-label="出すまでの手順">
+                    {['内容', '期間', '確認'].map((name, index) => <li key={name} className={`${index === adStep ? 'now' : ''}${index < adStep ? ' done' : ''}`.trim()}>
+                      <b>{index < adStep ? '✓' : index + 1}</b><span>{name}</span>
+                    </li>)}
+                  </ol>
 
-                <p className="ad-buy-label">いつからいつまで出しますか</p>
-                <AdCalendar offer={adInfo} startDate={adStart} days={adDays} onPick={setAdStart} />
-                <label className="ad-days"><span>出す日数 <small>最大{adInfo.maxDays}日</small></span>
-                  <input type="range" min={1} max={adInfo.maxDays} value={adDays} onChange={(event) => setAdDays(Number(event.target.value))} />
-                  <b>{adDays}日</b>
-                </label>
-                <p className="ad-buy-period">{adStart
-                  ? <>{formatRange(adStart, shiftDate(adStart, adDays - 1))} に出します<em>{adSlotPrice()}（税込・1回きり）</em></>
-                  : <>カレンダーから、出し始める日を選んでください</>}</p>
-                <button className="submit-button" disabled={busy || !adStart || !periodOpen || !adDraft.title.trim()}>{busy ? '進んでいます…' : !adDraft.title.trim() ? 'タイトルを入れてください' : !adStart ? '始める日を選んでください' : periodOpen ? 'この内容で申し込む' : '選んだ期間に満枠の日があります'}</button>
-                <p className="ad-note">同じ日に出せるのは{adInfo.concurrent}本までで、早い者勝ちです。内容は出したあとでも何度でも変えられます。</p>
-              </form>}
+                  {adStep === 0 && <div className="ad-step">
+                    <p className="ad-step-head"><b>何を出しますか</b><span>タイトルだけでも出せます。写真があると目を引きます。</span></p>
+                    <div className="ad-fields"><AdFields offer={adInfo} draft={adDraft} onChange={setAdDraft} onImage={chooseAdImage} imageName={adFileName} /></div>
+                    <AdPreview draft={adDraft} by={stats.company || userName} />
+                    <div className="ad-step-actions"><button type="button" onClick={closeAdFlow}>やめる</button><button type="button" className="submit-button" disabled={!adDraft.title.trim()} onClick={() => setAdStep(1)}>{adDraft.title.trim() ? '次へ：いつ出すか' : 'タイトルを入れてください'}</button></div>
+                  </div>}
+
+                  {adStep === 1 && <div className="ad-step">
+                    <p className="ad-step-head"><b>いつから出しますか</b><span>始める日を押して、出す日数を決めてください。同じ日に出せるのは{adInfo.concurrent}本までです。</span></p>
+                    <AdCalendar offer={adInfo} startDate={adStart} days={adDays} onPick={setAdStart} />
+                    <label className="ad-days"><span>出す日数 <small>最大{adInfo.maxDays}日</small></span>
+                      <input type="range" min={1} max={adInfo.maxDays} value={adDays} onChange={(event) => setAdDays(Number(event.target.value))} />
+                      <b>{adDays}日</b>
+                    </label>
+                    <p className={`ad-period${adStart && !periodOpen ? ' is-full' : ''}`}>{!adStart
+                      ? 'カレンダーから、出し始める日を選んでください'
+                      : periodOpen
+                        ? `${formatRange(adStart, shiftDate(adStart, adDays - 1))} に出します`
+                        : 'この期間には満枠の日があります。日数を短くするか、別の日から始めてください'}</p>
+                    <div className="ad-step-actions"><button type="button" onClick={() => setAdStep(0)}>戻る</button><button type="button" className="submit-button" disabled={!adStart || !periodOpen} onClick={() => setAdStep(2)}>次へ：確認する</button></div>
+                  </div>}
+
+                  {adStep === 2 && <div className="ad-step">
+                    <p className="ad-step-head"><b>この内容で出します</b><span>お支払いのあと、すぐにホームへ出ます。</span></p>
+                    <AdBanner ad={{ title: adDraft.title, description: adDraft.description, imageUrl: adDraft.imagePreview, by: stats.company || userName }} />
+                    <dl className="ad-check">
+                      <div><dt>出す期間</dt><dd>{adStart && formatRange(adStart, shiftDate(adStart, adDays - 1))}<small>{adDays}日間</small></dd></div>
+                      <div><dt>リンク</dt><dd>{adDraft.linkUrl ? adDraft.linkUrl.replace(/^https?:\/\//, '') : <em>なし</em>}</dd></div>
+                      <div className="ad-check-pay"><dt>お支払い</dt><dd>{adSlotPrice()}<small>税込・1回きり</small></dd></div>
+                    </dl>
+                    <div className="ad-step-actions"><button type="button" onClick={() => setAdStep(1)}>戻る</button><button className="submit-button" disabled={busy || !adStart || !periodOpen}>{busy ? '進んでいます…' : 'お支払いに進む'}</button></div>
+                    <p className="ad-note">お支払いは決済会社（Stripe）の画面で行います。掲載内容は、出したあとでも何度でも変えられます。</p>
+                  </div>}
+                </form>}
         </div>
       </Modal>}
 
@@ -1039,14 +1100,13 @@ function AdPreview({ draft, fallbackImage = '', by }: { draft: AdDraft; fallback
 }
 
 /**
- * 掲載を始める日を選ぶカレンダー。満枠の日は押せない。
- * 選んだ日から日数ぶんの帯を塗って、どこからどこまで出るのかを見せる。
+ * 出し始める日を選ぶカレンダー。満枠の日は押せない。
+ * 1ヶ月ずつ送る。何ヶ月ぶんも縦に並べると、どこを見ればいいのか分からなくなる。
  */
 function AdCalendar({ offer, startDate, days, onPick }: {
   offer: AdOffer; startDate: string; days: number; onPick: (date: string) => void;
 }) {
   const endDate = startDate ? shiftDate(startDate, days - 1) : '';
-  // 月ごとに分けて、1日が何曜日から始まるかを合わせる。
   const months = useMemo(() => {
     const grouped = new Map<string, { date: string; remaining: number }[]>();
     for (const day of offer.calendar) {
@@ -1056,26 +1116,35 @@ function AdCalendar({ offer, startDate, days, onPick }: {
     return [...grouped.entries()];
   }, [offer.calendar]);
 
+  // 選んだ日のある月を開いておく。送ったあとは、その月のまま。
+  const startIndex = Math.max(0, months.findIndex(([month]) => month === (startDate || '').slice(0, 7)));
+  const [page, setPage] = useState(startIndex);
+  const at = Math.min(page, months.length - 1);
+  const [month, entries] = months[at] ?? ['', []];
+  if (!entries.length) return null;
+
   return <div className="ad-calendar">
-    {months.map(([month, entries]) => <section key={month}>
-      <h4>{Number(month.slice(5))}月</h4>
-      <div className="ad-calendar-week" aria-hidden="true">{weekdayNames.map((name) => <span key={name}>{name}</span>)}</div>
-      <div className="ad-calendar-grid">
-        {Array.from({ length: weekdayOf(entries[0].date) }, (_, index) => <span key={`pad-${index}`} />)}
-        {entries.map((day) => {
-          const inPeriod = Boolean(startDate) && day.date >= startDate && day.date <= endDate;
-          const full = day.remaining <= 0;
-          return <button key={day.date} type="button" disabled={full}
-            className={`${day.date === startDate ? 'start ' : ''}${inPeriod ? 'in ' : ''}${full ? 'full' : ''}`.trim()}
-            aria-label={`${Number(day.date.slice(5, 7))}月${Number(day.date.slice(8))}日${full ? '・満枠' : `・のこり${day.remaining}枠`}`}
-            onClick={() => onPick(day.date)}>
-            <b>{Number(day.date.slice(8))}</b>
-            <i>{full ? '×' : day.remaining <= 3 ? `${day.remaining}` : ''}</i>
-          </button>;
-        })}
-      </div>
-    </section>)}
-    <p className="ad-calendar-legend"><span className="is-open" />空きあり<span className="is-few" />のこりわずか<span className="is-full" />満枠</p>
+    <div className="ad-calendar-nav">
+      <button type="button" onClick={() => setPage(at - 1)} disabled={at === 0} aria-label="前の月">‹</button>
+      <b>{Number(month.slice(0, 4))}年{Number(month.slice(5))}月</b>
+      <button type="button" onClick={() => setPage(at + 1)} disabled={at >= months.length - 1} aria-label="次の月">›</button>
+    </div>
+    <div className="ad-calendar-week" aria-hidden="true">{weekdayNames.map((name) => <span key={name}>{name}</span>)}</div>
+    <div className="ad-calendar-grid">
+      {Array.from({ length: weekdayOf(entries[0].date) }, (_, index) => <span key={`pad-${index}`} />)}
+      {entries.map((day) => {
+        const inPeriod = Boolean(startDate) && day.date >= startDate && day.date <= endDate;
+        const full = day.remaining <= 0;
+        return <button key={day.date} type="button" disabled={full}
+          className={`${day.date === startDate ? 'start ' : ''}${inPeriod ? 'in ' : ''}${full ? 'full' : ''}`.trim()}
+          aria-label={`${Number(day.date.slice(5, 7))}月${Number(day.date.slice(8))}日${full ? '・満枠' : `・のこり${day.remaining}枠`}`}
+          onClick={() => onPick(day.date)}>
+          <b>{Number(day.date.slice(8))}</b>
+          <i>{full ? '×' : day.remaining <= 3 ? `のこり${day.remaining}` : ''}</i>
+        </button>;
+      })}
+    </div>
+    <p className="ad-calendar-legend"><span className="is-start" />出し始める日<span className="is-in" />出ている期間<span className="is-full" />満枠</p>
   </div>;
 }
 

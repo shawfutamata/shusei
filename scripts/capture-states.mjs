@@ -213,11 +213,23 @@ if (await adStats.count()) {
   await adStats.click();
   await page.waitForTimeout(300);
 }
-const adEdit = page.locator('.ad-slot-foot button').first();
-if (await adEdit.count()) {
-  await adEdit.click();
+// 出す流れは3つの手順。1つずつ撮る。
+const adNew = page.locator('.ad-flow-open').first();
+if (await adNew.count()) {
+  await adNew.click();
+  await page.waitForTimeout(400);
+}
+if (await page.locator('.ad-fields input').count()) {
+  await page.locator('.ad-fields input').nth(0).fill('内装工事の職人さんを探しています');
+  await page.locator('.ad-fields input').nth(1).fill('都内の店舗改装。長くお付き合いできる方を');
   await page.waitForTimeout(500);
-  await save('mypage:ad:form', page);
+  await save('mypage:ad:step1', page);
+  await page.locator('.ad-step-actions .submit-button').click();
+  await page.waitForTimeout(450);
+  await save('mypage:ad:step2', page);
+  await page.locator('.ad-step-actions .submit-button').click();
+  await page.waitForTimeout(450);
+  await save('mypage:ad:step3', page);
 }
 await closeModal();
 setIntroCount(introCount);

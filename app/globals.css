@@ -169,18 +169,11 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .ad-slot-foot button { min-height:38px; padding:0 13px; border:1px solid var(--accent-line); border-radius:9px; background:#fff; color:var(--accent-ink); font-size:11px; font-weight:900; white-space:nowrap; }
 
 /* 入稿。写真が無い人でも出せるように、作り方を2つ用意する。 */
-.ad-form { display:grid; gap:12px; }
-.ad-form label { display:grid; gap:6px; color:#34445d; font-size:10px; font-weight:800; }
-.ad-form label small { margin-left:5px; color:#8b98ac; font-weight:700; }
-.ad-form input { width:100%; min-height:46px; padding:0 11px; border:1px solid #d7deea; border-radius:10px; background:#fff; color:var(--ink); font-size:13px; outline:none; }
-.ad-form input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
 .ad-file { position:relative; }
 .ad-file input[type=file] { position:absolute; inset:auto 0 0; width:100%; height:46px; opacity:0; }
 .ad-file i { min-height:46px; padding:0 13px; display:flex; align-items:center; overflow:hidden; border:1px dashed #c9b3a8; border-radius:10px; background:#fff; color:var(--accent-ink); font-size:12px; font-style:normal; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
 .ad-preview { display:grid; gap:7px; }
 .ad-preview>p { margin:0; color:#7f8da1; font-size:9px; font-weight:900; letter-spacing:.1em; }
-.ad-form-actions { display:grid; grid-template-columns:auto 1fr; gap:9px; }
-.ad-form-actions>button:first-child { min-height:48px; padding:0 15px; border:1px solid var(--line); border-radius:10px; background:#fff; color:#61708a; font-size:12px; font-weight:800; }
 
 /* まだ買えない人。何をすれば買えるかだけを出す。 */
 .ad-locked { padding:15px; display:grid; gap:6px; border-radius:13px; background:#fff; }
@@ -190,38 +183,81 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 
 /* 申し込み。月を選んでから買う。 */
 .ad-buy { display:grid; gap:11px; }
-.ad-buy-label { margin:0; color:#34445d; font-size:11px; font-weight:900; }
+/* 出す流れ。①内容 ②期間 ③確認 の3つに分ける。1画面に全部出すと、
+   どこまでやったのか分からなくなる。 */
+.ad-flow { display:grid; gap:14px; }
+.ad-steps { margin:0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.ad-steps li { display:grid; justify-items:center; gap:4px; }
+.ad-steps b { width:26px; height:26px; display:grid; place-items:center; border-radius:50%; border:1px solid var(--line); background:#fff; color:#9aa6b8; font-size:12px; font-weight:900; }
+.ad-steps span { color:#9aa6b8; font-size:10px; font-weight:800; }
+.ad-steps li.now b { border-color:var(--accent); background:var(--accent); color:#fff; }
+.ad-steps li.now span { color:var(--accent-ink); }
+.ad-steps li.done b { border-color:#bfe0cb; background:#e6f7ec; color:#16794a; }
+.ad-steps li.done span { color:#5d7a6b; }
 
-/* 掲載を始める日を選ぶカレンダー。満枠の日は押せない。 */
-.ad-calendar { display:grid; gap:14px; }
-.ad-calendar h4 { margin:0 0 7px; color:var(--navy); font-size:12px; font-weight:900; }
+.ad-step { display:grid; gap:13px; }
+.ad-step-head { margin:0; }
+.ad-step-head b { display:block; color:var(--navy); font-size:16px; font-weight:900; }
+.ad-step-head span { display:block; margin-top:4px; color:#7b8ca4; font-size:11px; line-height:1.7; }
+.ad-step-actions { display:grid; grid-template-columns:auto 1fr; gap:9px; }
+.ad-step-actions>button:first-child { min-height:52px; padding:0 16px; border:1px solid var(--line); border-radius:11px; background:#fff; color:#61708a; font-size:13px; font-weight:800; }
+.ad-step-actions .submit-button { margin:0; }
+
+/* 入力欄。枠線が無いと、そもそも入力欄に見えない。 */
+.ad-fields { display:grid; gap:12px; }
+.ad-fields label { display:grid; gap:6px; }
+.ad-fields label>span { color:#34445d; font-size:11px; font-weight:900; }
+.ad-fields label>span small { margin-left:6px; color:#8b98ac; font-size:10px; font-weight:700; }
+.ad-fields input { width:100%; min-height:50px; padding:0 13px; border:1px solid #cfd8e6; border-radius:11px; background:#fff; color:var(--ink); font-size:14px; font-weight:700; outline:none; }
+.ad-fields input::placeholder { color:#aab4c2; font-weight:600; }
+.ad-fields input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.ad-file { position:relative; }
+.ad-file input[type=file] { position:absolute; inset:auto 0 0; width:100%; height:50px; opacity:0; }
+.ad-file i { min-height:50px; padding:0 13px; display:flex; align-items:center; overflow:hidden; border:1px dashed #c9b3a8; border-radius:11px; background:#fffaf7; color:var(--accent-ink); font-size:13px; font-style:normal; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
+
+/* 出し始める日を選ぶカレンダー。1ヶ月ずつ送る。 */
+.ad-calendar { display:grid; gap:9px; }
+.ad-calendar-nav { display:grid; grid-template-columns:44px 1fr 44px; align-items:center; }
+.ad-calendar-nav b { color:var(--navy); font-size:14px; font-weight:900; text-align:center; }
+.ad-calendar-nav button { min-height:44px; border:1px solid var(--line); border-radius:11px; background:#fff; color:var(--blue-dark); font-size:20px; line-height:1; }
+.ad-calendar-nav button:disabled { border-color:#eef1f6; color:#c8d1dd; }
 .ad-calendar-week,.ad-calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
 .ad-calendar-week span { color:#9aa6b8; font-size:9px; font-weight:800; text-align:center; }
 .ad-calendar-week span:first-child { color:#c2564f; }
 .ad-calendar-week span:last-child { color:#4a6fa8; }
-.ad-calendar-grid button { min-height:42px; padding:3px 0 2px; display:grid; place-items:center; align-content:center; gap:1px; border:1px solid #e6ebf3; border-radius:9px; background:#fff; }
-.ad-calendar-grid button b { color:#334660; font-size:13px; font-weight:800; font-variant-numeric:tabular-nums; }
-.ad-calendar-grid button i { height:10px; color:#c98a6a; font-size:8px; font-style:normal; font-weight:900; }
+.ad-calendar-grid button { min-height:46px; padding:3px 0; display:grid; place-items:center; align-content:center; gap:1px; border:1px solid #e6ebf3; border-radius:10px; background:#fff; }
+.ad-calendar-grid button b { color:#334660; font-size:14px; font-weight:800; font-variant-numeric:tabular-nums; }
+.ad-calendar-grid button i { height:9px; color:#c98a6a; font-size:7px; font-style:normal; font-weight:900; }
 .ad-calendar-grid button.in { border-color:var(--accent-line); background:var(--accent-soft); }
 .ad-calendar-grid button.in b { color:var(--accent-ink); }
 .ad-calendar-grid button.start { border-color:var(--accent); background:var(--accent); box-shadow:0 3px 10px rgba(244,80,30,.28); }
 .ad-calendar-grid button.start b,.ad-calendar-grid button.start i { color:#fff; }
 .ad-calendar-grid button.full { border-style:dashed; background:#f5f7fa; }
-.ad-calendar-grid button.full b { color:#b3bdca; }
-.ad-calendar-grid button.full i { color:#b3bdca; }
+.ad-calendar-grid button.full b,.ad-calendar-grid button.full i { color:#b3bdca; }
 .ad-calendar-legend { margin:0; display:flex; align-items:center; gap:5px; color:#8b98ac; font-size:9px; font-weight:700; }
-.ad-calendar-legend span { width:11px; height:11px; margin-left:7px; border-radius:4px; border:1px solid #e6ebf3; background:#fff; }
+.ad-calendar-legend span { width:11px; height:11px; margin-left:9px; border-radius:4px; border:1px solid #e6ebf3; background:#fff; }
 .ad-calendar-legend span:first-child { margin-left:0; }
-.ad-calendar-legend .is-few { border-color:#e6d3c6; background:#fdf3ee; }
+.ad-calendar-legend .is-start { border-color:var(--accent); background:var(--accent); }
+.ad-calendar-legend .is-in { border-color:var(--accent-line); background:var(--accent-soft); }
 .ad-calendar-legend .is-full { border-style:dashed; background:#f5f7fa; }
 
-.ad-days { display:grid; grid-template-columns:1fr auto; align-items:center; gap:4px 10px; }
-.ad-days>span { grid-column:1 / -1; color:#34445d; font-size:10px; font-weight:800; }
-.ad-days>span small { margin-left:5px; color:#8b98ac; font-weight:700; }
+.ad-days { display:grid; grid-template-columns:1fr auto; align-items:center; gap:5px 10px; }
+.ad-days>span { grid-column:1 / -1; color:#34445d; font-size:11px; font-weight:900; }
+.ad-days>span small { margin-left:6px; color:#8b98ac; font-size:10px; font-weight:700; }
 .ad-days input { width:100%; accent-color:var(--accent); }
-.ad-days b { min-width:44px; color:var(--accent-ink); font-size:15px; font-weight:900; text-align:right; font-variant-numeric:tabular-nums; }
-.ad-buy-period { margin:0; padding:11px 13px; border-radius:11px; background:#fff; border:1px solid #eddbd1; color:#3a4a63; font-size:12px; font-weight:800; }
-.ad-buy-period em { display:block; margin-top:3px; color:var(--accent-ink); font-size:11px; font-style:normal; font-weight:900; }
+.ad-days b { min-width:48px; color:var(--accent-ink); font-size:16px; font-weight:900; text-align:right; font-variant-numeric:tabular-nums; }
+.ad-period { margin:0; padding:12px 14px; border:1px solid #eddbd1; border-radius:11px; background:var(--accent-soft); color:var(--accent-ink); font-size:13px; font-weight:900; text-align:center; }
+.ad-period.is-full { border-color:#f0cfcf; background:#fdf0f0; color:#a52121; font-size:11px; font-weight:800; line-height:1.6; }
+
+/* 確認。何をいくらで、いつ出すのかだけ。 */
+.ad-check { margin:0; display:grid; gap:1px; overflow:hidden; border:1px solid #e6ebf3; border-radius:12px; background:#e6ebf3; }
+.ad-check>div { padding:11px 13px; display:grid; grid-template-columns:76px 1fr; align-items:baseline; gap:10px; background:#fff; }
+.ad-check dt { color:#8b98ac; font-size:10px; font-weight:800; }
+.ad-check dd { margin:0; min-width:0; overflow:hidden; color:#25344e; font-size:13px; font-weight:900; text-overflow:ellipsis; }
+.ad-check dd small { margin-left:7px; color:#8b98ac; font-size:10px; font-weight:700; }
+.ad-check dd em { color:#9aa6b8; font-style:normal; font-weight:700; }
+.ad-check-pay { background:var(--accent-soft) !important; }
+.ad-check-pay dd { color:var(--accent-ink); font-size:17px; }
 
 /* 成果。表示とクリックは桁が違うので、軸を分けた2枚に並べる。 */
 .ad-stats-open { width:100%; min-height:42px; display:grid; grid-template-columns:1fr auto; align-items:center; border:1px solid #e6ebf3; border-radius:10px; background:#fbfcfe; color:var(--blue-dark); font-size:11px; font-weight:900; padding:0 12px; }

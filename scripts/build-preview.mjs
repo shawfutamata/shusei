@@ -54,7 +54,9 @@ const screens = [
     ['mypage:perks', 'ランクの特典'],
     ['mypage:ad', 'トップバナーの出稿枠'],
     ['mypage:ad:stats', '広告の成果（アナリティクス）'],
-    ['mypage:ad:form', '広告の入稿（文字だけで作る）'],
+    ['mypage:ad:step1', '広告を出す①内容'],
+    ['mypage:ad:step2', '広告を出す②期間'],
+    ['mypage:ad:step3', '広告を出す③確認'],
     ['modal:post:limit', '投稿の上限に当たったとき'],
   ] },
   { group: 'モーダル', items: [
@@ -266,15 +268,18 @@ const html = `<title>TASUKI プレビュー</title>
 
     if (at('.perk-tile')) { event.preventDefault(); return notice('本番では、押すとその特典の説明がここに出ます。'); }
     if (at('.rank-card-slim') || at('.rank-next')) { event.preventDefault(); return go('mypage:perks'); }
+    if (at('.ad-flow-open')) { event.preventDefault(); return go('mypage:ad:step1'); }
     if (at('.ad-entry-open')) { event.preventDefault(); return go('mypage:ad'); }
     if (at('.owner-tools-row button')) { event.preventDefault(); return notice('ランクの特典です。本番では、その場で期限がのびたり、一覧のいちばん上に出たりします。'); }
-    if (at('.ad-buy .submit-button')) { event.preventDefault(); return notice('お申し込みは決済会社（Stripe）の画面へ進みます。プレビューでは開きません。'); }
+
     if (at('.ad-calendar-grid button')) { event.preventDefault(); return notice('本番では、押した日から掲載が始まります。空きのある日だけ選べます。'); }
     if (at('.ad-stats-open')) { event.preventDefault(); return notice('本番では、ここに日ごとの表示とクリックのグラフが開きます。'); }
     if (at('.ad-analytics-toggle')) { event.preventDefault(); return notice('本番では、グラフと数字の表を切り替えられます。'); }
-    if (at('.ad-slot-foot button')) { event.preventDefault(); return go('mypage:ad:form'); }
-    if (at('.ad-buy input') || at('.ad-form input')) { event.preventDefault(); return notice('本番では、打ちながら「ホームでの見え方」が変わります。'); }
-    if (at('.ad-form-actions button:first-child')) { event.preventDefault(); return go('mypage:ad'); }
+    if (at('.ad-slot-foot button')) { event.preventDefault(); return notice('本番では、ここで掲載中の内容を入れ替えられます。'); }
+    if (at('.ad-fields input')) { event.preventDefault(); return notice('本番では、打ちながら「ホームでの見え方」が変わります。'); }
+    if (at('.ad-step-actions button:first-child')) { event.preventDefault(); return go(current === 'mypage:ad:step3' ? 'mypage:ad:step2' : current === 'mypage:ad:step2' ? 'mypage:ad:step1' : 'mypage:ad'); }
+    if (at('.ad-step-actions .submit-button')) { event.preventDefault(); return go(current === 'mypage:ad:step1' ? 'mypage:ad:step2' : current === 'mypage:ad:step2' ? 'mypage:ad:step3' : 'mypage:ad:step3'); }
+    if (at('.ad-calendar-nav button')) { event.preventDefault(); return notice('本番では、前後の月を見られます。'); }
     if (at('.ad-form .submit-button')) { event.preventDefault(); return notice('本番では、ここで作ったバナーがそのままホームに出ます。'); }
     if (at('.modal-close')) { event.preventDefault(); return go(base); }
     if (target.classList && target.classList.contains('modal-backdrop')) { event.preventDefault(); return go(base); }
