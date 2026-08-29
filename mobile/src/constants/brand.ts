@@ -4,4 +4,4 @@ export const serviceName = 'TASUKI';
 export const serviceTagline = 'こんな人、探しています。';
 
 /** 公開URL。正は app/brand.ts。 */
-export const serviceUrl = 'https://tasuki.me';
+export const serviceUrl = 'https://tasuki.club';

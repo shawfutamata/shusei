@@ -39,9 +39,9 @@
 
 ## サポート・ポリシーURL候補
 
-- サポートURL: `https://tasuki.me/support`
-- プライバシーポリシー: `https://tasuki.me/privacy`
-- アカウント削除案内: `https://tasuki.me/privacy#delete`
+- サポートURL: `https://tasuki.club/support`
+- プライバシーポリシー: `https://tasuki.club/privacy`
+- アカウント削除案内: `https://tasuki.club/privacy#delete`
 
 いずれも審査担当者がログインせずに開ける必要がある。Sitesを公開アクセスへ変更したあと、提出前にシークレットウィンドウで到達を確認する。
 

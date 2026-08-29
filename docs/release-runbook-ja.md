@@ -34,7 +34,7 @@ Web版はアプリとほぼ同じことができる。掲示板・投稿・紹�
 4. **承認済みのリダイレクト URI** に次を**完全一致**で登録する
 
    ```
-   https://tasuki.me/api/auth/google/callback
+   https://tasuki.club/api/auth/google/callback
    ```
 
 5. 発行されたクライアントIDとシークレットを、Sitesの**秘密**環境変数へ
@@ -42,16 +42,16 @@ Web版はアプリとほぼ同じことができる。掲示板・投稿・紹�
    - `GOOGLE_CLIENT_ID`
    - `GOOGLE_CLIENT_SECRET`
 
-独自ドメイン `tasuki.me` を使う。Sitesの配信ドメイン（`*.chatgpt.site`）はそのまま残るので、両方のリダイレクトURIを登録しておくと切り替え中も動く。ここが一致していないとGoogleが `redirect_uri_mismatch` で止める。
+独自ドメイン `tasuki.club` を使う。Sitesの配信ドメイン（`*.chatgpt.site`）はそのまま残るので、両方のリダイレクトURIを登録しておくと切り替え中も動く。ここが一致していないとGoogleが `redirect_uri_mismatch` で止める。
 
 ### ドメインをつなぐ
 
-1. Sitesのプロジェクト設定でカスタムドメインとして `tasuki.me` を追加し、表示されたDNSレコードをレジストラ側に設定する
-2. 証明書が発行され、`https://tasuki.me` が開くようになるのを待つ（反映まで時間がかかることがある）
+1. Sitesのプロジェクト設定でカスタムドメインとして `tasuki.club` を追加し、表示されたDNSレコードをレジストラ側に設定する
+2. 証明書が発行され、`https://tasuki.club` が開くようになるのを待つ（反映まで時間がかかることがある）
 3. つながったら、ドメインに依存する2つを登録する
-   - Stripe … Webhookの宛先を `https://tasuki.me/api/billing/webhook` に
-   - Google … リダイレクトURIに `https://tasuki.me/api/auth/google/callback` を追加
-4. Stripeダッシュボードの「ブランディング」に、利用規約 `https://tasuki.me/terms` とプライバシーポリシー `https://tasuki.me/privacy` のURLを設定する
+   - Stripe … Webhookの宛先を `https://tasuki.club/api/billing/webhook` に
+   - Google … リダイレクトURIに `https://tasuki.club/api/auth/google/callback` を追加
+4. Stripeダッシュボードの「ブランディング」に、利用規約 `https://tasuki.club/terms` とプライバシーポリシー `https://tasuki.club/privacy` のURLを設定する
 
 コード側の公開URLは `app/brand.ts` の `serviceUrl` 1箇所にある（アプリ側の写しは `mobile/src/constants/brand.ts`）。
 
@@ -243,7 +243,7 @@ npx eas-cli submit --platform android --profile production
 | Android package | `jp.everycounts.memberhub` | 同上 |
 | 表示名 | `TASUKI`（B6で確定） | `APP_DISPLAY_NAME` |
 | バージョン | `1.0.0` | `mobile/app.config.ts` |
-| サポートURL | `https://tasuki.me/support` | `app/support/page.tsx` |
+| サポートURL | `https://tasuki.club/support` | `app/support/page.tsx` |
 | プライバシーポリシー | 同上 `/privacy` | `app/privacy/page.tsx` |
 | アカウント削除の案内 | 同上 `/privacy#delete` | 同上 |
 | 説明文・キーワード・カテゴリ | `docs/store-listing-ja.md` | |

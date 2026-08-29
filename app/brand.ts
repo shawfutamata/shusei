@@ -15,4 +15,4 @@ export const serviceTagline = 'こんな人、探しています。';
  * Sitesの配信ドメイン（*.chatgpt.site）はそのまま残し、独自ドメインを上に載せている。
  * ここを変えたら、Stripeのwebhook宛先とGoogleのリダイレクトURIも登録し直すこと。
  */
-export const serviceUrl = 'https://tasuki.me';
+export const serviceUrl = 'https://tasuki.club';
