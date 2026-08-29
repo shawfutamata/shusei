@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { serviceName } from '../brand';
+import LegalPage, { LegalSection } from '../LegalPage';
 
 export const metadata: Metadata = { title: `プライバシーポリシー｜${serviceName}`, description: `${serviceName}の個人情報の取扱いについて` };
 
@@ -16,18 +17,18 @@ const sections = [
 ];
 
 export default function PrivacyPage() {
-  return <main style={styles.page}><article style={styles.card}><p style={styles.eyebrow}>PRIVACY POLICY</p><h1 style={styles.title}>プライバシーポリシー</h1><p style={styles.lead}>{serviceName}（以下「本サービス」）は、守成クラブ会員向けの紹介・探しごとサービスとして、利用者の情報を次のとおり取り扱います。</p>{sections.map(([title, body]) => <section key={title} style={styles.section}><h2 style={styles.heading}>{title}</h2><p style={styles.body}>{body}</p></section>)}<section id="delete" style={styles.section}><h2 style={styles.heading}>10. お問い合わせ・削除依頼</h2><p style={styles.body}>アプリ内で削除できない場合や、個人情報の開示・訂正・削除に関するお問い合わせは <a href="mailto:shaw_futamata@every-counts.com" style={styles.link}>shaw_futamata@every-counts.com</a> までご連絡ください。</p></section><footer style={styles.footer}>制定日：2026年8月27日</footer></article></main>;
+  return <LegalPage
+    eyebrow="PRIVACY POLICY"
+    title="プライバシーポリシー"
+    lead={`${serviceName}（以下「本サービス」）は、利用者の情報を次のとおり取り扱います。`}
+    updatedAt="2026年8月29日"
+  >
+    {sections.map(([heading, text]) => <LegalSection key={heading} heading={heading} body={text} />)}
+    <section id="delete">
+      <LegalSection
+        heading="10. お問い合わせ・削除依頼"
+        body="アプリ内で削除できない場合や、個人情報の開示・訂正・削除に関するお問い合わせは shaw_futamata@every-counts.com までご連絡ください。"
+      />
+    </section>
+  </LegalPage>;
 }
-
-const styles = {
-  page: { minHeight: '100vh', padding: '32px 16px 72px', background: '#f5f8fd', color: '#17233c', fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "Yu Gothic", sans-serif' },
-  card: { maxWidth: 820, margin: '0 auto', padding: 'clamp(24px, 5vw, 56px)', border: '1px solid #dce5f2', borderRadius: 24, background: '#fff', boxShadow: '0 20px 60px rgba(28,68,130,.08)' },
-  eyebrow: { margin: 0, color: '#2563eb', fontSize: 12, fontWeight: 800, letterSpacing: '.14em' },
-  title: { margin: '10px 0 20px', fontSize: 'clamp(30px, 7vw, 46px)', lineHeight: 1.25 },
-  lead: { margin: '0 0 34px', color: '#5f7088', fontSize: 16, fontWeight: 600, lineHeight: 1.9 },
-  section: { padding: '24px 0', borderTop: '1px solid #e7edf5' },
-  heading: { margin: '0 0 10px', fontSize: 20, lineHeight: 1.5 },
-  body: { margin: 0, color: '#4e6078', fontSize: 15, lineHeight: 2 },
-  link: { color: '#2563eb', fontWeight: 700 },
-  footer: { marginTop: 28, color: '#7a889c', fontSize: 13, fontWeight: 700 },
-} satisfies Record<string, React.CSSProperties>;

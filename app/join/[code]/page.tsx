@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { serviceName } from '../../brand';
 import { findInviterByCode } from '@/db/data';
 import BrandMark from '../../BrandMark';
+import LegalLinks from '../../LegalLinks';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,7 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
   const inviter = await findInviterByCode(code);
 
   if (!inviter) {
-    return <main className="signin-page"><div className="signin-card"><BrandMark /><p className="eyebrow">MEMBERS ONLY</p><h1>{serviceName}</h1><h2>この招待リンクは使えません。</h2><p>リンクの期限が切れているか、紹介者が会員でなくなっている可能性があります。お手数ですが、紹介者にもう一度リンクを送ってもらってください。</p><Link className="primary-button" href="/">トップへ</Link></div></main>;
+    return <main className="signin-page"><div className="signin-card"><BrandMark /><p className="eyebrow">MEMBERS ONLY</p><h1>{serviceName}</h1><h2>この招待リンクは使えません。</h2><p>リンクの期限が切れているか、紹介者が会員でなくなっている可能性があります。お手数ですが、紹介者にもう一度リンクを送ってもらってください。</p><Link className="primary-button" href="/">トップへ</Link><LegalLinks /></div></main>;
   }
 
   return <main className="signin-page"><div className="signin-card">
@@ -22,7 +23,7 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
     <p>守成クラブの仲間同士で「こんな人を探しています」を共有し、信頼できる紹介を届ける会員向け掲示板です。</p>
     <a className="primary-button google-button" href={`/api/auth/google/start?invite=${encodeURIComponent(code)}`}><GoogleMark />Googleで参加する</a>
     <small>ご登録後、運営が確認してからご利用いただけます。ふだんお使いのGoogleアカウントでどうぞ。</small>
-  </div></main>;
+  <LegalLinks /></div></main>;
 }
 
 function GoogleMark() {

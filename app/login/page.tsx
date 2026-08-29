@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { serviceName } from '../brand';
 import BrandMark from '../BrandMark';
+import LegalLinks from '../LegalLinks';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -34,7 +35,7 @@ export default function LoginPage() {
 
   return <main className="signin-page"><form className="signin-card" onSubmit={submit}><BrandMark /><p className="eyebrow">MEMBERS ONLY</p><h1>{serviceName}</h1><h2>{step === 'email' ? 'メールアドレスでログイン' : '認証コードを入力'}</h2><p>{step === 'email' ? '守成クラブに登録済みのメールアドレスを入力してください。6桁の認証コードをお送りします。' : `${email} 宛に6桁のコードを送りました。10分以内に入力してください。`}</p><label className="login-field"><span>{step === 'email' ? 'メールアドレス' : '認証コード'}</span>{step === 'email'
     ? <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" placeholder="you@example.com" required />
-    : <input className="login-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="000000" maxLength={6} required />}</label>{!!message && <p className="login-message">{message}</p>}<button className="primary-button" disabled={busy}>{busy ? '処理しています…' : step === 'email' ? '認証コードを送る' : 'ログインする'}</button>{step === 'code' && <button type="button" className="login-back" onClick={() => { setStep('email'); setCode(''); setMessage(''); }}>メールアドレスを変更</button>}<small>登録済み会員専用です。ログインできない場合は運営窓口へお問い合わせください。</small></form></main>;
+    : <input className="login-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="000000" maxLength={6} required />}</label>{!!message && <p className="login-message">{message}</p>}<button className="primary-button" disabled={busy}>{busy ? '処理しています…' : step === 'email' ? '認証コードを送る' : 'ログインする'}</button>{step === 'code' && <button type="button" className="login-back" onClick={() => { setStep('email'); setCode(''); setMessage(''); }}>メールアドレスを変更</button>}<small>登録済み会員専用です。ログインできない場合は運営窓口へお問い合わせください。</small><LegalLinks /></form></main>;
 }
 
 async function post(path: string, body: Record<string, string>) {
