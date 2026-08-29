@@ -20,5 +20,7 @@ declare namespace Cloudflare {
     // 年払い。設定していなければ、画面に年払いの選択肢が出ない。
     STRIPE_PRICE_STANDARD_YEAR: string;
     STRIPE_PRICE_PREMIUM_YEAR: string;
+    // トップバナーの出稿枠（1回きりの支払い）。未設定なら出稿の申し込みが出ない。
+    STRIPE_PRICE_AD_SLOT: string;
   }
 }

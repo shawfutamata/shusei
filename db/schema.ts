@@ -96,29 +96,28 @@ export const attendancePeople = sqliteTable('attendance_people', {
   index('idx_attendance_people_owner_important').on(table.ownerId, table.isImportant),
 ]);
 
-export const businessCards = sqliteTable('business_cards', {
+export const adSlots = sqliteTable('ad_slots', {
   id: text('id').primaryKey(),
-  ownerId: text('owner_id').notNull().references(() => members.id),
-  name: text('name').notNull().default(''),
-  company: text('company').notNull().default(''),
-  positionTitle: text('position_title').notNull().default(''),
-  department: text('department').notNull().default(''),
-  phone: text('phone').notNull().default(''),
-  mobile: text('mobile').notNull().default(''),
-  email: text('email').notNull().default(''),
-  postalCode: text('postal_code').notNull().default(''),
-  address: text('address').notNull().default(''),
-  website: text('website').notNull().default(''),
-  memo: text('memo').notNull().default(''),
-  groupName: text('group_name').notNull().default(''),
-  exchangeDate: text('exchange_date').notNull(),
-  imageKey: text('image_key').notNull(),
-  imageContentType: text('image_content_type').notNull(),
+  memberId: text('member_id').notNull().references(() => members.id),
+  month: text('month').notNull(),
+  title: text('title').notNull().default(''),
+  linkUrl: text('link_url').notNull().default(''),
   imageVersion: integer('image_version').notNull().default(0),
-  isFavorite: integer('is_favorite', { mode: 'boolean' }).notNull().default(false),
+  status: text('status').notNull().default('reserved'),
+  stripeSessionId: text('stripe_session_id').notNull().default(''),
   createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull(),
 }, (table) => [
-  index('idx_business_cards_owner_date').on(table.ownerId, table.exchangeDate),
-  index('idx_business_cards_owner_favorite').on(table.ownerId, table.isFavorite),
+  index('idx_ad_slots_month_status').on(table.month, table.status),
+  index('idx_ad_slots_member').on(table.memberId),
+]);
+
+export const feedback = sqliteTable('feedback', {
+  id: text('id').primaryKey(),
+  memberId: text('member_id').notNull().references(() => members.id),
+  category: text('category').notNull(),
+  body: text('body').notNull(),
+  status: text('status').notNull().default('new'),
+  createdAt: text('created_at').notNull(),
+}, (table) => [
+  index('idx_feedback_created_at').on(table.createdAt),
 ]);

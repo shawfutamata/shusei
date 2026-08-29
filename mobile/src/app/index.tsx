@@ -27,7 +27,7 @@ function NoAccessScreen() {
   const { user, membership, signOut, deleteAccount } = useAuth();
   const [busy, setBusy] = useState(false);
   function confirmDelete() {
-    Alert.alert('アカウントを削除', 'プロフィール、投稿、紹介、名刺、通知設定をすべて削除します。元に戻せません。', [
+    Alert.alert('アカウントを削除', 'プロフィール、投稿、紹介、登録した画像、通知設定をすべて削除します。元に戻せません。', [
       { text: 'キャンセル', style: 'cancel' },
       { text: '削除する', style: 'destructive', onPress: () => { setBusy(true); deleteAccount().catch((error) => Alert.alert('削除できませんでした', error instanceof Error ? error.message : '通信に失敗しました。')).finally(() => setBusy(false)); } },
     ]);

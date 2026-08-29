@@ -39,7 +39,7 @@ export default function ProfileScreen() {
     finally { setBusy(false); }
   }
   function confirmDelete() {
-    Alert.alert('アカウントを削除しますか？', 'プロフィール、投稿、紹介、名刺を含むアカウントデータが削除され、元に戻せません。', [
+    Alert.alert('アカウントを削除しますか？', 'プロフィール、投稿、紹介、登録した画像を含むアカウントデータが削除され、元に戻せません。', [
       { text: 'キャンセル', style: 'cancel' },
       { text: '完全に削除', style: 'destructive', onPress: async () => { setBusy(true); try { await deleteAccount(); } catch (error) { Alert.alert('削除できませんでした', error instanceof Error ? error.message : '時間をおいてお試しください。'); } finally { setBusy(false); } } },
     ]);

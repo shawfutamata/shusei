@@ -56,7 +56,6 @@ const screens = [
   { group: 'モーダル', items: [
     ['modal:post', '探しごとを投稿'],
     ['modal:responses', '届いた紹介'],
-    ['modal:cards', '個人名刺帳'],
   ] },
 ];
 
@@ -181,13 +180,13 @@ const html = `<title>TASUKI プレビュー</title>
   const flash = document.getElementById('flash');
   const navButtons = Array.from(document.querySelectorAll('.rail-group button'));
 
-  const navTargets = ['home', 'search', 'modal:post:limit', 'modal:cards', 'mypage'];
+  const navTargets = ['home', 'search', 'modal:post:limit', 'mypage'];
   const filterKeys = ['all', 'project', 'collaboration', 'consultation'];
-  const bannerTargets = ['modal:post', 'modal:responses', 'mypage', 'modal:cards'];
+  const bannerTargets = ['modal:post', 'modal:responses', 'mypage'];
   const isOverlay = (key) => /^(modal:|detail:|intro:)/.test(key);
 
   // 有料に切り替えると、撮ってある有料版の画面に読み替える。
-  const proVariants = { mypage: 'mypage:pro', 'modal:cards': 'modal:cards:pro', 'modal:post:limit': 'modal:post' };
+  const proVariants = { mypage: 'mypage:pro', 'modal:post:limit': 'modal:post' };
   const freeVariants = Object.fromEntries(Object.entries(proVariants).map(([free, pro]) => [pro, free]));
   let pro = false;
   const forPlan = (key) => {
@@ -261,8 +260,7 @@ const html = `<title>TASUKI プレビュー</title>
     if (!target.closest) return;
     const at = (selector) => target.closest(selector);
 
-    if (at('.cardbook-add')) { event.preventDefault(); return notice('名刺の撮影と読み取りは端末のカメラを使うので、プレビューでは再現していません。'); }
-    if (at('.modal-close') || at('.cardbook-header > button')) { event.preventDefault(); return go(base); }
+    if (at('.modal-close')) { event.preventDefault(); return go(base); }
     if (target.classList && target.classList.contains('modal-backdrop')) { event.preventDefault(); return go(base); }
 
     const heart = at('.card-heart, .home-heart, .detail-heart');
@@ -499,7 +497,7 @@ const html = `<title>TASUKI プレビュー</title>
     freeButton.setAttribute('aria-pressed', String(!pro));
     proButton.setAttribute('aria-pressed', String(pro));
     go(current, { push: false });
-    notice(pro ? '有料会員として見ています。投稿は無制限、名刺はカメラで読み取れます。' : '無料会員として見ています。投稿は月1件、名刺の読み取りは有料です。');
+    notice(pro ? 'スタンダードとして見ています。探しごとは何件でも投稿できます。' : '無料会員として見ています。探しごとの投稿は月1件までです。');
   }
   freeButton.addEventListener('click', () => setPlan(false));
   proButton.addEventListener('click', () => setPlan(true));

@@ -28,5 +28,5 @@ export async function shrinkImage(file: File, maxEdge: number, quality: number) 
 /** 一覧に出す小さい版。1画面に何件も並ぶので、ここを小さく保つのが効く。 */
 export const listThumbnail = (file: File) => shrinkImage(file, 480, 0.72);
 
-/** 詳細で見る版。名刺の保存版と同じ大きさ。 */
+/** 詳細で見る版。拡大しても粗くならない大きさ。 */
 export const detailImage = (file: File) => shrinkImage(file, 1400, 0.8);

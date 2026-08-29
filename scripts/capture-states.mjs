@@ -128,30 +128,24 @@ await nav(1).click();
 await nav(2).click();
 await save('modal:post:limit', page);
 await closeModal();
-await nav(3).click();
-await save('modal:cards', page);
-await closeModal();
 await nav(0).click();
 await page.locator('.carousel-dots button').nth(1).click();
 await page.locator('.hero-image-slide').click();
 await save('modal:responses', page);
 await closeModal();
 
-await nav(4).click();
+await nav(3).click();
 await page.locator('.invite-card').waitFor({ timeout: 15000 }).catch(() => console.warn('\n招待カードが出ませんでした'));
 await save('mypage', page);
 
 // 有料会員のマイページも撮る（プラン表示と招待カードの文言が変わる）
-setPlan('premium', '2027-03-31');
+setPlan('standard', '2027-03-31');
 await page.reload({ waitUntil: 'networkidle' });
-await nav(4).click();
+await nav(3).click();
 await page.locator('.invite-card').waitFor({ timeout: 15000 }).catch(() => undefined);
 await save('mypage:pro', page);
 // 投稿フォームそのものは有料会員のうちに撮る（無料会員は上限の案内が出るため）
 // 後ろは一覧にしておく。閉じたときに戻る先が自然になる。
-await nav(3).click();
-await save('modal:cards:pro', page);
-await closeModal();
 await nav(1).click();
 await page.waitForTimeout(250);
 await nav(2).click();
@@ -172,7 +166,7 @@ await closeModal();
 
 setPlan('free');
 await page.reload({ waitUntil: 'networkidle' });
-await nav(4).click();
+await nav(3).click();
 await page.waitForTimeout(600);
 // プランは折りたたみなので、開いた状態も撮っておく
 await page.locator('.plan-card > summary').click();

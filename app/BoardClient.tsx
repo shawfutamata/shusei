@@ -3,7 +3,6 @@
 import { ChangeEvent, CSSProperties, FormEvent, useEffect, useMemo, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import type { BoardRequest, MemberStats, ReferralSummary } from '@/db/data';
-import BusinessCardManager from './BusinessCardManager';
 import ReceivedIntroductions from './ReceivedIntroductions';
 import RequestComments from './RequestComments';
 import FacebookLink from './FacebookLink';
@@ -12,7 +11,7 @@ import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-op
 import { findVenuePrefecture, isListedVenue, OTHER_VENUE, venuePrefectures, venuesByPrefecture } from './venue-options';
 import { UNLIMITED, plans, type BillingCycle, type Plan } from './entitlements';
 import { feedbackCategories } from './feedback-options';
-import { planCardLimit, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
+import { planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
 import { serviceName } from './brand';
 import BrandMark from './BrandMark';
@@ -35,7 +34,6 @@ const topBanners = [
   { src: '/banners/top-request.webp', alt: 'こんな人、探しています。困りごとを投稿する案内' },
   { src: '/banners/top-introductions.webp', alt: '届いた紹介をまとめて確認する案内' },
   { src: '/banners/top-rank.webp', alt: '紹介するほど会員ランクが上がる仕組みの案内' },
-  { src: '/banners/top-business-cards.webp', alt: '複数枚の名刺をまとめて読み取る案内' },
 ] as const;
 const industryIcons: Record<string, string> = {
   'IT・システム': '/icons/industries/it-system.png', 'Web・広告': '/icons/industries/web-ad.png',
@@ -89,8 +87,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [zoom, setZoom] = useState(1);
   const [croppedArea, setCroppedArea] = useState<Area | null>(null);
   const [cropping, setCropping] = useState(false);
-  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'cards' | 'responses' | null>(null);
-  const [cardStartMode, setCardStartMode] = useState<'list' | 'capture'>('list');
+  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'responses' | null>(null);
   const [selected, setSelected] = useState<BoardRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
@@ -280,7 +277,6 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     setSelected(need); setModal('intro');
   }
 
-  function openCards(mode: 'list' | 'capture') { setCardStartMode(mode); setModal('cards'); }
 
   async function startBilling(plan: Plan) {
     if (busy) return;
@@ -347,7 +343,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     if (carouselIndex === 0) return openRequest();
     if (carouselIndex === 1) return setModal('responses');
     if (carouselIndex === 2) return showProfile();
-    openCards('capture');
+    showProfile();
   }
 
   async function submitFeedback(event: FormEvent<HTMLFormElement>) {
@@ -391,7 +387,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
       {activeTab === 'home' ? <div className="home-dashboard">
         <section className="hero-carousel" aria-label={`${serviceName}の使い方`}>
           <button key={carouselIndex} className="hero-image-slide" onClick={openCurrentBanner} aria-label={`${topBanners[carouselIndex].alt}を開く`}><img src={topBanners[carouselIndex].src} alt={topBanners[carouselIndex].alt} /></button>
-          <div className="carousel-dots" aria-label="バナーを切り替える">{[0,1,2,3].map((index) => <button key={index} aria-label={`${index + 1}枚目`} className={carouselIndex === index ? 'active' : ''} onClick={() => setCarouselIndex(index)} />)}</div>
+          <div className="carousel-dots" aria-label="バナーを切り替える">{[0,1,2].map((index) => <button key={index} aria-label={`${index + 1}枚目`} className={carouselIndex === index ? 'active' : ''} onClick={() => setCarouselIndex(index)} />)}</div>
         </section>
 
         <HomeShelf title="あなたにおすすめの探しごと" count={recommended.length}
@@ -476,23 +472,22 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
               {plans.map((plan) => <li key={plan} className={`plan-${plan}${plan === stats.plan ? ' current' : ''}`}>
                 <p className="plan-list-head"><b>{planCatalog[plan].name}</b>{plan === stats.contractedPlan && <em>契約中</em>}{plan !== stats.contractedPlan && plan === stats.bonusPlan && <em className="bonus">招待特典</em>}<span>{planPrice(plan, planCycle)}</span></p>
                 {planCycle === 'year' && plan !== 'free' && <p className="plan-list-per-month">{planPerMonthNote(plan)}</p>}
-                <p className="plan-list-what"><span>探しごと {planPostLimit(plan)}</span><span>名刺 {planCardLimit(plan)}</span></p>
+                <p className="plan-list-what"><span>探しごと {planPostLimit(plan)}</span></p>
                 {referral?.billing?.ready && plan !== 'free' && plan !== stats.contractedPlan
                   && <button className="plan-pick" onClick={() => startBilling(plan)} disabled={busy}>このプランにする</button>}
               </li>)}
             </ul>
             <ul className="plan-detail">
-              <li className="only"><b>名刺をカメラで一括読み取り</b><span>プレミアムのみ</span></li>
-              <li className="only"><b>会員を探す、紹介を書き出す</b><span>プレミアムのみ</span></li>
+              <li className="only"><b>会員を探す、紹介を書き出す</b><span>スタンダードのみ</span></li>
               <li className="all"><b>掲示板を見る、紹介する、やり取りする</b><span>どのプランでも無制限</span></li>
             </ul>
             {referral?.billing?.hasCustomer && <button className="plan-manage" onClick={openBillingPortal} disabled={busy}>お支払い・解約の手続き</button>}
-            <p className="plan-note">仲間を1人招待してご利用が続くと、{stats.paid ? <><b>会費が1ヶ月ぶん無料</b>になります</> : <><b>プレミアムを1ヶ月お試し</b>いただけます</>}。{referral?.billing?.ready ? 'このページからお申し込みいただけます。解約はいつでもできます。' : 'ご契約は運営窓口へお問い合わせください。'}</p>
+            <p className="plan-note">仲間を1人招待してご利用が{referral?.qualifyDays ?? 30}日続くと、{stats.contractedPlan === 'free' ? <><b>自動でスタンダードが1ヶ月使えるようになります</b>（お手続きは要りません）</> : <><b>次回の請求から1ヶ月ぶん自動で引かれます</b></>}。{referral?.billing?.ready ? '有料プランへのお申し込みは、上のボタンからいつでもどうぞ。解約もいつでもできます。' : ''}</p>
           </div>
         </details>
 
         {referral && <section className="invite-card" aria-label="仲間を招待する">
-          <div className="invite-heading"><p>INVITE</p><h2>仲間を招待する</h2><span>あなたの招待リンクから入会して{referral.qualifyDays}日続いた方1人につき、{stats.paid ? '会費が1ヶ月無料になります' : 'プレミアムが1ヶ月使えます'}（合計{referral.capTotal}ヶ月まで）。</span></div>
+          <div className="invite-heading"><p>INVITE</p><h2>仲間を招待する</h2><span>あなたの招待リンクから入会して{referral.qualifyDays}日続いた方1人につき、{stats.paid ? '会費が1ヶ月無料になります' : 'スタンダードが1ヶ月使えます'}（合計{referral.capTotal}ヶ月まで）。</span></div>
           <button className="invite-link" onClick={copyInviteLink}><span>{referral.url.replace(/^https?:\/\//, '')}</span><i>{inviteCopied ? 'コピーしました' : 'リンクをコピー'}</i></button>
           <dl className="invite-stats">
             <div><dt>招待した人</dt><dd>{referral.invitedCount}<small>人</small></dd></div>
@@ -512,7 +507,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           <div className="feedback-heading"><p>YOUR VOICE</p><h2>こうしてほしい、を聞かせてください</h2><span>{serviceName}は作っている途中です。使ってみて足りないところ、使いにくいところを教えてください。いただいたご意見は運営が必ず読みます。</span></div>
           {feedbackSent ? <div className="feedback-done"><b>お送りいただきました</b><span>ありがとうございます。続けてお気づきの点があれば、また送ってください。</span><button onClick={() => setFeedbackSent(false)}>もう1件送る</button></div> : <form className="feedback-form" onSubmit={submitFeedback}>
             <label><span>種類</span><select name="category" defaultValue="feature">{feedbackCategories.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select></label>
-            <label><span>内容</span><textarea name="body" required maxLength={1000} rows={4} placeholder="例：会場ごとの探しごとをまとめて見たい／名刺の並び替えができると助かる" /></label>
+            <label><span>内容</span><textarea name="body" required maxLength={1000} rows={4} placeholder="例：会場ごとの探しごとをまとめて見たい／会場での集まりの告知も出したい" /></label>
             <button className="submit-button" disabled={busy}>{busy ? '送信しています…' : '送る'}</button>
           </form>}
         </section>
@@ -539,14 +534,13 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
       </section>}
 
       <nav className="bottom-nav" aria-label="アプリメニュー">
-        <button className={modal !== 'cards' && activeTab === 'home' ? 'active' : ''} onClick={showHome}><span>⌂</span><small>ホーム</small></button>
-        <button className={modal !== 'cards' && activeTab === 'search' ? 'active' : ''} onClick={() => showSearch()}><span>⌕</span><small>困りごと</small></button>
+        <button className={activeTab === 'home' ? 'active' : ''} onClick={showHome}><span>⌂</span><small>ホーム</small></button>
+        <button className={activeTab === 'search' ? 'active' : ''} onClick={() => showSearch()}><span>⌕</span><small>困りごと</small></button>
         <button className="nav-post" onClick={openRequest} aria-label="探しごとを投稿する"><span>＋</span></button>
-        <button className={modal === 'cards' ? 'active' : ''} onClick={() => openCards('list')}><span>▣</span><small>名刺</small></button>
-        <button className={modal !== 'cards' && activeTab === 'profile' ? 'active' : ''} onClick={showProfile}><span><PersonIcon /></span><small>マイページ</small></button>
+        <button className={activeTab === 'profile' ? 'active' : ''} onClick={showProfile}><span><PersonIcon /></span><small>マイページ</small></button>
       </nav>
 
-      {modal === 'request' && !canPostRequest && <Modal title="今月ぶんの投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、上のプランへお切り替えください（スタンダード 月額1,000円で月2件、プレミアム 月額5,000円で何件でも）。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、プレミアムを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showProfile(); }}>マイページを開く</button></div></Modal>}
+      {modal === 'request' && !canPostRequest && <Modal title="今月ぶんの投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showProfile(); }}>マイページを開く</button></div></Modal>}
 
       {modal === 'request' && canPostRequest && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの<select name="category" required defaultValue=""><option value="" disabled>選択してください</option><option value="project">案件の発注先</option><option value="collaboration">協業パートナー</option><option value="consultation">相談相手・情報</option></select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容<textarea name="description" required maxLength={600} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア<input name="area" required maxLength={60} placeholder="例：東京都・オンライン" /></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><label className="request-photo"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseRequestPhoto} />{requestPhotoPreview ? <img src={requestPhotoPreview} alt="添付する写真のプレビュー" /> : <span className="request-photo-empty">＋</span>}<span className="request-photo-copy"><b>写真を付ける <em>任意</em></b><small>{requestPhoto ? '一覧で目印になります。押すと選び直せます' : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></span>{requestPhoto && <i onClick={(event) => { event.preventDefault(); clearRequestPhoto(); }}>削除</i>}</label><button className="submit-button" disabled={busy || !requestIndustries.length}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
 
@@ -566,7 +560,6 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
         <RequestComments requestId={selected.id} onCountChange={(count) => setRequests((current) => current.map((item) => item.id === selected.id ? { ...item, commentCount: count } : item))} />
       </article></Modal>}
 
-      {modal === 'cards' && <BusinessCardManager initialMode={stats.plan === 'premium' ? cardStartMode : 'list'} pro={stats.plan === 'premium'} onClose={() => setModal(null)} onNotice={showToast} />}
       {cropSource && <div className="crop-backdrop"><section className="crop-dialog" role="dialog" aria-modal="true" aria-labelledby="crop-title"><header><button onClick={() => setCropSource('')}>キャンセル</button><div><h2 id="crop-title">顔写真を調整</h2><p>指で動かして、顔が中央に来るようにします</p></div><button className="crop-confirm" onClick={confirmCrop} disabled={cropping || !croppedArea}>{cropping ? '処理中' : '決定'}</button></header><div className="crop-stage"><Cropper image={cropSource} crop={crop} zoom={zoom} aspect={1} cropShape="round" showGrid={false} minZoom={1} maxZoom={4} zoomSpeed={0.35} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_, pixels) => setCroppedArea(pixels)} disableAutomaticStylesInjection /></div><div className="crop-controls"><label><span>顔の大きさ</span><input type="range" min="1" max="4" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} aria-label="顔写真の拡大率" /><b>{Math.round(zoom * 100)}%</b></label><p>写真を指で動かせます。丸の中がプロフィール写真に表示されます。</p></div></section></div>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>

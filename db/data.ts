@@ -3,7 +3,8 @@ import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-
 import type { ChatGPTUser } from '@/app/chatgpt-auth';
 import { cleanFacebookUrl } from '@/app/social-links';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
-import { UNLIMITED, bonusPlan, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingBusinessCards, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
+import { AD_MIN_RANK_LEVEL, AD_RESERVATION_MINUTES, AD_SLOTS_PER_MONTH, AD_TITLE_MAX } from '@/app/ad-options';
+import { UNLIMITED, bonusPlan, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
 import { matchesIndustry } from '@/app/industry-options';
 
 export type BoardRequest = {
@@ -63,8 +64,6 @@ export type MemberStats = {
   planPeriodEnd: string;
   requestsThisMonth: number;
   requestLimit: number;
-  businessCards: number;
-  businessCardLimit: number;
 };
 
 export type ReceivedIntroduction = {
@@ -105,29 +104,6 @@ export type AttendanceEvent = {
   createdAt: string;
   people: AttendancePerson[];
 };
-
-export type BusinessCard = {
-  id: string;
-  name: string;
-  company: string;
-  positionTitle: string;
-  department: string;
-  phone: string;
-  mobile: string;
-  email: string;
-  postalCode: string;
-  address: string;
-  website: string;
-  memo: string;
-  groupName: string;
-  exchangeDate: string;
-  isFavorite: boolean;
-  imageUrl: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type BusinessCardInput = Omit<BusinessCard, 'id' | 'imageUrl' | 'createdAt' | 'updatedAt' | 'isFavorite'> & { isFavorite?: boolean };
 
 export type MembershipStatus = 'invited' | 'active' | 'past_due' | 'canceled';
 export type MembershipAccess = {
@@ -197,6 +173,17 @@ const statements = [
     deadline TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'open',
     image_version INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS ad_slots (
+    id TEXT PRIMARY KEY,
+    member_id TEXT NOT NULL REFERENCES members(id),
+    month TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    link_url TEXT NOT NULL DEFAULT '',
+    image_version INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'reserved',
+    stripe_session_id TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS feedback (
@@ -269,29 +256,6 @@ const statements = [
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   )`,
-  `CREATE TABLE IF NOT EXISTS business_cards (
-    id TEXT PRIMARY KEY,
-    owner_id TEXT NOT NULL REFERENCES members(id),
-    name TEXT NOT NULL DEFAULT '',
-    company TEXT NOT NULL DEFAULT '',
-    position_title TEXT NOT NULL DEFAULT '',
-    department TEXT NOT NULL DEFAULT '',
-    phone TEXT NOT NULL DEFAULT '',
-    mobile TEXT NOT NULL DEFAULT '',
-    email TEXT NOT NULL DEFAULT '',
-    postal_code TEXT NOT NULL DEFAULT '',
-    address TEXT NOT NULL DEFAULT '',
-    website TEXT NOT NULL DEFAULT '',
-    memo TEXT NOT NULL DEFAULT '',
-    group_name TEXT NOT NULL DEFAULT '',
-    exchange_date TEXT NOT NULL,
-    image_key TEXT NOT NULL,
-    image_content_type TEXT NOT NULL,
-    image_version INTEGER NOT NULL DEFAULT 0,
-    is_favorite INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  )`,
   'CREATE INDEX IF NOT EXISTS idx_requests_status_created_at ON requests(status, created_at)',
   'CREATE INDEX IF NOT EXISTS idx_requests_category ON requests(category)',
   'CREATE INDEX IF NOT EXISTS idx_introductions_introducer_id ON introductions(introducer_id)',
@@ -303,8 +267,6 @@ const statements = [
   'CREATE INDEX IF NOT EXISTS idx_attendance_events_owner_date ON attendance_events(owner_id, meeting_date)',
   'CREATE INDEX IF NOT EXISTS idx_attendance_people_event_id ON attendance_people(event_id)',
   'CREATE INDEX IF NOT EXISTS idx_attendance_people_owner_important ON attendance_people(owner_id, is_important)',
-  'CREATE INDEX IF NOT EXISTS idx_business_cards_owner_date ON business_cards(owner_id, exchange_date)',
-  'CREATE INDEX IF NOT EXISTS idx_business_cards_owner_favorite ON business_cards(owner_id, is_favorite)',
 ];
 
 let initialized = false;
@@ -576,11 +538,11 @@ export async function deleteMobileAccount(user: ChatGPTUser) {
   const member = await env.DB.prepare('SELECT avatar_key AS avatarKey FROM members WHERE id = ?')
     .bind(user.userId).first<{ avatarKey: string }>();
   if (!member) return;
-  const cardImages = await env.DB.prepare('SELECT image_key AS imageKey FROM business_cards WHERE owner_id = ?')
-    .bind(user.userId).all<{ imageKey: string }>();
   const eventIds = await env.DB.prepare('SELECT id FROM attendance_events WHERE owner_id = ?')
     .bind(user.userId).all<{ id: string }>();
   const requestIds = await env.DB.prepare('SELECT id FROM requests WHERE author_id = ?')
+    .bind(user.userId).all<{ id: string }>();
+  const adIds = await env.DB.prepare('SELECT id FROM ad_slots WHERE member_id = ?')
     .bind(user.userId).all<{ id: string }>();
   const statementsToDelete = [
     ...requestIds.results.map(({ id }) => env.DB.prepare('DELETE FROM introductions WHERE request_id = ?').bind(id)),
@@ -589,15 +551,22 @@ export async function deleteMobileAccount(user: ChatGPTUser) {
     env.DB.prepare('DELETE FROM push_subscriptions WHERE member_id = ?').bind(user.userId),
     env.DB.prepare('DELETE FROM mobile_push_tokens WHERE member_id = ?').bind(user.userId),
     env.DB.prepare('DELETE FROM mobile_sessions WHERE member_id = ?').bind(user.userId),
-    env.DB.prepare('DELETE FROM business_cards WHERE owner_id = ?').bind(user.userId),
     env.DB.prepare('DELETE FROM attendance_people WHERE owner_id = ?').bind(user.userId),
     env.DB.prepare('DELETE FROM attendance_events WHERE owner_id = ?').bind(user.userId),
+    env.DB.prepare('DELETE FROM request_comments WHERE author_id = ?').bind(user.userId),
     env.DB.prepare('DELETE FROM requests WHERE author_id = ?').bind(user.userId),
+    env.DB.prepare('DELETE FROM ad_slots WHERE member_id = ?').bind(user.userId),
+    env.DB.prepare('DELETE FROM feedback WHERE member_id = ?').bind(user.userId),
     env.DB.prepare('DELETE FROM mobile_auth_codes WHERE email = ?').bind(user.email.toLowerCase()),
     env.DB.prepare('DELETE FROM members WHERE id = ?').bind(user.userId),
   ];
   await env.DB.batch(statementsToDelete);
-  const objectKeys = [member.avatarKey, ...cardImages.results.map(({ imageKey }) => imageKey)].filter(Boolean);
+  // R2に置いた画像も消す。探しごとの写真は一覧用と詳細用の2つある。
+  const objectKeys = [
+    member.avatarKey,
+    ...requestIds.results.flatMap(({ id }) => [`request-thumbs/${id}`, `request-images/${id}`]),
+    ...adIds.results.map(({ id }) => `ad-images/${id}`),
+  ].filter(Boolean);
   await Promise.allSettled(objectKeys.map((key) => env.AVATARS.delete(key)));
 }
 
@@ -699,7 +668,7 @@ export async function getBoardData(user: ChatGPTUser) {
     plan: plan.activePlan, paid: plan.paid, planPeriodEnd: plan.planPeriodEnd,
     contractedPlan: plan.contracted, bonusPlan: plan.bonus, bonusPeriodEnd: plan.bonusPeriodEnd ?? '',
     requestsThisMonth: plan.requestsThisMonth, requestLimit: plan.requestLimit,
-    businessCards: plan.businessCards, businessCardLimit: plan.businessCardLimit });
+  });
   const requests = requestsResult.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, industryTagsJson, imageVersion, ...request }) => ({
     ...request,
     industryTags: parseStringArray(industryTagsJson),
@@ -880,88 +849,6 @@ export async function updateAttendancePerson(user: ChatGPTUser, input: {
   if (!result.meta.changes) throw new Error('対象の出席者が見つかりません。');
 }
 
-export async function getBusinessCards(user: ChatGPTUser) {
-  await upsertMember(user);
-  const result = await env.DB.prepare(`SELECT id, name, company, position_title AS positionTitle,
-    department, phone, mobile, email, postal_code AS postalCode, address, website, memo,
-    group_name AS groupName, exchange_date AS exchangeDate, is_favorite AS isFavorite,
-    image_version AS imageVersion, created_at AS createdAt, updated_at AS updatedAt
-    FROM business_cards WHERE owner_id = ? ORDER BY exchange_date DESC, created_at DESC`)
-    .bind(user.userId).all<Omit<BusinessCard, 'imageUrl' | 'isFavorite'> & { isFavorite: number; imageVersion: number }>();
-  return result.results.map(({ imageVersion, ...card }) => ({
-    ...card,
-    isFavorite: Boolean(card.isFavorite),
-    imageUrl: businessCardImageUrl(card.id, imageVersion),
-  }));
-}
-
-export async function createBusinessCards(user: ChatGPTUser, inputs: Array<{ card: BusinessCardInput; image: { bytes: ArrayBuffer; contentType: string } }>) {
-  await upsertMember(user);
-  if (!inputs.length || inputs.length > 20) throw new Error('名刺は1回につき1〜20枚まで保存できます。');
-  const cardPlan = await getPlanState(user.userId);
-  const cardCap = limits(cardPlan).businessCards;
-  if (cardCap !== UNLIMITED) {
-    const stored = await countBusinessCards(user.userId);
-    if (stored + inputs.length > cardCap) {
-      throw new Error(`いまのプランで保存できる名刺は${cardCap}枚までです（いま${stored}枚）。`);
-    }
-  }
-  const createdAt = new Date().toISOString();
-  const rows = [] as Array<{ id: string; imageKey: string; imageVersion: number; card: BusinessCardInput; contentType: string }>;
-  for (const item of inputs) {
-    const id = crypto.randomUUID();
-    const imageKey = `business-cards/${user.userId}/${id}`;
-    const imageVersion = Date.now();
-    await env.AVATARS.put(imageKey, item.image.bytes, {
-      httpMetadata: { contentType: item.image.contentType },
-      customMetadata: { ownerId: user.userId, cardId: id },
-    });
-    rows.push({ id, imageKey, imageVersion, card: item.card, contentType: item.image.contentType });
-  }
-  try {
-    await env.DB.batch(rows.map(({ id, imageKey, imageVersion, card, contentType }) => env.DB.prepare(`INSERT INTO business_cards
-      (id, owner_id, name, company, position_title, department, phone, mobile, email, postal_code,
-       address, website, memo, group_name, exchange_date, image_key, image_content_type, image_version,
-       is_favorite, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, user.userId, card.name, card.company, card.positionTitle, card.department, card.phone,
-        card.mobile, card.email, card.postalCode, card.address, card.website, card.memo, card.groupName,
-        card.exchangeDate, imageKey, contentType, imageVersion, card.isFavorite ? 1 : 0, createdAt, createdAt)));
-  } catch (error) {
-    await Promise.all(rows.map(({ imageKey }) => env.AVATARS.delete(imageKey)));
-    throw error;
-  }
-  return rows.map(({ id, imageVersion }) => ({ id, imageUrl: businessCardImageUrl(id, imageVersion) }));
-}
-
-export async function updateBusinessCard(user: ChatGPTUser, input: BusinessCardInput & { id: string }) {
-  await upsertMember(user);
-  const updatedAt = new Date().toISOString();
-  const result = await env.DB.prepare(`UPDATE business_cards SET name = ?, company = ?, position_title = ?,
-    department = ?, phone = ?, mobile = ?, email = ?, postal_code = ?, address = ?, website = ?, memo = ?,
-    group_name = ?, exchange_date = ?, is_favorite = ?, updated_at = ? WHERE id = ? AND owner_id = ?`)
-    .bind(input.name, input.company, input.positionTitle, input.department, input.phone, input.mobile,
-      input.email, input.postalCode, input.address, input.website, input.memo, input.groupName,
-      input.exchangeDate, input.isFavorite ? 1 : 0, updatedAt, input.id, user.userId).run();
-  if (!result.meta.changes) throw new Error('対象の名刺が見つかりません。');
-}
-
-export async function deleteBusinessCard(user: ChatGPTUser, id: string) {
-  await upsertMember(user);
-  const card = await env.DB.prepare('SELECT image_key AS imageKey FROM business_cards WHERE id = ? AND owner_id = ?')
-    .bind(id, user.userId).first<{ imageKey: string }>();
-  if (!card) throw new Error('対象の名刺が見つかりません。');
-  await env.DB.prepare('DELETE FROM business_cards WHERE id = ? AND owner_id = ?').bind(id, user.userId).run();
-  await env.AVATARS.delete(card.imageKey);
-}
-
-export async function getBusinessCardImage(user: ChatGPTUser, id: string) {
-  await upsertMember(user);
-  const card = await env.DB.prepare(`SELECT image_key AS imageKey FROM business_cards WHERE id = ? AND owner_id = ?`)
-    .bind(id, user.userId).first<{ imageKey: string }>();
-  return card?.imageKey ? env.AVATARS.get(card.imageKey) : null;
-}
-
 async function requireFacePhoto(memberId: string) {
   const member = await env.DB.prepare('SELECT avatar_key AS avatarKey FROM members WHERE id = ?')
     .bind(memberId).first<{ avatarKey: string }>();
@@ -992,10 +879,6 @@ export async function getRequestImage(id: string, size: 'thumb' | 'full') {
  */
 function requestImageUrl(id: string, version: number, size: 'thumb' | 'full') {
   return version ? `/api/request-image/${encodeURIComponent(id)}?v=${version}&size=${size}` : '';
-}
-
-function businessCardImageUrl(id: string, version: number) {
-  return `/api/business-cards/${encodeURIComponent(id)}/image?v=${version}`;
 }
 
 async function sendMatchingPushNotifications(authorId: string, request: { id: string; title: string; industryTags: string[] }) {
@@ -1084,6 +967,168 @@ function calculateRank(member: Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'
   thresholds.forEach((threshold, index) => { if (member.introCount >= threshold) level = index + 1; });
   return { ...member, rank: names[level - 1], level, nextRankAt: thresholds[level] ?? member.introCount };
 }
+
+// --- トップバナーの出稿枠 ここから ---------------------------------------------
+// ランク上位の会員だけが買える、1ヶ月ぶんの掲載枠。月10枠で早い者勝ち。
+// 紹介を積んでランクを上げると、より多くの目に留まる場所を買えるようになる。
+//
+// 金額はここに置かない（アプリ内に価格を出せないため）。決済は app/api/ads/ が
+// 扱い、ここは枠の押さえ方と読み出しだけを持つ。
+
+export type AdSlot = {
+  id: string;
+  month: string;
+  title: string;
+  linkUrl: string;
+  imageUrl: string;
+  status: string;
+  memberName: string;
+};
+
+function adImageKey(id: string) {
+  return `ad-images/${id}`;
+}
+
+function adImageUrl(id: string, version: number) {
+  return version ? `/api/ad-image/${encodeURIComponent(id)}?v=${version}` : '';
+}
+
+function monthKey(date: Date) {
+  return date.toISOString().slice(0, 7);
+}
+
+function nextMonthKey(month: string) {
+  const [year, index] = month.split('-').map(Number);
+  return monthKey(new Date(Date.UTC(year, index, 1)));
+}
+
+/** 決済されないまま押さえられている枠を解放する。呼ばれるたびに掃除する。 */
+async function releaseStaleAdReservations() {
+  const limit = new Date(Date.now() - AD_RESERVATION_MINUTES * 60000).toISOString();
+  await env.DB.prepare("DELETE FROM ad_slots WHERE status = 'reserved' AND created_at < ?").bind(limit).run();
+}
+
+/** その月に埋まっている枠数。押さえ中のぶんも数える。 */
+async function countAdSlots(month: string) {
+  const row = await env.DB.prepare("SELECT COUNT(*) AS count FROM ad_slots WHERE month = ? AND status IN ('reserved', 'active')")
+    .bind(month).first<{ count: number }>();
+  return Number(row?.count ?? 0);
+}
+
+/** いま申し込める掲載月と、その残り枠。今月が埋まっていたら翌月を返す。 */
+export async function nextAvailableAdMonth() {
+  await ensureDatabase();
+  await releaseStaleAdReservations();
+  let month = monthKey(new Date());
+  for (let step = 0; step < 12; step += 1) {
+    const used = await countAdSlots(month);
+    if (used < AD_SLOTS_PER_MONTH) return { month, remaining: AD_SLOTS_PER_MONTH - used };
+    month = nextMonthKey(month);
+  }
+  return { month, remaining: 0 };
+}
+
+/**
+ * 枠を1つ押さえる。決済が終わるまでは reserved で、放置すると自動で解放される。
+ * 満枠なら例外。早い者勝ちなので、押さえた順に確定する。
+ */
+export async function reserveAdSlot(memberId: string, month: string) {
+  await ensureDatabase();
+  await releaseStaleAdReservations();
+  if (await countAdSlots(month) >= AD_SLOTS_PER_MONTH) {
+    throw new Error('この月の枠はすべて埋まりました。翌月の枠をお申し込みください。');
+  }
+  const id = crypto.randomUUID();
+  await env.DB.prepare('INSERT INTO ad_slots (id, member_id, month, status, created_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(id, memberId, month, 'reserved', new Date().toISOString()).run();
+  // 押さえたあとにもう一度数えて、競り負けていたら取り消す。
+  if (await countAdSlots(month) > AD_SLOTS_PER_MONTH) {
+    await env.DB.prepare('DELETE FROM ad_slots WHERE id = ?').bind(id).run();
+    throw new Error('この月の枠はすべて埋まりました。翌月の枠をお申し込みください。');
+  }
+  return id;
+}
+
+export async function saveAdSlotSession(id: string, sessionId: string) {
+  await env.DB.prepare('UPDATE ad_slots SET stripe_session_id = ? WHERE id = ?').bind(sessionId, id).run();
+}
+
+/** 決済が済んだ枠を掲載中にする。webhookから呼ぶ。 */
+export async function activateAdSlot(id: string) {
+  await ensureDatabase();
+  await env.DB.prepare("UPDATE ad_slots SET status = 'active' WHERE id = ? AND status = 'reserved'").bind(id).run();
+}
+
+const adSelect = `SELECT a.id, a.month, a.title, a.link_url AS linkUrl, a.image_version AS imageVersion,
+    a.status, m.display_name AS memberName
+  FROM ad_slots a JOIN members m ON m.id = a.member_id`;
+
+/** 掲載中の広告。ホームのバナーに出す。 */
+export async function listActiveAds(): Promise<AdSlot[]> {
+  await ensureDatabase();
+  const rows = await env.DB.prepare(`${adSelect}
+    WHERE a.month = ? AND a.status = 'active' AND a.image_version > 0
+    ORDER BY a.created_at`).bind(monthKey(new Date())).all<Omit<AdSlot, 'imageUrl'> & { imageVersion: number }>();
+  return rows.results.map(({ imageVersion, ...ad }) => ({ ...ad, imageUrl: adImageUrl(ad.id, imageVersion) }));
+}
+
+/** その会員が持っている枠。掲載内容を入れる画面で使う。 */
+export async function listMemberAds(memberId: string): Promise<AdSlot[]> {
+  await ensureDatabase();
+  const rows = await env.DB.prepare(`${adSelect}
+    WHERE a.member_id = ? AND a.month >= ? AND a.status = 'active'
+    ORDER BY a.month`).bind(memberId, monthKey(new Date())).all<Omit<AdSlot, 'imageUrl'> & { imageVersion: number }>();
+  return rows.results.map(({ imageVersion, ...ad }) => ({ ...ad, imageUrl: adImageUrl(ad.id, imageVersion) }));
+}
+
+/** 掲載内容を入れる。画像は端末で縮小済みのものを受け取る。 */
+export async function updateAdSlot(memberId: string, id: string, input: {
+  title: string; linkUrl: string; image?: { bytes: ArrayBuffer; contentType: string };
+}) {
+  await ensureDatabase();
+  const owned = await env.DB.prepare("SELECT image_version AS imageVersion FROM ad_slots WHERE id = ? AND member_id = ? AND status = 'active'")
+    .bind(id, memberId).first<{ imageVersion: number }>();
+  if (!owned) throw new Error('この枠は編集できません。');
+
+  let imageVersion = owned.imageVersion;
+  if (input.image) {
+    imageVersion = Date.now();
+    await env.AVATARS.put(adImageKey(id), input.image.bytes, {
+      httpMetadata: { contentType: input.image.contentType },
+      customMetadata: { ownerId: memberId, adSlotId: id },
+    });
+  }
+  await env.DB.prepare('UPDATE ad_slots SET title = ?, link_url = ?, image_version = ? WHERE id = ?')
+    .bind(input.title.trim().slice(0, AD_TITLE_MAX), cleanAdLink(input.linkUrl), imageVersion, id).run();
+}
+
+export async function getAdImage(id: string) {
+  await ensureDatabase();
+  const row = await env.DB.prepare('SELECT image_version AS imageVersion FROM ad_slots WHERE id = ?')
+    .bind(id).first<{ imageVersion: number }>();
+  if (!row?.imageVersion) return null;
+  return env.AVATARS.get(adImageKey(id));
+}
+
+/** 出稿できるランクかどうか。紹介を積んだ人だけが買える。 */
+export function canBuyAdSlot(level: number) {
+  return level >= AD_MIN_RANK_LEVEL;
+}
+
+// リンク先は http/https だけ。javascript: などを弾く。
+function cleanAdLink(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const url = new URL(withScheme);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+    return url.toString().slice(0, 300);
+  } catch {
+    return '';
+  }
+}
+// --- トップバナーの出稿枠 ここまで ---------------------------------------------
 
 // --- 機能改善の受け口 ここから ------------------------------------------------
 // 会員が「こうしてほしい」を送れるようにする。運営はD1を見て拾う。
@@ -1186,7 +1231,7 @@ export type PlanSummary = PlanState & { activePlan: Plan; paid: boolean; source:
   /** 招待特典で開いているプラン。無ければ free。 */
   bonus: Plan;
   requestsThisMonth: number; requestLimit: number; requestsLeft: number;
-  businessCards: number; businessCardLimit: number; businessCardsLeft: number };
+};
 
 export async function getPlanState(memberId: string): Promise<PlanState> {
   await ensureDatabase();
@@ -1206,17 +1251,10 @@ export async function countRequestsThisMonth(memberId: string) {
   return Number(row?.count ?? 0);
 }
 
-export async function countBusinessCards(memberId: string) {
-  const row = await env.DB.prepare('SELECT COUNT(*) AS count FROM business_cards WHERE owner_id = ?')
-    .bind(memberId).first<{ count: number }>();
-  return Number(row?.count ?? 0);
-}
 
 export async function getPlanSummary(memberId: string): Promise<PlanSummary> {
   const state = await getPlanState(memberId);
-  const [requestsThisMonth, businessCards] = await Promise.all([
-    countRequestsThisMonth(memberId), countBusinessCards(memberId),
-  ]);
+  const requestsThisMonth = await countRequestsThisMonth(memberId);
   const row = await env.DB.prepare('SELECT plan_source AS source FROM members WHERE id = ?')
     .bind(memberId).first<{ source: string }>();
   const cap = limits(state);
@@ -1224,19 +1262,18 @@ export async function getPlanSummary(memberId: string): Promise<PlanSummary> {
     ...state, activePlan: currentPlan(state), paid: isPaid(state), source: row?.source ?? '',
     contracted: contractedPlan(state), bonus: bonusPlan(state),
     requestsThisMonth, requestLimit: cap.requestsPerMonth, requestsLeft: remainingRequests(state, requestsThisMonth),
-    businessCards, businessCardLimit: cap.businessCards, businessCardsLeft: remainingBusinessCards(state, businessCards),
   };
 }
 
 /**
- * 無料月クレジット1件ぶん、招待特典のプレミアムを1ヶ月延ばす。
+ * 無料月クレジット1件ぶん、招待特典のスタンダードを1ヶ月延ばす。
  * 契約しているプランとは別の列に書くので、あとで契約しても特典は消えない。
  * 特典が切れたら、契約しているプラン（無ければ無料）に戻る。
  */
 async function grantProMonth(memberId: string) {
   const state = await getPlanState(memberId);
   await env.DB.prepare('UPDATE members SET bonus_plan = ?, bonus_period_end = ? WHERE id = ?')
-    .bind('premium', extendedPlanEnd(state.bonusPeriodEnd ?? ''), memberId).run();
+    .bind('standard', extendedPlanEnd(state.bonusPeriodEnd ?? ''), memberId).run();
 }
 // --- プランここまで ---------------------------------------------------------
 
@@ -1436,6 +1473,18 @@ async function reconcileReferralCredits(inviterId: string) {
       WHERE inviter_id = ? AND status = 'earned' AND applied_month = ''`)
       .bind(nowIso.slice(0, 7), inviterId).run();
   }
+}
+
+/**
+ * 招待の資格判定と、特典プランの付与をその場で走らせる。
+ * 何度呼んでも結果は同じ。運営の手作業は要らない。
+ *
+ * 招待画面を開かない会員も取りこぼさないように、「いま何が使えるか」を
+ * 聞かれるところ（/api/entitlements）からも呼んでいる。
+ */
+export async function syncReferralBenefits(memberId: string) {
+  await ensureDatabase();
+  await reconcileReferralCredits(memberId);
 }
 
 export async function getReferralSummary(memberId: string): Promise<ReferralSummary> {

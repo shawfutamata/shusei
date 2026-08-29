@@ -18,28 +18,34 @@ export function stripeClient() {
 }
 
 export function stripeConfigured() {
-  return Boolean(env.STRIPE_SECRET_KEY && env.STRIPE_PRICE_STANDARD && env.STRIPE_PRICE_PREMIUM);
+  return Boolean(env.STRIPE_SECRET_KEY && env.STRIPE_PRICE_STANDARD);
+}
+
+/** 出稿枠の1回きりの支払いが使えるか。 */
+export function adSlotConfigured() {
+  return Boolean(env.STRIPE_SECRET_KEY && env.STRIPE_PRICE_AD_SLOT);
+}
+
+export function adSlotPriceId() {
+  return env.STRIPE_PRICE_AD_SLOT || '';
 }
 
 /** 有料プランと Stripe の price を対応させる。無料プランに price は無い。 */
 export function priceIdFor(plan: Plan, cycle: BillingCycle) {
   if (plan === 'standard') return (cycle === 'year' ? env.STRIPE_PRICE_STANDARD_YEAR : env.STRIPE_PRICE_STANDARD) || '';
-  if (plan === 'premium') return (cycle === 'year' ? env.STRIPE_PRICE_PREMIUM_YEAR : env.STRIPE_PRICE_PREMIUM) || '';
   return '';
 }
 
 /** 年払いの価格IDが両方そろっているか。片方だけなら年払いは出さない。 */
 export function yearlyConfigured() {
-  return Boolean(env.STRIPE_PRICE_STANDARD_YEAR && env.STRIPE_PRICE_PREMIUM_YEAR);
+  return Boolean(env.STRIPE_PRICE_STANDARD_YEAR);
 }
 
 /** Stripeのpriceから、こちらのプランと周期に戻す。webhookで使う。 */
 export function planForPrice(priceId: string): { plan: Plan | ''; cycle: BillingCycle } {
   if (!priceId) return { plan: '', cycle: 'month' };
   if (priceId === env.STRIPE_PRICE_STANDARD) return { plan: 'standard', cycle: 'month' };
-  if (priceId === env.STRIPE_PRICE_PREMIUM) return { plan: 'premium', cycle: 'month' };
   if (priceId === env.STRIPE_PRICE_STANDARD_YEAR) return { plan: 'standard', cycle: 'year' };
-  if (priceId === env.STRIPE_PRICE_PREMIUM_YEAR) return { plan: 'premium', cycle: 'year' };
   return { plan: '', cycle: 'month' };
 }
 

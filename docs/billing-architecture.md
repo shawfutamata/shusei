@@ -15,7 +15,7 @@ Webサービスの会員権限を更新
         ↓
 iOS / Androidはログイン後に権限を確認
         ↓
-投稿・紹介・名刺・通知を利用
+投稿・紹介・通知を利用
 ```
 
 ## アプリ内に置かないもの
@@ -45,33 +45,32 @@ Web側の会員データに次の権限情報を持たせる。データ構造�
 
 ### 設定する値
 
-Sitesのプロジェクト設定（またはCloudflareのシークレット）に4つ入れる。**コードにも、やり取りの記録にも書かない。**
+Sitesのプロジェクト設定（またはCloudflareのシークレット）に入れる。**コードにも、やり取りの記録にも書かない。**
 
 | 名前 | 何を入れるか |
 |---|---|
 | `STRIPE_SECRET_KEY` | Stripeのシークレットキー（`sk_live_...`／テストは `sk_test_...`） |
 | `STRIPE_WEBHOOK_SECRET` | Webhookエンドポイントの署名シークレット（`whsec_...`） |
 | `STRIPE_PRICE_STANDARD` | スタンダード 月払い（1,000円）の価格ID（`price_...`） |
-| `STRIPE_PRICE_PREMIUM` | プレミアム 月払い（5,000円）の価格ID（`price_...`） |
+| `STRIPE_PRICE_AD_SLOT` | トップバナー出稿枠 1ヶ月（10,000円）の価格ID（`price_...`）。**都度払い** |
 | `STRIPE_PRICE_STANDARD_YEAR` | スタンダード 年払い（9,600円）の価格ID。任意 |
-| `STRIPE_PRICE_PREMIUM_YEAR` | プレミアム 年払い（48,000円）の価格ID。任意 |
 
-年払いの2つは無くても動く。両方そろったときだけ、プラン欄に「月払い／年払い」の切り替えが出る。
+`STRIPE_PRICE_STANDARD_YEAR` は無くても動く。入れたときだけ、プラン欄に「月払い／年払い」の切り替えが出る。`STRIPE_PRICE_AD_SLOT` が無ければ、出稿枠の申込みだけが出ない。
 
-4つそろうまで、画面に申し込みボタンは出ない（`stripeConfigured()` が false のため）。
+`STRIPE_SECRET_KEY`・`STRIPE_WEBHOOK_SECRET`・`STRIPE_PRICE_STANDARD` の3つがそろうまで、画面に申し込みボタンは出ない（`stripeConfigured()` が false のため）。
 
 ### Stripeのダッシュボードで作るもの
 
-1. **商品を2つ**。「TASUKI スタンダード」と「TASUKI プレミアム」。どちらも**継続（サブスクリプション）**、通貨JPY、税の動作は**税込**にする（総額表示のため）。
-   - スタンダード … 月額1,000円。年払いも出すなら、同じ商品に**年額9,600円**の価格を追加
-   - プレミアム … 月額5,000円。年払いは**年額48,000円**
+1. **継続の商品を1つ**。「TASUKI スタンダード」。**継続（サブスクリプション）**、通貨JPY、税の動作は**税込**にする（総額表示のため）。
+   - 月額1,000円。年払いも出すなら、同じ商品に**年額9,600円**の価格を追加
    - 作ったら価格IDを控える（商品IDではなく `price_` のほう）
-2. **Webhookエンドポイント**。宛先は `https://<ドメイン>/api/billing/webhook`。送るイベントは次の4つ
+2. **都度払いの商品を1つ**。「TASUKI トップバナー出稿枠（1ヶ月）」。**一括（一回限り）**、通貨JPY、**税込**、金額10,000円。購読ではないので、更新の設定はしない
+3. **Webhookエンドポイント**。宛先は `https://<ドメイン>/api/billing/webhook`。送るイベントは次の4つ
    - `checkout.session.completed`
    - `customer.subscription.created`
    - `customer.subscription.updated`
    - `customer.subscription.deleted`
-3. **カスタマーポータル**を有効化（設定 → 請求 → カスタマーポータル）。解約・カード変更・領収書はここに任せる
+4. **カスタマーポータル**を有効化（設定 → 請求 → カスタマーポータル）。解約・カード変更・領収書はここに任せる
 
 ### コードの構成
 

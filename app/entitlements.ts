@@ -6,7 +6,8 @@
 // 金額と表示名は Web だけが持つ app/plan-catalog.ts にある。
 // 線引きは docs/pricing-plan-ja.md が正。
 
-export const plans = ['free', 'standard', 'premium'] as const;
+export const plans = ['free', 'standard'] as const;
+export type Plan = (typeof plans)[number];
 
 /** 支払いの周期。金額ではないのでここに置く（金額は app/plan-catalog.ts）。 */
 export const billingCycles = ['month', 'year'] as const;
@@ -15,7 +16,6 @@ export function toBillingCycle(value: unknown): BillingCycle {
   return value === 'year' ? 'year' : 'month';
 }
 
-export type Plan = (typeof plans)[number];
 /**
  * プランは2本立てで持つ。
  * - plan / planPeriodEnd … 契約しているプラン（Stripeの購読、または運営が入れたもの）
@@ -34,10 +34,9 @@ export type PlanState = {
 /** 無制限は -1 で表す。JSONに載せるので Infinity は使わない。 */
 export const UNLIMITED = -1;
 
-export const planLimits: Record<Plan, { requestsPerMonth: number; businessCards: number }> = {
-  free: { requestsPerMonth: 1, businessCards: 50 },
-  standard: { requestsPerMonth: 2, businessCards: 300 },
-  premium: { requestsPerMonth: UNLIMITED, businessCards: UNLIMITED },
+export const planLimits: Record<Plan, { requestsPerMonth: number }> = {
+  free: { requestsPerMonth: 1 },
+  standard: { requestsPerMonth: UNLIMITED },
 };
 
 export const features = [
@@ -45,9 +44,7 @@ export const features = [
   'introduce',            // 人を紹介する（ギブ）
   'comment',              // 探しごとでやり取りする
   'receive_introductions',// 届いた紹介を見る
-  'post_request',         // 探しごとを投稿する（プランごとの上限あり）
-  'store_business_card',  // 名刺を保存する（プランごとの上限あり）
-  'scan_business_card',   // 名刺をカメラで一括読み取り
+  'post_request',         // 探しごとを投稿する（無料は月1件）
   'member_search',        // 会員を業種・エリアで探す
   'export_introductions', // 届いた紹介の書き出し
 ] as const;
@@ -55,18 +52,16 @@ export type Feature = (typeof features)[number];
 
 // どのプランから使えるか。ここに無いものは全プランで使える。
 const requiredPlan: Partial<Record<Feature, Plan>> = {
-  scan_business_card: 'premium',
-  member_search: 'premium',
-  export_introductions: 'premium',
+  member_search: 'standard',
+  export_introductions: 'standard',
 };
 
 export function toPlan(value: unknown): Plan {
-  // 以前の 'pro' は最上位として扱う。
-  if (value === 'pro') return 'premium';
+  // 以前あった 'pro' と 'premium' は、いまのいちばん上のプランとして扱う。
+  if (value === 'pro' || value === 'premium') return 'standard';
   return plans.includes(value as Plan) ? value as Plan : 'free';
 }
 
-/** 期限切れなら無料に落とす。判定はすべてこれを通す。 */
 /** 契約しているプラン。期限切れなら無料。特典は含めない。 */
 export function contractedPlan(state: PlanState, today = new Date()): Plan {
   if (state.plan === 'free') return 'free';
@@ -112,12 +107,6 @@ export function limits(state: PlanState, today = new Date()) {
 export function remainingRequests(state: PlanState, usedThisMonth: number, today = new Date()) {
   const cap = limits(state, today).requestsPerMonth;
   return cap === UNLIMITED ? UNLIMITED : Math.max(0, cap - usedThisMonth);
-}
-
-/** あと何枚の名刺を保存できるか。無制限なら UNLIMITED。 */
-export function remainingBusinessCards(state: PlanState, stored: number, today = new Date()) {
-  const cap = limits(state, today).businessCards;
-  return cap === UNLIMITED ? UNLIMITED : Math.max(0, cap - stored);
 }
 
 function rank(plan: Plan) {
