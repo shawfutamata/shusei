@@ -11,8 +11,9 @@ import { serviceName, serviceUrl } from '@/constants/brand';
 import { levelFor, rankNames, rankPerks, rankThresholds } from '@/constants/rank-perks';
 
 const perkIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
-  crest: 'shield-checkmark-outline', record: 'stats-chart-outline', extend: 'time-outline',
-  industries: 'grid-outline', pin: 'pin-outline', photos: 'images-outline', hall: 'trophy-outline',
+  crest: 'shield-checkmark-outline', extend: 'time-outline', longtext: 'document-text-outline',
+  industries: 'grid-outline', pin: 'pin-outline', photos: 'images-outline',
+  video: 'videocam-outline', promo: 'megaphone-outline',
 };
 
 type Invite = { code: string; url: string; invitedCount: number; activeCount: number; waitingCount: number };

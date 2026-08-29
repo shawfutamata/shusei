@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
 import { createRequest, getBoardData, type RequestImageUpload } from '@/db/data';
 import { isIndustry } from '@/app/industry-options';
+import { descriptionLimit } from '@/app/rank-perks';
 
 // 画像は投稿する人の端末で縮小してから送る。ここでは受け取るだけで変換しない。
 // 一覧用は長辺480px・詳細用は長辺1400pxを想定していて、この上限は
@@ -31,7 +32,9 @@ export async function POST(request: Request) {
 
   const category = clean(field('category'), 32);
   const title = clean(field('title'), 90);
-  const description = clean(field('description'), 600);
+  // 本文の上限はランクで変わる（app/rank-perks.ts）。ここでは天井だけ当てて、
+  // 実際の切り詰めは db/data.ts がランクを見て行う。
+  const description = clean(field('description'), descriptionLimit(5));
   const budgetLabel = clean(field('budgetLabel'), 60);
   const area = clean(field('area'), 60);
   const industryTags = multipart ? parseIndustries(field('industryTags'), 3) : cleanIndustries(field('industryTags'), 3);
@@ -40,19 +43,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '入力内容を確認してください。' }, { status: 400 });
   }
 
-  let image: RequestImageUpload | undefined;
+  // 写真は複数枚。何枚まで受けるかは db/data.ts がランクを見て切り詰める。
+  const images: RequestImageUpload[] = [];
   if (form) {
-    const thumb = form.get('imageThumb');
-    const full = form.get('imageFull');
-    if (thumb instanceof File && full instanceof File && thumb.size > 0 && full.size > 0) {
+    const thumbs = form.getAll('imageThumb');
+    const fulls = form.getAll('imageFull');
+    for (let index = 0; index < thumbs.length; index += 1) {
+      const thumb = thumbs[index];
+      const full = fulls[index];
+      if (!(thumb instanceof File) || !(full instanceof File) || thumb.size === 0 || full.size === 0) continue;
       const checked = await readImagePair(thumb, full);
       if ('error' in checked) return NextResponse.json({ error: checked.error }, { status: 400 });
-      image = checked.image;
+      images.push(checked.image);
     }
   }
 
   try {
-    const id = await createRequest(user, { category, title, description, budgetLabel, area, industryTags, deadline, image });
+    const id = await createRequest(user, { category, title, description, budgetLabel, area, industryTags, deadline, images });
     return NextResponse.json({ id }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : '投稿できませんでした。' }, { status: 400 });

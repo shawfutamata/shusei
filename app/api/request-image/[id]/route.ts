@@ -8,8 +8,11 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const gate = await requireActiveMember();
   if (gate.response) return gate.response;
   const { id } = await context.params;
-  const size = new URL(request.url).searchParams.get('size') === 'full' ? 'full' : 'thumb';
-  const object = await getRequestImage(id, size);
+  const params = new URL(request.url).searchParams;
+  const size = params.get('size') === 'full' ? 'full' : 'thumb';
+  // 2枚目以降は ?n= で指定する。1枚目は番号なし（以前の投稿と同じ場所）。
+  const index = Math.max(0, Math.min(9, Number(params.get('n') ?? 0) || 0));
+  const object = await getRequestImage(id, size, index);
   if (!object) return NextResponse.json({ error: '画像が見つかりません。' }, { status: 404 });
   const headers = new Headers();
   object.writeHttpMetadata(headers);

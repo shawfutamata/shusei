@@ -5,7 +5,7 @@ import { cleanFacebookUrl } from '@/app/social-links';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
 import { AD_CONCURRENT_SLOTS, AD_MIN_RANK_LEVEL, AD_RESERVATION_MINUTES, AD_TITLE_MAX } from '@/app/ad-options';
 import { UNLIMITED, bonusPlan, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
-import { EXTEND_DAYS, PIN_DAYS, canExtendRequest, canPinRequest, levelFor, notifyIndustryLimit, rankName, rankThresholds } from '@/app/rank-perks';
+import { EXTEND_DAYS, PIN_DAYS, PROMO_DAYS, canExtendRequest, canPinRequest, canPromoteInIndustry, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
 import { matchesIndustry } from '@/app/industry-options';
 
 export type BoardRequest = {
@@ -14,6 +14,8 @@ export type BoardRequest = {
   thumbUrl: string;
   /** 詳細で出す大きい画像。無ければ空。 */
   imageUrl: string;
+  /** 2枚目以降を含めた、詳細用の画像すべて。1枚だけなら imageUrl と同じ1件。 */
+  imageUrls: string[];
   category: 'project' | 'collaboration' | 'consultation';
   title: string;
   description: string;
@@ -27,6 +29,9 @@ export type BoardRequest = {
   pinnedUntil: string;
   /** 募集を延長した日時。1件につき1回まで。空ならまだ使っていない。 */
   extendedAt: string;
+  /** 業種別プロモーションで、この業種の一覧では先頭に出す。 */
+  promoIndustry: string;
+  promoUntil: string;
   /** 自分の投稿かどうか。延長やピンのボタンを出すかの判断に使う。 */
   mine: boolean;
   authorName: string;
@@ -334,6 +339,11 @@ export async function ensureDatabase() {
     ['pinned_until', "ALTER TABLE requests ADD COLUMN pinned_until TEXT NOT NULL DEFAULT ''"],
     // 募集の延長は1件につき1回まで。使ったかどうかを持つ。
     ['extended_at', "ALTER TABLE requests ADD COLUMN extended_at TEXT NOT NULL DEFAULT ''"],
+    // 写真の枚数。0なら写真なし、1以上ならその枚数だけR2に置いてある。
+    ['image_count', 'ALTER TABLE requests ADD COLUMN image_count INTEGER NOT NULL DEFAULT 0'],
+    // 業種別プロモーション。この業種の一覧で、この日時まで先頭に出す。
+    ['promo_industry', "ALTER TABLE requests ADD COLUMN promo_industry TEXT NOT NULL DEFAULT ''"],
+    ['promo_until', "ALTER TABLE requests ADD COLUMN promo_until TEXT NOT NULL DEFAULT ''"],
   ] as const) {
     if (!requestColumnNames.has(columnName)) await env.DB.prepare(sql).run();
   }
@@ -354,6 +364,8 @@ export async function ensureDatabase() {
     WHERE start_date = '' AND month <> ''`).run();
   // 索引は列ができたあとに作る。statements に混ぜると、列が無い初回に全部こける。
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_ad_slots_period ON ad_slots(status, start_date, end_date)').run();
+  // 写真を1枚だけ持っていた投稿を、枚数1として数え直す。1回だけ効く。
+  await env.DB.prepare('UPDATE requests SET image_count = 1 WHERE image_count = 0 AND image_version > 0').run();
   await env.DB.prepare("UPDATE referral_credits SET status = 'waiting', earned_at = '' WHERE status = 'capped'").run();
   // 招待特典は契約プランと別の列に持つようにした。前の置き場から移す。
   await env.DB.prepare(`UPDATE members SET bonus_plan = plan, bonus_period_end = plan_period_end,
@@ -681,6 +693,7 @@ export async function getBoardData(user: ChatGPTUser) {
     r.budget_label AS budgetLabel, r.area, r.industry_tags AS industryTagsJson,
     r.deadline, r.status, r.image_version AS imageVersion, r.created_at AS createdAt,
     r.pinned_until AS pinnedUntil, r.extended_at AS extendedAt,
+    r.image_count AS imageCount, r.promo_industry AS promoIndustry, r.promo_until AS promoUntil,
     m.display_name AS authorName, m.company AS authorCompany, m.venue AS authorVenue,
     m.position_title AS authorPositionTitle, m.badge AS authorBadge,
     m.business_area AS authorBusinessArea,
@@ -693,7 +706,7 @@ export async function getBoardData(user: ChatGPTUser) {
     JOIN members m ON m.id = r.author_id
     ORDER BY CASE WHEN r.pinned_until > ? THEN 0 ELSE 1 END, r.created_at DESC`)
     .bind(new Date().toISOString())
-    .all<Omit<BoardRequest, 'industryTags' | 'thumbUrl' | 'imageUrl' | 'mine'> & { industryTagsJson: string; imageVersion: number; authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
+    .all<Omit<BoardRequest, 'industryTags' | 'thumbUrl' | 'imageUrl' | 'imageUrls' | 'mine'> & { industryTagsJson: string; imageVersion: number; imageCount: number; authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
 
   const member = await env.DB.prepare(`SELECT display_name AS displayName, venue, company,
     position_title AS positionTitle, badge, business_area AS businessArea,
@@ -713,9 +726,10 @@ export async function getBoardData(user: ChatGPTUser) {
     contractedPlan: plan.contracted, bonusPlan: plan.bonus, bonusPeriodEnd: plan.bonusPeriodEnd ?? '',
     requestsThisMonth: plan.requestsThisMonth, requestLimit: plan.requestLimit,
   });
-  const requests = requestsResult.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, industryTagsJson, imageVersion, ...request }) => ({
+  const requests = requestsResult.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, industryTagsJson, imageVersion, imageCount, ...request }) => ({
     ...request,
     mine: authorId === user.userId,
+    imageUrls: Array.from({ length: Math.max(0, imageCount) }, (_, index) => requestImageUrl(request.id, imageVersion, 'full', index)),
     industryTags: parseStringArray(industryTagsJson),
     thumbUrl: requestImageUrl(request.id, imageVersion, 'thumb'),
     imageUrl: requestImageUrl(request.id, imageVersion, 'full'),
@@ -750,7 +764,7 @@ export async function updateMemberProfile(user: ChatGPTUser, input: { company: s
 
 export type RequestImageUpload = { thumb: { bytes: ArrayBuffer; contentType: string }; full: { bytes: ArrayBuffer; contentType: string } };
 
-export async function createRequest(user: ChatGPTUser, input: { category: string; title: string; description: string; budgetLabel: string; area: string; industryTags: string[]; deadline: string; image?: RequestImageUpload }) {
+export async function createRequest(user: ChatGPTUser, input: { category: string; title: string; description: string; budgetLabel: string; area: string; industryTags: string[]; deadline: string; images?: RequestImageUpload[] }) {
   await upsertMember(user);
   await requireFacePhoto(user.userId);
   const requestPlan = await getPlanState(user.userId);
@@ -761,22 +775,25 @@ export async function createRequest(user: ChatGPTUser, input: { category: string
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   // 縮小は投稿する人の端末で済ませてある。サーバーでは変換しない（Workersの計算時間は従量）。
+  // 何枚まで付けられるかはランクで決まる。画面ではなく、ここで切り詰める。
+  const { level } = await getMemberRank(user.userId);
+  const images = (input.images ?? []).slice(0, photoLimit(level));
   let imageVersion = 0;
-  if (input.image) {
+  if (images.length) {
     imageVersion = Date.now();
-    await Promise.all([
-      env.AVATARS.put(requestImageKey(id, 'thumb'), input.image.thumb.bytes, {
-        httpMetadata: { contentType: input.image.thumb.contentType },
+    await Promise.all(images.flatMap((image: RequestImageUpload, index: number) => [
+      env.AVATARS.put(requestImageKey(id, 'thumb', index), image.thumb.bytes, {
+        httpMetadata: { contentType: image.thumb.contentType },
         customMetadata: { ownerId: user.userId, requestId: id },
       }),
-      env.AVATARS.put(requestImageKey(id, 'full'), input.image.full.bytes, {
-        httpMetadata: { contentType: input.image.full.contentType },
+      env.AVATARS.put(requestImageKey(id, 'full', index), image.full.bytes, {
+        httpMetadata: { contentType: image.full.contentType },
         customMetadata: { ownerId: user.userId, requestId: id },
       }),
-    ]);
+    ]));
   }
-  await env.DB.prepare('INSERT INTO requests (id, author_id, category, title, description, budget_label, area, industry_tags, deadline, status, image_version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, user.userId, input.category, input.title, input.description, input.budgetLabel, input.area, JSON.stringify(input.industryTags), input.deadline, 'open', imageVersion, createdAt).run();
+  await env.DB.prepare('INSERT INTO requests (id, author_id, category, title, description, budget_label, area, industry_tags, deadline, status, image_version, image_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, user.userId, input.category, input.title, input.description.slice(0, descriptionLimit(level)), input.budgetLabel, input.area, JSON.stringify(input.industryTags), input.deadline, 'open', imageVersion, images.length, createdAt).run();
   await sendMatchingPushNotifications(user.userId, { id, title: input.title, industryTags: input.industryTags }).catch(() => undefined);
   await sendMatchingMobileNotifications(user.userId, { id, title: input.title, industryTags: input.industryTags }).catch(() => undefined);
   return id;
@@ -904,17 +921,19 @@ function avatarUrl(memberId: string, avatarKey: string, avatarVersion: number) {
   return avatarKey ? `/api/avatar/${encodeURIComponent(memberId)}?v=${avatarVersion}` : '';
 }
 
-function requestImageKey(id: string, size: 'thumb' | 'full') {
-  return size === 'thumb' ? `request-thumbs/${id}` : `request-images/${id}`;
+// 1枚目は番号なしのまま置く。以前に投稿された写真をそのまま読めるようにするため。
+function requestImageKey(id: string, size: 'thumb' | 'full', index = 0) {
+  const folder = size === 'thumb' ? 'request-thumbs' : 'request-images';
+  return index === 0 ? `${folder}/${id}` : `${folder}/${id}/${index}`;
 }
 
 /** 探しごとの画像を返す。会員なら誰でも見られる（掲示板に出ているもの）。 */
-export async function getRequestImage(id: string, size: 'thumb' | 'full') {
+export async function getRequestImage(id: string, size: 'thumb' | 'full', index = 0) {
   await ensureDatabase();
-  const row = await env.DB.prepare('SELECT image_version AS imageVersion FROM requests WHERE id = ?')
-    .bind(id).first<{ imageVersion: number }>();
-  if (!row?.imageVersion) return null;
-  return env.AVATARS.get(requestImageKey(id, size));
+  const row = await env.DB.prepare('SELECT image_version AS imageVersion, image_count AS imageCount FROM requests WHERE id = ?')
+    .bind(id).first<{ imageVersion: number; imageCount: number }>();
+  if (!row?.imageVersion || index >= Math.max(1, row.imageCount)) return null;
+  return env.AVATARS.get(requestImageKey(id, size, index));
 }
 
 /**
@@ -922,8 +941,10 @@ export async function getRequestImage(id: string, size: 'thumb' | 'full') {
  * 一覧は1画面に何件も並ぶので、小さい版を分けておかないと読み出しが重くなる。
  * 版番号がURLに入るので、1年キャッシュしても差し替えは効く。
  */
-function requestImageUrl(id: string, version: number, size: 'thumb' | 'full') {
-  return version ? `/api/request-image/${encodeURIComponent(id)}?v=${version}&size=${size}` : '';
+function requestImageUrl(id: string, version: number, size: 'thumb' | 'full', index = 0) {
+  if (!version) return '';
+  const at = index > 0 ? `&n=${index}` : '';
+  return `/api/request-image/${encodeURIComponent(id)}?v=${version}&size=${size}${at}`;
 }
 
 async function sendMatchingPushNotifications(authorId: string, request: { id: string; title: string; industryTags: string[] }) {
@@ -1059,6 +1080,36 @@ export async function pinRequest(memberId: string, requestId: string) {
   const until = new Date(Date.now() + PIN_DAYS * 86400000).toISOString();
   await env.DB.prepare('UPDATE requests SET pinned_until = ? WHERE id = ?').bind(until, requestId).run();
   return until;
+}
+
+/**
+ * 自分の探しごとを、選んだ業種の一覧で先頭に出す。DIAMONDの特典。
+ * ひと月に1件まで。ピンと同じく、場を独占させないための上限。
+ */
+export async function promoteRequest(memberId: string, requestId: string, industry: string) {
+  await ensureDatabase();
+  const { level } = await getMemberRank(memberId);
+  if (!canPromoteInIndustry(level)) throw new Error('業種別プロモーションは DIAMOND の特典です。');
+
+  const owned = await env.DB.prepare('SELECT industry_tags AS industryTagsJson FROM requests WHERE id = ? AND author_id = ?')
+    .bind(requestId, memberId).first<{ industryTagsJson: string }>();
+  if (!owned) throw new Error('自分が投稿した探しごとだけ選べます。');
+  if (!parseStringArray(owned.industryTagsJson).includes(industry)) {
+    throw new Error('その探しごとに付いている業種から選んでください。');
+  }
+
+  const month = new Date().toISOString().slice(0, 7);
+  const used = await env.DB.prepare(`SELECT COUNT(*) AS count FROM requests
+    WHERE author_id = ? AND promo_until <> '' AND substr(promo_until, 1, 7) >= ?`)
+    .bind(memberId, month).first<{ count: number }>();
+  if (Number(used?.count ?? 0) > 0) {
+    throw new Error('業種別プロモーションは、ひと月に1件までです。来月またお使いいただけます。');
+  }
+
+  const until = new Date(Date.now() + PROMO_DAYS * 86400000).toISOString();
+  await env.DB.prepare('UPDATE requests SET promo_industry = ?, promo_until = ? WHERE id = ?')
+    .bind(industry, until, requestId).run();
+  return { industry, until };
 }
 
 /** 今月まだピンを使えるか。画面の出し分けに使う。 */

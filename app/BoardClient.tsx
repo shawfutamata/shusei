@@ -14,7 +14,7 @@ import { feedbackCategories } from './feedback-options';
 import { adSlotPrice, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
 import PerkIcon from './PerkIcon';
-import { EXTEND_DAYS, PIN_DAYS, canExtendRequest, canPinRequest, notifyIndustryLimit, rankNames, rankPerks, rankThresholds } from './rank-perks';
+import { EXTEND_DAYS, PIN_DAYS, PROMO_DAYS, canExtendRequest, canPinRequest, canPromoteInIndustry, descriptionLimit, notifyIndustryLimit, photoLimit, rankNames, rankPerks, rankThresholds } from './rank-perks';
 import { serviceName } from './brand';
 import BrandMark from './BrandMark';
 import { detailImage, listThumbnail } from './resize-image';
@@ -150,8 +150,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [selected, setSelected] = useState<BoardRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
-  const [requestPhoto, setRequestPhoto] = useState<File | null>(null);
-  const [requestPhotoPreview, setRequestPhotoPreview] = useState('');
+  const [requestPhotos, setRequestPhotos] = useState<File[]>([]);
+  const [requestPhotoPreviews, setRequestPhotoPreviews] = useState<string[]>([]);
   const [planCycle, setPlanCycle] = useState<BillingCycle>('month');
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [referral, setReferral] = useState<(ReferralSummary & { url: string; billing?: { ready: boolean; yearly: boolean; hasCustomer: boolean; cycle: BillingCycle; creditedYen: number; creditPerReferralYen: number } }) | null>(null);
@@ -182,13 +182,19 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   }, [requests]);
   // 募集状況で先に切ってから、カテゴリの件数を数える。表示と件数がずれないようにする。
   const statusMatched = useMemo(() => requests.filter((item) => statusFilter === 'all' || (statusFilter === 'open') === isOpenRequest(item)), [requests, statusFilter]);
-  const shown = useMemo(() => statusMatched.filter((item) =>
-    (filter === 'all' || item.category === filter) &&
-    (revenueFilter === 'all' || item.authorRevenueBand === revenueFilter) &&
-    (venueFilter === 'all' || item.authorVenue === venueFilter) &&
-    (regionFilter === 'all' || getRegion(item.authorBusinessArea) === regionFilter) &&
-    matchesIndustry(item.industryTags, industryFilter)
-  ), [filter, industryFilter, regionFilter, revenueFilter, statusMatched, venueFilter]);
+  const shown = useMemo(() => {
+    const matched = statusMatched.filter((item) =>
+      (filter === 'all' || item.category === filter) &&
+      (revenueFilter === 'all' || item.authorRevenueBand === revenueFilter) &&
+      (venueFilter === 'all' || item.authorVenue === venueFilter) &&
+      (regionFilter === 'all' || getRegion(item.authorBusinessArea) === regionFilter) &&
+      matchesIndustry(item.industryTags, industryFilter));
+    // 業種別プロモーション。その業種で絞ったときだけ、出稿した人を先頭に出す。
+    if (industryFilter === 'all') return matched;
+    const now = new Date().toISOString();
+    const promoted = (item: BoardRequest) => item.promoUntil > now && matchesIndustry([item.promoIndustry], industryFilter);
+    return [...matched].sort((a, b) => Number(promoted(b)) - Number(promoted(a)));
+  }, [filter, industryFilter, regionFilter, revenueFilter, statusMatched, venueFilter]);
   // 通知はアプリを出してから。それまでは選んだ業種をホームのおすすめに使う。
   const recommended = useMemo(() => requests.filter((item) =>
     isOpenRequest(item) && item.authorName !== userName &&
@@ -299,6 +305,23 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     return `延長は1件につき1回まで、注目ピンはひと月に1件までです。`;
   }
 
+  const promoUsedThisMonth = requests.some((item) => item.mine && item.promoUntil.slice(0, 7) >= new Date().toISOString().slice(0, 7));
+  const isPromoted = (need: BoardRequest) => need.promoUntil > new Date().toISOString();
+
+  async function promoteOwnRequest(need: BoardRequest, industry: string) {
+    if (busy) return;
+    setBusy(true);
+    const response = await fetch(`/api/requests/${encodeURIComponent(need.id)}/promote`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ industry }),
+    });
+    const result = await response.json() as { industry?: string; until?: string; error?: string };
+    setBusy(false);
+    if (!response.ok) return showToast(result.error ?? '設定できませんでした。');
+    showToast(`「${industry}」の一覧で、${PROMO_DAYS}日間いちばん上に出ます。`);
+    await refreshBoard();
+    setSelected((current) => current && current.id === need.id ? { ...current, promoIndustry: industry, promoUntil: result.until ?? current.promoUntil } : current);
+  }
+
   async function extendOwnRequest(need: BoardRequest) {
     if (busy) return;
     setBusy(true);
@@ -331,16 +354,30 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   }
 
   function chooseRequestPhoto(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (file.size > 15 * 1024 * 1024) { showToast('写真は15MB以下を選んでください。'); event.target.value = ''; return; }
-    setRequestPhoto(file);
-    setRequestPhotoPreview((previous) => { if (previous.startsWith('blob:')) URL.revokeObjectURL(previous); return URL.createObjectURL(file); });
+    const picked = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (!picked.length) return;
+    if (picked.some((file) => file.size > 15 * 1024 * 1024)) return showToast('写真は1枚15MB以下を選んでください。');
+    const room = photoLimit(stats.level) - requestPhotos.length;
+    if (room <= 0) return showToast(`写真は${photoLimit(stats.level)}枚までです。`);
+    const added = picked.slice(0, room);
+    if (added.length < picked.length) showToast(`写真は${photoLimit(stats.level)}枚までなので、${added.length}枚だけ追加しました。`);
+    setRequestPhotos((current) => [...current, ...added]);
+    setRequestPhotoPreviews((current) => [...current, ...added.map((file) => URL.createObjectURL(file))]);
+  }
+
+  function removeRequestPhoto(index: number) {
+    setRequestPhotos((current) => current.filter((_, at) => at !== index));
+    setRequestPhotoPreviews((current) => {
+      const target = current[index];
+      if (target?.startsWith('blob:')) URL.revokeObjectURL(target);
+      return current.filter((_, at) => at !== index);
+    });
   }
 
   function clearRequestPhoto() {
-    setRequestPhoto(null);
-    setRequestPhotoPreview((previous) => { if (previous.startsWith('blob:')) URL.revokeObjectURL(previous); return ''; });
+    setRequestPhotos([]);
+    setRequestPhotoPreviews((previous) => { previous.forEach((url) => { if (url.startsWith('blob:')) URL.revokeObjectURL(url); }); return []; });
   }
 
   async function submitRequest(event: FormEvent<HTMLFormElement>) {
@@ -349,11 +386,11 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     const body = new FormData(form);
     body.delete('photo');
     body.set('industryTags', JSON.stringify(requestIndustries));
-    if (requestPhoto) {
-      // 一覧用と詳細用を端末で作ってから送る。サーバーは変換しない。
-      const [thumb, full] = await Promise.all([listThumbnail(requestPhoto), detailImage(requestPhoto)]);
-      body.set('imageThumb', thumb);
-      body.set('imageFull', full);
+    // 一覧用と詳細用を端末で作ってから送る。サーバーは変換しない。
+    for (const photo of requestPhotos) {
+      const [thumb, full] = await Promise.all([listThumbnail(photo), detailImage(photo)]);
+      body.append('imageThumb', thumb);
+      body.append('imageFull', full);
     }
     const response = await fetch('/api/board', { method: 'POST', body });
     const result = await response.json() as { error?: string }; setBusy(false);
@@ -856,7 +893,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {modal === 'request' && !canPostRequest && <Modal title="今月ぶんの投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showProfile(); }}>マイページを開く</button></div></Modal>}
 
-      {modal === 'request' && canPostRequest && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの<select name="category" required defaultValue=""><option value="" disabled>選択してください</option><option value="project">案件の発注先</option><option value="collaboration">協業パートナー</option><option value="consultation">相談相手・情報</option></select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容<textarea name="description" required maxLength={600} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア<input name="area" required maxLength={60} placeholder="例：東京都・オンライン" /></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><label className="request-photo"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseRequestPhoto} />{requestPhotoPreview ? <img src={requestPhotoPreview} alt="添付する写真のプレビュー" /> : <span className="request-photo-empty">＋</span>}<span className="request-photo-copy"><b>写真を付ける <em>任意</em></b><small>{requestPhoto ? '一覧で目印になります。押すと選び直せます' : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></span>{requestPhoto && <i onClick={(event) => { event.preventDefault(); clearRequestPhoto(); }}>削除</i>}</label><button className="submit-button" disabled={busy || !requestIndustries.length}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
+      {modal === 'request' && canPostRequest && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの<select name="category" required defaultValue=""><option value="" disabled>選択してください</option><option value="project">案件の発注先</option><option value="collaboration">協業パートナー</option><option value="consultation">相談相手・情報</option></select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容 {descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" required maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア<input name="area" required maxLength={60} placeholder="例：東京都・オンライン" /></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><div className="request-photos"><p><b>写真を付ける <em>任意</em></b><small>{photoLimit(stats.level) > 1 ? `${stats.rank}は${photoLimit(stats.level)}枚まで付けられます` : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></p><div className="request-photo-grid">{requestPhotoPreviews.map((preview, index) => <span key={preview} className="request-photo-item"><img src={preview} alt={`添付する写真 ${index + 1}枚目`} /><button type="button" onClick={() => removeRequestPhoto(index)} aria-label={`${index + 1}枚目を削除`}>×</button></span>)}{requestPhotos.length < photoLimit(stats.level) && <label className="request-photo-add"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" multiple={photoLimit(stats.level) > 1} onChange={chooseRequestPhoto} /><b>＋</b><small>{requestPhotos.length ? 'もう1枚' : '写真を選ぶ'}</small></label>}</div></div><button className="submit-button" disabled={busy || !requestIndustries.length}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
 
       {modal === 'intro' && selected && <Modal title="知っている人を紹介" lead={`「${selected.title}」への紹介です。`} onClose={() => setModal(null)}><form className="form" onSubmit={submitIntroduction}><label>お名前<input name="personName" required maxLength={60} /></label><label>会社・屋号<input name="personCompany" required maxLength={80} /></label><label>あなたとの関係<input name="relationship" required maxLength={120} placeholder="例：取引先、友人" /></label><label>紹介したい理由<textarea name="fitReason" required maxLength={400} rows={3} /></label><label className="consent"><input type="checkbox" name="consentConfirmed" required /> ご本人に紹介の了承を得ています</label><button className="submit-button" disabled={busy}>{busy ? '届けています…' : '紹介を届ける'}</button></form></Modal>}
 
@@ -967,7 +1004,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       {modal === 'detail' && selected && <Modal title="探しごとの詳細" lead={`${selected.authorName}さんの探しごとです。`} onClose={() => setModal(null)}><article className="need-detail">
         <div className="card-topline"><span className={`kind ${categories[selected.category].className}`}>{categories[selected.category].label}</span><button className={favoriteIds.includes(selected.id) ? 'detail-heart active' : 'detail-heart'} onClick={() => toggleFavorite(selected)}>♥ {favoriteIds.includes(selected.id) ? '保存済み' : 'お気に入り'}</button></div>
         <h3>{selected.title}</h3>
-        {selected.imageUrl && <img className="need-photo" src={selected.imageUrl} alt={`${selected.title}に添えられた写真`} loading="lazy" decoding="async" />}
+        {selected.imageUrls.length > 1
+          ? <div className="need-gallery">{selected.imageUrls.map((url, index) => <img key={url} src={url} alt={`${selected.title}に添えられた写真 ${index + 1}枚目`} loading="lazy" decoding="async" />)}</div>
+          : selected.imageUrl && <img className="need-photo" src={selected.imageUrl} alt={`${selected.title}に添えられた写真`} loading="lazy" decoding="async" />}
         <p>{selected.description}</p>
         <div className="industry-tags">{selected.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
         <dl><div><dt>予算</dt><dd>{selected.budgetLabel}</dd></div><div><dt>希望エリア</dt><dd>{selected.area}</dd></div><div><dt>募集期限</dt><dd>{selected.deadline}</dd></div></dl>
@@ -979,6 +1018,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 <button disabled={busy || !canExtend(selected)} onClick={() => extendOwnRequest(selected)}>{selected.extendedAt ? '延長ずみ' : `期限を${EXTEND_DAYS}日のばす`}</button>
                 <button disabled={busy || !canPin(selected)} onClick={() => pinOwnRequest(selected)}>{isPinned(selected) ? `${PIN_DAYS}日間 いちばん上` : '注目ピンで上に出す'}</button>
               </div>
+              {canPromoteInIndustry(stats.level) && <div className="owner-promo">
+                <p>{isPromoted(selected) ? `「${selected.promoIndustry}」の一覧で先頭に出しています` : '業種を選ぶと、その一覧で先頭に出せます'}</p>
+                <div className="owner-promo-row">{selected.industryTags.map((industry) => <button key={industry} disabled={busy || promoUsedThisMonth || isPromoted(selected)}
+                  className={selected.promoIndustry === industry ? 'active' : ''}
+                  onClick={() => promoteOwnRequest(selected, industry)}>{industry}</button>)}</div>
+              </div>}
               <p className="owner-tools-note">{ownerToolsNote(selected)}</p>
             </div>
           : <button className="submit-button" onClick={() => openIntroduction(selected)}>この人を紹介できる</button>}

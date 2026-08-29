@@ -32,12 +32,12 @@ export const rankPerks: RankPerk[] = [
     detail: 'プロフィールと投稿にランクの紋章が付きます。どれだけ紹介してきた人かが、ひと目で伝わります。',
   },
   {
-    key: 'record', label: '紹介の実績が出る', minLevel: 1,
-    detail: '紹介した数とポイントが他の会員に見えます。紹介を頼むときの後押しになります。',
-  },
-  {
     key: 'extend', label: '募集の延長', minLevel: 2,
     detail: '期限が来た探しごとを、1件につき1回だけ2週間延ばせます。もう少し待てば見つかりそうなときに。',
+  },
+  {
+    key: 'longtext', label: '掲載文章の上限なし', minLevel: 2,
+    detail: '探しごとの本文が600字までの制限から外れ、いくらでも書けるようになります。背景や条件を省かずに伝えられます。',
   },
   {
     key: 'industries', label: 'おすすめ業種の枠', minLevel: 3,
@@ -48,20 +48,28 @@ export const rankPerks: RankPerk[] = [
     detail: '自分の探しごとを1件、一覧のいちばん上に3日間だけ固定できます。ひと月に1回まで。',
   },
   {
+    key: 'photos', label: '写真を複数枚', minLevel: 3,
+    detail: '探しごとに付けられる写真が1枚から3枚に増えます。RUBY以上では5枚まで。現場や商品を何枚も見せられます。',
+  },
+  {
     key: 'ad', label: 'トップバナーへの出稿', minLevel: 4, webOnly: true,
-    detail: 'ホームのいちばん先に目に入る場所へ、1ヶ月あいだ自分の告知を出せるようになります。',
+    detail: 'ホームのいちばん先に目に入る場所へ、選んだ期間だけ自分の告知を出せるようになります。',
   },
   {
-    key: 'photos', label: '探しごとの写真が3枚', minLevel: 4, soon: true,
-    detail: 'いまは1枚までの写真を、3枚まで付けられるようになります。',
+    key: 'ad-ahead', label: '広告の事前予約', minLevel: 4, webOnly: true,
+    detail: '広告のカレンダーが先まで開きます。RUBYは120日先、DIAMONDは180日先まで。催しや繁忙期に合わせて確保できます。',
   },
   {
-    key: 'ad-ahead', label: '出稿枠の先取り', minLevel: 5, webOnly: true,
-    detail: '出稿枠を、他の方より先の月まで押さえられます。催しや繁忙期に合わせて確保できます。',
+    key: 'video', label: '動画を投稿できる', minLevel: 4, soon: true,
+    detail: '探しごとに短い動画を付けられるようになります。現場や商品は、写真より動画のほうが伝わります。',
   },
   {
-    key: 'hall', label: '殿堂入り', minLevel: 5, soon: true,
-    detail: 'ホームに「今月いちばん紹介した人」として名前が出ます。',
+    key: 'promo', label: '業種別プロモーション', minLevel: 5,
+    detail: '自分の探しごとを1件、選んだ業種の一覧でいちばん上に出せます。その業種の人にだけ、確実に届きます。',
+  },
+  {
+    key: 'ad-long', label: '広告期間の延長', minLevel: 5, webOnly: true,
+    detail: '広告を1回で出せる期間が30日から60日に延びます。長く出すほど、目に留まる回数が増えます。',
   },
 ];
 
@@ -80,6 +88,27 @@ export function levelFor(introCount: number) {
 }
 
 // --- 特典の中身。画面もAPIも、必ずここを通して判断する ---------------------
+
+/** 探しごとの本文を何字まで書けるか。EMERALD以上は事実上の上限なし。 */
+export function descriptionLimit(level: number) {
+  // 「上限なし」と言っても、壊れた入力から守る天井は要る。ここに当たる人はまずいない。
+  return level >= 2 ? 20000 : 600;
+}
+
+/** 探しごとに付けられる写真の枚数。 */
+export function photoLimit(level: number) {
+  if (level >= 4) return 5;
+  if (level >= 3) return 3;
+  return 1;
+}
+
+/** 業種別プロモーションを使えるか。 */
+export function canPromoteInIndustry(level: number) {
+  return level >= 5;
+}
+
+/** 業種別プロモーションで上に出しておく日数。 */
+export const PROMO_DAYS = 7;
 
 /** おすすめに出したい業種を、いくつまで選べるか。 */
 export function notifyIndustryLimit(level: number) {
