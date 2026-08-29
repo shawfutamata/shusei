@@ -27,7 +27,7 @@ const browser = await chromium.launch({ executablePath: BROWSER, args: ['--no-sa
 async function capture(name, { signIn = false, path = '/', navIndex = null } = {}) {
   const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 2, locale: 'ja-JP' });
   const page = await context.newPage();
-  if (signIn) await page.goto(`${BASE}/signin-with-chatgpt?return_to=%2F`, { waitUntil: 'networkidle' });
+  if (signIn) await page.goto(`${BASE}/api/dev/signin?return_to=%2F`, { waitUntil: 'networkidle' });
   await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(800);
   if (navIndex !== null) {

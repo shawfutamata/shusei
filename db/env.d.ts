@@ -22,3 +22,14 @@ declare namespace Cloudflare {
     STRIPE_PRICE_AD_SLOT: string;
   }
 }
+
+// Viteが差し込む値。`DEV` は本番ビルドで false のリテラルに置き換わるので、
+// 手元専用の経路（/api/dev/signin など）はビルド時に丸ごと消える。
+interface ImportMetaEnv {
+  readonly DEV: boolean;
+  readonly PROD: boolean;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}

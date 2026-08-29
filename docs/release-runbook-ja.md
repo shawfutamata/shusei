@@ -19,9 +19,9 @@ Web版はアプリとほぼ同じことができる。掲示板・投稿・紹�
 | W1 | WebのGoogleログイン | 完了 |
 | W2 | 有効会員だけを通すAPI境界 | 完了 |
 | W3 | 公開サポートページ `/support`、プライバシーポリシー `/privacy` | 完了 |
-| W4 | Google Cloud で OAuth クライアントを作り、Sitesの秘密環境変数へ | **未。ここが関門** |
+| W4 | Google Cloud で OAuth クライアントを作り、Cloudflareのsecretへ | **未。ここが関門** |
 | W5 | 会員をD1に登録して `active` にする | 未。`docs/member-provisioning.md` |
-| W6 | Sites を公開アクセスへ変更 | 未 |
+| W6 | Cloudflareへデプロイし、tasuki.club をつなぐ（`docs/deploy-ja.md`） | 未 |
 | W7 | 会員へ案内し、ホーム画面への追加を案内する | 未 |
 
 **Webのログインは Googleのみ**（2026-08-28に決定）。会員はGoogleアカウントを持っている前提で進める。メール＋6桁コードの画面は `/login` に残してあるが、トップからは案内していない。Googleが使えない会員が出たときは、このURLを個別に案内すれば入れる（ただしそれには Resend の設定が要る）。
@@ -37,7 +37,7 @@ Web版はアプリとほぼ同じことができる。掲示板・投稿・紹�
    https://tasuki.club/api/auth/google/callback
    ```
 
-5. 発行されたクライアントIDとシークレットを、Sitesの**秘密**環境変数へ
+5. 発行されたクライアントIDとシークレットを、Cloudflareのsecretへ（`npx wrangler secret put`）
 
    - `GOOGLE_CLIENT_ID`
    - `GOOGLE_CLIENT_SECRET`

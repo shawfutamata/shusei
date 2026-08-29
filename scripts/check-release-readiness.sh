@@ -6,7 +6,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-API="${EXPO_PUBLIC_API_BASE_URL:-https://give-hub-shusei.shaw-futamata.chatgpt.site}"
+API="${EXPO_PUBLIC_API_BASE_URL:-https://tasuki.club}"
 ok=0; ng=0; todo=0
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; ok=$((ok+1)); }
@@ -46,7 +46,7 @@ else todo "/support が $support"; fi
 
 if [ "$privacy" != "200" ]; then
   todo "サイトが所有者限定公開のため、APIの権限境界はここからは判定できない"
-  todo "Sitesを公開アクセスへ変更してから、このスクリプトを再実行する"
+  todo "本番へデプロイし、ドメインをつないでから、このスクリプトを再実行する"
 else
   code=$(status "$API/api/board")
   case "$code" in
@@ -79,7 +79,7 @@ cat <<'MANUAL'
   - Apple Developer Program の登録と本人確認
   - Google Play Console の開発者アカウント登録（法人か個人かで公開時期が変わる）
   - Resend のAPIキー発行と送信元ドメイン認証
-  - Sites の秘密環境変数の設定と、公開アクセスへの切り替え
+  - Cloudflare の secret 設定（npx wrangler secret put）とデプロイ
   - 実機でのログイン・カメラ・OCR・通知の確認とスクリーンショット撮影
   - 両ストアのコンソールでのアプリ作成と申請
   手順は docs/release-runbook-ja.md

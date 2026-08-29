@@ -13,7 +13,7 @@
 作業の正はこのGitHubリポジトリ `shawfutamata/shusei`。実装・検証・コミットはリポジトリ側で完結させる。
 
 - 開発ブランチ: `claude/codex-chat-handoff-dbw0m2`
-- Web / API: リポジトリ直下（Next.js on Cloudflare Sites）
+- Web / API: リポジトリ直下（Next.js on Cloudflare Workers。2026-08-29にChatGPT Sitesから切り離した）
 - Expoアプリ: `mobile/`
 - 公開Web: `https://tasuki.club`
 - Expo project: `@shusei_system/member-hub`
@@ -120,9 +120,9 @@ npx eas-cli build --platform ios --profile preview
 
 前任セッションの申告（このリポジトリからは未検証）:
 
-- Sites本番バージョン37をデプロイ済み
-- 現状は所有者限定公開（許可ユーザー1、グループ0、外部訪問者0）
-- 未登録メールの `/api/mobile/auth/request-code` はHTTP 400で拒否されることを本番確認済み
+- 旧: ChatGPT Sites本番バージョン37（所有者限定公開）。**2026-08-29に切り離したので、この配信先はもう使わない**
+- 新: Cloudflare Workersへ直接デプロイする。`wrangler.jsonc` にD1とR2の結線がある
+- **未着手**: Cloudflareアカウントでの `d1 create` / `r2 bucket create`、`wrangler.jsonc` のdatabase_id記入、`wrangler secret put`。手順は `docs/deploy-ja.md`
 
 リポジトリで確認済み:
 

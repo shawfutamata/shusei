@@ -35,7 +35,7 @@ const browser = await chromium.launch({ executablePath: BROWSER, args: ['--no-sa
 async function newPage({ signIn = false } = {}) {
   const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 2, locale: 'ja-JP' });
   const page = await context.newPage();
-  if (signIn) await page.goto(`${BASE}/signin-with-chatgpt?return_to=%2F`, { waitUntil: 'networkidle' });
+  if (signIn) await page.goto(`${BASE}/api/dev/signin?return_to=%2F`, { waitUntil: 'networkidle' });
   return page;
 }
 

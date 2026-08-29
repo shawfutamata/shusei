@@ -1,0 +1,36 @@
+{
+  // Cloudflare Workers へ直接デプロイするための設定。
+  // ChatGPT Sites から切り離したので、D1 と R2 はショウさんのCloudflare
+  // アカウントのものを使う。**ここに秘密は書かない**（APIキーの類は
+  // `npx wrangler secret put <名前>` で入れる。下の「vars」も使わない）。
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tasuki",
+  "main": "vinext/server/app-router-entry",
+  // 入っている workerd（wrangler 4.92.0）が対応している最新の日付。
+  // ここだけ先に進めると開発サーバーが起動しない。上げるときは wrangler も上げる。
+  "compatibility_date": "2026-05-22",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tasuki",
+      // ↓ `npx wrangler d1 create tasuki` が出したIDに置き換える。
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      // 手元の開発サーバーはこちらを使う。本番のIDと切り離しておくことで、
+      // 上のIDを入れ替えても手元に溜めたデータが迷子にならない。
+      // **本番には一切影響しない**（Miniflareがローカルのsqliteを引く鍵）。
+      "preview_database_id": "00000000-0000-4000-8000-000000000000"
+    }
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "AVATARS",
+      // ↓ `npx wrangler r2 bucket create tasuki-avatars` で作る。
+      "bucket_name": "tasuki-avatars"
+    }
+  ],
+
+  "observability": { "enabled": true }
+}

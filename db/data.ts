@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
-import type { ChatGPTUser } from '@/app/chatgpt-auth';
+import type { SessionUser } from '@/app/session-user';
 import { cleanFacebookUrl } from '@/app/social-links';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
 import { AD_CONCURRENT_SLOTS, AD_DESCRIPTION_MAX, AD_MIN_RANK_LEVEL, AD_RESERVATION_MINUTES, AD_TITLE_MAX } from '@/app/ad-options';
@@ -490,7 +490,7 @@ export async function verifyMobileAuthCode(rawEmail: string, rawCode: string) {
     env.DB.prepare(`INSERT INTO mobile_sessions (token_hash, member_id, expires_at, created_at, last_seen_at)
       VALUES (?, ?, ?, ?, ?)`).bind(tokenHash, member.id, expiresAt, now, now),
   ]);
-  return { token, expiresAt, user: { userId: member.id, email, displayName: member.displayName, fullName: member.displayName } satisfies ChatGPTUser };
+  return { token, expiresAt, user: { userId: member.id, email, displayName: member.displayName, fullName: member.displayName } satisfies SessionUser };
 }
 
 export async function startMemberSessionByEmail(rawEmail: string) {
@@ -516,10 +516,38 @@ export async function startMemberSessionByEmail(rawEmail: string) {
     env.DB.prepare(`INSERT INTO mobile_sessions (token_hash, member_id, expires_at, created_at, last_seen_at)
       VALUES (?, ?, ?, ?, ?)`).bind(tokenHash, member.id, expiresAt, now, now),
   ]);
-  return { token, expiresAt, user: { userId: member.id, email, displayName: member.displayName, fullName: member.displayName } satisfies ChatGPTUser };
+  return { token, expiresAt, user: { userId: member.id, email, displayName: member.displayName, fullName: member.displayName } satisfies SessionUser };
 }
 
-export async function getMobileSessionAccess(token: string): Promise<{ user: ChatGPTUser; membership: MembershipAccess } | null> {
+/**
+ * 手元で動かすときのログイン。**呼び出し側（/api/dev/signin）が
+ * import.meta.env.DEV で閉じているので、本番のビルドには入らない。**
+ *
+ * もとはChatGPT Sitesのプラグインが `seedy@sites.test` として入れてくれていた。
+ * Sitesから切り離したので、同じ会員を自前で用意する。IDを変えると手元のD1に
+ * 溜めた投稿や紹介の実績が迷子になるため、`local_seedy` のまま引き継ぐ。
+ */
+export async function startLocalDevSession() {
+  await ensureDatabase();
+  const id = 'local_seedy';
+  const email = 'seedy@sites.test';
+  const now = new Date().toISOString();
+  await env.DB.prepare(`INSERT INTO members (id, email, display_name, membership_status, activated_at, created_at)
+    VALUES (?, ?, ?, 'active', ?, ?)
+    ON CONFLICT(id) DO UPDATE SET membership_status = 'active'`).bind(id, email, 'Seedy', now, now).run();
+
+  const token = randomMobileToken();
+  const tokenHash = await hashMobileSecret(token);
+  const expiresAt = new Date(Date.now() + 30 * 86400_000).toISOString();
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM mobile_sessions WHERE expires_at < ?').bind(now),
+    env.DB.prepare(`INSERT INTO mobile_sessions (token_hash, member_id, expires_at, created_at, last_seen_at)
+      VALUES (?, ?, ?, ?, ?)`).bind(tokenHash, id, expiresAt, now, now),
+  ]);
+  return { token, expiresAt };
+}
+
+export async function getMobileSessionAccess(token: string): Promise<{ user: SessionUser; membership: MembershipAccess } | null> {
   await ensureDatabase();
   if (token.length < 32 || token.length > 256) return null;
   const tokenHash = await hashMobileSecret(token);
@@ -568,7 +596,7 @@ export async function getMembershipAccess(userId: string): Promise<MembershipAcc
   };
 }
 
-export async function saveMobilePushToken(user: ChatGPTUser, token: string, platform: string) {
+export async function saveMobilePushToken(user: SessionUser, token: string, platform: string) {
   await upsertMember(user);
   if (!/^ExponentPushToken\[[A-Za-z0-9_-]+\]$/.test(token) && !/^ExpoPushToken\[[A-Za-z0-9_-]+\]$/.test(token)) {
     throw new Error('通知端末を登録できませんでした。');
@@ -582,13 +610,13 @@ export async function saveMobilePushToken(user: ChatGPTUser, token: string, plat
     .bind(token, user.userId, safePlatform, now, now).run();
 }
 
-export async function deleteMobilePushToken(user: ChatGPTUser, token: string) {
+export async function deleteMobilePushToken(user: SessionUser, token: string) {
   await ensureDatabase();
   await env.DB.prepare('DELETE FROM mobile_push_tokens WHERE token = ? AND member_id = ?')
     .bind(token, user.userId).run();
 }
 
-export async function deleteMobileAccount(user: ChatGPTUser) {
+export async function deleteMobileAccount(user: SessionUser) {
   await ensureDatabase();
   const member = await env.DB.prepare('SELECT avatar_key AS avatarKey FROM members WHERE id = ?')
     .bind(user.userId).first<{ avatarKey: string }>();
@@ -648,8 +676,11 @@ function canUseMembership(status: unknown, currentPeriodEnd: string) {
 }
 
 async function hashMobileSecret(value: string) {
-  if (!env.AUTH_CODE_PEPPER) throw new Error('認証用の秘密鍵が未設定です。');
-  const bytes = new TextEncoder().encode(`${value}:${env.AUTH_CODE_PEPPER}`);
+  // 手元は .dev.vars が無くても動いてほしい。import.meta.env.DEV は本番ビルドで
+  // false に置き換わるため、この既定値が本番に紛れ込むことはない。
+  const pepper = env.AUTH_CODE_PEPPER || (import.meta.env.DEV ? 'local-development-pepper' : '');
+  if (!pepper) throw new Error('認証用の秘密鍵が未設定です。');
+  const bytes = new TextEncoder().encode(`${value}:${pepper}`);
   return [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
@@ -681,15 +712,24 @@ async function seedDemoData() {
   ]);
 }
 
-export async function upsertMember(user: ChatGPTUser) {
+/**
+ * 会員の行があることを確かめ、名前とメールを最新にする。
+ *
+ * **新しく作る場合は `invited`。`active` にしない。** 以前はChatGPT Sitesの
+ * ヘッダでログインした人をここで自動的に有効会員にしていたが、その経路は
+ * 無くなった。いま呼ばれるのは既にセッションを持っている人だけなので、
+ * 行は必ず既にある。作る枝が動くとしたら想定外の経路なので、そのときに
+ * 権限まで与えてしまわないようにしておく。
+ */
+export async function upsertMember(user: SessionUser) {
   await ensureDatabase();
   const now = new Date().toISOString();
-  await env.DB.prepare(`INSERT INTO members (id, email, display_name, membership_status, activated_at, created_at)
-    VALUES (?, ?, ?, 'active', ?, ?)
-    ON CONFLICT(id) DO UPDATE SET email = excluded.email, display_name = excluded.display_name`).bind(user.userId, user.email, user.displayName, now, now).run();
+  await env.DB.prepare(`INSERT INTO members (id, email, display_name, membership_status, created_at)
+    VALUES (?, ?, ?, 'invited', ?)
+    ON CONFLICT(id) DO UPDATE SET email = excluded.email, display_name = excluded.display_name`).bind(user.userId, user.email, user.displayName, now).run();
 }
 
-export async function getBoardData(user: ChatGPTUser) {
+export async function getBoardData(user: SessionUser) {
   await upsertMember(user);
   const requestsResult = await env.DB.prepare(`SELECT r.id, r.category, r.title, r.description,
     r.budget_label AS budgetLabel, r.area, r.industry_tags AS industryTagsJson,
@@ -740,7 +780,7 @@ export async function getBoardData(user: ChatGPTUser) {
   return { requests, stats, ads: await listActiveAds() };
 }
 
-export async function updateMemberProfile(user: ChatGPTUser, input: { company: string; venue: string; positionTitle: string; badge: string; businessArea: string; primaryIndustry: string; notifyIndustries: string[]; annualRevenueBand: string; facebookUrl: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {
+export async function updateMemberProfile(user: SessionUser, input: { company: string; venue: string; positionTitle: string; badge: string; businessArea: string; primaryIndustry: string; notifyIndustries: string[]; annualRevenueBand: string; facebookUrl: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {
   await upsertMember(user);
   const existing = await env.DB.prepare('SELECT avatar_key AS avatarKey, avatar_version AS avatarVersion FROM members WHERE id = ?')
     .bind(user.userId).first<{ avatarKey: string; avatarVersion: number }>();
@@ -766,7 +806,7 @@ export async function updateMemberProfile(user: ChatGPTUser, input: { company: s
 
 export type RequestImageUpload = { thumb: { bytes: ArrayBuffer; contentType: string }; full: { bytes: ArrayBuffer; contentType: string } };
 
-export async function createRequest(user: ChatGPTUser, input: { category: string; title: string; description: string; budgetLabel: string; area: string; industryTags: string[]; deadline: string; images?: RequestImageUpload[] }) {
+export async function createRequest(user: SessionUser, input: { category: string; title: string; description: string; budgetLabel: string; area: string; industryTags: string[]; deadline: string; images?: RequestImageUpload[] }) {
   await upsertMember(user);
   await requireFacePhoto(user.userId);
   const requestPlan = await getPlanState(user.userId);
@@ -801,7 +841,7 @@ export async function createRequest(user: ChatGPTUser, input: { category: string
   return id;
 }
 
-export async function savePushSubscription(user: ChatGPTUser, subscription: PushSubscription) {
+export async function savePushSubscription(user: SessionUser, subscription: PushSubscription) {
   await upsertMember(user);
   const now = new Date().toISOString();
   await env.DB.prepare(`INSERT INTO push_subscriptions (endpoint, member_id, p256dh, auth, created_at, updated_at)
@@ -811,12 +851,12 @@ export async function savePushSubscription(user: ChatGPTUser, subscription: Push
     .bind(subscription.endpoint, user.userId, subscription.keys.p256dh, subscription.keys.auth, now, now).run();
 }
 
-export async function deletePushSubscription(user: ChatGPTUser, endpoint: string) {
+export async function deletePushSubscription(user: SessionUser, endpoint: string) {
   await upsertMember(user);
   await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND member_id = ?').bind(endpoint, user.userId).run();
 }
 
-export async function createIntroduction(user: ChatGPTUser, input: { requestId: string; personName: string; personCompany: string; relationship: string; fitReason: string; }) {
+export async function createIntroduction(user: SessionUser, input: { requestId: string; personName: string; personCompany: string; relationship: string; fitReason: string; }) {
   await upsertMember(user);
   await requireFacePhoto(user.userId);
   const request = await env.DB.prepare('SELECT id FROM requests WHERE id = ? AND status = ?').bind(input.requestId, 'open').first();
@@ -830,7 +870,7 @@ export async function createIntroduction(user: ChatGPTUser, input: { requestId: 
   return id;
 }
 
-export async function getReceivedIntroductions(user: ChatGPTUser) {
+export async function getReceivedIntroductions(user: SessionUser) {
   await upsertMember(user);
   const result = await env.DB.prepare(`SELECT i.id, i.request_id AS requestId, r.title AS requestTitle,
     r.category AS requestCategory, i.person_name AS personName, i.person_company AS personCompany,
@@ -857,7 +897,7 @@ export async function getMemberAvatar(memberId: string) {
   return env.AVATARS.get(member.avatarKey);
 }
 
-export async function getAttendanceData(user: ChatGPTUser) {
+export async function getAttendanceData(user: SessionUser) {
   await upsertMember(user);
   const eventsResult = await env.DB.prepare(`SELECT id, meeting_date AS meetingDate,
     meeting_name AS meetingName, venue, created_at AS createdAt
@@ -874,7 +914,7 @@ export async function getAttendanceData(user: ChatGPTUser) {
   return { events, importantPeople: people.filter((person) => person.isImportant) };
 }
 
-export async function createAttendanceEvent(user: ChatGPTUser, input: {
+export async function createAttendanceEvent(user: SessionUser, input: {
   meetingDate: string;
   meetingName: string;
   venue: string;
@@ -898,7 +938,7 @@ export async function createAttendanceEvent(user: ChatGPTUser, input: {
   return eventId;
 }
 
-export async function updateAttendancePerson(user: ChatGPTUser, input: {
+export async function updateAttendancePerson(user: SessionUser, input: {
   id: string;
   personName: string;
   company: string;
@@ -1438,7 +1478,7 @@ function cleanAdLink(value: string) {
 // 会員が「こうしてほしい」を送れるようにする。運営はD1を見て拾う。
 // 画像は受け取らない（保存も配信も増やさないため）。
 
-export async function createFeedback(user: ChatGPTUser, input: { category: FeedbackCategory; body: string }) {
+export async function createFeedback(user: SessionUser, input: { category: FeedbackCategory; body: string }) {
   await upsertMember(user);
   const body = input.body.trim().slice(0, 1000);
   if (!body) throw new Error('内容を入力してください。');
@@ -1502,7 +1542,7 @@ export async function getRequestComments(requestId: string) {
   }));
 }
 
-export async function addRequestComment(user: ChatGPTUser, requestId: string, rawBody: string) {
+export async function addRequestComment(user: SessionUser, requestId: string, rawBody: string) {
   await upsertMember(user);
   const body = rawBody.trim().slice(0, COMMENT_MAX_LENGTH);
   if (!body) throw new Error('コメントを入力してください。');
@@ -1516,7 +1556,7 @@ export async function addRequestComment(user: ChatGPTUser, requestId: string, ra
   return getRequestComments(requestId);
 }
 
-export async function deleteRequestComment(user: ChatGPTUser, commentId: string) {
+export async function deleteRequestComment(user: SessionUser, commentId: string) {
   await ensureDatabase();
   // 自分が書いたコメントだけ消せる。
   const result = await env.DB.prepare('DELETE FROM request_comments WHERE id = ? AND member_id = ?')

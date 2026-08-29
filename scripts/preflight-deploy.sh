@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# 本番へ送る前に、落ちないかを見る。読み取りだけで、何も変更しない。
+# 本番（Cloudflare Workers）へ送る前に、落ちないかを見る。読み取りだけで、何も変更しない。
 #   bash scripts/preflight-deploy.sh
 #
 # ネットワークにも本番にも触らない。ここが赤いままSitesへ送らないこと。
-# ビルドが通らないコードを送ると、前の版が生きたままデプロイだけが失敗し、
-# 「押したのに変わらない」という気づきにくい状態になる。
+# ビルドが通らないと wrangler deploy まで届かず、前の版が生きたままになる。
+# 「出したのに変わらない」という気づきにくい状態を避けるため、先にここで見る。
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -39,13 +39,19 @@ npm run --silent check:perks  >/dev/null 2>&1 && pass "ランク特典がアプ�
 npm run --silent check:venues >/dev/null 2>&1 && pass "会場一覧がアプリと一致"   || fail "会場一覧がアプリとずれている（npm run sync:venues）"
 
 section "3. 送り先"
-if git remote -v | grep -qv '^origin'; then
-  git remote -v | grep -v '^origin' | awk '{print "      " $1 "\t" $2}' | sort -u
-  pass "origin 以外のリモートがある（これがSites用のはず）"
+if [ -f wrangler.jsonc ] && grep -q 'REPLACE_WITH_YOUR_D1_DATABASE_ID' wrangler.jsonc; then
+  fail "wrangler.jsonc の database_id が未設定（npx wrangler d1 create tasuki）"
+elif [ -f wrangler.jsonc ]; then
+  pass "wrangler.jsonc の結線が埋まっている"
 else
-  warn "origin（GitHub）しかリモートが無い。このマシンにSitesのリモートが未設定"
+  fail "wrangler.jsonc が無い"
+fi
+if npx --no-install wrangler whoami 2>&1 | grep -q "not authenticated"; then
+  warn "Cloudflareに未ログイン（npx wrangler login）"
+else
+  pass "Cloudflareにログインずみ"
 fi
 
 printf '\n\033[1m%d件OK / %d件NG\033[0m\n' "$ok" "$ng"
 [ "$ng" -eq 0 ] || { printf '\033[31m直してから送ること。\033[0m\n'; exit 1; }
-printf 'Sitesへ: git push <Sites用リモート> HEAD:main\n'
+printf '本番へ: npm run deploy\n'
