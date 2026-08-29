@@ -231,6 +231,7 @@ const html = `<title>TASUKI プレビュー</title>
     wireBoardFilters(doc);
     wireIndustryPickers(doc);
     wireForms(doc);
+    wireAdPeriod(doc);
     // アプリのCSSは html { scroll-behavior:smooth } なので、位置の復元だけは即座に効かせる
     doc.documentElement.style.scrollBehavior = 'auto';
     const top = scrollMemory[key] ?? (isOverlay(key) ? (scrollMemory[base] ?? 0) : 0);
@@ -500,6 +501,53 @@ const html = `<title>TASUKI プレビュー</title>
       wireChips();
       redrawSelected();
     });
+  }
+
+  // 掲載日数のバー。プレビューは静止画から起こしているので、
+  // 動かしても何も起きないと「壊れている」ように見える。ここだけ本番と同じに計算する。
+  function wireAdPeriod(doc) {
+    const slider = doc.querySelector('.ad-days input[type="range"]');
+    const readout = doc.querySelector('.ad-days b');
+    const period = doc.querySelector('.ad-period');
+    if (!slider || !readout) return;
+    const cells = [...doc.querySelectorAll('.ad-calendar-grid button')];
+    const start = doc.querySelector('.ad-calendar-grid button.start');
+
+    function shift(date, days) {
+      const moved = new Date(date + 'T00:00:00Z');
+      moved.setUTCDate(moved.getUTCDate() + days);
+      return moved.toISOString().slice(0, 10);
+    }
+    // 日付はセルのaria-label（「8月29日・残り10枠」）から読む。
+    function dateOf(cell) {
+      const found = (cell.getAttribute('aria-label') || '').match(/([0-9]+)月([0-9]+)日/);
+      if (!found) return '';
+      const year = new Date().getUTCFullYear();
+      const month = Number(found[1]);
+      const day = Number(found[2]);
+      const guess = year + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+      // 年をまたぐ月は翌年として読む
+      return month < new Date().getUTCMonth() + 1 ? (year + 1) + guess.slice(4) : guess;
+    }
+    const startDate = start ? dateOf(start) : '';
+
+    function redraw() {
+      const days = Number(slider.value);
+      readout.textContent = days + '日';
+      if (!startDate) return;
+      const endDate = shift(startDate, days - 1);
+      if (period) {
+        const label = (iso) => Number(iso.slice(5, 7)) + '月' + Number(iso.slice(8)) + '日';
+        period.textContent = '掲載期間　' + label(startDate) + '〜' + label(endDate);
+      }
+      // カレンダーの塗りも一緒に動かす。数字だけ変わって色が変わらないと不安になる。
+      cells.forEach((cell) => {
+        const date = dateOf(cell);
+        cell.classList.toggle('in', Boolean(date) && date >= startDate && date <= endDate);
+      });
+    }
+    slider.addEventListener('input', redraw);
+    redraw();
   }
 
   // 入力欄とselectは触れるようにする。送信だけ本番につながらない。

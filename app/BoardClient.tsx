@@ -470,6 +470,15 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // マイページの入口に出す、いま掲載中の1枠。
   const liveAd = adInfo?.slots.find((ad) => adState(ad).tone === 'live');
 
+  /** マイページの広告ボタンに添える一行。押す前に、いま申し込めるのかどうかが分かるようにする。 */
+  function adEntryNote(offer: AdOffer) {
+    if (offer.slots.length) return `お申し込みずみ ${offer.slots.length}件・掲載内容の変更とレポートはこちらから`;
+    if (!offer.ready) return '受け付けの準備中です';
+    if (!offer.eligible) return `${rankNames[offer.minRankLevel - 1]}ランクから出稿いただけます`;
+    if (!nextOpenDay) return `${adSlotPrice()}／1枠・ただいま満枠です`;
+    return `${adSlotPrice()}／1枠・${formatRange(nextOpenDay.date, nextOpenDay.date).split('〜')[0]}以降に空きがあります`;
+  }
+
   function openAdSettings() {
     setEditingAd('');
     setOpenStats('');
@@ -869,7 +878,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                   <p className="ad-entry-state"><b>掲載中　{formatRange(liveAd.startDate, liveAd.endDate)}</b><span>表示 {liveAd.viewCount.toLocaleString('ja-JP')}／クリック {liveAd.clickCount.toLocaleString('ja-JP')}</span></p>
                 </div>}
                 <button className="ad-entry-open" onClick={openAdSettings}>
-                  <span><b>{adInfo.slots.length ? '広告を管理する' : '広告を出稿する'}</b><small>{adInfo.slots.length ? `お申し込みずみ ${adInfo.slots.length}件・掲載内容の変更とレポートはこちらから` : `${adSlotPrice()}／1枠・${nextOpenDay ? `${formatRange(nextOpenDay.date, nextOpenDay.date).split('〜')[0]}以降に空きがあります` : 'ただいま満枠です'}`}</small></span>
+                  <span><b>{adInfo.slots.length ? '広告を管理する' : '広告を出稿する'}</b><small>{adEntryNote(adInfo)}</small></span>
                   <i aria-hidden="true">›</i>
                 </button>
               </>}
@@ -987,6 +996,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
           {!adInfo.ready
             ? <p className="ad-note">広告の受け付けは準備中です。ご希望の方は運営窓口までお問い合わせください。</p>
+            : !adInfo.eligible
+            // ランクが足りない方をお申し込みの流れへ入れない。
+            // 入れてしまうと、選べる日が1日も無いカレンダーの前で行き止まりになる。
+            ? <p className="ad-note">トップバナー広告は<b>{rankNames[adInfo.minRankLevel - 1]}ランク</b>以上の会員さまにご提供しています。あと{Math.max(0, rankThresholds[adInfo.minRankLevel - 1] - stats.introCount)}件のご紹介で、お申し込みいただけるようになります。</p>
+            : !nextOpenDay
+            ? <p className="ad-note">ただいま{adInfo.daysAhead}日先まで{adInfo.concurrent}枠すべてが埋まっています。空きが出ましたらお申し込みいただけます。</p>
             : !adFlow
               ? <button className="ad-entry-open ad-flow-open" onClick={startAdFlow}>
                   <span><b>新規のお申し込み</b><small>3ステップで完了します。{adSlotPrice()}（税込・1回のみ）</small></span>
