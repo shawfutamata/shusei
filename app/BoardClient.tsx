@@ -21,7 +21,7 @@ import { detailImage, listThumbnail } from './resize-image';
 import AdAnalytics, { formatRange } from './AdAnalytics';
 import type { AdDay } from '@/db/data';
 
-import { adBannerThemes, makeBannerFile, makeBannerPreview } from './ad-banner';
+import AdBanner from './AdBanner';
 
 const categories = {
   project: { label: '案件', className: 'project' },
@@ -78,10 +78,14 @@ const favoriteStorageKey = 'give-hub-request-favorites-v1';
 /** /api/ads が返すもの。金額は含まない（画面が plan-catalog から出す）。 */
 type AdOffer = {
   ready: boolean; eligible: boolean; level: number; rank: string;
-  minRankLevel: number; titleMax: number;
+  minRankLevel: number; titleMax: number; descriptionMax: number;
   concurrent: number; maxDays: number; daysAhead: number;
   calendar: { date: string; remaining: number }[]; slots: AdSlot[];
 };
+
+/** 出稿する人が入れる内容。画像は送る前の状態で持っておく。 */
+type AdDraft = { title: string; description: string; linkUrl: string; image: File | null; imagePreview: string };
+const emptyAdDraft: AdDraft = { title: '', description: '', linkUrl: '', image: null, imagePreview: '' };
 
 /** その枠がいまどういう状態か。掲載前・掲載中・終わった、を1か所で決める。 */
 function adState(ad: AdSlot) {
@@ -89,7 +93,7 @@ function adState(ad: AdSlot) {
   if (ad.status === 'stopped') return { label: '掲載を停止しています', tone: 'stopped', editable: false };
   if (ad.endDate < now) return { label: '掲載おわり', tone: 'past', editable: false };
   if (ad.startDate > now) return { label: `${formatRange(ad.startDate, ad.endDate)}に掲載`, tone: 'soon', editable: true };
-  return { label: ad.imageUrl ? '掲載中' : '内容が未入力です', tone: ad.imageUrl ? 'live' : 'todo', editable: true };
+  return { label: ad.title ? '掲載中' : '内容が未入力です', tone: ad.title ? 'live' : 'todo', editable: true };
 }
 
 
@@ -159,11 +163,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [adInfo, setAdInfo] = useState<AdOffer | null>(null);
   const [editingAd, setEditingAd] = useState('');
   const [adFileName, setAdFileName] = useState('');
-  const [adMode, setAdMode] = useState<'make' | 'upload'>('make');
-  const [adTheme, setAdTheme] = useState(adBannerThemes[0].value);
-  const [adTitle, setAdTitle] = useState('');
-  const [adPreview, setAdPreview] = useState('');
-  const [adUpload, setAdUpload] = useState<File | null>(null);
+  const [adDraft, setAdDraft] = useState<AdDraft>(emptyAdDraft);
   const [adStart, setAdStart] = useState('');
   const [adDays, setAdDays] = useState(30);
   const [openStats, setOpenStats] = useState('');
@@ -267,15 +267,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       .catch(() => {});
     return () => { alive = false; };
   }, [activeTab, modal]);
-
-  // 文字だけのバナーは、打ちながら見え方が変わるようにする。
-  useEffect(() => {
-    if (!editingAd || adMode !== 'make') return;
-    const timer = window.setTimeout(() => {
-      setAdPreview(makeBannerPreview({ title: adTitle, company: stats.company, name: userName, theme: adTheme }));
-    }, 120);
-    return () => window.clearTimeout(timer);
-  }, [editingAd, adMode, adTitle, adTheme, stats.company, userName]);
 
   // 決済から戻ったときの案内。買った直後の人には、出稿の設定をそのまま開く。
   // URLに残った印はすぐ消す（再読込で二度出さないため）。
@@ -468,11 +459,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     return inRange.length === adDays && inRange.every((day) => day.remaining > 0);
   }, [adInfo, adStart, adDays]);
   // マイページの入口に出す、いま掲載中の1枠。
-  const liveAd = adInfo?.slots.find((ad) => ad.imageUrl && adState(ad).tone === 'live');
+  const liveAd = adInfo?.slots.find((ad) => adState(ad).tone === 'live');
 
   function openAdSettings() {
     setEditingAd('');
     setOpenStats('');
+    setAdFileName('');
+    setAdDraft(emptyAdDraft);
     setModal('ads');
   }
 
@@ -486,13 +479,22 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     return () => window.clearTimeout(timer);
   }, [modal, adStart, nextOpenDay, adInfo?.maxDays]);
 
-  async function buyAdSlot() {
+  async function buyAdSlot(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     if (busy || !adStart) return;
     setBusy(true);
     try {
-      const response = await fetch('/api/ads/checkout', {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ startDate: adStart, days: adDays }),
-      });
+      // 内容と期間を1回で送る。押さえるのと入稿が同時に済むので、
+      // 買ったのに何も出ていない枠ができない。
+      const body = new FormData();
+      body.set('title', adDraft.title);
+      body.set('description', adDraft.description);
+      body.set('linkUrl', adDraft.linkUrl);
+      body.set('startDate', adStart);
+      body.set('days', String(adDays));
+      // 縮小は出す人の端末でやる。Workersでは変換しない。
+      if (adDraft.image) body.set('image', await detailImage(adDraft.image));
+      const response = await fetch('/api/ads/checkout', { method: 'POST', body });
       const data = await response.json() as { url?: string; error?: string };
       if (data.url) { window.location.assign(data.url); return; }
       showToast(data.error || 'お支払い画面を開けませんでした。');
@@ -513,51 +515,38 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
   function startEditingAd(ad: AdSlot) {
     setEditingAd(ad.id);
-    setAdTitle(ad.title);
     setAdFileName('');
-    setAdUpload(null);
-    // すでに画像がある枠は、うっかり作り直さないように「画像を用意する」から始める。
-    setAdMode(ad.imageUrl ? 'upload' : 'make');
-    setAdPreview('');
+    setAdDraft({ title: ad.title, description: ad.description, linkUrl: ad.linkUrl, image: null, imagePreview: '' });
   }
 
   function chooseAdImage(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    event.target.value = '';
     if (!file) return;
-    if (file.size > 15 * 1024 * 1024) { showToast('画像は15MB以下を選んでください。'); event.target.value = ''; return; }
+    if (file.size > 15 * 1024 * 1024) return showToast('画像は15MB以下を選んでください。');
     setAdFileName(file.name);
-    setAdUpload(file);
-    setAdPreview((previous) => { if (previous.startsWith('blob:')) URL.revokeObjectURL(previous); return URL.createObjectURL(file); });
+    setAdDraft((current) => {
+      if (current.imagePreview.startsWith('blob:')) URL.revokeObjectURL(current.imagePreview);
+      return { ...current, image: file, imagePreview: URL.createObjectURL(file) };
+    });
   }
 
   async function saveAd(event: FormEvent<HTMLFormElement>, id: string) {
     event.preventDefault();
     if (busy) return;
-    // フォームはここで押さえる。awaitのあとでは event から取れなくなるため。
-    const form = event.currentTarget;
-    const current = adInfo?.slots.find((slot) => slot.id === id);
-    // 文字だけで作る場合は、いま見えているプレビューと同じものを送る。
-    const picked = adMode === 'make'
-      ? await makeBannerFile({ title: adTitle, company: stats.company, name: userName, theme: adTheme })
-      : adUpload;
-    if (!picked && !current?.imageUrl) {
-      return showToast(adMode === 'make' ? 'バナーを作れませんでした。画像を選ぶ方法もお試しください。' : '画像を選んでください。');
-    }
     setBusy(true);
-    const raw = new FormData(form);
     const body = new FormData();
-    body.set('title', adTitle);
-    body.set('linkUrl', String(raw.get('linkUrl') ?? ''));
-    // 画像の縮小は投稿する人の端末でやる。Workersでは変換しない。
-    if (picked && picked.size > 0) body.set('image', await detailImage(picked));
+    body.set('title', adDraft.title);
+    body.set('description', adDraft.description);
+    body.set('linkUrl', adDraft.linkUrl);
+    if (adDraft.image) body.set('image', await detailImage(adDraft.image));
     const response = await fetch(`/api/ads/${encodeURIComponent(id)}`, { method: 'POST', body });
     const result = await response.json() as { error?: string };
     setBusy(false);
     if (!response.ok) return showToast(result.error ?? '保存できませんでした。');
     setEditingAd('');
-    setAdUpload(null);
-    setAdPreview((previous) => { if (previous.startsWith('blob:')) URL.revokeObjectURL(previous); return ''; });
-    showToast('掲載内容を保存しました。ホームのバナーに出ています。');
+    setAdFileName('');
+    showToast('掲載内容を保存しました。');
     await fetch('/api/ads').then((r) => r.ok ? r.json() : null).then((data) => { if (data) setAdInfo(data as AdOffer); }).catch(() => {});
     await refreshBoard();
   }
@@ -626,7 +615,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // 出稿された広告を先に置く。お金をいただいている枠なので、いちばん先に目に入る場所に出す。
   // 並びは開くたびに入れ替える。同じ月に出した人へ均等に順番が回るようにするため。
   const slides = useMemo(() => [
-    ...shuffle(ads.filter((ad) => ad.imageUrl)).map((ad) => ({ src: ad.imageUrl, alt: `${ad.memberName}さんの広告「${ad.title}」`, ad })),
+    ...shuffle(ads).map((ad) => ({ src: ad.imageUrl, alt: `${ad.memberName}さんの広告「${ad.title}」`, ad })),
     ...topBanners.map((banner) => ({ ...banner, ad: null as AdSlot | null })),
   ], [ads]);
   const slide = slides[Math.min(carouselIndex, slides.length - 1)];
@@ -714,7 +703,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {activeTab === 'home' ? <div className="home-dashboard">
         <section className="hero-carousel" aria-label={`${serviceName}の使い方`}>
-          <button key={carouselIndex} className={`hero-image-slide${slide?.ad ? ' is-ad' : ''}`} onClick={openCurrentBanner} aria-label={`${slide?.alt ?? ''}を開く`}><img src={slide?.src} alt={slide?.alt ?? ''} />{slide?.ad && <span className="hero-ad-tag">PR<em>{slide.ad.memberCompany || slide.ad.memberName}</em></span>}</button>
+          <button key={carouselIndex} className={`hero-image-slide${slide?.ad ? ' is-ad' : ''}`} onClick={openCurrentBanner} aria-label={`${slide?.alt ?? ''}を開く`}>{slide?.ad
+            ? <AdBanner ad={{ title: slide.ad.title, description: slide.ad.description, imageUrl: slide.ad.imageUrl, by: slide.ad.memberCompany || slide.ad.memberName }} />
+            : <img src={slide?.src} alt={slide?.alt ?? ''} />}</button>
           <div className="carousel-dots" aria-label="バナーを切り替える">{slides.map((entry, index) => <button key={index} aria-label={`${index + 1}枚目${entry.ad ? '（広告）' : ''}`} className={`${carouselIndex === index ? 'active' : ''}${entry.ad ? ' is-ad' : ''}`} onClick={() => { setCarouselPaused(true); setCarouselIndex(index); }} />)}</div>
         </section>
 
@@ -843,7 +834,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               </div>
             : <>
                 {liveAd && <div className="ad-entry-live">
-                  <div className="ad-slot-shot"><img src={liveAd.imageUrl} alt={`${liveAd.title}のバナー`} /><span className="hero-ad-tag">PR<em>{stats.company || userName}</em></span></div>
+                  <AdBanner ad={{ title: liveAd.title, description: liveAd.description, imageUrl: liveAd.imageUrl, by: stats.company || userName }} />
                   <p className="ad-entry-state"><b>掲載中・{formatRange(liveAd.startDate, liveAd.endDate)}</b><span>{liveAd.viewCount.toLocaleString('ja-JP')}人が見て、{liveAd.clickCount.toLocaleString('ja-JP')}回押されました</span></p>
                 </div>}
                 <button className="ad-entry-open" onClick={openAdSettings}>
@@ -940,42 +931,23 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </div>
       </Modal>}
 
-      {modal === 'ads' && adInfo && <Modal title="トップバナーに出す" lead="ホームのいちばん先に目に入る場所に、選んだ期間だけ告知を出せます。お支払いは1回きりで、自動更新はありません。掲載内容は掲載中でも何度でも変えられます。" onClose={() => { setModal(null); setEditingAd(''); setOpenStats(''); }}>
+      {modal === 'ads' && adInfo && <Modal title="トップバナーに出す" lead="ホームのいちばん先に目に入る場所に、選んだ期間だけ告知を出せます。お支払いは1回きりで、自動更新はありません。" onClose={() => { setModal(null); setEditingAd(''); setOpenStats(''); }}>
         <div className="ad-panel">
           {adInfo.slots.length > 0 && <ul className="ad-slot-list">{adInfo.slots.map((ad) => {
             const state = adState(ad);
             return <li key={ad.id} className={`ad-slot is-${state.tone}`}>
               <div className="ad-slot-head"><b>{formatRange(ad.startDate, ad.endDate)}</b><span className={`ad-state is-${state.tone}`}>{state.label}</span></div>
-              {/* 入れ替えている最中は、下のプレビューだけを見せる。同じ絵が2つ並ぶと迷うため。 */}
-              {editingAd !== ad.id && (ad.imageUrl
-                ? <div className="ad-slot-shot"><img src={ad.imageUrl} alt={`${ad.title}のバナー`} /><span className="hero-ad-tag">PR<em>{stats.company || userName}</em></span></div>
-                : <div className="ad-slot-blank"><b>{state.editable ? 'まだ何も出ていません' : '掲載されないまま終わりました'}</b><span>{state.editable ? '見出しと画像を入れると、ホームのバナーに並びます。' : '次にお申し込みいただくときは、お早めに内容をお入れください。'}</span></div>)}
+              {editingAd !== ad.id && <AdBanner ad={{ title: ad.title, description: ad.description, imageUrl: ad.imageUrl, by: stats.company || userName }} />}
 
               {editingAd === ad.id
                 ? <form className="ad-form" onSubmit={(event) => saveAd(event, ad.id)}>
-                    <label><span>見出し <small>{adInfo.titleMax}文字まで</small></span><input name="title" value={adTitle} onChange={(event) => setAdTitle(event.target.value)} maxLength={adInfo.titleMax} required placeholder="例：内装工事の職人さんを探しています" /></label>
-                    <label><span>リンク先 <small>任意・押したときに開くページ</small></span><input name="linkUrl" defaultValue={ad.linkUrl} maxLength={200} inputMode="url" placeholder="https://example.com" /></label>
-
-                    <div className="ad-mode" role="group" aria-label="バナーの作り方">
-                      <button type="button" className={adMode === 'make' ? 'active' : ''} onClick={() => setAdMode('make')}>文字だけで作る</button>
-                      <button type="button" className={adMode === 'upload' ? 'active' : ''} onClick={() => setAdMode('upload')}>画像を用意する</button>
-                    </div>
-
-                    {adMode === 'make' ? <>
-                      <div className="ad-themes" role="group" aria-label="バナーの色">{adBannerThemes.map((theme) => <button type="button" key={theme.value} className={adTheme === theme.value ? 'active' : ''} onClick={() => setAdTheme(theme.value)} style={{ background: `linear-gradient(135deg, ${theme.from}, ${theme.to})`, color: theme.ink }}>{theme.label}</button>)}</div>
-                      <p className="ad-note">会社名とお名前は下に入ります。写真を用意しなくても、このまま出せます。</p>
-                    </> : <label className="ad-file"><span>画像 <small>横長（3:2）・JPEG/PNG/WebP</small></span><input name="image" type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseAdImage} /><i>{adFileName || (ad.imageUrl ? 'いまの画像のまま' : '画像を選ぶ')}</i></label>}
-
-                    {(adPreview || ad.imageUrl) ? <div className="ad-preview">
-                      <p>ホームでの見え方</p>
-                      <div className="ad-slot-shot"><img src={adPreview || ad.imageUrl} alt="掲載されるバナーのプレビュー" /><span className="hero-ad-tag">PR<em>{stats.company || userName}</em></span></div>
-                    </div> : <div className="ad-slot-blank"><b>まだ見た目が決まっていません</b><span>{adMode === 'make' ? '見出しを入れると、ここに出来上がりが出ます。' : '画像を選ぶと、ここに出来上がりが出ます。'}</span></div>}
-
-                    <div className="ad-form-actions"><button type="button" onClick={() => setEditingAd('')} disabled={busy}>やめる</button><button className="submit-button" disabled={busy}>{busy ? '保存しています…' : '保存して掲載する'}</button></div>
+                    <AdFields offer={adInfo} draft={adDraft} onChange={setAdDraft} onImage={chooseAdImage} imageName={adFileName} keepImage={Boolean(ad.imageUrl)} />
+                    <AdPreview draft={adDraft} fallbackImage={ad.imageUrl} by={stats.company || userName} />
+                    <div className="ad-form-actions"><button type="button" onClick={() => setEditingAd('')} disabled={busy}>やめる</button><button className="submit-button" disabled={busy}>{busy ? '保存しています…' : '保存する'}</button></div>
                   </form>
                 : <>
-                    <div className="ad-slot-foot"><b>{ad.title || '見出しが未入力です'}</b>{state.editable && <button onClick={() => startEditingAd(ad)}>{ad.imageUrl ? '内容を変える' : '内容を入れる'}</button>}</div>
-                    {(ad.imageUrl || ad.viewCount > 0) && <button className="ad-stats-open" onClick={() => toggleStats(ad.id)}>{openStats === ad.id ? '成果を閉じる' : '成果を見る'}<i aria-hidden="true">{openStats === ad.id ? '▴' : '▾'}</i></button>}
+                    <div className="ad-slot-foot"><b>{ad.linkUrl ? ad.linkUrl.replace(/^https?:\/\//, '') : 'リンクなし'}</b>{state.editable && <button onClick={() => startEditingAd(ad)}>内容を変える</button>}</div>
+                    {(ad.viewCount > 0 || state.tone !== 'soon') && <button className="ad-stats-open" onClick={() => toggleStats(ad.id)}>{openStats === ad.id ? '成果を閉じる' : '成果を見る'}<i aria-hidden="true">{openStats === ad.id ? '▴' : '▾'}</i></button>}
                     {openStats === ad.id && (adStats ? <AdAnalytics slot={adStats.slot} days={adStats.days} /> : <p className="ad-analytics-empty">読み込んでいます…</p>)}
                   </>}
             </li>;
@@ -983,19 +955,23 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
           {!adInfo.ready
             ? <p className="ad-note">出稿枠のお申し込みは準備中です。ご希望の方は運営窓口へお問い合わせください。</p>
-            : <div className="ad-buy">
-                <p className="ad-buy-label">{adInfo.slots.length ? 'もう1枠、お申し込みになりますか' : '掲載する期間をお選びください'}</p>
+            : <form className="ad-buy" onSubmit={buyAdSlot}>
+                <p className="ad-buy-label">{adInfo.slots.length ? 'もう1枠、出しますか' : '出す内容を入れてください'}</p>
+                <AdFields offer={adInfo} draft={adDraft} onChange={setAdDraft} onImage={chooseAdImage} imageName={adFileName} />
+                <AdPreview draft={adDraft} by={stats.company || userName} />
+
+                <p className="ad-buy-label">いつからいつまで出しますか</p>
                 <AdCalendar offer={adInfo} startDate={adStart} days={adDays} onPick={setAdStart} />
-                <label className="ad-days"><span>掲載する日数 <small>最大{adInfo.maxDays}日</small></span>
+                <label className="ad-days"><span>出す日数 <small>最大{adInfo.maxDays}日</small></span>
                   <input type="range" min={1} max={adInfo.maxDays} value={adDays} onChange={(event) => setAdDays(Number(event.target.value))} />
                   <b>{adDays}日</b>
                 </label>
                 <p className="ad-buy-period">{adStart
-                  ? <>{formatRange(adStart, shiftDate(adStart, adDays - 1))} に掲載します<em>{adSlotPrice()}（税込・1回きり）</em></>
-                  : <>カレンダーから、掲載を始める日を選んでください</>}</p>
-                <button className="submit-button" onClick={buyAdSlot} disabled={busy || !adStart || !periodOpen}>{!adStart ? '始める日を選んでください' : periodOpen ? 'この期間で申し込む' : '選んだ期間に満枠の日があります'}</button>
-                <p className="ad-note">同じ日に出せるのは{adInfo.concurrent}本までで、早い者勝ちです。掲載内容は、お申し込みのあとにこの画面から入れられます。</p>
-              </div>}
+                  ? <>{formatRange(adStart, shiftDate(adStart, adDays - 1))} に出します<em>{adSlotPrice()}（税込・1回きり）</em></>
+                  : <>カレンダーから、出し始める日を選んでください</>}</p>
+                <button className="submit-button" disabled={busy || !adStart || !periodOpen || !adDraft.title.trim()}>{busy ? '進んでいます…' : !adDraft.title.trim() ? 'タイトルを入れてください' : !adStart ? '始める日を選んでください' : periodOpen ? 'この内容で申し込む' : '選んだ期間に満枠の日があります'}</button>
+                <p className="ad-note">同じ日に出せるのは{adInfo.concurrent}本までで、早い者勝ちです。内容は出したあとでも何度でも変えられます。</p>
+              </form>}
         </div>
       </Modal>}
 
@@ -1034,6 +1010,32 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
   );
+}
+
+/** 出稿する人に入れてもらう5つのうち、内容の4つ。期間はカレンダーで選ぶ。 */
+function AdFields({ offer, draft, onChange, onImage, imageName, keepImage }: {
+  offer: AdOffer; draft: AdDraft; onChange: (draft: AdDraft) => void;
+  onImage: (event: ChangeEvent<HTMLInputElement>) => void; imageName: string; keepImage?: boolean;
+}) {
+  return <>
+    <label><span>タイトル <small>{offer.titleMax}文字まで</small></span>
+      <input value={draft.title} onChange={(event) => onChange({ ...draft, title: event.target.value })} maxLength={offer.titleMax} required placeholder="例：内装工事の職人さんを探しています" /></label>
+    <label><span>説明文 <small>{offer.descriptionMax}文字まで</small></span>
+      <input value={draft.description} onChange={(event) => onChange({ ...draft, description: event.target.value })} maxLength={offer.descriptionMax} placeholder="例：都内の店舗改装。長くお付き合いできる方を探しています" /></label>
+    <label><span>リンク <small>任意・押したときに開くページ</small></span>
+      <input value={draft.linkUrl} onChange={(event) => onChange({ ...draft, linkUrl: event.target.value })} maxLength={200} inputMode="url" placeholder="https://example.com" /></label>
+    <label className="ad-file"><span>画像 <small>任意・横長がきれいに出ます</small></span>
+      <input type="file" accept="image/jpeg,image/png,image/webp" onChange={onImage} />
+      <i>{imageName || (keepImage ? 'いまの画像のまま' : '画像を選ぶ')}</i></label>
+  </>;
+}
+
+/** 入れた内容が、ホームでどう出るか。掲載と同じ部品で描くので、見えたままが載る。 */
+function AdPreview({ draft, fallbackImage = '', by }: { draft: AdDraft; fallbackImage?: string; by: string }) {
+  return <div className="ad-preview">
+    <p>ホームでの見え方</p>
+    <AdBanner ad={{ title: draft.title, description: draft.description, imageUrl: draft.imagePreview || fallbackImage, by }} />
+  </div>;
 }
 
 /**

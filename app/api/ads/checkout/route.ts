@@ -3,6 +3,7 @@ import { requireActiveMember } from '@/app/app-auth';
 import { adSlotConfigured, adSlotPriceId, stripeClient } from '@/app/stripe';
 import { canBuyAdSlot, getMemberRank, getStripeLink, releaseAdSlot, reserveAdSlot, saveAdSlotSession, saveStripeCustomer, shiftDate } from '@/db/data';
 import { adDaysAhead, adMaxDays } from '@/app/rank-perks';
+import { readAdContent } from '@/app/ad-upload';
 
 // **Web専用**。トップバナーの出稿枠を1ヶ月ぶん買う。
 // 購読ではなく1回きりの支払いなので mode は 'payment'。
@@ -19,9 +20,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '出稿枠は上位ランクの方の特典です。紹介を重ねてランクが上がるとお申し込みいただけます。' }, { status: 403 });
   }
 
-  const body = await request.json().catch(() => ({})) as { startDate?: string; days?: number };
-  const startDate = typeof body.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.startDate) ? body.startDate : '';
-  const days = Number(body.days);
+  // タイトル・説明文・リンク・画像・期間を1回で受け取る。買ってから
+  // 「まだ何も出ていない枠」を作らないため。
+  const form = await request.formData();
+  const parsed = await readAdContent(form);
+  if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
+
+  const raw = String(form.get('startDate') ?? '');
+  const startDate = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : '';
+  const days = Number(form.get('days'));
   const maxDays = adMaxDays(level);
   if (!startDate) return NextResponse.json({ error: '掲載を始める日をお選びください。' }, { status: 400 });
   if (!Number.isInteger(days) || days < 1 || days > maxDays) {
@@ -37,7 +44,7 @@ export async function POST(request: Request) {
   // 先に枠を押さえる。早い者勝ちなので、決済画面を開く前に取り合いを終わらせる。
   let reserved: { id: string; endDate: string };
   try {
-    reserved = await reserveAdSlot(gate.user.userId, startDate, days);
+    reserved = await reserveAdSlot(gate.user.userId, startDate, days, parsed.content);
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : '枠を押さえられませんでした。' }, { status: 409 });
   }

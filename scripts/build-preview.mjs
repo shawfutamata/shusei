@@ -273,9 +273,9 @@ const html = `<title>TASUKI プレビュー</title>
     if (at('.ad-stats-open')) { event.preventDefault(); return notice('本番では、ここに日ごとの表示とクリックのグラフが開きます。'); }
     if (at('.ad-analytics-toggle')) { event.preventDefault(); return notice('本番では、グラフと数字の表を切り替えられます。'); }
     if (at('.ad-slot-foot button')) { event.preventDefault(); return go('mypage:ad:form'); }
+    if (at('.ad-buy input') || at('.ad-form input')) { event.preventDefault(); return notice('本番では、打ちながら「ホームでの見え方」が変わります。'); }
     if (at('.ad-form-actions button:first-child')) { event.preventDefault(); return go('mypage:ad'); }
     if (at('.ad-form .submit-button')) { event.preventDefault(); return notice('本番では、ここで作ったバナーがそのままホームに出ます。'); }
-    if (at('.ad-mode button') || at('.ad-themes button')) { event.preventDefault(); return notice('バナーの作り方と色は、本番では押したその場で見え方が変わります。'); }
     if (at('.modal-close')) { event.preventDefault(); return go(base); }
     if (target.classList && target.classList.contains('modal-backdrop')) { event.preventDefault(); return go(base); }
 

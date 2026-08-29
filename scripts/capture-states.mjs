@@ -216,9 +216,7 @@ if (await adStats.count()) {
 const adEdit = page.locator('.ad-slot-foot button').first();
 if (await adEdit.count()) {
   await adEdit.click();
-  await page.locator('.ad-mode button').first().click();
-  await page.locator('.ad-form input[name=title]').fill('内装工事の職人さんを探しています');
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(500);
   await save('mypage:ad:form', page);
 }
 await closeModal();

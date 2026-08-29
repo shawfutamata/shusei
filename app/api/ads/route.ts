@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
 import { adCalendar, canBuyAdSlot, getMemberRank, listMemberAds } from '@/db/data';
-import { AD_CONCURRENT_SLOTS, AD_MIN_RANK_LEVEL, AD_TITLE_MAX } from '@/app/ad-options';
+import { AD_CONCURRENT_SLOTS, AD_DESCRIPTION_MAX, AD_MIN_RANK_LEVEL, AD_TITLE_MAX } from '@/app/ad-options';
 import { adDaysAhead, adMaxDays } from '@/app/rank-perks';
 import { adSlotConfigured } from '@/app/stripe';
 
@@ -23,6 +23,7 @@ export async function GET() {
     rank,
     minRankLevel: AD_MIN_RANK_LEVEL,
     titleMax: AD_TITLE_MAX,
+    descriptionMax: AD_DESCRIPTION_MAX,
     // 同じ日に出せる本数と、この会員が選べる期間・先行きの上限。
     concurrent: AD_CONCURRENT_SLOTS,
     maxDays: adMaxDays(level),

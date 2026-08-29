@@ -3,7 +3,7 @@ import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-
 import type { ChatGPTUser } from '@/app/chatgpt-auth';
 import { cleanFacebookUrl } from '@/app/social-links';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
-import { AD_CONCURRENT_SLOTS, AD_MIN_RANK_LEVEL, AD_RESERVATION_MINUTES, AD_TITLE_MAX } from '@/app/ad-options';
+import { AD_CONCURRENT_SLOTS, AD_DESCRIPTION_MAX, AD_MIN_RANK_LEVEL, AD_RESERVATION_MINUTES, AD_TITLE_MAX } from '@/app/ad-options';
 import { UNLIMITED, bonusPlan, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
 import { EXTEND_DAYS, PIN_DAYS, PROMO_DAYS, canExtendRequest, canPinRequest, canPromoteInIndustry, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
 import { matchesIndustry } from '@/app/industry-options';
@@ -355,6 +355,8 @@ export async function ensureDatabase() {
     // 掲載は月単位をやめ、開始日と終了日で持つようにした。
     ['start_date', "ALTER TABLE ad_slots ADD COLUMN start_date TEXT NOT NULL DEFAULT ''"],
     ['end_date', "ALTER TABLE ad_slots ADD COLUMN end_date TEXT NOT NULL DEFAULT ''"],
+    // 説明文。バナーはタイトルと説明文から組み立てるようにした。
+    ['description', "ALTER TABLE ad_slots ADD COLUMN description TEXT NOT NULL DEFAULT ''"],
   ] as const) {
     if (!adColumnNames.has(columnName)) await env.DB.prepare(sql).run();
   }
@@ -1141,6 +1143,7 @@ export type AdSlot = {
   /** 掲載の最終日（YYYY-MM-DD）。この日いっぱいまで出る。 */
   endDate: string;
   title: string;
+  description: string;
   linkUrl: string;
   imageUrl: string;
   status: string;
@@ -1222,7 +1225,7 @@ export async function adCalendar(daysAhead: number) {
  * 枠を1つ押さえる。決済が終わるまでは reserved で、放置すると自動で解放される。
  * 期間のどこか1日でも満枠なら断る。早い者勝ちなので、押さえた順に確定する。
  */
-export async function reserveAdSlot(memberId: string, startDate: string, days: number) {
+export async function reserveAdSlot(memberId: string, startDate: string, days: number, content: AdContent) {
   await ensureDatabase();
   await releaseStaleAdReservations();
   const endDate = shiftDate(startDate, days - 1);
@@ -1231,9 +1234,14 @@ export async function reserveAdSlot(memberId: string, startDate: string, days: n
   if (full) throw new Error(`${formatDay(full.date)}は満枠です。ほかの期間をお選びください。`);
 
   const id = crypto.randomUUID();
-  await env.DB.prepare(`INSERT INTO ad_slots (id, member_id, month, start_date, end_date, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`)
-    .bind(id, memberId, startDate.slice(0, 7), startDate, endDate, 'reserved', new Date().toISOString()).run();
+  // 中身は押さえるのと同時に入れる。申し込みと入稿を1つの画面にまとめたため、
+  // 支払いのあとに「まだ何も出ていない枠」ができない。
+  const imageVersion = content.image ? await putAdImage(id, memberId, content.image) : 0;
+  await env.DB.prepare(`INSERT INTO ad_slots (id, member_id, month, start_date, end_date, status, created_at,
+      title, description, link_url, image_version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(id, memberId, startDate.slice(0, 7), startDate, endDate, 'reserved', new Date().toISOString(),
+      cleanAdTitle(content.title), cleanAdDescription(content.description), cleanAdLink(content.linkUrl), imageVersion).run();
 
   // 押さえたあとにもう一度数えて、競り負けていたら取り消す。
   const lost = remainingByDay(await overlappingSlots(startDate, endDate), startDate, days).find((day) => day.remaining < 0);
@@ -1264,7 +1272,7 @@ export async function activateAdSlot(id: string) {
   await env.DB.prepare("UPDATE ad_slots SET status = 'active' WHERE id = ? AND status = 'reserved'").bind(id).run();
 }
 
-const adSelect = `SELECT a.id, a.start_date AS startDate, a.end_date AS endDate, a.title,
+const adSelect = `SELECT a.id, a.start_date AS startDate, a.end_date AS endDate, a.title, a.description,
     a.link_url AS linkUrl, a.image_version AS imageVersion,
     a.status, a.view_count AS viewCount, a.click_count AS clickCount,
     m.display_name AS memberName, m.company AS memberCompany
@@ -1281,7 +1289,7 @@ export async function listActiveAds(): Promise<AdSlot[]> {
   await ensureDatabase();
   const now = today();
   const rows = await env.DB.prepare(`${adSelect}
-    WHERE a.start_date <= ? AND a.end_date >= ? AND a.status = 'active' AND a.image_version > 0
+    WHERE a.start_date <= ? AND a.end_date >= ? AND a.status = 'active' AND a.title <> ''
     ORDER BY a.created_at`).bind(now, now).all<AdRow>();
   return rows.results.map(toAdSlot);
 }
@@ -1320,25 +1328,42 @@ export async function adDailyStats(memberId: string, adId: string): Promise<{ sl
   return { slot, days };
 }
 
-/** 掲載内容を入れる。画像は端末で縮小済みのものを受け取る。 */
-export async function updateAdSlot(memberId: string, id: string, input: {
-  title: string; linkUrl: string; image?: { bytes: ArrayBuffer; contentType: string };
-}) {
+/** 出稿する人に入れてもらうもの。これだけ。 */
+export type AdContent = {
+  title: string;
+  description: string;
+  linkUrl: string;
+  image?: { bytes: ArrayBuffer; contentType: string };
+};
+
+/** 掲載内容を入れ替える。画像は端末で縮小済みのものを受け取る。 */
+export async function updateAdSlot(memberId: string, id: string, input: AdContent) {
   await ensureDatabase();
-  const owned = await env.DB.prepare("SELECT image_version AS imageVersion FROM ad_slots WHERE id = ? AND member_id = ? AND status = 'active'")
+  const owned = await env.DB.prepare("SELECT image_version AS imageVersion FROM ad_slots WHERE id = ? AND member_id = ? AND status IN ('reserved', 'active')")
     .bind(id, memberId).first<{ imageVersion: number }>();
   if (!owned) throw new Error('この枠は編集できません。');
 
-  let imageVersion = owned.imageVersion;
-  if (input.image) {
-    imageVersion = Date.now();
-    await env.AVATARS.put(adImageKey(id), input.image.bytes, {
-      httpMetadata: { contentType: input.image.contentType },
-      customMetadata: { ownerId: memberId, adSlotId: id },
-    });
-  }
-  await env.DB.prepare('UPDATE ad_slots SET title = ?, link_url = ?, image_version = ? WHERE id = ?')
-    .bind(input.title.trim().slice(0, AD_TITLE_MAX), cleanAdLink(input.linkUrl), imageVersion, id).run();
+  const imageVersion = input.image ? await putAdImage(id, memberId, input.image) : owned.imageVersion;
+  await env.DB.prepare('UPDATE ad_slots SET title = ?, description = ?, link_url = ?, image_version = ? WHERE id = ?')
+    .bind(cleanAdTitle(input.title), cleanAdDescription(input.description), cleanAdLink(input.linkUrl), imageVersion, id).run();
+}
+
+/** バナーの画像を置く。版番号を返す（URLに入れて1年キャッシュするため）。 */
+async function putAdImage(id: string, memberId: string, image: { bytes: ArrayBuffer; contentType: string }) {
+  const version = Date.now();
+  await env.AVATARS.put(adImageKey(id), image.bytes, {
+    httpMetadata: { contentType: image.contentType },
+    customMetadata: { ownerId: memberId, adSlotId: id },
+  });
+  return version;
+}
+
+function cleanAdTitle(value: string) {
+  return value.trim().slice(0, AD_TITLE_MAX);
+}
+
+function cleanAdDescription(value: string) {
+  return value.trim().slice(0, AD_DESCRIPTION_MAX);
 }
 
 export async function getAdImage(id: string) {
