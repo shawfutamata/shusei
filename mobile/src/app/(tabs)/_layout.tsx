@@ -9,7 +9,7 @@ export default function TabsLayout() {
   const { user, membership, loading } = useAuth();
   if (loading) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={AppColors.blue} /></View>;
   if (!user || membership?.canUseApp === false) return <Redirect href="/" />;
-  return <Tabs screenOptions={({ route }) => ({ headerShown: false, tabBarActiveTintColor: AppColors.blue, tabBarInactiveTintColor: '#8693A7', tabBarLabelStyle: { fontSize: 11, fontWeight: '800' }, tabBarStyle: { height: 82, paddingTop: 7, paddingBottom: 18, borderTopColor: AppColors.line, backgroundColor: '#fff' }, tabBarIcon: ({ color, size }) => <Ionicons name={icons[route.name]} size={route.name === 'create' ? size + 7 : size} color={color} /> })}>
+  return <Tabs screenOptions={({ route }) => ({ headerShown: false, tabBarActiveTintColor: AppColors.blue, tabBarInactiveTintColor: '#8693A7', tabBarLabelStyle: { fontSize: 11, fontWeight: '800' }, tabBarStyle: { height: 82, paddingTop: 7, paddingBottom: 18, borderTopColor: AppColors.line, backgroundColor: '#fff' }, tabBarIcon: ({ color, size }) => <Ionicons name={icons[route.name]} size={route.name === 'create' ? size + 7 : size} color={route.name === 'create' ? AppColors.accent : color} /> })}>
     <Tabs.Screen name="index" options={{ title: 'ホーム' }} /><Tabs.Screen name="requests" options={{ title: '困りごと' }} /><Tabs.Screen name="create" options={{ title: '投稿' }} /><Tabs.Screen name="cards" options={{ title: '名刺' }} /><Tabs.Screen name="profile" options={{ title: 'マイページ' }} />
   </Tabs>;
 }

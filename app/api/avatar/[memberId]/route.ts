@@ -10,7 +10,7 @@ export async function GET(_request: Request, context: { params: Promise<{ member
   if (!avatar) return NextResponse.json({ error: '顔写真が見つかりません。' }, { status: 404 });
   const headers = new Headers();
   avatar.writeHttpMetadata(headers);
-  headers.set('cache-control', 'private, max-age=300');
+  headers.set('cache-control', 'private, max-age=31536000, immutable');
   headers.set('etag', avatar.httpEtag);
   headers.set('x-content-type-options', 'nosniff');
   return new Response(avatar.body, { headers });
