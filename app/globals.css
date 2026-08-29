@@ -43,6 +43,8 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .hero-copy { min-width:0; position:relative; z-index:1; }.hero-copy>span { display:inline-block; padding:6px 9px; border:1px solid rgba(255,255,255,.32); border-radius:99px; background:rgba(255,255,255,.1); font-size:10px; font-weight:900; }.hero-copy h1 { margin:15px 0 9px; font-size:29px; font-weight:900; line-height:1.28; letter-spacing:-.04em; }.hero-copy p { max-width:260px; margin:0; color:#e8f3ff; font-size:12px; font-weight:700; line-height:1.65; }.hero-copy button { min-height:43px; margin-top:16px; padding:0 13px; border:0; border-radius:10px; background:#fff; color:#174bb7; font-size:12px; font-weight:900; box-shadow:0 6px 18px rgba(8,35,95,.18); }.hero-copy button i { margin-left:7px; font-style:normal; }.hero-copy button strong { min-width:22px; height:22px; margin-left:6px; display:inline-grid; place-items:center; border-radius:99px; background:#1478d6; color:#fff; font-size:10px; }
 .hero-visual,.hero-rank { width:105px; height:132px; position:relative; z-index:1; display:grid; place-items:center; align-content:center; gap:6px; border:1px solid rgba(255,255,255,.25); border-radius:24px; background:rgba(255,255,255,.13); transform:rotate(3deg); box-shadow:inset 0 1px 0 rgba(255,255,255,.2); }.hero-visual b { font-size:22px; letter-spacing:.05em; }.hero-visual span { font-size:10px; font-weight:900; }.hero-inbox,.hero-card { font-size:51px; }.hero-inbox small { min-width:31px; height:31px; display:grid; place-items:center; position:absolute; right:-6px; top:-6px; border:3px solid #2868df; border-radius:50%; background:#fff; color:#0f5fc4; font-size:12px; font-weight:900; }.hero-card small { font-size:11px; font-weight:900; }.hero-rank { padding:16px 11px; transform:none; }.hero-rank>b { font-size:42px; }.hero-rank>span { font-size:11px; font-weight:900; }.hero-rank>i { width:100%; height:6px; overflow:hidden; border-radius:99px; background:rgba(255,255,255,.2); }.hero-rank em { height:100%; display:block; border-radius:inherit; background:#fff; }
 .carousel-dots { height:27px; display:flex; align-items:center; justify-content:center; gap:7px; }.carousel-dots button { width:7px; height:7px; padding:0; border:0; border-radius:99px; background:#c8d2e1; transition:.2s; }.carousel-dots button.active { width:23px; background:var(--accent); }
+.carousel-dots button.is-ad { background:#a8b6c9; }
+.carousel-dots button.is-ad.active { background:var(--navy); }
 .home-shelf,.industry-home { padding:20px 0 5px; }.home-section-heading { min-height:45px; margin:0 16px 12px; display:flex; align-items:flex-end; justify-content:space-between; gap:10px; }.home-section-heading h2 { margin:0; color:#1c2b45; font-size:21px; font-weight:900; letter-spacing:-.03em; }.home-section-heading p { margin:4px 0 0; color:#8a97aa; font-size:11px; font-weight:800; }.home-section-heading button { padding:7px 0; border:0; background:transparent; color:#1478d6; font-size:13px; font-weight:900; white-space:nowrap; }
 .home-card-row { display:flex; gap:11px; padding:0 16px 8px; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; }.home-card-row::-webkit-scrollbar { display:none; }.home-request-card { flex:0 0 218px; position:relative; overflow:hidden; border:1px solid #dfe6f0; border-radius:17px; background:#fff; scroll-snap-align:start; box-shadow:0 5px 16px rgba(31,63,126,.07); }.home-request-open { width:100%; padding:0; border:0; background:#fff; color:#1c2b43; text-align:left; }.home-request-cover { height:104px; display:grid; place-items:center; align-content:center; gap:5px; background:linear-gradient(135deg,#dbeafe,#e0f2fe); color:#0f5fc4; }.home-request-cover .industry-icon { width:36px; height:36px; }.home-request-cover small { padding:4px 8px; border-radius:99px; background:rgba(255,255,255,.76); color:#335c98; font-size:10px; font-weight:900; }.home-request-copy { min-height:142px; padding:12px; display:block; }.home-request-copy>small { display:flex; align-items:center; gap:6px; color:var(--accent-ink); font-size:10px; font-weight:800; }.home-request-copy .kind { font-size:9px; }.home-request-copy strong { min-height:47px; margin-top:8px; display:-webkit-box; overflow:hidden; -webkit-box-orient:vertical; -webkit-line-clamp:2; font-size:15px; line-height:1.55; }.home-request-copy>span { margin-top:9px; display:block; color:#0f5fc4; font-size:13px; font-weight:900; }.home-request-copy em { margin-top:6px; display:block; overflow:hidden; color:#7b899d; font-size:10px; font-style:normal; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }.home-heart { width:38px; height:38px; padding:0; position:absolute; z-index:2; right:8px; top:8px; border:0; border-radius:50%; background:rgba(255,255,255,.92); color:#a7b1c0; font-size:21px; box-shadow:0 3px 12px rgba(20,46,94,.16); }.home-heart.active { color:var(--accent); }
 .home-empty { min-height:100px; margin:0 16px; padding:14px; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:11px; border:1px dashed #cbd7e6; border-radius:16px; background:#fff; }.home-empty>span { width:48px; height:48px; display:grid; place-items:center; border-radius:14px; background:#eef5ff; color:#1478d6; font-size:26px; }.home-empty b { color:#2d3d56; font-size:13px; }.home-empty p { margin:4px 0 0; color:#7b899d; font-size:10px; line-height:1.5; }.home-empty button { min-height:39px; padding:0 10px; border:1px solid #bfdbfe; border-radius:9px; background:#eff6ff; color:#1478d6; font-size:10px; font-weight:900; }
@@ -112,36 +114,85 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .invite-note li { display:grid; grid-template-columns:auto 1fr; align-items:baseline; gap:9px; }
 .invite-note b { color:var(--navy); font-size:12px; font-weight:900; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .invite-note span { color:#62728a; font-size:10px; line-height:1.6; }
-/* トップバナーの出稿枠。上位ランクの特典なので、招待カードの下に置く。 */
-.ad-card { margin:12px 14px 0; padding:18px; display:grid; gap:14px; border:1px solid var(--accent-line); border-radius:18px; background:linear-gradient(150deg,var(--accent-soft),#fff); box-shadow:0 7px 22px rgba(93,52,28,.06); }
+/* トップバナーの出稿枠。いちばん大きな収入源なので、買ってからの見え方まで作る。 */
+.ad-card { margin:12px 14px 0; padding:18px; display:grid; gap:14px; border:1px solid var(--accent-line); border-radius:18px; background:linear-gradient(150deg,var(--accent-soft),#fff); box-shadow:0 7px 22px rgba(93,52,28,.06); scroll-margin-top:80px; }
 .ad-heading p { margin:0 0 4px; color:var(--accent-ink); font-size:9px; font-weight:900; letter-spacing:.16em; }
 .ad-heading h2 { margin:0; font-size:19px; }
 .ad-heading span { display:block; margin-top:7px; color:#62728a; font-size:11px; line-height:1.75; }
+
+/* 買った枠。掲載前・掲載中・終わったで見た目を変える。 */
 .ad-slot-list { margin:0; padding:0; list-style:none; display:grid; gap:10px; }
-.ad-slot-list>li { padding:13px; display:grid; gap:10px; border:1px solid #e8d6cd; border-radius:14px; background:#fff; }
+.ad-slot { padding:13px; display:grid; gap:11px; border:1px solid #e8d6cd; border-radius:14px; background:#fff; }
+.ad-slot.is-past { border-color:#e2e7ef; background:#fbfcfe; }
+.ad-slot.is-past .ad-slot-shot img { filter:grayscale(1); opacity:.62; }
 .ad-slot-head { display:flex; align-items:baseline; justify-content:space-between; gap:9px; }
 .ad-slot-head b { color:var(--navy); font-size:13px; font-weight:900; }
-.ad-slot-head span { color:var(--accent-ink); font-size:10px; font-weight:800; white-space:nowrap; }
-.ad-slot-preview { width:100%; aspect-ratio:3/2; display:block; object-fit:cover; border-radius:11px; background:#eef2f7; }
+.ad-state { padding:3px 9px; border-radius:99px; font-size:10px; font-weight:900; white-space:nowrap; }
+.ad-state.is-live { background:#e6f7ec; color:#16794a; }
+.ad-state.is-todo { background:var(--accent-soft); color:var(--accent-ink); }
+.ad-state.is-soon { background:#e8f1ff; color:var(--blue-dark); }
+.ad-state.is-past { background:#eef1f6; color:#77859a; }
+.ad-state.is-stopped { background:#fde8e8; color:#a52121; }
+
+.ad-slot-shot { position:relative; overflow:hidden; border-radius:12px; background:#eef2f7; }
+.ad-slot-shot img { width:100%; aspect-ratio:3/2; display:block; object-fit:cover; }
+.ad-slot-blank { min-height:132px; display:grid; place-items:center; align-content:center; gap:5px; border:2px dashed #e3d3c9; border-radius:12px; text-align:center; }
+.ad-slot-blank b { color:var(--accent-ink); font-size:13px; }
+.ad-slot-blank span { max-width:250px; color:#8b98ac; font-size:10px; line-height:1.7; }
+
+/* 成果。次も買うかどうかは、ここの数字で決まる。 */
+.ad-result { margin:0; display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.ad-result>div { padding:10px 8px; border:1px solid #e6ebf3; border-radius:11px; background:#fbfcfe; text-align:center; }
+.ad-result dt { color:#7f8da1; font-size:9px; font-weight:800; }
+.ad-result dd { margin:4px 0 0; color:var(--navy); font-size:19px; font-weight:900; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.ad-result dd small { margin-left:1px; color:#9aa6b8; font-size:10px; font-weight:800; }
+
 .ad-slot-foot { display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px; }
 .ad-slot-foot b { min-width:0; overflow:hidden; color:#3a4a63; font-size:12px; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
 .ad-slot-foot button { min-height:38px; padding:0 13px; border:1px solid var(--accent-line); border-radius:9px; background:#fff; color:var(--accent-ink); font-size:11px; font-weight:900; white-space:nowrap; }
-.ad-form { display:grid; gap:11px; }
+
+/* 入稿。写真が無い人でも出せるように、作り方を2つ用意する。 */
+.ad-form { display:grid; gap:12px; }
 .ad-form label { display:grid; gap:6px; color:#34445d; font-size:10px; font-weight:800; }
 .ad-form label small { margin-left:5px; color:#8b98ac; font-weight:700; }
-.ad-form input { width:100%; min-height:44px; padding:0 11px; border:1px solid #d7deea; border-radius:10px; background:#fff; color:var(--ink); font-size:12px; outline:none; }
-.ad-file { position:relative; }
-.ad-file input[type=file] { position:absolute; inset:auto 0 0; width:100%; height:44px; opacity:0; }
-.ad-file i { min-height:44px; padding:0 13px; display:flex; align-items:center; overflow:hidden; border:1px dashed #c9b3a8; border-radius:10px; background:#fff; color:var(--accent-ink); font-size:12px; font-style:normal; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
+.ad-form input { width:100%; min-height:46px; padding:0 11px; border:1px solid #d7deea; border-radius:10px; background:#fff; color:var(--ink); font-size:13px; outline:none; }
 .ad-form input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.ad-mode { padding:4px; display:grid; grid-template-columns:1fr 1fr; gap:4px; border-radius:12px; background:#f0e6e0; }
+.ad-mode button { min-height:42px; border:0; border-radius:9px; background:transparent; color:#8a7a72; font-size:12px; font-weight:900; }
+.ad-mode button.active { background:#fff; color:var(--accent-ink); box-shadow:0 2px 8px rgba(93,52,28,.12); }
+.ad-themes { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.ad-themes button { min-height:52px; border:2px solid transparent; border-radius:11px; font-size:12px; font-weight:900; }
+.ad-themes button.active { border-color:var(--accent-ink); box-shadow:0 0 0 3px var(--accent-soft); }
+.ad-file { position:relative; }
+.ad-file input[type=file] { position:absolute; inset:auto 0 0; width:100%; height:46px; opacity:0; }
+.ad-file i { min-height:46px; padding:0 13px; display:flex; align-items:center; overflow:hidden; border:1px dashed #c9b3a8; border-radius:10px; background:#fff; color:var(--accent-ink); font-size:12px; font-style:normal; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
+.ad-preview { display:grid; gap:7px; }
+.ad-preview>p { margin:0; color:#7f8da1; font-size:9px; font-weight:900; letter-spacing:.1em; }
 .ad-form-actions { display:grid; grid-template-columns:auto 1fr; gap:9px; }
-.ad-form-actions>button:first-child { min-height:46px; padding:0 15px; border:1px solid var(--line); border-radius:10px; background:#fff; color:#61708a; font-size:12px; font-weight:800; }
+.ad-form-actions>button:first-child { min-height:48px; padding:0 15px; border:1px solid var(--line); border-radius:10px; background:#fff; color:#61708a; font-size:12px; font-weight:800; }
+
+/* まだ買えない人。何をすれば買えるかだけを出す。 */
+.ad-locked { padding:15px; display:grid; gap:6px; border-radius:13px; background:#fff; }
+.ad-locked b { color:var(--navy); font-size:14px; }
+.ad-locked span { color:#62728a; font-size:11px; line-height:1.75; }
+.ad-locked-why { padding-top:9px; border-top:1px solid #f0e3dc; color:#8b98ac !important; font-size:10px !important; }
+
+/* 申し込み。月を選んでから買う。 */
 .ad-buy { display:grid; gap:11px; }
+.ad-buy-label { margin:0; color:#34445d; font-size:11px; font-weight:900; }
+.ad-months { margin:0 -4px; padding:0 4px 4px; display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; }
+.ad-months::-webkit-scrollbar { display:none; }
+.ad-months button { flex:0 0 auto; width:82px; padding:10px 6px; display:grid; gap:1px; border:1px solid #eddbd1; border-radius:12px; background:#fff; text-align:center; }
+.ad-months button b { color:var(--navy); font-size:18px; font-weight:900; }
+.ad-months button small { color:#9aa6b8; font-size:9px; font-weight:800; }
+.ad-months button em { margin-top:3px; display:block; color:var(--accent-ink); font-size:10px; font-style:normal; font-weight:900; }
+.ad-months button.active { border-color:var(--accent); background:var(--accent-soft); box-shadow:0 0 0 3px #fde6dc; }
+.ad-months button:disabled { border-style:dashed; background:#f7f8fa; opacity:.6; }
+.ad-months button:disabled b,.ad-months button:disabled em { color:#9aa6b8; }
 .ad-buy-facts { margin:0; display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
 .ad-buy-facts>div { padding:11px 9px; border:1px solid #eddbd1; border-radius:12px; background:#fff; text-align:center; }
 .ad-buy-facts dt { color:#7f8da1; font-size:9px; font-weight:800; }
-.ad-buy-facts dd { margin:5px 0 0; color:var(--accent-ink); font-size:17px; font-weight:900; font-variant-numeric:tabular-nums; }
-.ad-buy-facts dd { white-space:nowrap; }
+.ad-buy-facts dd { margin:5px 0 0; color:var(--accent-ink); font-size:17px; font-weight:900; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .ad-buy-facts dd small { margin-left:2px; color:#9aa6b8; font-size:9px; font-weight:800; }
 .ad-buy-facts dd small.ad-buy-year { display:block; margin:0 0 1px; color:#8b98ac; font-size:10px; }
 .ad-note { margin:0; color:#7b8ca4; font-size:10px; line-height:1.75; }

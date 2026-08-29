@@ -52,6 +52,7 @@ const screens = [
     ['mypage', 'マイページ・プラン・招待'],
     ['mypage:plan', 'プランを開いたところ'],
     ['mypage:ad', 'トップバナーの出稿枠'],
+    ['mypage:ad:form', '広告の入稿（文字だけで作る）'],
     ['modal:post:limit', '投稿の上限に当たったとき'],
   ] },
   { group: 'モーダル', items: [
@@ -261,8 +262,11 @@ const html = `<title>TASUKI プレビュー</title>
     if (!target.closest) return;
     const at = (selector) => target.closest(selector);
 
-    if (at('.ad-card .submit-button')) { event.preventDefault(); return notice('お申し込みは決済会社（Stripe）の画面へ進みます。プレビューでは開きません。'); }
-    if (at('.ad-slot-foot button')) { event.preventDefault(); return notice('掲載内容の入力は、枠をお申し込みいただいたあとに開きます。'); }
+    if (at('.ad-buy .submit-button')) { event.preventDefault(); return notice('お申し込みは決済会社（Stripe）の画面へ進みます。プレビューでは開きません。'); }
+    if (at('.ad-slot-foot button')) { event.preventDefault(); return go('mypage:ad:form'); }
+    if (at('.ad-form-actions button:first-child')) { event.preventDefault(); return go('mypage:ad'); }
+    if (at('.ad-form .submit-button')) { event.preventDefault(); return notice('本番では、ここで作ったバナーがそのままホームに出ます。'); }
+    if (at('.ad-mode button') || at('.ad-themes button')) { event.preventDefault(); return notice('バナーの作り方と色は、本番では押したその場で見え方が変わります。'); }
     if (at('.modal-close')) { event.preventDefault(); return go(base); }
     if (target.classList && target.classList.contains('modal-backdrop')) { event.preventDefault(); return go(base); }
 
@@ -280,10 +284,16 @@ const html = `<title>TASUKI プレビュー</title>
 
     const dot = at('.carousel-dots button');
     if (dot) { event.preventDefault(); return go('home:banner:' + indexIn(dot)); }
-    if (at('.hero-image-slide')) {
+    const heroSlide = at('.hero-image-slide');
+    if (heroSlide) {
       event.preventDefault();
+      // 出稿された広告のスライドは、押すと出稿者のページへ出ていく。
+      if (heroSlide.classList.contains('is-ad')) return notice('広告のバナーです。本番では、出稿された方が指定したページが開きます。');
       const match = current.match(/^home:banner:(\\d+)$/);
-      return go(bannerTargets[match ? Number(match[1]) : 0]);
+      const index = match ? Number(match[1]) : 0;
+      // 広告は案内バナーより前に並ぶので、うしろから数える。
+      const dots = target.ownerDocument.querySelectorAll('.carousel-dots button').length || bannerTargets.length;
+      return go(bannerTargets[index - (dots - bannerTargets.length)] ?? 'mypage');
     }
 
     const tile = at('.industry-grid > button');

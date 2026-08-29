@@ -15,7 +15,7 @@ const loginErrors: Record<string, string> = {
   pending: '登録を受け付けました。運営が確認したうえでご案内しますので、少しお待ちください。',
 };
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ login?: string }> }) {
+export default async function Home({ searchParams }: { searchParams: Promise<{ login?: string; ad?: string }> }) {
   const access = await getAppAccess();
   if (!access) {
     const { login } = await searchParams;
@@ -26,7 +26,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ l
     return <main className="signin-page"><div className="signin-card"><BrandMark /><p className="eyebrow">MEMBERS ONLY</p><h1>{serviceName}</h1><h2>まだ利用権限がありません。</h2><p>{access.user.email} は会員として登録されていないか、現在利用権限が停止しています。ご入会手続きや状態のご確認は運営窓口までお問い合わせください。</p><small>登録済みの会員メールアドレスでログインし直すと利用できます</small><LegalLinks /></div></main>;
   }
   const { requests, stats, ads } = await getBoardData(access.user);
-  return <BoardClient initialRequests={requests} initialStats={stats} initialAds={ads} userName={access.user.displayName} />;
+  // 出稿枠の決済から戻ってきたかどうか。開く画面をサーバー側で決めておく。
+  const { ad } = await searchParams;
+  const adReturn = ad === 'done' || ad === 'cancel' ? ad : '';
+  return <BoardClient initialRequests={requests} initialStats={stats} initialAds={ads} userName={access.user.displayName} adReturn={adReturn} />;
 }
 
 function GoogleMark() {

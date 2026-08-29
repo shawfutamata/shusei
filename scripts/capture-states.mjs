@@ -190,6 +190,15 @@ await page.reload({ waitUntil: 'networkidle' });
 await nav(3).click();
 await page.locator('.ad-card').waitFor({ timeout: 15000 }).catch(() => console.warn('\n出稿カードが出ませんでした'));
 await save('mypage:ad', page);
+// 入稿の画面も撮る。写真を持っていない人向けの「文字だけで作る」が見えるように。
+const adEdit = page.locator('.ad-slot-foot button').first();
+if (await adEdit.count()) {
+  await adEdit.click();
+  await page.locator('.ad-mode button').first().click();
+  await page.locator('.ad-form input[name=title]').fill('内装工事の職人さんを探しています');
+  await page.waitForTimeout(700);
+  await save('mypage:ad:form', page);
+}
 setIntroCount(introCount);
 await page.reload({ waitUntil: 'networkidle' });
 await nav(3).click();

@@ -1,6 +1,6 @@
 'use client';
 
-import { ChangeEvent, CSSProperties, FormEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import type { AdSlot, BoardRequest, MemberStats, ReferralSummary } from '@/db/data';
 import ReceivedIntroductions from './ReceivedIntroductions';
@@ -16,6 +16,8 @@ import RankCrest, { CrownMark } from './RankCrest';
 import { serviceName } from './brand';
 import BrandMark from './BrandMark';
 import { detailImage, listThumbnail } from './resize-image';
+import { AD_SLOTS_PER_MONTH } from './ad-options';
+import { adBannerThemes, makeBannerFile, makeBannerPreview } from './ad-banner';
 
 const categories = {
   project: { label: '案件', className: 'project' },
@@ -45,6 +47,27 @@ const industryIcons: Record<string, string> = {
   '金融・保険': '/icons/industries/finance-insurance.png', '運輸・物流': '/icons/industries/transport-logistics.png',
   'イベント・エンタメ': '/icons/industries/event-entertainment.png', 'その他': '/icons/industries/other.png',
 };
+const adSeenStorageKey = 'tasuki-ad-seen-v1';
+
+/** 並びを毎回入れ替える。出稿した人へ順番が均等に回るようにするため。 */
+function shuffle<T>(items: T[]) {
+  const list = [...items];
+  for (let index = list.length - 1; index > 0; index -= 1) {
+    const pick = Math.floor(Math.random() * (index + 1));
+    [list[index], list[pick]] = [list[pick], list[index]];
+  }
+  return list;
+}
+
+/** 成果の数え上げ。落ちても画面は止めない（数字が1件抜けるだけ）。 */
+function trackAd(payload: { views?: string[]; clicks?: string[] }) {
+  const body = JSON.stringify(payload);
+  try {
+    if (navigator.sendBeacon?.('/api/ads/track', new Blob([body], { type: 'application/json' }))) return;
+  } catch { /* sendBeaconが使えない環境ではfetchで送る */ }
+  fetch('/api/ads/track', { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: true }).catch(() => {});
+}
+
 const historyStorageKey = 'give-hub-request-history-v1';
 const favoriteStorageKey = 'give-hub-request-favorites-v1';
 const rankThresholds = [0, 3, 6, 10, 20];
@@ -52,8 +75,17 @@ const rankThresholds = [0, 3, 6, 10, 20];
 /** /api/ads が返すもの。金額は含まない（画面が plan-catalog から出す）。 */
 type AdOffer = {
   ready: boolean; eligible: boolean; level: number; rank: string;
-  minRankLevel: number; titleMax: number; month: string; remaining: number; slots: AdSlot[];
+  minRankLevel: number; titleMax: number; months: { month: string; remaining: number }[]; slots: AdSlot[];
 };
+
+/** その枠がいまどういう状態か。掲載前・掲載中・終わった、を1か所で決める。 */
+function adState(ad: AdSlot) {
+  const now = new Date().toISOString().slice(0, 7);
+  if (ad.status === 'stopped') return { label: '掲載を停止しています', tone: 'stopped', editable: false };
+  if (ad.month < now) return { label: '掲載おわり', tone: 'past', editable: false };
+  if (ad.month > now) return { label: `${monthLabel(ad.month)}から掲載`, tone: 'soon', editable: true };
+  return { label: ad.imageUrl ? '掲載中' : '内容が未入力です', tone: ad.imageUrl ? 'live' : 'todo', editable: true };
+}
 
 const rankNames = ['PEARL', 'EMERALD', 'SAPPHIRE', 'RUBY', 'DIAMOND'];
 
@@ -68,7 +100,7 @@ function monthParts(month: string) {
   return year && index ? { year: `${year}年`, month: `${Number(index)}月` } : { year: '', month };
 }
 
-export default function BoardClient({ initialRequests, initialStats, initialAds, userName }: { initialRequests: BoardRequest[]; initialStats: MemberStats; initialAds: AdSlot[]; userName: string }) {
+export default function BoardClient({ initialRequests, initialStats, initialAds, userName, adReturn = '' }: { initialRequests: BoardRequest[]; initialStats: MemberStats; initialAds: AdSlot[]; userName: string; adReturn?: string }) {
   const [requests, setRequests] = useState(initialRequests);
   const [stats, setStats] = useState(initialStats);
   const [ads, setAds] = useState(initialAds);
@@ -78,8 +110,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [regionFilter, setRegionFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'open' | 'closed' | 'all'>('open');
   const [industryFilter, setIndustryFilter] = useState('all');
-  const [activeTab, setActiveTab] = useState<'home' | 'search' | 'profile'>(initialStats.avatarUrl ? 'home' : 'profile');
+  // 出稿枠を買って戻ってきた人は、入稿できるマイページから始める。
+  const [activeTab, setActiveTab] = useState<'home' | 'search' | 'profile'>(adReturn === 'done' || !initialStats.avatarUrl ? 'profile' : 'home');
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [carouselPaused, setCarouselPaused] = useState(false);
   const [viewedIds, setViewedIds] = useState<string[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [localListsReady, setLocalListsReady] = useState(false);
@@ -120,6 +154,16 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [adInfo, setAdInfo] = useState<AdOffer | null>(null);
   const [editingAd, setEditingAd] = useState('');
   const [adFileName, setAdFileName] = useState('');
+  const [adMode, setAdMode] = useState<'make' | 'upload'>('make');
+  const [adTheme, setAdTheme] = useState(adBannerThemes[0].value);
+  const [adTitle, setAdTitle] = useState('');
+  const [adPreview, setAdPreview] = useState('');
+  const [adUpload, setAdUpload] = useState<File | null>(null);
+  const [adMonth, setAdMonth] = useState('');
+  // 決済から戻った人を、出稿カードまで連れていくための目印。
+  const wantsAdScroll = useRef(adReturn === 'done');
+
+  function showToast(message: string) { setToast(message); window.setTimeout(() => setToast(''), 3800); }
 
   // 全国の会場を都道府県ごとにまとめて出す。一覧に無い会場（その他で登録された人）も
   // 投稿があるぶんだけ末尾に足して、絞り込めない会場が出ないようにする。
@@ -154,9 +198,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     const result = new URLSearchParams(window.location.search).get('billing');
     if (!result) return;
     window.history.replaceState(null, '', window.location.pathname);
-    showToast(result === 'done'
+    const timer = window.setTimeout(() => showToast(result === 'done'
       ? 'お手続きありがとうございます。プランの反映まで少しお待ちください。'
-      : 'お手続きを中断しました。プランは変わっていません。');
+      : 'お手続きを中断しました。プランは変わっていません。'), 60);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => () => {
@@ -191,10 +236,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     window.localStorage.setItem(favoriteStorageKey, JSON.stringify(favoriteIds));
   }, [favoriteIds, localListsReady]);
   useEffect(() => {
-    const timer = window.setInterval(() => setCarouselIndex((current) => (current + 1) % 4), 5500);
-    return () => window.clearInterval(timer);
-  }, []);
-  useEffect(() => {
     if (activeTab !== 'profile' || referral) return;
     let alive = true;
     fetch('/api/referral').then((response) => response.ok ? response.json() : null)
@@ -202,10 +243,36 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       .catch(() => {});
     // 出稿枠はWebだけの機能。マイページを開いたときに空き枠を見る。
     fetch('/api/ads').then((response) => response.ok ? response.json() : null)
-      .then((data) => { if (alive && data) setAdInfo(data as AdOffer); })
+      .then((data) => {
+        if (!alive || !data) return;
+        setAdInfo(data as AdOffer);
+        if (!wantsAdScroll.current) return;
+        wantsAdScroll.current = false;
+        window.setTimeout(() => document.getElementById('ad-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+      })
       .catch(() => {});
     return () => { alive = false; };
   }, [activeTab, referral]);
+
+  // 文字だけのバナーは、打ちながら見え方が変わるようにする。
+  useEffect(() => {
+    if (!editingAd || adMode !== 'make') return;
+    const timer = window.setTimeout(() => {
+      setAdPreview(makeBannerPreview({ title: adTitle, company: stats.company, name: userName, theme: adTheme }));
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [editingAd, adMode, adTitle, adTheme, stats.company, userName]);
+
+  // 決済から戻ったときの案内。どの画面を開くかはサーバー側で決めているので、
+  // ここは知らせるだけ。URLに残った印はすぐ消す（再読込で二度出さないため）。
+  useEffect(() => {
+    if (!adReturn) return;
+    window.history.replaceState(null, '', window.location.pathname);
+    const timer = window.setTimeout(() => showToast(adReturn === 'cancel'
+      ? 'お申し込みを取りやめました。枠は解放されます。'
+      : '枠を確保しました。掲載する内容を入れてください。'), 60);
+    return () => window.clearTimeout(timer);
+  }, [adReturn]);
 
   async function refreshBoard() {
     const response = await fetch('/api/board');
@@ -305,15 +372,18 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   }
 
 
+  // 選んでいる月。まだ選んでいなければ、空いている一番近い月を初期値にする。
+  const selectableMonth = adMonth || adInfo?.months.find((entry) => entry.remaining > 0)?.month || '';
+
   async function buyAdSlot() {
-    if (busy || !adInfo?.month) return;
+    if (busy || !selectableMonth) return;
     setBusy(true);
     try {
       const response = await fetch('/api/ads/checkout', {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ month: adInfo.month }),
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ month: selectableMonth }),
       });
       const data = await response.json() as { url?: string; error?: string };
-      if (data.url) { window.location.href = data.url; return; }
+      if (data.url) { window.location.assign(data.url); return; }
       showToast(data.error || 'お支払い画面を開けませんでした。');
     } catch {
       showToast('通信に失敗しました。時間をおいてお試しください。');
@@ -321,24 +391,53 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     setBusy(false);
   }
 
+  function startEditingAd(ad: AdSlot) {
+    setEditingAd(ad.id);
+    setAdTitle(ad.title);
+    setAdFileName('');
+    setAdUpload(null);
+    // すでに画像がある枠は、うっかり作り直さないように「画像を用意する」から始める。
+    setAdMode(ad.imageUrl ? 'upload' : 'make');
+    setAdPreview('');
+  }
+
+  function chooseAdImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) { showToast('画像は15MB以下を選んでください。'); event.target.value = ''; return; }
+    setAdFileName(file.name);
+    setAdUpload(file);
+    setAdPreview((previous) => { if (previous.startsWith('blob:')) URL.revokeObjectURL(previous); return URL.createObjectURL(file); });
+  }
+
   async function saveAd(event: FormEvent<HTMLFormElement>, id: string) {
     event.preventDefault();
     if (busy) return;
-    setBusy(true);
+    // フォームはここで押さえる。awaitのあとでは event から取れなくなるため。
     const form = event.currentTarget;
+    const current = adInfo?.slots.find((slot) => slot.id === id);
+    // 文字だけで作る場合は、いま見えているプレビューと同じものを送る。
+    const picked = adMode === 'make'
+      ? await makeBannerFile({ title: adTitle, company: stats.company, name: userName, theme: adTheme })
+      : adUpload;
+    if (!picked && !current?.imageUrl) {
+      return showToast(adMode === 'make' ? 'バナーを作れませんでした。画像を選ぶ方法もお試しください。' : '画像を選んでください。');
+    }
+    setBusy(true);
     const raw = new FormData(form);
-    const picked = raw.get('image');
     const body = new FormData();
-    body.set('title', String(raw.get('title') ?? ''));
+    body.set('title', adTitle);
     body.set('linkUrl', String(raw.get('linkUrl') ?? ''));
     // 画像の縮小は投稿する人の端末でやる。Workersでは変換しない。
-    if (picked instanceof File && picked.size > 0) body.set('image', await detailImage(picked));
+    if (picked && picked.size > 0) body.set('image', await detailImage(picked));
     const response = await fetch(`/api/ads/${encodeURIComponent(id)}`, { method: 'POST', body });
     const result = await response.json() as { error?: string };
     setBusy(false);
     if (!response.ok) return showToast(result.error ?? '保存できませんでした。');
     setEditingAd('');
-    showToast('掲載内容を保存しました。');
+    setAdUpload(null);
+    setAdPreview((previous) => { if (previous.startsWith('blob:')) URL.revokeObjectURL(previous); return ''; });
+    showToast('掲載内容を保存しました。ホームのバナーに出ています。');
     await fetch('/api/ads').then((r) => r.ok ? r.json() : null).then((data) => { if (data) setAdInfo(data as AdOffer); }).catch(() => {});
     await refreshBoard();
   }
@@ -351,7 +450,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ plan, cycle: planCycle }),
       });
       const data = await response.json() as { url?: string; error?: string };
-      if (data.url) { window.location.href = data.url; return; }
+      if (data.url) { window.location.assign(data.url); return; }
       showToast(data.error || 'お支払い画面を開けませんでした。');
     } catch {
       showToast('通信に失敗しました。時間をおいてお試しください。');
@@ -365,7 +464,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     try {
       const response = await fetch('/api/billing/portal', { method: 'POST' });
       const data = await response.json() as { url?: string; error?: string };
-      if (data.url) { window.location.href = data.url; return; }
+      if (data.url) { window.location.assign(data.url); return; }
       showToast(data.error || 'お支払いの管理画面を開けませんでした。');
     } catch {
       showToast('通信に失敗しました。時間をおいてお試しください。');
@@ -404,20 +503,55 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // 固定のバナー3枚のうしろに、掲載中の広告を並べる。
+  // 出稿された広告を先に置く。お金をいただいている枠なので、いちばん先に目に入る場所に出す。
+  // 並びは開くたびに入れ替える。同じ月に出した人へ均等に順番が回るようにするため。
   const slides = useMemo(() => [
+    ...shuffle(ads.filter((ad) => ad.imageUrl)).map((ad) => ({ src: ad.imageUrl, alt: `${ad.memberName}さんの広告「${ad.title}」`, ad })),
     ...topBanners.map((banner) => ({ ...banner, ad: null as AdSlot | null })),
-    ...ads.filter((ad) => ad.imageUrl).map((ad) => ({ src: ad.imageUrl, alt: `${ad.memberName}さんの広告 ${ad.title}`, ad })),
   ], [ads]);
   const slide = slides[Math.min(carouselIndex, slides.length - 1)];
 
+  // 広告は自分から送らないと見てもらえないので、一定の間隔で次へ送る。
+  // 枚数は広告の数で変わるため、必ず slides.length で折り返すこと（固定の数にしない）。
+  // ホームを見ているあいだだけ動かす。自分で送った人は、そこで止める。
+  useEffect(() => {
+    if (activeTab !== 'home' || slides.length < 2 || carouselPaused) return;
+    const timer = window.setInterval(() => setCarouselIndex((index) => (index + 1) % slides.length), 5200);
+    return () => window.clearInterval(timer);
+  }, [activeTab, slides.length, carouselPaused]);
+
+  // 見られた数は、同じ広告につき1日1回だけ数える。掲示板を開くたびに書くと
+  // D1の書き込み回数が読めなくなるので、間引きはここ（端末側）で済ませる。
+  useEffect(() => {
+    const ad = slide?.ad;
+    if (!ad || activeTab !== 'home') return;
+    const today = new Date().toISOString().slice(0, 10);
+    const key = `${adSeenStorageKey}:${today}`;
+    let seen: string[] = [];
+    try { seen = JSON.parse(window.localStorage.getItem(key) ?? '[]') as string[]; } catch { seen = []; }
+    if (seen.includes(ad.id)) return;
+    try {
+      window.localStorage.setItem(key, JSON.stringify([...seen, ad.id]));
+      // 日付が変わったら前の日のぶんは消す。localStorageを増やし続けないため。
+      for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+        const name = window.localStorage.key(index) ?? '';
+        if (name.startsWith(`${adSeenStorageKey}:`) && name !== key) window.localStorage.removeItem(name);
+      }
+    } catch { /* 保存できない設定でも、数えられないだけで表示は続ける */ }
+    trackAd({ views: [ad.id] });
+  }, [slide, activeTab]);
+
   function openCurrentBanner() {
-    if (slide?.ad) {
-      if (slide.ad.linkUrl) window.open(slide.ad.linkUrl, '_blank', 'noopener,noreferrer');
+    const ad = slide?.ad;
+    if (ad) {
+      trackAd({ clicks: [ad.id] });
+      if (ad.linkUrl) window.open(ad.linkUrl, '_blank', 'noopener,noreferrer');
+      else showToast(`${ad.memberName}さんの告知です。詳しくは会場やメッセージで直接おたずねください。`);
       return;
     }
-    if (carouselIndex === 0) return openRequest();
-    if (carouselIndex === 1) return setModal('responses');
+    const fixedIndex = carouselIndex - (slides.length - topBanners.length);
+    if (fixedIndex === 0) return openRequest();
+    if (fixedIndex === 1) return setModal('responses');
     showProfile();
   }
 
@@ -445,7 +579,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     }
   }
 
-  function showToast(message: string) { setToast(message); window.setTimeout(() => setToast(''), 3800); }
   function toggleIndustry(value: string, selected: string[], setSelected: (values: string[]) => void, max: number) {
     if (selected.includes(value)) return setSelected(selected.filter((item) => item !== value));
     if (selected.length >= max) return showToast(`業種タグは${max}個まで選択できます。`);
@@ -461,8 +594,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {activeTab === 'home' ? <div className="home-dashboard">
         <section className="hero-carousel" aria-label={`${serviceName}の使い方`}>
-          <button key={carouselIndex} className={`hero-image-slide${slide?.ad ? ' is-ad' : ''}`} onClick={openCurrentBanner} aria-label={`${slide?.alt ?? ''}を開く`}><img src={slide?.src} alt={slide?.alt ?? ''} />{slide?.ad && <span className="hero-ad-tag">PR<em>{slide.ad.memberName}</em></span>}</button>
-          <div className="carousel-dots" aria-label="バナーを切り替える">{slides.map((_, index) => <button key={index} aria-label={`${index + 1}枚目`} className={carouselIndex === index ? 'active' : ''} onClick={() => setCarouselIndex(index)} />)}</div>
+          <button key={carouselIndex} className={`hero-image-slide${slide?.ad ? ' is-ad' : ''}`} onClick={openCurrentBanner} aria-label={`${slide?.alt ?? ''}を開く`}><img src={slide?.src} alt={slide?.alt ?? ''} />{slide?.ad && <span className="hero-ad-tag">PR<em>{slide.ad.memberCompany || slide.ad.memberName}</em></span>}</button>
+          <div className="carousel-dots" aria-label="バナーを切り替える">{slides.map((entry, index) => <button key={index} aria-label={`${index + 1}枚目${entry.ad ? '（広告）' : ''}`} className={`${carouselIndex === index ? 'active' : ''}${entry.ad ? ' is-ad' : ''}`} onClick={() => { setCarouselPaused(true); setCarouselIndex(index); }} />)}</div>
         </section>
 
         <HomeShelf title="あなたにおすすめの探しごと" count={recommended.length}
@@ -578,34 +711,72 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <p className="invite-terms">この特典は、予告なく内容の変更または終了をすることがあります。すでに確定したぶんは、そのままご利用いただけます。</p>
         </section>}
 
-        {adInfo && <section className="ad-card" aria-label="トップバナーへの出稿">
-          <div className="ad-heading"><p>TOP BANNER</p><h2>トップバナーに出す</h2><span>ホームのいちばん上に、1ヶ月あいだ自分の告知を出せます。{rankNames[adInfo.minRankLevel - 1]}以上の方の特典です。</span></div>
+        {adInfo && <section className="ad-card" id="ad-card" aria-label="トップバナーへの出稿">
+          <div className="ad-heading"><p>TOP BANNER</p><h2>トップバナーに出す</h2><span>ホームのいちばん上、いちばん先に目に入る場所に、1ヶ月あいだ自分の告知を出せます。{rankNames[adInfo.minRankLevel - 1]}以上の方の特典です。</span></div>
 
-          {adInfo.slots.length > 0 && <ul className="ad-slot-list">{adInfo.slots.map((ad) => <li key={ad.id}>
-            <div className="ad-slot-head"><b>{monthLabel(ad.month)}の掲載枠</b><span>{ad.imageUrl ? '掲載中' : '内容が未入力です'}</span></div>
-            {ad.imageUrl && <img className="ad-slot-preview" src={ad.imageUrl} alt={`${ad.title}のバナー`} />}
-            {editingAd === ad.id
-              ? <form className="ad-form" onSubmit={(event) => saveAd(event, ad.id)}>
-                  <label><span>見出し</span><input name="title" defaultValue={ad.title} maxLength={adInfo.titleMax} required placeholder="例：現場の職人さんを探しています" /></label>
-                  <label><span>リンク先 <small>任意</small></span><input name="linkUrl" defaultValue={ad.linkUrl} maxLength={200} inputMode="url" placeholder="https://example.com" /></label>
-                  <label className="ad-file"><span>画像 <small>横長・JPEG/PNG/WebP</small></span><input name="image" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setAdFileName(event.target.files?.[0]?.name ?? '')} /><i>{adFileName || (ad.imageUrl ? 'いまの画像のまま' : '画像を選ぶ')}</i></label>
-                  <div className="ad-form-actions"><button type="button" onClick={() => setEditingAd('')} disabled={busy}>やめる</button><button className="submit-button" disabled={busy}>{busy ? '保存しています…' : '保存する'}</button></div>
-                </form>
-              : <div className="ad-slot-foot"><b>{ad.title || '見出しが未入力です'}</b><button onClick={() => { setAdFileName(''); setEditingAd(ad.id); }}>{ad.imageUrl ? '内容を変える' : '内容を入れる'}</button></div>}
-          </li>)}</ul>}
+          {adInfo.slots.length > 0 && <ul className="ad-slot-list">{adInfo.slots.map((ad) => {
+            const state = adState(ad);
+            return <li key={ad.id} className={`ad-slot is-${state.tone}`}>
+              <div className="ad-slot-head"><b>{monthLabel(ad.month)}の掲載枠</b><span className={`ad-state is-${state.tone}`}>{state.label}</span></div>
+              {/* 入れ替えている最中は、下のプレビューだけを見せる。同じ絵が2つ並ぶと迷うため。 */}
+              {editingAd !== ad.id && (ad.imageUrl
+                ? <div className="ad-slot-shot"><img src={ad.imageUrl} alt={`${ad.title}のバナー`} /><span className="hero-ad-tag">PR<em>{stats.company || userName}</em></span></div>
+                : <div className="ad-slot-blank"><b>{state.editable ? 'まだ何も出ていません' : '掲載されないまま終わりました'}</b><span>{state.editable ? '見出しと画像を入れると、ホームのバナーに並びます。' : '次にお申し込みいただくときは、お早めに内容をお入れください。'}</span></div>)}
+
+              {(ad.imageUrl || ad.viewCount > 0) && <dl className="ad-result">
+                <div><dt>見た人</dt><dd>{ad.viewCount.toLocaleString('ja-JP')}<small>人</small></dd></div>
+                <div><dt>押された</dt><dd>{ad.clickCount.toLocaleString('ja-JP')}<small>回</small></dd></div>
+                <div><dt>反応</dt><dd>{ad.viewCount ? Math.round((ad.clickCount / ad.viewCount) * 1000) / 10 : 0}<small>%</small></dd></div>
+              </dl>}
+
+              {editingAd === ad.id
+                ? <form className="ad-form" onSubmit={(event) => saveAd(event, ad.id)}>
+                    <label><span>見出し <small>{adInfo.titleMax}文字まで</small></span><input name="title" value={adTitle} onChange={(event) => setAdTitle(event.target.value)} maxLength={adInfo.titleMax} required placeholder="例：内装工事の職人さんを探しています" /></label>
+                    <label><span>リンク先 <small>任意・押したときに開くページ</small></span><input name="linkUrl" defaultValue={ad.linkUrl} maxLength={200} inputMode="url" placeholder="https://example.com" /></label>
+
+                    <div className="ad-mode" role="group" aria-label="バナーの作り方">
+                      <button type="button" className={adMode === 'make' ? 'active' : ''} onClick={() => setAdMode('make')}>文字だけで作る</button>
+                      <button type="button" className={adMode === 'upload' ? 'active' : ''} onClick={() => setAdMode('upload')}>画像を用意する</button>
+                    </div>
+
+                    {adMode === 'make' ? <>
+                      <div className="ad-themes" role="group" aria-label="バナーの色">{adBannerThemes.map((theme) => <button type="button" key={theme.value} className={adTheme === theme.value ? 'active' : ''} onClick={() => setAdTheme(theme.value)} style={{ background: `linear-gradient(135deg, ${theme.from}, ${theme.to})`, color: theme.ink }}>{theme.label}</button>)}</div>
+                      <p className="ad-note">会社名とお名前は下に入ります。写真を用意しなくても、このまま出せます。</p>
+                    </> : <label className="ad-file"><span>画像 <small>横長（3:2）・JPEG/PNG/WebP</small></span><input name="image" type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseAdImage} /><i>{adFileName || (ad.imageUrl ? 'いまの画像のまま' : '画像を選ぶ')}</i></label>}
+
+                    {(adPreview || ad.imageUrl) ? <div className="ad-preview">
+                      <p>ホームでの見え方</p>
+                      <div className="ad-slot-shot"><img src={adPreview || ad.imageUrl} alt="掲載されるバナーのプレビュー" /><span className="hero-ad-tag">PR<em>{stats.company || userName}</em></span></div>
+                    </div> : <div className="ad-slot-blank"><b>まだ見た目が決まっていません</b><span>{adMode === 'make' ? '見出しを入れると、ここに出来上がりが出ます。' : '画像を選ぶと、ここに出来上がりが出ます。'}</span></div>}
+
+                    <div className="ad-form-actions"><button type="button" onClick={() => setEditingAd('')} disabled={busy}>やめる</button><button className="submit-button" disabled={busy}>{busy ? '保存しています…' : '保存して掲載する'}</button></div>
+                  </form>
+                : <div className="ad-slot-foot"><b>{ad.title || '見出しが未入力です'}</b>{state.editable && <button onClick={() => startEditingAd(ad)}>{ad.imageUrl ? '内容を変える' : '内容を入れる'}</button>}</div>}
+            </li>;
+          })}</ul>}
 
           {!adInfo.eligible
-            ? <p className="ad-note">いまは{adInfo.rank}です。紹介を重ねて{rankNames[adInfo.minRankLevel - 1]}になると、この枠をお申し込みいただけます。</p>
+            ? <div className="ad-locked">
+                <b>いまは{adInfo.rank}です</b>
+                <span>紹介をあと{Math.max(0, rankThresholds[adInfo.minRankLevel - 1] - stats.introCount)}件で{rankNames[adInfo.minRankLevel - 1]}になり、この枠をお申し込みいただけるようになります。</span>
+                <span className="ad-locked-why">枠を上位ランクの方に限っているのは、紹介を重ねてきた方から順に、より多くの目に留まる場所をお使いいただくためです。</span>
+              </div>
             : !adInfo.ready
               ? <p className="ad-note">出稿枠のお申し込みは準備中です。ご希望の方は運営窓口へお問い合わせください。</p>
               : <div className="ad-buy">
+                  <p className="ad-buy-label">掲載する月をお選びください</p>
+                  <div className="ad-months" role="group" aria-label="掲載する月">{adInfo.months.map((entry) => <button key={entry.month} type="button" disabled={entry.remaining === 0} className={adMonth === entry.month ? 'active' : ''} onClick={() => setAdMonth(entry.month)}>
+                    <b>{monthParts(entry.month).month}</b>
+                    <small>{monthParts(entry.month).year}</small>
+                    <em>{entry.remaining === 0 ? '満枠' : `のこり${entry.remaining}`}</em>
+                  </button>)}</div>
                   <dl className="ad-buy-facts">
-                    <div><dt>掲載する月</dt><dd><small className="ad-buy-year">{monthParts(adInfo.month).year}</small>{monthParts(adInfo.month).month}</dd></div>
-                    <div><dt>のこり</dt><dd>{adInfo.remaining}<small>枠</small></dd></div>
                     <div><dt>料金</dt><dd><small className="ad-buy-year">1枠あたり</small>{adSlotPrice()}</dd></div>
+                    <div><dt>掲載</dt><dd><small className="ad-buy-year">まるまる</small>1ヶ月</dd></div>
+                    <div><dt>枠数</dt><dd><small className="ad-buy-year">1ヶ月</small>{adInfo.months.length ? `${AD_SLOTS_PER_MONTH}枠` : '—'}</dd></div>
                   </dl>
-                  <button className="submit-button" onClick={buyAdSlot} disabled={busy || adInfo.remaining === 0}>{adInfo.remaining === 0 ? 'この先1年ぶんが満枠です' : `${monthLabel(adInfo.month)}の枠を申し込む`}</button>
-                  <p className="ad-note">枠は早い者勝ちです。今月が埋まっているときは、いちばん近い空いている月をご案内しています。自動更新はありません。掲載内容は、お申し込みのあとにこの画面から入れられます。</p>
+                  <button className="submit-button" onClick={buyAdSlot} disabled={busy || !selectableMonth}>{selectableMonth ? `${monthLabel(selectableMonth)}の枠を申し込む` : 'この先の月はすべて満枠です'}</button>
+                  <p className="ad-note">枠は早い者勝ちです。お支払いは1回きりで、自動更新はありません。掲載内容は、お申し込みのあとにこの画面から入れられます。内容は掲載中でも何度でも変えられます。</p>
                 </div>}
         </section>}
 

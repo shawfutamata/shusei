@@ -316,6 +316,14 @@ export async function ensureDatabase() {
   if (!requestColumnNames.has('image_version')) {
     await env.DB.prepare('ALTER TABLE requests ADD COLUMN image_version INTEGER NOT NULL DEFAULT 0').run();
   }
+  const adColumns = await env.DB.prepare('PRAGMA table_info(ad_slots)').all<{ name: string }>();
+  const adColumnNames = new Set(adColumns.results.map((column) => column.name));
+  for (const [columnName, sql] of [
+    ['view_count', 'ALTER TABLE ad_slots ADD COLUMN view_count INTEGER NOT NULL DEFAULT 0'],
+    ['click_count', 'ALTER TABLE ad_slots ADD COLUMN click_count INTEGER NOT NULL DEFAULT 0'],
+  ] as const) {
+    if (!adColumnNames.has(columnName)) await env.DB.prepare(sql).run();
+  }
   await env.DB.prepare("UPDATE referral_credits SET status = 'waiting', earned_at = '' WHERE status = 'capped'").run();
   // 招待特典は契約プランと別の列に持つようにした。前の置き場から移す。
   await env.DB.prepare(`UPDATE members SET bonus_plan = plan, bonus_period_end = plan_period_end,
@@ -986,6 +994,10 @@ export type AdSlot = {
   imageUrl: string;
   status: string;
   memberName: string;
+  memberCompany: string;
+  /** 見た人。同じ会員は1日1回までしか数えない。 */
+  viewCount: number;
+  clickCount: number;
 };
 
 function adImageKey(id: string) {
@@ -1000,9 +1012,14 @@ function monthKey(date: Date) {
   return date.toISOString().slice(0, 7);
 }
 
-function nextMonthKey(month: string) {
+/** 掲載月をずらす。-3 なら3ヶ月前、+1 なら翌月。 */
+function addMonths(month: string, step: number) {
   const [year, index] = month.split('-').map(Number);
-  return monthKey(new Date(Date.UTC(year, index, 1)));
+  return monthKey(new Date(Date.UTC(year, index - 1 + step, 1)));
+}
+
+function nextMonthKey(month: string) {
+  return addMonths(month, 1);
 }
 
 /** 決済されないまま押さえられている枠を解放する。呼ばれるたびに掃除する。 */
@@ -1018,17 +1035,20 @@ async function countAdSlots(month: string) {
   return Number(row?.count ?? 0);
 }
 
-/** いま申し込める掲載月と、その残り枠。今月が埋まっていたら翌月を返す。 */
-export async function nextAvailableAdMonth() {
+/**
+ * 申し込める掲載月を、今月から順に並べて返す。
+ * 先の月まで見えるようにしているのは、催しや繁忙期に合わせて先に押さえたい人がいるため。
+ */
+export async function availableAdMonths(count = 6) {
   await ensureDatabase();
   await releaseStaleAdReservations();
+  const months: { month: string; remaining: number }[] = [];
   let month = monthKey(new Date());
-  for (let step = 0; step < 12; step += 1) {
-    const used = await countAdSlots(month);
-    if (used < AD_SLOTS_PER_MONTH) return { month, remaining: AD_SLOTS_PER_MONTH - used };
+  for (let step = 0; step < count; step += 1) {
+    months.push({ month, remaining: Math.max(0, AD_SLOTS_PER_MONTH - await countAdSlots(month)) });
     month = nextMonthKey(month);
   }
-  return { month, remaining: 0 };
+  return months;
 }
 
 /**
@@ -1068,10 +1088,14 @@ export async function activateAdSlot(id: string) {
 }
 
 const adSelect = `SELECT a.id, a.month, a.title, a.link_url AS linkUrl, a.image_version AS imageVersion,
-    a.status, m.display_name AS memberName
+    a.status, a.view_count AS viewCount, a.click_count AS clickCount,
+    m.display_name AS memberName, m.company AS memberCompany
   FROM ad_slots a JOIN members m ON m.id = a.member_id`;
 
-/** 掲載中の広告。ホームのバナーに出す。 */
+/**
+ * 掲載中の広告。ホームのバナーに出す。
+ * 運営が止めた枠（status='stopped'）はここから外れる。docs/ad-slots-ja.md 参照。
+ */
 export async function listActiveAds(): Promise<AdSlot[]> {
   await ensureDatabase();
   const rows = await env.DB.prepare(`${adSelect}
@@ -1080,13 +1104,37 @@ export async function listActiveAds(): Promise<AdSlot[]> {
   return rows.results.map(({ imageVersion, ...ad }) => ({ ...ad, imageUrl: adImageUrl(ad.id, imageVersion) }));
 }
 
-/** その会員が持っている枠。掲載内容を入れる画面で使う。 */
+/**
+ * その会員が持っている枠。掲載内容を入れる画面で使う。
+ * 終わった月も3ヶ月ぶん返す。「いくら払って、何人に見られたか」を後から見返せるように。
+ */
 export async function listMemberAds(memberId: string): Promise<AdSlot[]> {
   await ensureDatabase();
   const rows = await env.DB.prepare(`${adSelect}
-    WHERE a.member_id = ? AND a.month >= ? AND a.status = 'active'
-    ORDER BY a.month`).bind(memberId, monthKey(new Date())).all<Omit<AdSlot, 'imageUrl'> & { imageVersion: number }>();
+    WHERE a.member_id = ? AND a.month >= ? AND a.status IN ('active', 'stopped')
+    ORDER BY a.month DESC`).bind(memberId, addMonths(monthKey(new Date()), -3)).all<Omit<AdSlot, 'imageUrl'> & { imageVersion: number }>();
   return rows.results.map(({ imageVersion, ...ad }) => ({ ...ad, imageUrl: adImageUrl(ad.id, imageVersion) }));
+}
+
+/**
+ * 見られた回数を数える。1回の書き込みでまとめて足す。
+ * 間引きは端末側でやる（同じ会員・同じ広告は1日1回まで）。掲示板を開くたびに
+ * D1へ書くと書き込み回数が読めなくなるため。
+ */
+export async function recordAdViews(ids: string[]) {
+  if (!ids.length) return;
+  await ensureDatabase();
+  const month = monthKey(new Date());
+  await env.DB.batch(ids.map((id) => env.DB
+    .prepare("UPDATE ad_slots SET view_count = view_count + 1 WHERE id = ? AND month = ? AND status = 'active'")
+    .bind(id, month)));
+}
+
+/** 押された回数を数える。クリックはもともと少ないので、その場で1件書く。 */
+export async function recordAdClick(id: string) {
+  await ensureDatabase();
+  await env.DB.prepare("UPDATE ad_slots SET click_count = click_count + 1 WHERE id = ? AND month = ? AND status = 'active'")
+    .bind(id, monthKey(new Date())).run();
 }
 
 /** 掲載内容を入れる。画像は端末で縮小済みのものを受け取る。 */
