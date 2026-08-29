@@ -489,6 +489,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
             {referral.waitingCredits > 0 && <li><b>{referral.waitingCredits}人ぶん</b><span>順番待ちです。空きが出しだい自動で反映されます</span></li>}
             <li><b>{referral.remainingThisYear > 0 ? `あと${referral.remainingThisYear}ヶ月ぶん` : '受け取り済み'}</b><span>{referral.remainingThisYear > 0 ? `この1年で受け取れる残りです（1年あたり${referral.capPerYear}ヶ月まで）` : `この1年ぶん（${referral.capPerYear}ヶ月）は受け取りました`}</span></li>
           </ul>
+          <p className="invite-terms">この特典は、予告なく内容の変更または終了をすることがあります。すでに確定したぶんは、そのままご利用いただけます。</p>
         </section>}
 
         <div className="profile-form profile-page-form">

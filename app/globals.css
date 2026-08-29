@@ -106,6 +106,7 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .invite-note li { display:grid; grid-template-columns:auto 1fr; align-items:baseline; gap:9px; }
 .invite-note b { color:var(--navy); font-size:12px; font-weight:900; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .invite-note span { color:#62728a; font-size:10px; line-height:1.6; }
+.invite-terms { margin:12px 0 0; padding-top:11px; border-top:1px solid #dbe6f7; color:#7b8ca4; font-size:9px; line-height:1.7; }
 .invite-from { margin:14px 0 0; }
 .invite-from b { font-size:20px; }
 .invite-from small { margin-top:4px; display:block; color:var(--muted); font-size:11px; font-weight:700; }
@@ -261,6 +262,7 @@ body { font-weight:600; }
 .invite-stats dd { font-size:25px; }
 .invite-note b { font-size:13px; }
 .invite-note span { font-size:11px; }
+.invite-terms { font-size:11px; }
 .plan-now b { font-size:16px; }
 .plan-usage { font-size:12px; }
 .plan-list-head b { font-size:15px; }
