@@ -55,7 +55,7 @@ const appConfig = ({ config }: ConfigContext): ExpoConfig => ({
   ],
   experiments: { typedRoutes: true, reactCompiler: true },
   extra: {
-    apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || 'https://give-hub-shusei.shaw-futamata.chatgpt.site',
+    apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || 'https://tasuki.me',
     eas: { projectId: easProjectId },
   },
 });

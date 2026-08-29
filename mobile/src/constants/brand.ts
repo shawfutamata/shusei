@@ -2,3 +2,6 @@
 // 名前を変えるときは両方を直すこと。bundle ID・package・EASのprojectは変えない。
 export const serviceName = 'TASUKI';
 export const serviceTagline = 'こんな人、探しています。';
+
+/** 公開URL。正は app/brand.ts。 */
+export const serviceUrl = 'https://tasuki.me';

@@ -39,9 +39,9 @@
 
 ## サポート・ポリシーURL候補
 
-- サポートURL: `https://give-hub-shusei.shaw-futamata.chatgpt.site/support`
-- プライバシーポリシー: `https://give-hub-shusei.shaw-futamata.chatgpt.site/privacy`
-- アカウント削除案内: `https://give-hub-shusei.shaw-futamata.chatgpt.site/privacy#delete`
+- サポートURL: `https://tasuki.me/support`
+- プライバシーポリシー: `https://tasuki.me/privacy`
+- アカウント削除案内: `https://tasuki.me/privacy#delete`
 
 いずれも審査担当者がログインせずに開ける必要がある。Sitesを公開アクセスへ変更したあと、提出前にシークレットウィンドウで到達を確認する。
 

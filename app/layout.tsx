@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { serviceName, serviceTagline } from './brand';
+import { serviceName, serviceTagline, serviceUrl } from './brand';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://give-hub-shusei.shaw-futamata.chatgpt.site'),
+  metadataBase: new URL(serviceUrl),
   title: `${serviceName}｜${serviceTagline}`,
   description: '守成クラブの仲間同士で、案件・協業先・相談相手を探し、信頼ある紹介を生み出す会員向け掲示板。',
   manifest: '/manifest.webmanifest',

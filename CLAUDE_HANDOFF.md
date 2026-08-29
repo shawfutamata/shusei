@@ -15,7 +15,7 @@
 - 開発ブランチ: `claude/codex-chat-handoff-dbw0m2`
 - Web / API: リポジトリ直下（Next.js on Cloudflare Sites）
 - Expoアプリ: `mobile/`
-- 公開Web: `https://give-hub-shusei.shaw-futamata.chatgpt.site`
+- 公開Web: `https://tasuki.me`
 - Expo project: `@shusei_system/member-hub`
 - EAS project ID: `fdcf0a27-45e7-4fb0-b198-4f0eb165e2d9`
 - Expo dashboard: `https://expo.dev/accounts/shusei_system/projects/member-hub`

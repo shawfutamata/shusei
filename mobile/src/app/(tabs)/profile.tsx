@@ -7,7 +7,7 @@ import { AppColors } from '@/constants/app';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { hasRegisteredPushToken, registerForPushNotifications, unregisterPushNotifications } from '@/lib/notifications';
-import { serviceName } from '@/constants/brand';
+import { serviceName, serviceUrl } from '@/constants/brand';
 
 type Invite = { code: string; url: string; invitedCount: number; activeCount: number; waitingCount: number };
 type Stats = { displayName: string; venue: string; company: string; positionTitle: string; badge: string; businessArea: string; introCount: number; points: number; rank: string; nextRankAt: number };
@@ -56,7 +56,7 @@ export default function ProfileScreen() {
 
     <View style={commonStyles.card}><View style={styles.sectionHeading}><Text style={styles.sectionTitle}>会員情報</Text><Pressable onPress={() => router.push('/profile-edit')}><Text style={styles.edit}>編集する</Text></Pressable></View><Info label="氏名" value={stats?.displayName || user?.displayName || ''} /><Info label="メール" value={user?.email || ''} /><Info label="所属会場" value={stats?.venue || '未設定'} /><Info label="活動エリア" value={stats?.businessArea || '未設定'} /></View>
     <View style={styles.contractNote}><Ionicons name="shield-checkmark-outline" size={25} color={AppColors.blue} /><View style={{ flex: 1 }}><Text style={styles.contractTitle}>守成クラブ会員専用</Text><Text style={styles.contractText}>登録済みの会員情報と利用状態を安全に確認しています。</Text></View></View>
-    <Pressable style={styles.policyLink} onPress={() => Linking.openURL('https://give-hub-shusei.shaw-futamata.chatgpt.site/privacy')}><Ionicons name="document-text-outline" size={18} color={AppColors.blue} /><Text style={styles.policyLinkText}>プライバシーポリシー</Text></Pressable>
+    <Pressable style={styles.policyLink} onPress={() => Linking.openURL(`${serviceUrl}/privacy`)}><Ionicons name="document-text-outline" size={18} color={AppColors.blue} /><Text style={styles.policyLinkText}>プライバシーポリシー</Text></Pressable>
     <Pressable style={styles.signOut} onPress={signOut}><Text style={styles.signOutText}>ログアウト</Text></Pressable>
     <Pressable style={styles.delete} onPress={confirmDelete} disabled={busy}><Text style={styles.deleteText}>アカウントを削除</Text></Pressable>
   </AppScreen>;

@@ -9,3 +9,10 @@
 export const serviceName = 'TASUKI';
 
 export const serviceTagline = 'こんな人、探しています。';
+
+/**
+ * 公開URL。OGPの画像URLや、アプリから開くリンクの土台になる。
+ * Sitesの配信ドメイン（*.chatgpt.site）はそのまま残し、独自ドメインを上に載せている。
+ * ここを変えたら、Stripeのwebhook宛先とGoogleのリダイレクトURIも登録し直すこと。
+ */
+export const serviceUrl = 'https://tasuki.me';
