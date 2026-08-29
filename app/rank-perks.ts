@@ -104,7 +104,14 @@ export function canPinRequest(level: number) {
 /** ピンで上に出しておく日数。 */
 export const PIN_DAYS = 3;
 
-/** 出稿枠を何ヶ月先まで選べるか。DIAMONDだけ先まで押さえられる。 */
-export function adMonthsAhead(level: number) {
-  return level >= 5 ? 9 : 6;
+/** 何日先まで申し込めるか。上位ランクは先まで押さえられる（事前予約）。 */
+export function adDaysAhead(level: number) {
+  if (level >= 5) return 180;
+  if (level >= 4) return 120;
+  return 60;
+}
+
+/** 1回の申し込みで選べる掲載日数の上限。上位ランクは長く出せる。 */
+export function adMaxDays(level: number) {
+  return level >= 5 ? 60 : 30;
 }

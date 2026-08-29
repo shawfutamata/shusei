@@ -18,7 +18,9 @@ import { EXTEND_DAYS, PIN_DAYS, canExtendRequest, canPinRequest, notifyIndustryL
 import { serviceName } from './brand';
 import BrandMark from './BrandMark';
 import { detailImage, listThumbnail } from './resize-image';
-import { AD_SLOTS_PER_MONTH } from './ad-options';
+import AdAnalytics, { formatRange } from './AdAnalytics';
+import type { AdDay } from '@/db/data';
+
 import { adBannerThemes, makeBannerFile, makeBannerPreview } from './ad-banner';
 
 const categories = {
@@ -76,28 +78,31 @@ const favoriteStorageKey = 'give-hub-request-favorites-v1';
 /** /api/ads が返すもの。金額は含まない（画面が plan-catalog から出す）。 */
 type AdOffer = {
   ready: boolean; eligible: boolean; level: number; rank: string;
-  minRankLevel: number; titleMax: number; months: { month: string; remaining: number }[]; slots: AdSlot[];
+  minRankLevel: number; titleMax: number;
+  concurrent: number; maxDays: number; daysAhead: number;
+  calendar: { date: string; remaining: number }[]; slots: AdSlot[];
 };
 
 /** その枠がいまどういう状態か。掲載前・掲載中・終わった、を1か所で決める。 */
 function adState(ad: AdSlot) {
-  const now = new Date().toISOString().slice(0, 7);
+  const now = new Date().toISOString().slice(0, 10);
   if (ad.status === 'stopped') return { label: '掲載を停止しています', tone: 'stopped', editable: false };
-  if (ad.month < now) return { label: '掲載おわり', tone: 'past', editable: false };
-  if (ad.month > now) return { label: `${monthLabel(ad.month)}から掲載`, tone: 'soon', editable: true };
+  if (ad.endDate < now) return { label: '掲載おわり', tone: 'past', editable: false };
+  if (ad.startDate > now) return { label: `${formatRange(ad.startDate, ad.endDate)}に掲載`, tone: 'soon', editable: true };
   return { label: ad.imageUrl ? '掲載中' : '内容が未入力です', tone: ad.imageUrl ? 'live' : 'todo', editable: true };
 }
 
 
-function monthLabel(month: string) {
-  const [year, index] = month.split('-');
-  return year && index ? `${year}年${Number(index)}月` : month;
+/** 日付をずらす。YYYY-MM-DD のまま扱う（サーバー側と同じ数え方）。 */
+function shiftDate(date: string, days: number) {
+  const moved = new Date(`${date}T00:00:00Z`);
+  moved.setUTCDate(moved.getUTCDate() + days);
+  return moved.toISOString().slice(0, 10);
 }
 
-/** 枠の狭いところ用。年を小さく上に置いて、折り返さないようにする。 */
-function monthParts(month: string) {
-  const [year, index] = month.split('-');
-  return year && index ? { year: `${year}年`, month: `${Number(index)}月` } : { year: '', month };
+const weekdayNames = ['日', '月', '火', '水', '木', '金', '土'];
+function weekdayOf(date: string) {
+  return new Date(`${date}T00:00:00Z`).getUTCDay();
 }
 
 export default function BoardClient({ initialRequests, initialStats, initialAds, userName, adReturn = '' }: { initialRequests: BoardRequest[]; initialStats: MemberStats; initialAds: AdSlot[]; userName: string; adReturn?: string }) {
@@ -159,7 +164,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [adTitle, setAdTitle] = useState('');
   const [adPreview, setAdPreview] = useState('');
   const [adUpload, setAdUpload] = useState<File | null>(null);
-  const [adMonth, setAdMonth] = useState('');
+  const [adStart, setAdStart] = useState('');
+  const [adDays, setAdDays] = useState(30);
+  const [openStats, setOpenStats] = useState('');
+  const [adStats, setAdStats] = useState<{ slot: AdSlot; days: AdDay[] } | null>(null);
   const [openPerk, setOpenPerk] = useState('');
 
   function showToast(message: string) { setToast(message); window.setTimeout(() => setToast(''), 3800); }
@@ -413,23 +421,40 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   }
 
 
-  // 選んでいる月。まだ選んでいなければ、空いている一番近い月を初期値にする。
-  const nextOpenMonth = adInfo?.months.find((entry) => entry.remaining > 0);
-  const selectableMonth = adMonth || nextOpenMonth?.month || '';
+  // いちばん近い空いている日。カレンダーの初期値に使う。
+  const nextOpenDay = adInfo?.calendar.find((day) => day.remaining > 0);
+  // 選んだ期間に満枠の日が1日でもあれば申し込めない。
+  const periodOpen = useMemo(() => {
+    if (!adInfo || !adStart) return false;
+    const last = shiftDate(adStart, adDays - 1);
+    const inRange = adInfo.calendar.filter((day) => day.date >= adStart && day.date <= last);
+    return inRange.length === adDays && inRange.every((day) => day.remaining > 0);
+  }, [adInfo, adStart, adDays]);
   // マイページの入口に出す、いま掲載中の1枠。
   const liveAd = adInfo?.slots.find((ad) => ad.imageUrl && adState(ad).tone === 'live');
 
   function openAdSettings() {
     setEditingAd('');
+    setOpenStats('');
     setModal('ads');
   }
 
+  // カレンダーを開いた時点で、空いている一番近い日を選んでおく。
+  useEffect(() => {
+    if (modal !== 'ads' || adStart || !nextOpenDay) return;
+    const timer = window.setTimeout(() => {
+      setAdStart(nextOpenDay.date);
+      setAdDays((current) => Math.min(current, adInfo?.maxDays ?? 30));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [modal, adStart, nextOpenDay, adInfo?.maxDays]);
+
   async function buyAdSlot() {
-    if (busy || !selectableMonth) return;
+    if (busy || !adStart) return;
     setBusy(true);
     try {
       const response = await fetch('/api/ads/checkout', {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ month: selectableMonth }),
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ startDate: adStart, days: adDays }),
       });
       const data = await response.json() as { url?: string; error?: string };
       if (data.url) { window.location.assign(data.url); return; }
@@ -438,6 +463,15 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       showToast('通信に失敗しました。時間をおいてお試しください。');
     }
     setBusy(false);
+  }
+
+  async function toggleStats(id: string) {
+    if (openStats === id) { setOpenStats(''); return; }
+    setOpenStats(id);
+    setAdStats(null);
+    const response = await fetch(`/api/ads/${encodeURIComponent(id)}/stats`);
+    if (!response.ok) return showToast('成果を読み込めませんでした。');
+    setAdStats(await response.json() as { slot: AdSlot; days: AdDay[] });
   }
 
   function startEditingAd(ad: AdSlot) {
@@ -773,10 +807,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             : <>
                 {liveAd && <div className="ad-entry-live">
                   <div className="ad-slot-shot"><img src={liveAd.imageUrl} alt={`${liveAd.title}のバナー`} /><span className="hero-ad-tag">PR<em>{stats.company || userName}</em></span></div>
-                  <p className="ad-entry-state"><b>{monthLabel(liveAd.month)}・掲載中</b><span>見た人 {liveAd.viewCount.toLocaleString('ja-JP')}人／押された {liveAd.clickCount.toLocaleString('ja-JP')}回</span></p>
+                  <p className="ad-entry-state"><b>掲載中・{formatRange(liveAd.startDate, liveAd.endDate)}</b><span>{liveAd.viewCount.toLocaleString('ja-JP')}人が見て、{liveAd.clickCount.toLocaleString('ja-JP')}回押されました</span></p>
                 </div>}
                 <button className="ad-entry-open" onClick={openAdSettings}>
-                  <span><b>{adInfo.slots.length ? '掲載の設定を開く' : '出稿枠を申し込む'}</b><small>{adInfo.slots.length ? `お持ちの枠 ${adInfo.slots.length}件・見出しや画像はここから変えられます` : `${adSlotPrice()}／1枠・${nextOpenMonth ? `${monthLabel(nextOpenMonth.month)}はのこり${nextOpenMonth.remaining}枠` : 'ただいま満枠です'}`}</small></span>
+                  <span><b>{adInfo.slots.length ? '掲載の設定を開く' : '出稿枠を申し込む'}</b><small>{adInfo.slots.length ? `お持ちの枠 ${adInfo.slots.length}件・見出しや画像、成果はここから見られます` : `${adSlotPrice()}／1枠・${nextOpenDay ? `${formatRange(nextOpenDay.date, nextOpenDay.date).split('〜')[0]}から空いています` : 'ただいま満枠です'}`}</small></span>
                   <i aria-hidden="true">›</i>
                 </button>
               </>}
@@ -869,22 +903,16 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </div>
       </Modal>}
 
-      {modal === 'ads' && adInfo && <Modal title="トップバナーに出す" lead={`ホームのいちばん先に目に入る場所に、1ヶ月あいだ告知を出せます。お支払いは1回きりで、自動更新はありません。掲載内容は掲載中でも何度でも変えられます。`} onClose={() => { setModal(null); setEditingAd(''); }}>
+      {modal === 'ads' && adInfo && <Modal title="トップバナーに出す" lead="ホームのいちばん先に目に入る場所に、選んだ期間だけ告知を出せます。お支払いは1回きりで、自動更新はありません。掲載内容は掲載中でも何度でも変えられます。" onClose={() => { setModal(null); setEditingAd(''); setOpenStats(''); }}>
         <div className="ad-panel">
           {adInfo.slots.length > 0 && <ul className="ad-slot-list">{adInfo.slots.map((ad) => {
             const state = adState(ad);
             return <li key={ad.id} className={`ad-slot is-${state.tone}`}>
-              <div className="ad-slot-head"><b>{monthLabel(ad.month)}の掲載枠</b><span className={`ad-state is-${state.tone}`}>{state.label}</span></div>
+              <div className="ad-slot-head"><b>{formatRange(ad.startDate, ad.endDate)}</b><span className={`ad-state is-${state.tone}`}>{state.label}</span></div>
               {/* 入れ替えている最中は、下のプレビューだけを見せる。同じ絵が2つ並ぶと迷うため。 */}
               {editingAd !== ad.id && (ad.imageUrl
                 ? <div className="ad-slot-shot"><img src={ad.imageUrl} alt={`${ad.title}のバナー`} /><span className="hero-ad-tag">PR<em>{stats.company || userName}</em></span></div>
                 : <div className="ad-slot-blank"><b>{state.editable ? 'まだ何も出ていません' : '掲載されないまま終わりました'}</b><span>{state.editable ? '見出しと画像を入れると、ホームのバナーに並びます。' : '次にお申し込みいただくときは、お早めに内容をお入れください。'}</span></div>)}
-
-              {(ad.imageUrl || ad.viewCount > 0) && <dl className="ad-result">
-                <div><dt>見た人</dt><dd>{ad.viewCount.toLocaleString('ja-JP')}<small>人</small></dd></div>
-                <div><dt>押された</dt><dd>{ad.clickCount.toLocaleString('ja-JP')}<small>回</small></dd></div>
-                <div><dt>反応</dt><dd>{ad.viewCount ? Math.round((ad.clickCount / ad.viewCount) * 1000) / 10 : 0}<small>%</small></dd></div>
-              </dl>}
 
               {editingAd === ad.id
                 ? <form className="ad-form" onSubmit={(event) => saveAd(event, ad.id)}>
@@ -908,26 +936,28 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
                     <div className="ad-form-actions"><button type="button" onClick={() => setEditingAd('')} disabled={busy}>やめる</button><button className="submit-button" disabled={busy}>{busy ? '保存しています…' : '保存して掲載する'}</button></div>
                   </form>
-                : <div className="ad-slot-foot"><b>{ad.title || '見出しが未入力です'}</b>{state.editable && <button onClick={() => startEditingAd(ad)}>{ad.imageUrl ? '内容を変える' : '内容を入れる'}</button>}</div>}
+                : <>
+                    <div className="ad-slot-foot"><b>{ad.title || '見出しが未入力です'}</b>{state.editable && <button onClick={() => startEditingAd(ad)}>{ad.imageUrl ? '内容を変える' : '内容を入れる'}</button>}</div>
+                    {(ad.imageUrl || ad.viewCount > 0) && <button className="ad-stats-open" onClick={() => toggleStats(ad.id)}>{openStats === ad.id ? '成果を閉じる' : '成果を見る'}<i aria-hidden="true">{openStats === ad.id ? '▴' : '▾'}</i></button>}
+                    {openStats === ad.id && (adStats ? <AdAnalytics slot={adStats.slot} days={adStats.days} /> : <p className="ad-analytics-empty">読み込んでいます…</p>)}
+                  </>}
             </li>;
           })}</ul>}
 
           {!adInfo.ready
             ? <p className="ad-note">出稿枠のお申し込みは準備中です。ご希望の方は運営窓口へお問い合わせください。</p>
             : <div className="ad-buy">
-                <p className="ad-buy-label">{adInfo.slots.length ? 'もう1枠、お申し込みになりますか' : '掲載する月をお選びください'}</p>
-                <div className="ad-months" role="group" aria-label="掲載する月">{adInfo.months.map((entry) => <button key={entry.month} type="button" disabled={entry.remaining === 0} className={selectableMonth === entry.month ? 'active' : ''} onClick={() => setAdMonth(entry.month)}>
-                  <b>{monthParts(entry.month).month}</b>
-                  <small>{monthParts(entry.month).year}</small>
-                  <em>{entry.remaining === 0 ? '満枠' : `のこり${entry.remaining}`}</em>
-                </button>)}</div>
-                <dl className="ad-buy-facts">
-                  <div><dt>料金</dt><dd><small className="ad-buy-year">1枠あたり</small>{adSlotPrice()}</dd></div>
-                  <div><dt>掲載</dt><dd><small className="ad-buy-year">まるまる</small>1ヶ月</dd></div>
-                  <div><dt>枠数</dt><dd><small className="ad-buy-year">1ヶ月</small>{AD_SLOTS_PER_MONTH}枠</dd></div>
-                </dl>
-                <button className="submit-button" onClick={buyAdSlot} disabled={busy || !selectableMonth}>{selectableMonth ? `${monthLabel(selectableMonth)}の枠を申し込む` : 'この先の月はすべて満枠です'}</button>
-                <p className="ad-note">枠は早い者勝ちです。掲載内容は、お申し込みのあとにこの画面から入れられます。</p>
+                <p className="ad-buy-label">{adInfo.slots.length ? 'もう1枠、お申し込みになりますか' : '掲載する期間をお選びください'}</p>
+                <AdCalendar offer={adInfo} startDate={adStart} days={adDays} onPick={setAdStart} />
+                <label className="ad-days"><span>掲載する日数 <small>最大{adInfo.maxDays}日</small></span>
+                  <input type="range" min={1} max={adInfo.maxDays} value={adDays} onChange={(event) => setAdDays(Number(event.target.value))} />
+                  <b>{adDays}日</b>
+                </label>
+                <p className="ad-buy-period">{adStart
+                  ? <>{formatRange(adStart, shiftDate(adStart, adDays - 1))} に掲載します<em>{adSlotPrice()}（税込・1回きり）</em></>
+                  : <>カレンダーから、掲載を始める日を選んでください</>}</p>
+                <button className="submit-button" onClick={buyAdSlot} disabled={busy || !adStart || !periodOpen}>{!adStart ? '始める日を選んでください' : periodOpen ? 'この期間で申し込む' : '選んだ期間に満枠の日があります'}</button>
+                <p className="ad-note">同じ日に出せるのは{adInfo.concurrent}本までで、早い者勝ちです。掲載内容は、お申し込みのあとにこの画面から入れられます。</p>
               </div>}
         </div>
       </Modal>}
@@ -959,6 +989,47 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
   );
+}
+
+/**
+ * 掲載を始める日を選ぶカレンダー。満枠の日は押せない。
+ * 選んだ日から日数ぶんの帯を塗って、どこからどこまで出るのかを見せる。
+ */
+function AdCalendar({ offer, startDate, days, onPick }: {
+  offer: AdOffer; startDate: string; days: number; onPick: (date: string) => void;
+}) {
+  const endDate = startDate ? shiftDate(startDate, days - 1) : '';
+  // 月ごとに分けて、1日が何曜日から始まるかを合わせる。
+  const months = useMemo(() => {
+    const grouped = new Map<string, { date: string; remaining: number }[]>();
+    for (const day of offer.calendar) {
+      const key = day.date.slice(0, 7);
+      grouped.set(key, [...(grouped.get(key) ?? []), day]);
+    }
+    return [...grouped.entries()];
+  }, [offer.calendar]);
+
+  return <div className="ad-calendar">
+    {months.map(([month, entries]) => <section key={month}>
+      <h4>{Number(month.slice(5))}月</h4>
+      <div className="ad-calendar-week" aria-hidden="true">{weekdayNames.map((name) => <span key={name}>{name}</span>)}</div>
+      <div className="ad-calendar-grid">
+        {Array.from({ length: weekdayOf(entries[0].date) }, (_, index) => <span key={`pad-${index}`} />)}
+        {entries.map((day) => {
+          const inPeriod = Boolean(startDate) && day.date >= startDate && day.date <= endDate;
+          const full = day.remaining <= 0;
+          return <button key={day.date} type="button" disabled={full}
+            className={`${day.date === startDate ? 'start ' : ''}${inPeriod ? 'in ' : ''}${full ? 'full' : ''}`.trim()}
+            aria-label={`${Number(day.date.slice(5, 7))}月${Number(day.date.slice(8))}日${full ? '・満枠' : `・のこり${day.remaining}枠`}`}
+            onClick={() => onPick(day.date)}>
+            <b>{Number(day.date.slice(8))}</b>
+            <i>{full ? '×' : day.remaining <= 3 ? `${day.remaining}` : ''}</i>
+          </button>;
+        })}
+      </div>
+    </section>)}
+    <p className="ad-calendar-legend"><span className="is-open" />空きあり<span className="is-few" />のこりわずか<span className="is-full" />満枠</p>
+  </div>;
 }
 
 function BannerIcon() {

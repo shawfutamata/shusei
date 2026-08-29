@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
 import { adSlotConfigured, adSlotPriceId, stripeClient } from '@/app/stripe';
-import { availableAdMonths, canBuyAdSlot, getMemberRank, getStripeLink, releaseAdSlot, reserveAdSlot, saveAdSlotSession, saveStripeCustomer } from '@/db/data';
-import { adMonthsAhead } from '@/app/rank-perks';
+import { canBuyAdSlot, getMemberRank, getStripeLink, releaseAdSlot, reserveAdSlot, saveAdSlotSession, saveStripeCustomer, shiftDate } from '@/db/data';
+import { adDaysAhead, adMaxDays } from '@/app/rank-perks';
 
 // **Web専用**。トップバナーの出稿枠を1ヶ月ぶん買う。
 // 購読ではなく1回きりの支払いなので mode は 'payment'。
@@ -19,34 +19,40 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '出稿枠は上位ランクの方の特典です。紹介を重ねてランクが上がるとお申し込みいただけます。' }, { status: 403 });
   }
 
-  const body = await request.json().catch(() => ({})) as { month?: string };
-  const month = typeof body.month === 'string' && /^\d{4}-\d{2}$/.test(body.month) ? body.month : '';
-  if (!month) return NextResponse.json({ error: '掲載する月の指定が正しくありません。' }, { status: 400 });
-  // 過ぎた月や、ずっと先の月を押さえられないようにする。
-  const offered = await availableAdMonths(adMonthsAhead(level));
-  if (!offered.some((entry) => entry.month === month)) {
-    return NextResponse.json({ error: 'その月はお申し込みいただけません。表示されている月からお選びください。' }, { status: 400 });
+  const body = await request.json().catch(() => ({})) as { startDate?: string; days?: number };
+  const startDate = typeof body.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.startDate) ? body.startDate : '';
+  const days = Number(body.days);
+  const maxDays = adMaxDays(level);
+  if (!startDate) return NextResponse.json({ error: '掲載を始める日をお選びください。' }, { status: 400 });
+  if (!Number.isInteger(days) || days < 1 || days > maxDays) {
+    return NextResponse.json({ error: `掲載できるのは1日から${maxDays}日までです。` }, { status: 400 });
+  }
+  // 過ぎた日や、ずっと先の日を押さえられないようにする。
+  const today = new Date().toISOString().slice(0, 10);
+  if (startDate < today) return NextResponse.json({ error: '過ぎた日は選べません。' }, { status: 400 });
+  if (startDate > shiftDate(today, adDaysAhead(level) - 1)) {
+    return NextResponse.json({ error: 'その日はまだお申し込みいただけません。カレンダーに出ている日からお選びください。' }, { status: 400 });
   }
 
   // 先に枠を押さえる。早い者勝ちなので、決済画面を開く前に取り合いを終わらせる。
-  let slotId: string;
+  let reserved: { id: string; endDate: string };
   try {
-    slotId = await reserveAdSlot(gate.user.userId, month);
+    reserved = await reserveAdSlot(gate.user.userId, startDate, days);
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : '枠を押さえられませんでした。' }, { status: 409 });
   }
 
   try {
-    return await createCheckout(gate.user.userId, gate.user.email, gate.user.displayName, slotId, month, new URL(request.url).origin);
+    return await createCheckout(gate.user.userId, gate.user.email, gate.user.displayName, reserved.id, startDate, reserved.endDate, new URL(request.url).origin);
   } catch (error) {
     // 決済画面を開けなかったのに枠を押さえたままにしない。次の人がすぐ買える。
-    await releaseAdSlot(slotId).catch(() => undefined);
+    await releaseAdSlot(reserved.id).catch(() => undefined);
     console.error('ad slot checkout failed', error);
     return NextResponse.json({ error: 'お支払い画面を開けませんでした。時間をおいてお試しいただくか、運営窓口へお問い合わせください。' }, { status: 502 });
   }
 }
 
-async function createCheckout(memberId: string, userEmail: string, userName: string, slotId: string, month: string, origin: string) {
+async function createCheckout(memberId: string, userEmail: string, userName: string, slotId: string, startDate: string, endDate: string, origin: string) {
   const stripe = stripeClient();
   const link = await getStripeLink(memberId);
 
@@ -70,7 +76,7 @@ async function createCheckout(memberId: string, userEmail: string, userName: str
     success_url: `${origin}/?ad=done`,
     cancel_url: `${origin}/?ad=cancel`,
     // webhookはこのslotIdだけを見て掲載中にする。
-    metadata: { memberId, adSlotId: slotId, month },
+    metadata: { memberId, adSlotId: slotId, startDate, endDate },
   });
 
   await saveAdSlotSession(slotId, session.id);

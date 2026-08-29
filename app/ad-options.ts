@@ -2,8 +2,14 @@
 // この2つを分けているのは、画面（クライアント）から金額のファイルを
 // 読まずに枠数やランク条件だけ使えるようにするため。
 
-/** 1ヶ月あたりの枠数。早い者勝ちで埋まる。 */
-export const AD_SLOTS_PER_MONTH = 10;
+/** 同じ日に出せる広告の本数。これを超えると、その日は満枠。早い者勝ち。 */
+export const AD_CONCURRENT_SLOTS = 10;
+
+/** 1回の申し込みで選べる掲載日数の上限。ランクの特典で延びる。 */
+export const AD_MAX_DAYS = 30;
+
+/** 何日先まで申し込めるか。ランクの特典で先まで見えるようになる。 */
+export const AD_DAYS_AHEAD = 60;
 
 /** 出稿できるランクの下限。1=PEARL 2=EMERALD 3=SAPPHIRE 4=RUBY 5=DIAMOND */
 export const AD_MIN_RANK_LEVEL = 4;

@@ -30,7 +30,7 @@ export const authApi = {
   logout: () => apiFetch<{ ok: true }>('/api/mobile/auth/session', { method: 'DELETE' }),
   deleteAccount: () => apiFetch<{ ok: true }>('/api/mobile/account', { method: 'DELETE' }),
 };
-export type AdSlot = { id: string; month: string; title: string; linkUrl: string; imageUrl: string; status: string; memberName: string; memberCompany: string; viewCount: number; clickCount: number };
+export type AdSlot = { id: string; startDate: string; endDate: string; title: string; linkUrl: string; imageUrl: string; status: string; memberName: string; memberCompany: string; viewCount: number; clickCount: number };
 
 // 掲載の成果を数える。金額には触れないので、アプリから呼んでよい（App Store 3.1.1）。
 export const adApi = {

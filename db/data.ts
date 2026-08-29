@@ -3,7 +3,7 @@ import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-
 import type { ChatGPTUser } from '@/app/chatgpt-auth';
 import { cleanFacebookUrl } from '@/app/social-links';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
-import { AD_MIN_RANK_LEVEL, AD_RESERVATION_MINUTES, AD_SLOTS_PER_MONTH, AD_TITLE_MAX } from '@/app/ad-options';
+import { AD_CONCURRENT_SLOTS, AD_MIN_RANK_LEVEL, AD_RESERVATION_MINUTES, AD_TITLE_MAX } from '@/app/ad-options';
 import { UNLIMITED, bonusPlan, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
 import { EXTEND_DAYS, PIN_DAYS, canExtendRequest, canPinRequest, levelFor, notifyIndustryLimit, rankName, rankThresholds } from '@/app/rank-perks';
 import { matchesIndustry } from '@/app/industry-options';
@@ -193,6 +193,13 @@ const statements = [
     stripe_session_id TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS ad_daily (
+    ad_id TEXT NOT NULL REFERENCES ad_slots(id),
+    date TEXT NOT NULL,
+    views INTEGER NOT NULL DEFAULT 0,
+    clicks INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (ad_id, date)
+  )`,
   `CREATE TABLE IF NOT EXISTS feedback (
     id TEXT PRIMARY KEY,
     member_id TEXT NOT NULL REFERENCES members(id),
@@ -263,7 +270,6 @@ const statements = [
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   )`,
-  'CREATE INDEX IF NOT EXISTS idx_ad_slots_month_status ON ad_slots(month, status)',
   'CREATE INDEX IF NOT EXISTS idx_ad_slots_member ON ad_slots(member_id)',
   'CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at)',
   'CREATE INDEX IF NOT EXISTS idx_requests_status_created_at ON requests(status, created_at)',
@@ -336,9 +342,18 @@ export async function ensureDatabase() {
   for (const [columnName, sql] of [
     ['view_count', 'ALTER TABLE ad_slots ADD COLUMN view_count INTEGER NOT NULL DEFAULT 0'],
     ['click_count', 'ALTER TABLE ad_slots ADD COLUMN click_count INTEGER NOT NULL DEFAULT 0'],
+    // 掲載は月単位をやめ、開始日と終了日で持つようにした。
+    ['start_date', "ALTER TABLE ad_slots ADD COLUMN start_date TEXT NOT NULL DEFAULT ''"],
+    ['end_date', "ALTER TABLE ad_slots ADD COLUMN end_date TEXT NOT NULL DEFAULT ''"],
   ] as const) {
     if (!adColumnNames.has(columnName)) await env.DB.prepare(sql).run();
   }
+  // 月で持っていた枠を、その月の初日〜末日に移す。1回だけ効く。
+  await env.DB.prepare(`UPDATE ad_slots SET start_date = month || '-01',
+      end_date = date(month || '-01', '+1 month', '-1 day')
+    WHERE start_date = '' AND month <> ''`).run();
+  // 索引は列ができたあとに作る。statements に混ぜると、列が無い初回に全部こける。
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_ad_slots_period ON ad_slots(status, start_date, end_date)').run();
   await env.DB.prepare("UPDATE referral_credits SET status = 'waiting', earned_at = '' WHERE status = 'capped'").run();
   // 招待特典は契約プランと別の列に持つようにした。前の置き場から移す。
   await env.DB.prepare(`UPDATE members SET bonus_plan = plan, bonus_period_end = plan_period_end,
@@ -1061,25 +1076,32 @@ export async function notifyIndustryCap(memberId: string) {
 // --- ランクの特典 ここまで ----------------------------------------------------
 
 // --- トップバナーの出稿枠 ここから ---------------------------------------------
-// ランク上位の会員だけが買える、1ヶ月ぶんの掲載枠。月10枠で早い者勝ち。
-// 紹介を積んでランクを上げると、より多くの目に留まる場所を買えるようになる。
+// ランク上位の会員だけが買える掲載枠。開始日と期間（既定は最大30日）を選び、
+// 同じ日に出せるのは AD_CONCURRENT_SLOTS 本まで。早い者勝ちで押さえる。
+// 紹介を積んでランクを上げると、先の日付まで予約でき、期間も延ばせる。
 //
 // 金額はここに置かない（アプリ内に価格を出せないため）。決済は app/api/ads/ が
 // 扱い、ここは枠の押さえ方と読み出しだけを持つ。
 
 export type AdSlot = {
   id: string;
-  month: string;
+  /** 掲載の初日（YYYY-MM-DD）。 */
+  startDate: string;
+  /** 掲載の最終日（YYYY-MM-DD）。この日いっぱいまで出る。 */
+  endDate: string;
   title: string;
   linkUrl: string;
   imageUrl: string;
   status: string;
   memberName: string;
   memberCompany: string;
-  /** 見た人。同じ会員は1日1回までしか数えない。 */
+  /** 見た人の合計。同じ会員は1日1回までしか数えない。 */
   viewCount: number;
   clickCount: number;
 };
+
+/** 1日の掲載と、その日の表示・クリック。アナリティクスの元になる。 */
+export type AdDay = { date: string; views: number; clicks: number };
 
 function adImageKey(id: string) {
   return `ad-images/${id}`;
@@ -1089,18 +1111,15 @@ function adImageUrl(id: string, version: number) {
   return version ? `/api/ad-image/${encodeURIComponent(id)}?v=${version}` : '';
 }
 
-function monthKey(date: Date) {
-  return date.toISOString().slice(0, 7);
+function today() {
+  return new Date().toISOString().slice(0, 10);
 }
 
-/** 掲載月をずらす。-3 なら3ヶ月前、+1 なら翌月。 */
-function addMonths(month: string, step: number) {
-  const [year, index] = month.split('-').map(Number);
-  return monthKey(new Date(Date.UTC(year, index - 1 + step, 1)));
-}
-
-function nextMonthKey(month: string) {
-  return addMonths(month, 1);
+/** 日付をずらす。YYYY-MM-DD のまま扱う。 */
+export function shiftDate(date: string, days: number) {
+  const moved = new Date(`${date}T00:00:00Z`);
+  moved.setUTCDate(moved.getUTCDate() + days);
+  return moved.toISOString().slice(0, 10);
 }
 
 /** 決済されないまま押さえられている枠を解放する。呼ばれるたびに掃除する。 */
@@ -1109,51 +1128,77 @@ async function releaseStaleAdReservations() {
   await env.DB.prepare("DELETE FROM ad_slots WHERE status = 'reserved' AND created_at < ?").bind(limit).run();
 }
 
-/** その月に埋まっている枠数。押さえ中のぶんも数える。 */
-async function countAdSlots(month: string) {
-  const row = await env.DB.prepare("SELECT COUNT(*) AS count FROM ad_slots WHERE month = ? AND status IN ('reserved', 'active')")
-    .bind(month).first<{ count: number }>();
-  return Number(row?.count ?? 0);
+/**
+ * その期間に重なっている枠を、日付だけ読み出す。
+ * 日ごとに数えると問い合わせが増えるので、重なるものを1回で取ってJS側で数える。
+ */
+async function overlappingSlots(from: string, to: string) {
+  const rows = await env.DB.prepare(`SELECT start_date AS startDate, end_date AS endDate FROM ad_slots
+    WHERE status IN ('reserved', 'active') AND start_date <= ? AND end_date >= ?`)
+    .bind(to, from).all<{ startDate: string; endDate: string }>();
+  return rows.results;
+}
+
+/** 日ごとの空き枠。0なら満枠。 */
+function remainingByDay(slots: { startDate: string; endDate: string }[], from: string, days: number) {
+  const used = new Map<string, number>();
+  for (const slot of slots) {
+    for (let date = slot.startDate; date <= slot.endDate; date = shiftDate(date, 1)) {
+      used.set(date, (used.get(date) ?? 0) + 1);
+    }
+  }
+  const calendar: { date: string; remaining: number }[] = [];
+  for (let index = 0; index < days; index += 1) {
+    const date = shiftDate(from, index);
+    calendar.push({ date, remaining: Math.max(0, AD_CONCURRENT_SLOTS - (used.get(date) ?? 0)) });
+  }
+  return calendar;
 }
 
 /**
- * 申し込める掲載月を、今月から順に並べて返す。
- * 先の月まで見えるようにしているのは、催しや繁忙期に合わせて先に押さえたい人がいるため。
+ * 申し込める日をカレンダーで返す。今日から daysAhead 日ぶん。
+ * 先まで見えるようにしているのは、催しや繁忙期に合わせて先に押さえたい人がいるため。
  */
-export async function availableAdMonths(count = 6) {
+export async function adCalendar(daysAhead: number) {
   await ensureDatabase();
   await releaseStaleAdReservations();
-  const months: { month: string; remaining: number }[] = [];
-  let month = monthKey(new Date());
-  for (let step = 0; step < count; step += 1) {
-    months.push({ month, remaining: Math.max(0, AD_SLOTS_PER_MONTH - await countAdSlots(month)) });
-    month = nextMonthKey(month);
-  }
-  return months;
+  const from = today();
+  const to = shiftDate(from, daysAhead - 1);
+  return remainingByDay(await overlappingSlots(from, to), from, daysAhead);
 }
 
 /**
  * 枠を1つ押さえる。決済が終わるまでは reserved で、放置すると自動で解放される。
- * 満枠なら例外。早い者勝ちなので、押さえた順に確定する。
+ * 期間のどこか1日でも満枠なら断る。早い者勝ちなので、押さえた順に確定する。
  */
-export async function reserveAdSlot(memberId: string, month: string) {
+export async function reserveAdSlot(memberId: string, startDate: string, days: number) {
   await ensureDatabase();
   await releaseStaleAdReservations();
-  if (await countAdSlots(month) >= AD_SLOTS_PER_MONTH) {
-    throw new Error('この月の枠はすべて埋まりました。翌月の枠をお申し込みください。');
-  }
+  const endDate = shiftDate(startDate, days - 1);
+
+  const full = remainingByDay(await overlappingSlots(startDate, endDate), startDate, days).find((day) => day.remaining <= 0);
+  if (full) throw new Error(`${formatDay(full.date)}は満枠です。ほかの期間をお選びください。`);
+
   const id = crypto.randomUUID();
-  await env.DB.prepare('INSERT INTO ad_slots (id, member_id, month, status, created_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(id, memberId, month, 'reserved', new Date().toISOString()).run();
+  await env.DB.prepare(`INSERT INTO ad_slots (id, member_id, month, start_date, end_date, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    .bind(id, memberId, startDate.slice(0, 7), startDate, endDate, 'reserved', new Date().toISOString()).run();
+
   // 押さえたあとにもう一度数えて、競り負けていたら取り消す。
-  if (await countAdSlots(month) > AD_SLOTS_PER_MONTH) {
+  const lost = remainingByDay(await overlappingSlots(startDate, endDate), startDate, days).find((day) => day.remaining < 0);
+  if (lost) {
     await env.DB.prepare('DELETE FROM ad_slots WHERE id = ?').bind(id).run();
-    throw new Error('この月の枠はすべて埋まりました。翌月の枠をお申し込みください。');
+    throw new Error(`${formatDay(lost.date)}は満枠になりました。ほかの期間をお選びください。`);
   }
-  return id;
+  return { id, endDate };
 }
 
-/** 決済画面を開けなかったときに、押さえた枠をすぐ返す。60分待たせないため。 */
+function formatDay(date: string) {
+  const [, month, day] = date.split('-');
+  return `${Number(month)}月${Number(day)}日`;
+}
+
+/** 決済画面を開けなかったときに、押さえた枠をすぐ返す。放置で待たせないため。 */
 export async function releaseAdSlot(id: string) {
   await env.DB.prepare("DELETE FROM ad_slots WHERE id = ? AND status = 'reserved'").bind(id).run();
 }
@@ -1168,54 +1213,60 @@ export async function activateAdSlot(id: string) {
   await env.DB.prepare("UPDATE ad_slots SET status = 'active' WHERE id = ? AND status = 'reserved'").bind(id).run();
 }
 
-const adSelect = `SELECT a.id, a.month, a.title, a.link_url AS linkUrl, a.image_version AS imageVersion,
+const adSelect = `SELECT a.id, a.start_date AS startDate, a.end_date AS endDate, a.title,
+    a.link_url AS linkUrl, a.image_version AS imageVersion,
     a.status, a.view_count AS viewCount, a.click_count AS clickCount,
     m.display_name AS memberName, m.company AS memberCompany
   FROM ad_slots a JOIN members m ON m.id = a.member_id`;
 
+type AdRow = Omit<AdSlot, 'imageUrl'> & { imageVersion: number };
+const toAdSlot = ({ imageVersion, ...ad }: AdRow): AdSlot => ({ ...ad, imageUrl: adImageUrl(ad.id, imageVersion) });
+
 /**
- * 掲載中の広告。ホームのバナーに出す。
+ * いま出ている広告。ホームのバナーに出す。
  * 運営が止めた枠（status='stopped'）はここから外れる。docs/ad-slots-ja.md 参照。
  */
 export async function listActiveAds(): Promise<AdSlot[]> {
   await ensureDatabase();
+  const now = today();
   const rows = await env.DB.prepare(`${adSelect}
-    WHERE a.month = ? AND a.status = 'active' AND a.image_version > 0
-    ORDER BY a.created_at`).bind(monthKey(new Date())).all<Omit<AdSlot, 'imageUrl'> & { imageVersion: number }>();
-  return rows.results.map(({ imageVersion, ...ad }) => ({ ...ad, imageUrl: adImageUrl(ad.id, imageVersion) }));
+    WHERE a.start_date <= ? AND a.end_date >= ? AND a.status = 'active' AND a.image_version > 0
+    ORDER BY a.created_at`).bind(now, now).all<AdRow>();
+  return rows.results.map(toAdSlot);
 }
 
 /**
  * その会員が持っている枠。掲載内容を入れる画面で使う。
- * 終わった月も3ヶ月ぶん返す。「いくら払って、何人に見られたか」を後から見返せるように。
+ * 終わったものも90日ぶん返す。「いくら払って、何人に届いたか」を後から見返せるように。
  */
 export async function listMemberAds(memberId: string): Promise<AdSlot[]> {
   await ensureDatabase();
   const rows = await env.DB.prepare(`${adSelect}
-    WHERE a.member_id = ? AND a.month >= ? AND a.status IN ('active', 'stopped')
-    ORDER BY a.month DESC`).bind(memberId, addMonths(monthKey(new Date()), -3)).all<Omit<AdSlot, 'imageUrl'> & { imageVersion: number }>();
-  return rows.results.map(({ imageVersion, ...ad }) => ({ ...ad, imageUrl: adImageUrl(ad.id, imageVersion) }));
+    WHERE a.member_id = ? AND a.end_date >= ? AND a.status IN ('active', 'stopped')
+    ORDER BY a.start_date DESC`).bind(memberId, shiftDate(today(), -90)).all<AdRow>();
+  return rows.results.map(toAdSlot);
 }
 
 /**
- * 見られた回数を数える。1回の書き込みでまとめて足す。
- * 間引きは端末側でやる（同じ会員・同じ広告は1日1回まで）。掲示板を開くたびに
- * D1へ書くと書き込み回数が読めなくなるため。
+ * 日ごとの成果。アナリティクスの本体。
+ * 掲載の初日から今日（または最終日）までを、抜けている日も0で埋めて返す。
  */
-export async function recordAdViews(ids: string[]) {
-  if (!ids.length) return;
+export async function adDailyStats(memberId: string, adId: string): Promise<{ slot: AdSlot; days: AdDay[] } | null> {
   await ensureDatabase();
-  const month = monthKey(new Date());
-  await env.DB.batch(ids.map((id) => env.DB
-    .prepare("UPDATE ad_slots SET view_count = view_count + 1 WHERE id = ? AND month = ? AND status = 'active'")
-    .bind(id, month)));
-}
+  const row = await env.DB.prepare(`${adSelect} WHERE a.id = ? AND a.member_id = ?`).bind(adId, memberId).first<AdRow>();
+  if (!row) return null;
+  const slot = toAdSlot(row);
 
-/** 押された回数を数える。クリックはもともと少ないので、その場で1件書く。 */
-export async function recordAdClick(id: string) {
-  await ensureDatabase();
-  await env.DB.prepare("UPDATE ad_slots SET click_count = click_count + 1 WHERE id = ? AND month = ? AND status = 'active'")
-    .bind(id, monthKey(new Date())).run();
+  const stored = await env.DB.prepare('SELECT date, views, clicks FROM ad_daily WHERE ad_id = ? ORDER BY date')
+    .bind(adId).all<AdDay>();
+  const byDate = new Map(stored.results.map((day) => [day.date, day]));
+
+  const last = slot.endDate < today() ? slot.endDate : today();
+  const days: AdDay[] = [];
+  for (let date = slot.startDate; date <= last; date = shiftDate(date, 1)) {
+    days.push(byDate.get(date) ?? { date, views: 0, clicks: 0 });
+  }
+  return { slot, days };
 }
 
 /** 掲載内容を入れる。画像は端末で縮小済みのものを受け取る。 */
@@ -1247,13 +1298,44 @@ export async function getAdImage(id: string) {
   return env.AVATARS.get(adImageKey(id));
 }
 
+/**
+ * 見られた回数を数える。合計と、その日ぶんの両方に足す。
+ * 間引きは端末側でやる（同じ会員・同じ広告は1日1回まで）。掲示板を開くたびに
+ * D1へ書くと書き込み回数が読めなくなるため。
+ */
+export async function recordAdViews(ids: string[]) {
+  if (!ids.length) return;
+  await ensureDatabase();
+  await countAdEvents(ids, 'views');
+}
+
+/** 押された回数を数える。クリックはもともと少ないので、その場で書く。 */
+export async function recordAdClick(id: string) {
+  await ensureDatabase();
+  await countAdEvents([id], 'clicks');
+}
+
+/** 合計（ad_slots）と日ごと（ad_daily）を、1往復でまとめて足す。 */
+async function countAdEvents(ids: string[], kind: 'views' | 'clicks') {
+  const now = today();
+  const totalColumn = kind === 'views' ? 'view_count' : 'click_count';
+  const statements = ids.flatMap((id) => [
+    env.DB.prepare(`UPDATE ad_slots SET ${totalColumn} = ${totalColumn} + 1
+      WHERE id = ? AND status = 'active' AND start_date <= ? AND end_date >= ?`).bind(id, now, now),
+    env.DB.prepare(`INSERT INTO ad_daily (ad_id, date, views, clicks) VALUES (?, ?, ?, ?)
+      ON CONFLICT(ad_id, date) DO UPDATE SET ${kind} = ${kind} + 1`)
+      .bind(id, now, kind === 'views' ? 1 : 0, kind === 'clicks' ? 1 : 0),
+  ]);
+  await env.DB.batch(statements);
+}
+
 /** ランクだけを引く。出稿枠の判定で、掲示板ぜんぶを読まないため。 */
 export async function getMemberRank(memberId: string) {
   await ensureDatabase();
   const row = await env.DB.prepare('SELECT intro_count AS introCount FROM members WHERE id = ?')
     .bind(memberId).first<{ introCount: number }>();
-  const { rank, level } = calculateRank({ introCount: Number(row?.introCount ?? 0) } as Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'>);
-  return { rank, level };
+  const level = levelFor(Number(row?.introCount ?? 0));
+  return { rank: rankName(level), level };
 }
 
 /** 出稿できるランクかどうか。紹介を積んだ人だけが買える。 */
