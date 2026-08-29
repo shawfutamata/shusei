@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
 import { availableAdMonths, canBuyAdSlot, getMemberRank, listMemberAds } from '@/db/data';
-import { AD_MIN_RANK_LEVEL, AD_MONTHS_AHEAD, AD_TITLE_MAX } from '@/app/ad-options';
+import { AD_MIN_RANK_LEVEL, AD_TITLE_MAX } from '@/app/ad-options';
+import { adMonthsAhead } from '@/app/rank-perks';
 import { adSlotConfigured } from '@/app/stripe';
 
 // **Web専用**。出稿枠の空きと、自分が持っている枠を返す。
@@ -13,7 +14,8 @@ export async function GET() {
   const { rank, level } = await getMemberRank(gate.user.userId);
   const eligible = canBuyAdSlot(level);
   // 買えない会員に空き枠を数えさせない。D1の読み出しを増やさないため。
-  const months = eligible ? await availableAdMonths(AD_MONTHS_AHEAD) : [];
+  // DIAMONDは先の月まで押さえられる（ランクの特典）。
+  const months = eligible ? await availableAdMonths(adMonthsAhead(level)) : [];
 
   return NextResponse.json({
     ready: adSlotConfigured(),

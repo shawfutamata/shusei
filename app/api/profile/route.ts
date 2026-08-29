@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
-import { updateMemberProfile } from '@/db/data';
+import { notifyIndustryCap, updateMemberProfile } from '@/db/data';
 import { prefectures, type Prefecture } from '@/app/profile-options';
 import { isIndustry } from '@/app/industry-options';
 import { cleanFacebookUrl } from '@/app/social-links';
@@ -19,7 +19,8 @@ export async function PATCH(request: Request) {
   const badge = clean(body.get('badge'), 40);
   const businessArea = clean(body.get('businessArea'), 60);
   const primaryIndustry = clean(body.get('primaryIndustry'), 40);
-  const notifyIndustries = cleanIndustries(body.get('notifyIndustries'), 6);
+  // 選べる数はランクで増える（app/rank-perks.ts）。画面の見た目ではなく、ここで止める。
+  const notifyIndustries = cleanIndustries(body.get('notifyIndustries'), await notifyIndustryCap(user.userId));
   const annualRevenueBand = clean(body.get('annualRevenueBand'), 30);
   // 入力そのままではなく、Facebookのプロフィールとして通る形だけを保存する。
   const rawFacebook = clean(body.get('facebookUrl'), 200);

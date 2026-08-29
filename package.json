@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "sync:venues": "node --experimental-strip-types scripts/sync-mobile-venues.mjs",
-    "check:venues": "node --experimental-strip-types scripts/sync-mobile-venues.mjs --check"
+    "check:venues": "node --experimental-strip-types scripts/sync-mobile-venues.mjs --check",
+    "sync:perks": "node --experimental-strip-types scripts/sync-mobile-perks.mjs",
+    "check:perks": "node --experimental-strip-types scripts/sync-mobile-perks.mjs --check"
   },
   "dependencies": {
     "@block65/webcrypto-web-push": "^1.0.2",

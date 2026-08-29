@@ -8,9 +8,6 @@ export const AD_SLOTS_PER_MONTH = 10;
 /** 出稿できるランクの下限。1=PEARL 2=EMERALD 3=SAPPHIRE 4=RUBY 5=DIAMOND */
 export const AD_MIN_RANK_LEVEL = 4;
 
-/** 申し込みで選べる先の月数。催しに合わせて先に押さえたい人のため。 */
-export const AD_MONTHS_AHEAD = 6;
-
 /** 見出しの上限。バナーに載るので短く。 */
 export const AD_TITLE_MAX = 30;
 

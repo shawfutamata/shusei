@@ -13,6 +13,8 @@ import { UNLIMITED, plans, type BillingCycle, type Plan } from './entitlements';
 import { feedbackCategories } from './feedback-options';
 import { adSlotPrice, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
+import PerkIcon from './PerkIcon';
+import { EXTEND_DAYS, PIN_DAYS, canExtendRequest, canPinRequest, notifyIndustryLimit, rankNames, rankPerks, rankThresholds } from './rank-perks';
 import { serviceName } from './brand';
 import BrandMark from './BrandMark';
 import { detailImage, listThumbnail } from './resize-image';
@@ -70,7 +72,6 @@ function trackAd(payload: { views?: string[]; clicks?: string[] }) {
 
 const historyStorageKey = 'give-hub-request-history-v1';
 const favoriteStorageKey = 'give-hub-request-favorites-v1';
-const rankThresholds = [0, 3, 6, 10, 20];
 
 /** /api/ads が返すもの。金額は含まない（画面が plan-catalog から出す）。 */
 type AdOffer = {
@@ -87,7 +88,6 @@ function adState(ad: AdSlot) {
   return { label: ad.imageUrl ? '掲載中' : '内容が未入力です', tone: ad.imageUrl ? 'live' : 'todo', editable: true };
 }
 
-const rankNames = ['PEARL', 'EMERALD', 'SAPPHIRE', 'RUBY', 'DIAMOND'];
 
 function monthLabel(month: string) {
   const [year, index] = month.split('-');
@@ -141,7 +141,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [zoom, setZoom] = useState(1);
   const [croppedArea, setCroppedArea] = useState<Area | null>(null);
   const [cropping, setCropping] = useState(false);
-  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'responses' | 'ads' | null>(null);
+  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'responses' | 'ads' | 'perks' | null>(null);
   const [selected, setSelected] = useState<BoardRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
@@ -160,6 +160,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [adPreview, setAdPreview] = useState('');
   const [adUpload, setAdUpload] = useState<File | null>(null);
   const [adMonth, setAdMonth] = useState('');
+  const [openPerk, setOpenPerk] = useState('');
 
   function showToast(message: string) { setToast(message); window.setTimeout(() => setToast(''), 3800); }
 
@@ -274,6 +275,45 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     }, 60);
     return () => window.clearTimeout(timer);
   }, [adReturn]);
+
+  // --- ランクの特典を使うところ -------------------------------------------
+  // 押せるかどうかの判断はここに集める。実際に止めるのは必ずAPI側（db/data.ts）。
+  const pinUsedThisMonth = requests.some((item) => item.mine && item.pinnedUntil.slice(0, 7) >= new Date().toISOString().slice(0, 7));
+  const isPinned = (need: BoardRequest) => need.pinnedUntil > new Date().toISOString();
+  const canExtend = (need: BoardRequest) => canExtendRequest(stats.level) && !need.extendedAt;
+  const canPin = (need: BoardRequest) => canPinRequest(stats.level) && !pinUsedThisMonth && !isPinned(need);
+
+  function ownerToolsNote(need: BoardRequest) {
+    if (!canExtendRequest(stats.level)) return `募集の延長は EMERALD、注目ピンは SAPPHIRE から使えます。あと${Math.max(0, rankThresholds[1] - stats.introCount)}件の紹介で EMERALD です。`;
+    if (!canPinRequest(stats.level)) return `注目ピンは SAPPHIRE から使えます。あと${Math.max(0, rankThresholds[2] - stats.introCount)}件の紹介で SAPPHIRE です。`;
+    if (isPinned(need)) return 'いま一覧のいちばん上に出ています。';
+    if (pinUsedThisMonth) return '注目ピンは今月ぶんを使いました。来月またお使いいただけます。';
+    return `延長は1件につき1回まで、注目ピンはひと月に1件までです。`;
+  }
+
+  async function extendOwnRequest(need: BoardRequest) {
+    if (busy) return;
+    setBusy(true);
+    const response = await fetch(`/api/requests/${encodeURIComponent(need.id)}/extend`, { method: 'POST' });
+    const result = await response.json() as { deadline?: string; error?: string };
+    setBusy(false);
+    if (!response.ok) return showToast(result.error ?? '延長できませんでした。');
+    showToast(`募集期限を ${result.deadline} まで延ばしました。`);
+    await refreshBoard();
+    setSelected((current) => current && current.id === need.id ? { ...current, deadline: result.deadline ?? current.deadline, extendedAt: new Date().toISOString(), status: 'open' } : current);
+  }
+
+  async function pinOwnRequest(need: BoardRequest) {
+    if (busy) return;
+    setBusy(true);
+    const response = await fetch(`/api/requests/${encodeURIComponent(need.id)}/pin`, { method: 'POST' });
+    const result = await response.json() as { pinnedUntil?: string; error?: string };
+    setBusy(false);
+    if (!response.ok) return showToast(result.error ?? '固定できませんでした。');
+    showToast(`${PIN_DAYS}日間、一覧のいちばん上に出ます。`);
+    await refreshBoard();
+    setSelected((current) => current && current.id === need.id ? { ...current, pinnedUntil: result.pinnedUntil ?? current.pinnedUntil } : current);
+  }
 
   async function refreshBoard() {
     const response = await fetch('/api/board');
@@ -656,7 +696,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </div>
       </section> : <section className="profile-page" aria-labelledby="profile-page-title">
         <header className="profile-page-heading"><p>MY PAGE</p><h1 id="profile-page-title">マイページ</h1><span>会員情報・おすすめ・ランクを管理できます。</span></header>
-        <section className={`rank-card rank-${stats.rank.toLowerCase()} rank-card-slim`} aria-label={`${stats.rank}会員ランクカード`}>
+        <button className={`rank-card rank-${stats.rank.toLowerCase()} rank-card-slim`} onClick={() => setModal('perks')} aria-label={`${stats.rank}会員ランクカード。特典を見る`}>
           <p className="rank-slim-top"><CrownMark /><b>{serviceName}</b></p>
           <RankCrest rank={stats.rank} />
           <h2 className="rank-slim-title">{stats.rank}</h2>
@@ -666,11 +706,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             <span><small>バッヂ</small><b>{stats.badge || '未設定'}</b></span>
             <span className="rank-slim-venue"><small>会場</small><b>{stats.venue || '未設定'}</b></span>
           </div>
-        </section>
-        <div className="rank-next">
+          <span className="rank-slim-more">特典を見る ›</span>
+        </button>
+        <button className="rank-next" onClick={() => setModal('perks')}>
           <div className="rank-next-copy"><b>{stats.level >= rankThresholds.length ? '最高ランクに到達' : `あと${introductionsToNextRank}件でランクアップ`}</b><span>紹介 {stats.introCount}件・{stats.points}pt</span></div>
           <span className="rank-next-track"><i style={{ width: `${rankProgress}%` }} /></span>
-        </div>
+        </button>
         <details className={`plan-card is-${stats.plan}`}>
           <summary>
             <span className="plan-now"><small>プラン</small><b>{planCatalog[stats.plan].name}</b></span>
@@ -763,8 +804,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           </div>
           <div className="profile-row"><label>肩書き <small>任意</small><input value={profilePosition} onChange={(event) => setProfilePosition(event.target.value)} maxLength={60} placeholder="世話人" /></label><label>バッヂ <small>任意</small><select value={profileBadge} onChange={(event) => setProfileBadge(event.target.value)}><option value="">選択しない</option><option value="緑">緑</option><option value="赤">赤</option><option value="ゴールド">ゴールド</option><option value="ダイヤモンド">ダイヤモンド</option></select></label></div>
           <label>活動エリア <small>任意・検索に使われます</small><select value={profileArea} onChange={(event) => setProfileArea(event.target.value)}><option value="">選択しない</option>{prefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
-          <div className="profile-industry-select"><p>自分の業種 <small>おすすめの設定に使われます</small></p><label>大分類<select value={profileIndustryGroup} onChange={(event) => { setProfileIndustryGroup(event.target.value); setProfileIndustry(''); }}><option value="">選択してください</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label><label>詳細業種<select value={profileIndustry} onChange={(event) => { const value = event.target.value; setProfileIndustry(value); if (value && !profileNotifyIndustries.includes(value)) setProfileNotifyIndustries((current) => [...current, value].slice(0, 6)); }} disabled={!profileIndustryGroup}><option value="">詳細業種を選択</option>{profileIndustry === profileIndustryGroup && <option value={profileIndustryGroup}>大分類のみ（旧設定）</option>}{industryGroups.find((group) => group.name === profileIndustryGroup)?.children.map((industry) => <option value={industry} key={industry}>{industry}</option>)}</select></label></div>
-          <IndustryPicker legend="おすすめに出したい業種" note="6個まで" description="選んだ詳細業種の探しごとが、ホームの「あなたにおすすめ」に出ます。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, 6)} className="profile-tag-field" />
+          <div className="profile-industry-select"><p>自分の業種 <small>おすすめの設定に使われます</small></p><label>大分類<select value={profileIndustryGroup} onChange={(event) => { setProfileIndustryGroup(event.target.value); setProfileIndustry(''); }}><option value="">選択してください</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label><label>詳細業種<select value={profileIndustry} onChange={(event) => { const value = event.target.value; setProfileIndustry(value); if (value && !profileNotifyIndustries.includes(value)) setProfileNotifyIndustries((current) => [...current, value].slice(0, notifyIndustryLimit(stats.level))); }} disabled={!profileIndustryGroup}><option value="">詳細業種を選択</option>{profileIndustry === profileIndustryGroup && <option value={profileIndustryGroup}>大分類のみ（旧設定）</option>}{industryGroups.find((group) => group.name === profileIndustryGroup)?.children.map((industry) => <option value={industry} key={industry}>{industry}</option>)}</select></label></div>
+          <IndustryPicker legend="おすすめに出したい業種" note={`${notifyIndustryLimit(stats.level)}個まで`} description="選んだ詳細業種の探しごとが、ホームの「あなたにおすすめ」に出ます。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, notifyIndustryLimit(stats.level))} className="profile-tag-field" />
           <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
           <label>Facebook <small>任意・紹介のあとに直接やり取りできます</small><input value={profileFacebook} onChange={(event) => setProfileFacebook(event.target.value)} maxLength={200} placeholder="https://www.facebook.com/your.name" inputMode="url" /></label>
           <button className="profile-save-button" onClick={saveProfile} disabled={busy || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
@@ -784,6 +825,49 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       {modal === 'request' && canPostRequest && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの<select name="category" required defaultValue=""><option value="" disabled>選択してください</option><option value="project">案件の発注先</option><option value="collaboration">協業パートナー</option><option value="consultation">相談相手・情報</option></select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容<textarea name="description" required maxLength={600} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア<input name="area" required maxLength={60} placeholder="例：東京都・オンライン" /></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><label className="request-photo"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseRequestPhoto} />{requestPhotoPreview ? <img src={requestPhotoPreview} alt="添付する写真のプレビュー" /> : <span className="request-photo-empty">＋</span>}<span className="request-photo-copy"><b>写真を付ける <em>任意</em></b><small>{requestPhoto ? '一覧で目印になります。押すと選び直せます' : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></span>{requestPhoto && <i onClick={(event) => { event.preventDefault(); clearRequestPhoto(); }}>削除</i>}</label><button className="submit-button" disabled={busy || !requestIndustries.length}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
 
       {modal === 'intro' && selected && <Modal title="知っている人を紹介" lead={`「${selected.title}」への紹介です。`} onClose={() => setModal(null)}><form className="form" onSubmit={submitIntroduction}><label>お名前<input name="personName" required maxLength={60} /></label><label>会社・屋号<input name="personCompany" required maxLength={80} /></label><label>あなたとの関係<input name="relationship" required maxLength={120} placeholder="例：取引先、友人" /></label><label>紹介したい理由<textarea name="fitReason" required maxLength={400} rows={3} /></label><label className="consent"><input type="checkbox" name="consentConfirmed" required /> ご本人に紹介の了承を得ています</label><button className="submit-button" disabled={busy}>{busy ? '届けています…' : '紹介を届ける'}</button></form></Modal>}
+
+      {modal === 'perks' && <Modal title="ランクの特典" lead="紹介した数でランクが上がり、できることが増えます。一度上がったランクは下がりません。" onClose={() => { setModal(null); setOpenPerk(''); }}>
+        <div className="perk-panel">
+          <ol className="perk-ladder" aria-label="ランクの段階">{rankNames.map((name, index) => {
+            const level = index + 1;
+            return <li key={name} className={`${level === stats.level ? 'now' : ''}${level < stats.level ? ' done' : ''}`}>
+              <span className={`perk-ladder-dot rank-${name.toLowerCase()}`} aria-hidden="true" />
+              <b>{name}</b>
+              <small>{rankThresholds[index] === 0 ? 'はじめから' : `紹介${rankThresholds[index]}件`}</small>
+            </li>;
+          })}</ol>
+
+          <p className="perk-now">
+            <b>いまは {stats.rank}</b>
+            <span>{stats.level >= rankNames.length ? '最高ランクです。ありがとうございます。' : `あと${introductionsToNextRank}件の紹介で ${rankNames[stats.level]} になります。`}</span>
+          </p>
+
+          <ul className="perk-grid">{rankPerks.map((perk) => {
+            const unlocked = stats.level >= perk.minLevel;
+            return <li key={perk.key}>
+              <button className={`perk-tile${unlocked ? '' : ' locked'}${openPerk === perk.key ? ' open' : ''}`} onClick={() => setOpenPerk(openPerk === perk.key ? '' : perk.key)}>
+                <span className="perk-badge"><PerkIcon perk={perk.key} /></span>
+                <i className={perk.soon ? 'soon' : ''}>{perk.soon ? '近日公開' : unlocked ? '' : rankNames[perk.minLevel - 1]}</i>
+                <small>{perk.label}</small>
+              </button>
+            </li>;
+          })}</ul>
+
+          {openPerk && (() => {
+            const perk = rankPerks.find((entry) => entry.key === openPerk);
+            if (!perk) return null;
+            const unlocked = stats.level >= perk.minLevel;
+            return <div className={`perk-detail${unlocked ? '' : ' locked'}`}>
+              <p className="perk-detail-head"><b>{perk.label}</b><span>{perk.soon ? '近日公開' : unlocked ? '使えます' : `${rankNames[perk.minLevel - 1]}で解放`}</span></p>
+              <p className="perk-detail-body">{perk.detail}</p>
+              {perk.soon && <p className="perk-detail-note">この特典はまだ作っている途中です。できあがったら、いまのランクのままお使いいただけます。</p>}
+              {!unlocked && !perk.soon && <p className="perk-detail-note">あと{Math.max(0, rankThresholds[perk.minLevel - 1] - stats.introCount)}件の紹介で使えるようになります。</p>}
+            </div>;
+          })()}
+
+          <p className="perk-terms">特典の内容は、予告なく変更または終了することがあります。ランクは紹介した数の累計で決まり、下がることはありません。</p>
+        </div>
+      </Modal>}
 
       {modal === 'ads' && adInfo && <Modal title="トップバナーに出す" lead={`ホームのいちばん先に目に入る場所に、1ヶ月あいだ告知を出せます。お支払いは1回きりで、自動更新はありません。掲載内容は掲載中でも何度でも変えられます。`} onClose={() => { setModal(null); setEditingAd(''); }}>
         <div className="ad-panel">
@@ -858,7 +942,16 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <div className="industry-tags">{selected.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
         <dl><div><dt>予算</dt><dd>{selected.budgetLabel}</dd></div><div><dt>希望エリア</dt><dd>{selected.area}</dd></div><div><dt>募集期限</dt><dd>{selected.deadline}</dd></div></dl>
         <div className="detail-author"><Avatar src={selected.authorAvatarUrl} name={selected.authorName} className="member-avatar" /><p><b>{selected.authorName}</b><span>{selected.authorPositionTitle && `${selected.authorPositionTitle}｜`}{selected.authorCompany || '会社名未設定'}</span><small>{selected.authorVenue}{selected.authorBusinessArea && `・${selected.authorBusinessArea}`}</small></p><FacebookLink url={selected.authorFacebookUrl} name={selected.authorName} /></div>
-        <button className="submit-button" onClick={() => openIntroduction(selected)}>この人を紹介できる</button>
+        {selected.mine
+          ? <div className="owner-tools">
+              <p className="owner-tools-head"><b>あなたの探しごと</b><span>{stats.rank}の特典が使えます</span></p>
+              <div className="owner-tools-row">
+                <button disabled={busy || !canExtend(selected)} onClick={() => extendOwnRequest(selected)}>{selected.extendedAt ? '延長ずみ' : `期限を${EXTEND_DAYS}日のばす`}</button>
+                <button disabled={busy || !canPin(selected)} onClick={() => pinOwnRequest(selected)}>{isPinned(selected) ? `${PIN_DAYS}日間 いちばん上` : '注目ピンで上に出す'}</button>
+              </div>
+              <p className="owner-tools-note">{ownerToolsNote(selected)}</p>
+            </div>
+          : <button className="submit-button" onClick={() => openIntroduction(selected)}>この人を紹介できる</button>}
         <RequestComments requestId={selected.id} onCountChange={(count) => setRequests((current) => current.map((item) => item.id === selected.id ? { ...item, commentCount: count } : item))} />
       </article></Modal>}
 

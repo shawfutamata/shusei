@@ -5,6 +5,7 @@ import { cleanFacebookUrl } from '@/app/social-links';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
 import { AD_MIN_RANK_LEVEL, AD_RESERVATION_MINUTES, AD_SLOTS_PER_MONTH, AD_TITLE_MAX } from '@/app/ad-options';
 import { UNLIMITED, bonusPlan, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
+import { EXTEND_DAYS, PIN_DAYS, canExtendRequest, canPinRequest, levelFor, notifyIndustryLimit, rankName, rankThresholds } from '@/app/rank-perks';
 import { matchesIndustry } from '@/app/industry-options';
 
 export type BoardRequest = {
@@ -22,6 +23,12 @@ export type BoardRequest = {
   deadline: string;
   status: string;
   createdAt: string;
+  /** 注目ピンでいちばん上に出している期限。空なら普通の並び。 */
+  pinnedUntil: string;
+  /** 募集を延長した日時。1件につき1回まで。空ならまだ使っていない。 */
+  extendedAt: string;
+  /** 自分の投稿かどうか。延長やピンのボタンを出すかの判断に使う。 */
+  mine: boolean;
   authorName: string;
   authorCompany: string;
   authorVenue: string;
@@ -315,6 +322,14 @@ export async function ensureDatabase() {
   }
   if (!requestColumnNames.has('image_version')) {
     await env.DB.prepare('ALTER TABLE requests ADD COLUMN image_version INTEGER NOT NULL DEFAULT 0').run();
+  }
+  for (const [columnName, sql] of [
+    // 注目ピン。この日時までは一覧のいちばん上に出す。
+    ['pinned_until', "ALTER TABLE requests ADD COLUMN pinned_until TEXT NOT NULL DEFAULT ''"],
+    // 募集の延長は1件につき1回まで。使ったかどうかを持つ。
+    ['extended_at', "ALTER TABLE requests ADD COLUMN extended_at TEXT NOT NULL DEFAULT ''"],
+  ] as const) {
+    if (!requestColumnNames.has(columnName)) await env.DB.prepare(sql).run();
   }
   const adColumns = await env.DB.prepare('PRAGMA table_info(ad_slots)').all<{ name: string }>();
   const adColumnNames = new Set(adColumns.results.map((column) => column.name));
@@ -650,6 +665,7 @@ export async function getBoardData(user: ChatGPTUser) {
   const requestsResult = await env.DB.prepare(`SELECT r.id, r.category, r.title, r.description,
     r.budget_label AS budgetLabel, r.area, r.industry_tags AS industryTagsJson,
     r.deadline, r.status, r.image_version AS imageVersion, r.created_at AS createdAt,
+    r.pinned_until AS pinnedUntil, r.extended_at AS extendedAt,
     m.display_name AS authorName, m.company AS authorCompany, m.venue AS authorVenue,
     m.position_title AS authorPositionTitle, m.badge AS authorBadge,
     m.business_area AS authorBusinessArea,
@@ -660,7 +676,9 @@ export async function getBoardData(user: ChatGPTUser) {
     (SELECT COUNT(*) FROM request_comments c WHERE c.request_id = r.id) AS commentCount
     FROM requests r
     JOIN members m ON m.id = r.author_id
-    ORDER BY r.created_at DESC`).all<Omit<BoardRequest, 'industryTags' | 'thumbUrl' | 'imageUrl'> & { industryTagsJson: string; imageVersion: number; authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
+    ORDER BY CASE WHEN r.pinned_until > ? THEN 0 ELSE 1 END, r.created_at DESC`)
+    .bind(new Date().toISOString())
+    .all<Omit<BoardRequest, 'industryTags' | 'thumbUrl' | 'imageUrl' | 'mine'> & { industryTagsJson: string; imageVersion: number; authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
 
   const member = await env.DB.prepare(`SELECT display_name AS displayName, venue, company,
     position_title AS positionTitle, badge, business_area AS businessArea,
@@ -682,6 +700,7 @@ export async function getBoardData(user: ChatGPTUser) {
   });
   const requests = requestsResult.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, industryTagsJson, imageVersion, ...request }) => ({
     ...request,
+    mine: authorId === user.userId,
     industryTags: parseStringArray(industryTagsJson),
     thumbUrl: requestImageUrl(request.id, imageVersion, 'thumb'),
     imageUrl: requestImageUrl(request.id, imageVersion, 'full'),
@@ -972,12 +991,74 @@ function parseStringArray(value: string) {
 }
 
 function calculateRank(member: Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'>): MemberStats {
-  const thresholds = [0, 3, 6, 10, 20];
-  const names = ['PEARL', 'EMERALD', 'SAPPHIRE', 'RUBY', 'DIAMOND'];
-  let level = 1;
-  thresholds.forEach((threshold, index) => { if (member.introCount >= threshold) level = index + 1; });
-  return { ...member, rank: names[level - 1], level, nextRankAt: thresholds[level] ?? member.introCount };
+  const level = levelFor(member.introCount);
+  return { ...member, rank: rankName(level), level, nextRankAt: rankThresholds[level] ?? member.introCount };
 }
+
+// --- ランクの特典 ここから ----------------------------------------------------
+// 何が使えるかは app/rank-perks.ts が決める。ここは書き込みと、その前の確認だけ。
+// **画面は隠すだけ。実際に止めるのはここ。**
+
+/** 募集の期限を延ばす。1件につき1回まで。EMERALD以上の特典。 */
+export async function extendRequest(memberId: string, requestId: string) {
+  await ensureDatabase();
+  const { level } = await getMemberRank(memberId);
+  if (!canExtendRequest(level)) throw new Error('募集の延長は EMERALD 以上の特典です。');
+
+  const row = await env.DB.prepare('SELECT deadline, extended_at AS extendedAt FROM requests WHERE id = ? AND author_id = ?')
+    .bind(requestId, memberId).first<{ deadline: string; extendedAt: string }>();
+  if (!row) throw new Error('この探しごとは延長できません。');
+  if (row.extendedAt) throw new Error('この探しごとは、すでに1回延長しています。');
+
+  // 期限切れのものは今日から、まだ先のものはその期限から延ばす。
+  const today = new Date().toISOString().slice(0, 10);
+  const from = new Date(`${row.deadline < today ? today : row.deadline}T00:00:00Z`);
+  from.setUTCDate(from.getUTCDate() + EXTEND_DAYS);
+  const deadline = from.toISOString().slice(0, 10);
+
+  await env.DB.prepare("UPDATE requests SET deadline = ?, status = 'open', extended_at = ? WHERE id = ?")
+    .bind(deadline, new Date().toISOString(), requestId).run();
+  return deadline;
+}
+
+/** 今月ピンを使ったかどうか。ひと月に1回までにするため。 */
+async function pinnedThisMonth(memberId: string) {
+  const month = new Date().toISOString().slice(0, 7);
+  const row = await env.DB.prepare(`SELECT COUNT(*) AS count FROM requests
+    WHERE author_id = ? AND pinned_until <> '' AND substr(pinned_until, 1, 7) >= ?`)
+    .bind(memberId, month).first<{ count: number }>();
+  return Number(row?.count ?? 0) > 0;
+}
+
+/** 自分の探しごとを1件、一覧の先頭に固定する。SAPPHIRE以上の特典。 */
+export async function pinRequest(memberId: string, requestId: string) {
+  await ensureDatabase();
+  const { level } = await getMemberRank(memberId);
+  if (!canPinRequest(level)) throw new Error('注目ピンは SAPPHIRE 以上の特典です。');
+
+  const owned = await env.DB.prepare('SELECT id FROM requests WHERE id = ? AND author_id = ?')
+    .bind(requestId, memberId).first<{ id: string }>();
+  if (!owned) throw new Error('自分が投稿した探しごとだけ固定できます。');
+  if (await pinnedThisMonth(memberId)) throw new Error('注目ピンは、ひと月に1件までです。来月またお使いいただけます。');
+
+  const until = new Date(Date.now() + PIN_DAYS * 86400000).toISOString();
+  await env.DB.prepare('UPDATE requests SET pinned_until = ? WHERE id = ?').bind(until, requestId).run();
+  return until;
+}
+
+/** 今月まだピンを使えるか。画面の出し分けに使う。 */
+export async function pinAvailable(memberId: string, level: number) {
+  if (!canPinRequest(level)) return false;
+  await ensureDatabase();
+  return !(await pinnedThisMonth(memberId));
+}
+
+/** おすすめに出したい業種を、いくつまで選べるか。ランクで増える。 */
+export async function notifyIndustryCap(memberId: string) {
+  const { level } = await getMemberRank(memberId);
+  return notifyIndustryLimit(level);
+}
+// --- ランクの特典 ここまで ----------------------------------------------------
 
 // --- トップバナーの出稿枠 ここから ---------------------------------------------
 // ランク上位の会員だけが買える、1ヶ月ぶんの掲載枠。月10枠で早い者勝ち。

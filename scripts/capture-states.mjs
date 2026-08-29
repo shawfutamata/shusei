@@ -74,7 +74,7 @@ await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
 await page.waitForSelector(SHELL);
 
 const nav = (index) => page.locator('.bottom-nav > button').nth(index);
-const closeModal = async () => { await page.locator('.modal-close, .cardbook-header > button').first().click(); await page.waitForTimeout(350); };
+const closeModal = async () => { await page.locator('.modal-close').first().click(); await page.waitForTimeout(350); };
 
 await nav(0).click();
 await save('home', page);
@@ -116,8 +116,11 @@ for (let index = 0; index < cardCount; index += 1) {
   await page.locator('.comments').waitFor({ timeout: 8000 }).catch(() => undefined);
   await page.waitForTimeout(400);
   await save(`detail:${index}`, page);
-  await page.locator('.need-detail > .submit-button').click();
-  await save(`intro:${index}`, page);
+  // 自分の投稿には紹介フォームではなく、ランクの特典を使うところが出る。
+  if (await page.locator('.need-detail > .submit-button').count()) {
+    await page.locator('.need-detail > .submit-button').click();
+    await save(`intro:${index}`, page);
+  }
   await closeModal();
   await page.locator('.filters button').nth(0).click();
   await page.waitForTimeout(200);
@@ -183,14 +186,23 @@ await save('mypage:plan', page);
 await page.locator('.plan-card > summary').click();
 await page.waitForTimeout(250);
 
-// 上位ランクだけに出る、トップバナーの出稿枠
+// 上位ランクだけに出る、ランクの特典とトップバナーの出稿枠
 const introCount = getIntroCount();
 setIntroCount(12);
 await page.reload({ waitUntil: 'networkidle' });
 await nav(4).click();
-await page.locator('.ad-card').waitFor({ timeout: 15000 }).catch(() => console.warn('\n出稿カードが出ませんでした'));
+await page.locator('.ad-entry').waitFor({ timeout: 15000 }).catch(() => console.warn('\n出稿の入口が出ませんでした'));
+
+// ランクの特典。上位ランクのときに撮ると、解放済みと未解放が両方見える。
+await page.locator('.rank-card-slim').click();
+await page.waitForTimeout(500);
+await save('mypage:perks', page);
+await closeModal();
+
+// 出稿の設定はモーダルの中。入稿の画面も撮る（写真を持っていない人向けの作り方が見えるように）。
+await page.locator('.ad-entry-open').click();
+await page.waitForTimeout(700);
 await save('mypage:ad', page);
-// 入稿の画面も撮る。写真を持っていない人向けの「文字だけで作る」が見えるように。
 const adEdit = page.locator('.ad-slot-foot button').first();
 if (await adEdit.count()) {
   await adEdit.click();
@@ -199,6 +211,7 @@ if (await adEdit.count()) {
   await page.waitForTimeout(700);
   await save('mypage:ad:form', page);
 }
+await closeModal();
 setIntroCount(introCount);
 await page.reload({ waitUntil: 'networkidle' });
 await nav(4).click();

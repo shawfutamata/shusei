@@ -51,6 +51,7 @@ const screens = [
     ['status:closed', '募集終了だけ'],
     ['mypage', 'マイページ・プラン・招待'],
     ['mypage:plan', 'プランを開いたところ'],
+    ['mypage:perks', 'ランクの特典'],
     ['mypage:ad', 'トップバナーの出稿枠'],
     ['mypage:ad:form', '広告の入稿（文字だけで作る）'],
     ['modal:post:limit', '投稿の上限に当たったとき'],
@@ -262,6 +263,10 @@ const html = `<title>TASUKI プレビュー</title>
     if (!target.closest) return;
     const at = (selector) => target.closest(selector);
 
+    if (at('.perk-tile')) { event.preventDefault(); return notice('本番では、押すとその特典の説明がここに出ます。'); }
+    if (at('.rank-card-slim') || at('.rank-next')) { event.preventDefault(); return go('mypage:perks'); }
+    if (at('.ad-entry-open')) { event.preventDefault(); return go('mypage:ad'); }
+    if (at('.owner-tools-row button')) { event.preventDefault(); return notice('ランクの特典です。本番では、その場で期限がのびたり、一覧のいちばん上に出たりします。'); }
     if (at('.ad-buy .submit-button')) { event.preventDefault(); return notice('お申し込みは決済会社（Stripe）の画面へ進みます。プレビューでは開きません。'); }
     if (at('.ad-slot-foot button')) { event.preventDefault(); return go('mypage:ad:form'); }
     if (at('.ad-form-actions button:first-child')) { event.preventDefault(); return go('mypage:ad'); }

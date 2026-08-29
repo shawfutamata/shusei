@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
 import { adSlotConfigured, adSlotPriceId, stripeClient } from '@/app/stripe';
 import { availableAdMonths, canBuyAdSlot, getMemberRank, getStripeLink, releaseAdSlot, reserveAdSlot, saveAdSlotSession, saveStripeCustomer } from '@/db/data';
-import { AD_MONTHS_AHEAD } from '@/app/ad-options';
+import { adMonthsAhead } from '@/app/rank-perks';
 
 // **Web専用**。トップバナーの出稿枠を1ヶ月ぶん買う。
 // 購読ではなく1回きりの支払いなので mode は 'payment'。
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   const month = typeof body.month === 'string' && /^\d{4}-\d{2}$/.test(body.month) ? body.month : '';
   if (!month) return NextResponse.json({ error: '掲載する月の指定が正しくありません。' }, { status: 400 });
   // 過ぎた月や、ずっと先の月を押さえられないようにする。
-  const offered = await availableAdMonths(AD_MONTHS_AHEAD);
+  const offered = await availableAdMonths(adMonthsAhead(level));
   if (!offered.some((entry) => entry.month === month)) {
     return NextResponse.json({ error: 'その月はお申し込みいただけません。表示されている月からお選びください。' }, { status: 400 });
   }
