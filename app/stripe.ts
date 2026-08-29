@@ -5,8 +5,8 @@
 // 鍵は環境変数から読む。コードにも、やり取りの記録にも書かない。
 import Stripe from 'stripe';
 import { env } from 'cloudflare:workers';
-import { planCatalog } from './plan-catalog';
-import type { Plan } from './entitlements';
+import { monthlyEquivalentYen } from './plan-catalog';
+import type { BillingCycle, Plan } from './entitlements';
 
 /** Workersのfetchで動かす。NodeのhttpモジュールはWorkersに無い。 */
 export function stripeClient() {
@@ -22,20 +22,39 @@ export function stripeConfigured() {
 }
 
 /** 有料プランと Stripe の price を対応させる。無料プランに price は無い。 */
-export function priceIdFor(plan: Plan) {
-  if (plan === 'standard') return env.STRIPE_PRICE_STANDARD || '';
-  if (plan === 'premium') return env.STRIPE_PRICE_PREMIUM || '';
+export function priceIdFor(plan: Plan, cycle: BillingCycle) {
+  if (plan === 'standard') return (cycle === 'year' ? env.STRIPE_PRICE_STANDARD_YEAR : env.STRIPE_PRICE_STANDARD) || '';
+  if (plan === 'premium') return (cycle === 'year' ? env.STRIPE_PRICE_PREMIUM_YEAR : env.STRIPE_PRICE_PREMIUM) || '';
   return '';
 }
 
-/** Stripeのpriceから、こちらのプラン名に戻す。webhookで使う。 */
-export function planForPrice(priceId: string): Plan | '' {
-  if (priceId && priceId === env.STRIPE_PRICE_STANDARD) return 'standard';
-  if (priceId && priceId === env.STRIPE_PRICE_PREMIUM) return 'premium';
-  return '';
+/** 年払いの価格IDが両方そろっているか。片方だけなら年払いは出さない。 */
+export function yearlyConfigured() {
+  return Boolean(env.STRIPE_PRICE_STANDARD_YEAR && env.STRIPE_PRICE_PREMIUM_YEAR);
 }
 
-/** 紹介1人ぶんの値引き額。いま契約しているプランの1ヶ月ぶんを返す（円）。 */
-export function monthlyYen(plan: Plan) {
-  return planCatalog[plan].monthlyYen;
+/** Stripeのpriceから、こちらのプランと周期に戻す。webhookで使う。 */
+export function planForPrice(priceId: string): { plan: Plan | ''; cycle: BillingCycle } {
+  if (!priceId) return { plan: '', cycle: 'month' };
+  if (priceId === env.STRIPE_PRICE_STANDARD) return { plan: 'standard', cycle: 'month' };
+  if (priceId === env.STRIPE_PRICE_PREMIUM) return { plan: 'premium', cycle: 'month' };
+  if (priceId === env.STRIPE_PRICE_STANDARD_YEAR) return { plan: 'standard', cycle: 'year' };
+  if (priceId === env.STRIPE_PRICE_PREMIUM_YEAR) return { plan: 'premium', cycle: 'year' };
+  return { plan: '', cycle: 'month' };
+}
+
+/**
+ * 紹介1人ぶんの値引き額（円）。
+ * 「いま払っている料金の1ヶ月ぶん」なので、年払いの人は割引後の月あたり額になる。
+ * 20%OFFと紹介の無料月が二重取りにならないようにするため。
+ */
+export function referralCreditYen(plan: Plan, cycle: BillingCycle) {
+  return monthlyEquivalentYen(plan, cycle);
+}
+
+/** 顧客の残高に値引きを入れる。次回以降の請求から自動で引かれる。 */
+export async function creditCustomer(customerId: string, yen: number, description: string) {
+  if (yen <= 0) return;
+  const stripe = stripeClient();
+  await stripe.customers.createBalanceTransaction(customerId, { amount: -yen, currency: 'jpy', description });
 }

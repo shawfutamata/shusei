@@ -10,8 +10,8 @@ import FacebookLink from './FacebookLink';
 import { getRegion, prefectures, regions, type Prefecture } from './profile-options';
 import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-options';
 import { findVenuePrefecture, isListedVenue, OTHER_VENUE, venuePrefectures, venuesByPrefecture } from './venue-options';
-import { UNLIMITED, plans, type Plan } from './entitlements';
-import { planCardLimit, planCatalog, planPostLimit, planPrice } from './plan-catalog';
+import { UNLIMITED, plans, type BillingCycle, type Plan } from './entitlements';
+import { planCardLimit, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
 import { serviceName } from './brand';
 import BrandMark from './BrandMark';
@@ -95,7 +95,8 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [toast, setToast] = useState('');
   const [requestPhoto, setRequestPhoto] = useState<File | null>(null);
   const [requestPhotoPreview, setRequestPhotoPreview] = useState('');
-  const [referral, setReferral] = useState<(ReferralSummary & { url: string; billing?: { ready: boolean; hasCustomer: boolean } }) | null>(null);
+  const [planCycle, setPlanCycle] = useState<BillingCycle>('month');
+  const [referral, setReferral] = useState<(ReferralSummary & { url: string; billing?: { ready: boolean; yearly: boolean; hasCustomer: boolean; cycle: BillingCycle; creditedYen: number; creditPerReferralYen: number } }) | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
 
   // 全国の会場を都道府県ごとにまとめて出す。一覧に無い会場（その他で登録された人）も
@@ -284,7 +285,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     setBusy(true);
     try {
       const response = await fetch('/api/billing/checkout', {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ plan }),
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ plan, cycle: planCycle }),
       });
       const data = await response.json() as { url?: string; error?: string };
       if (data.url) { window.location.href = data.url; return; }
@@ -450,9 +451,14 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           </summary>
           <div className="plan-body">
             {stats.paid && stats.planPeriodEnd && <p className="plan-until">{stats.planPeriodEnd} までご利用いただけます</p>}
+            {referral?.billing?.yearly && <div className="plan-cycle" role="group" aria-label="お支払いの周期">
+              <button className={planCycle === 'month' ? 'active' : ''} onClick={() => setPlanCycle('month')}>月払い</button>
+              <button className={planCycle === 'year' ? 'active' : ''} onClick={() => setPlanCycle('year')}>年払い <em>20%OFF</em></button>
+            </div>}
             <ul className="plan-list">
               {plans.map((plan) => <li key={plan} className={`plan-${plan}${plan === stats.plan ? ' current' : ''}`}>
-                <p className="plan-list-head"><b>{planCatalog[plan].name}</b>{plan === stats.plan && <em>いま</em>}<span>{planPrice(plan)}</span></p>
+                <p className="plan-list-head"><b>{planCatalog[plan].name}</b>{plan === stats.plan && <em>いま</em>}<span>{planPrice(plan, planCycle)}</span></p>
+                {planCycle === 'year' && plan !== 'free' && <p className="plan-list-per-month">{planPerMonthNote(plan)}</p>}
                 <p className="plan-list-what"><span>探しごと {planPostLimit(plan)}</span><span>名刺 {planCardLimit(plan)}</span></p>
                 {referral?.billing?.ready && plan !== 'free' && plan !== stats.plan
                   && <button className="plan-pick" onClick={() => startBilling(plan)} disabled={busy}>このプランにする</button>}
@@ -478,6 +484,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           </dl>
           <ul className="invite-note">
             {referral.waitingCount > 0 && <li><b>{referral.waitingCount}人</b><span>いまご利用を停止しています</span></li>}
+            {!!referral.billing?.creditPerReferralYen && <li><b>1人につき {referral.billing.creditPerReferralYen.toLocaleString('ja-JP')}円</b><span>{referral.billing.cycle === 'year' ? '次回の年額のお支払いから引かれます' : '次回の請求から引かれます'}</span></li>}
             {referral.qualifyingCount > 0 && <li><b>{referral.qualifyingCount}人</b><span>ご利用が{referral.qualifyDays}日続くと、1ヶ月ぶんが決まります</span></li>}
             {referral.waitingCredits > 0 && <li><b>{referral.waitingCredits}人ぶん</b><span>順番待ちです。空きが出しだい自動で反映されます</span></li>}
             <li><b>{referral.remainingThisYear > 0 ? `あと${referral.remainingThisYear}ヶ月ぶん` : '受け取り済み'}</b><span>{referral.remainingThisYear > 0 ? `この1年で受け取れる残りです（1年あたり${referral.capPerYear}ヶ月まで）` : `この1年ぶん（${referral.capPerYear}ヶ月）は受け取りました`}</span></li>
@@ -566,7 +573,9 @@ function HomeRequestCard({ need, favorite, onOpen, onFavorite }: { need: BoardRe
   const primaryIndustry = need.industryTags[0] || 'その他';
   const primaryGroup = getIndustryGroup(primaryIndustry)?.name ?? 'その他';
   return <article className="home-request-card"><button className={favorite ? 'home-heart active' : 'home-heart'} aria-label={favorite ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={onFavorite}>♥</button><button className="home-request-open" onClick={onOpen}>
-    <span className={need.thumbUrl ? 'home-request-cover has-photo' : 'home-request-cover'}>{need.thumbUrl ? <img src={need.thumbUrl} alt="" loading="lazy" decoding="async" /> : <IndustryIcon group={primaryGroup} />}<small>{primaryIndustry}</small></span>
+    <span className={need.thumbUrl ? 'home-request-cover has-photo' : 'home-request-cover'}>{need.thumbUrl
+      ? <img src={need.thumbUrl} alt="" loading="lazy" decoding="async" />
+      : <><IndustryIcon group={primaryGroup} /><small>{primaryIndustry}</small></>}</span>
     <span className="home-request-copy"><small><b className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</b> あと{daysLeft(need.deadline)}日</small><strong>{need.title}</strong><span>{need.budgetLabel}</span><em>{need.authorName}・{need.authorVenue}</em></span>
   </button></article>;
 }

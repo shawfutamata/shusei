@@ -52,14 +52,14 @@ async function syncSubscription(subscription: Stripe.Subscription, knownMemberId
   if (!memberId) return;
 
   const item = subscription.items.data[0];
-  const plan = planForPrice(item?.price?.id ?? '');
+  const { plan, cycle } = planForPrice(item?.price?.id ?? '');
   if (!plan) return;
 
   // 期間の終わりは item が持つ（サブスク直下の current_period_end は無くなった）。
   const endSeconds = item?.current_period_end ?? 0;
   const periodEnd = endSeconds ? new Date(endSeconds * 1000).toISOString().slice(0, 10) : '';
   await applyStripeSubscription({
-    memberId, plan, subscriptionId: subscription.id, periodEnd,
+    memberId, plan, cycle, subscriptionId: subscription.id, periodEnd,
     active: liveStatuses.has(subscription.status),
   });
 }

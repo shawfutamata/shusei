@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import type { ChatGPTUser } from '@/app/chatgpt-auth';
 import { cleanFacebookUrl } from '@/app/social-links';
-import { UNLIMITED, currentPlan, extendedPlanEnd, isPaid, limits, remainingBusinessCards, remainingRequests, toPlan, type Plan, type PlanState } from '@/app/entitlements';
+import { UNLIMITED, currentPlan, extendedPlanEnd, isPaid, limits, remainingBusinessCards, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
 import { matchesIndustry } from '@/app/industry-options';
 
 export type BoardRequest = {
@@ -322,6 +322,7 @@ export async function ensureDatabase() {
     ['facebook_url', "ALTER TABLE members ADD COLUMN facebook_url TEXT NOT NULL DEFAULT ''"],
     ['stripe_customer_id', "ALTER TABLE members ADD COLUMN stripe_customer_id TEXT NOT NULL DEFAULT ''"],
     ['stripe_subscription_id', "ALTER TABLE members ADD COLUMN stripe_subscription_id TEXT NOT NULL DEFAULT ''"],
+    ['plan_interval', "ALTER TABLE members ADD COLUMN plan_interval TEXT NOT NULL DEFAULT 'month'"],
   ];
   for (const [columnName, sql] of missingColumns) {
     if (!existingColumns.has(columnName)) await env.DB.prepare(sql).run();
@@ -1180,14 +1181,18 @@ async function grantProMonth(memberId: string, source: string) {
 // --- Stripe と会員の対応づけ -------------------------------------------------
 // 決済そのものは app/api/billing/ が扱う。ここは保存と読み出しだけ。
 
-export type StripeLink = { customerId: string; subscriptionId: string; email: string; displayName: string };
+export type StripeLink = { customerId: string; subscriptionId: string; email: string; displayName: string; interval: BillingCycle };
 
 export async function getStripeLink(memberId: string): Promise<StripeLink> {
   await ensureDatabase();
   const row = await env.DB.prepare(`SELECT stripe_customer_id AS customerId, stripe_subscription_id AS subscriptionId,
-      email, display_name AS displayName FROM members WHERE id = ?`)
+      email, display_name AS displayName, plan_interval AS interval FROM members WHERE id = ?`)
     .bind(memberId).first<StripeLink>();
-  return { customerId: row?.customerId ?? '', subscriptionId: row?.subscriptionId ?? '', email: row?.email ?? '', displayName: row?.displayName ?? '' };
+  return {
+    customerId: row?.customerId ?? '', subscriptionId: row?.subscriptionId ?? '',
+    email: row?.email ?? '', displayName: row?.displayName ?? '',
+    interval: toBillingCycle(row?.interval),
+  };
 }
 
 export async function saveStripeCustomer(memberId: string, customerId: string) {
@@ -1208,13 +1213,14 @@ export async function findMemberByStripeCustomer(customerId: string) {
  * 「いつまで使えるか」を写しておくだけ。解約されたら free に戻す。
  */
 export async function applyStripeSubscription(input: {
-  memberId: string; plan: Plan; subscriptionId: string; periodEnd: string; active: boolean;
+  memberId: string; plan: Plan; cycle: BillingCycle; subscriptionId: string; periodEnd: string; active: boolean;
 }) {
   await ensureDatabase();
   const plan = input.active ? input.plan : 'free';
-  await env.DB.prepare(`UPDATE members SET plan = ?, plan_period_end = ?, plan_source = ?, stripe_subscription_id = ?
+  await env.DB.prepare(`UPDATE members SET plan = ?, plan_period_end = ?, plan_source = ?, stripe_subscription_id = ?, plan_interval = ?
     WHERE id = ?`)
-    .bind(plan, input.active ? input.periodEnd : '', input.active ? 'stripe' : '', input.active ? input.subscriptionId : '', input.memberId)
+    .bind(plan, input.active ? input.periodEnd : '', input.active ? 'stripe' : '', input.active ? input.subscriptionId : '',
+      input.active ? input.cycle : 'month', input.memberId)
     .run();
 }
 

@@ -17,5 +17,8 @@ declare namespace Cloudflare {
     STRIPE_WEBHOOK_SECRET: string;
     STRIPE_PRICE_STANDARD: string;
     STRIPE_PRICE_PREMIUM: string;
+    // 年払い。設定していなければ、画面に年払いの選択肢が出ない。
+    STRIPE_PRICE_STANDARD_YEAR: string;
+    STRIPE_PRICE_PREMIUM_YEAR: string;
   }
 }

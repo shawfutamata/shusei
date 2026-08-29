@@ -7,6 +7,14 @@
 // 線引きは docs/pricing-plan-ja.md が正。
 
 export const plans = ['free', 'standard', 'premium'] as const;
+
+/** 支払いの周期。金額ではないのでここに置く（金額は app/plan-catalog.ts）。 */
+export const billingCycles = ['month', 'year'] as const;
+export type BillingCycle = (typeof billingCycles)[number];
+export function toBillingCycle(value: unknown): BillingCycle {
+  return value === 'year' ? 'year' : 'month';
+}
+
 export type Plan = (typeof plans)[number];
 export type PlanState = { plan: Plan; planPeriodEnd: string };
 

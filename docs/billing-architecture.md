@@ -51,14 +51,21 @@ Sitesのプロジェクト設定（またはCloudflareのシークレット）�
 |---|---|
 | `STRIPE_SECRET_KEY` | Stripeのシークレットキー（`sk_live_...`／テストは `sk_test_...`） |
 | `STRIPE_WEBHOOK_SECRET` | Webhookエンドポイントの署名シークレット（`whsec_...`） |
-| `STRIPE_PRICE_STANDARD` | スタンダード（月1,000円）の価格ID（`price_...`） |
-| `STRIPE_PRICE_PREMIUM` | プレミアム（月5,000円）の価格ID（`price_...`） |
+| `STRIPE_PRICE_STANDARD` | スタンダード 月払い（1,000円）の価格ID（`price_...`） |
+| `STRIPE_PRICE_PREMIUM` | プレミアム 月払い（5,000円）の価格ID（`price_...`） |
+| `STRIPE_PRICE_STANDARD_YEAR` | スタンダード 年払い（9,600円）の価格ID。任意 |
+| `STRIPE_PRICE_PREMIUM_YEAR` | プレミアム 年払い（48,000円）の価格ID。任意 |
+
+年払いの2つは無くても動く。両方そろったときだけ、プラン欄に「月払い／年払い」の切り替えが出る。
 
 4つそろうまで、画面に申し込みボタンは出ない（`stripeConfigured()` が false のため）。
 
 ### Stripeのダッシュボードで作るもの
 
-1. **商品を2つ**。「TASUKI スタンダード」＝月額1,000円 JPY、「TASUKI プレミアム」＝月額5,000円 JPY。どちらも**継続（サブスクリプション）**。作ったら価格IDを控える
+1. **商品を2つ**。「TASUKI スタンダード」と「TASUKI プレミアム」。どちらも**継続（サブスクリプション）**、通貨JPY、税の動作は**税込**にする（総額表示のため）。
+   - スタンダード … 月額1,000円。年払いも出すなら、同じ商品に**年額9,600円**の価格を追加
+   - プレミアム … 月額5,000円。年払いは**年額48,000円**
+   - 作ったら価格IDを控える（商品IDではなく `price_` のほう）
 2. **Webhookエンドポイント**。宛先は `https://<ドメイン>/api/billing/webhook`。送るイベントは次の4つ
    - `checkout.session.completed`
    - `customer.subscription.created`
@@ -79,7 +86,9 @@ Sitesのプロジェクト設定（またはCloudflareのシークレット）�
 
 ### 紹介の無料月はStripeの残高で相殺する
 
-紹介で確定した無料月は、申し込みのときに**顧客の残高（クレジット）**として入れる。次回以降の請求から自動で引かれるので、運営が手で消し込む必要はない。使ったクレジットは `referral_credits.applied_month` に記録して、二重に使われないようにしている。
+紹介で確定した無料月は、**確定した時点で**顧客の残高（クレジット）として入れる（`app/billing-credits.ts`。会員がマイページを開いたときに走る）。次回以降の請求から自動で引かれるので、運営が手で消し込む必要はない。使ったクレジットは `referral_credits.applied_month` に記録して、二重に使われないようにしている。
+
+値引き額は「いま払っている料金の1ヶ月ぶん」。**年払いの人は割引後の月あたり額**になるので、20%OFFと紹介の無料月が二重取りにならない。詳しくは `docs/referral-program-ja.md`。
 
 ### 動作確認
 

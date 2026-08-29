@@ -157,9 +157,8 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .plan-card[open] .plan-body { display:grid; gap:11px; }
 .plan-until { margin:0; color:#8a6d2f; font-size:10px; font-weight:800; }
 /* 探しごとの写真。一覧は小さい版、詳細は大きい版を読む。 */
-.home-request-cover.has-photo { padding:0; background:#e8eef7; }
+.home-request-cover.has-photo { padding:0; display:block; overflow:hidden; background:#e8eef7; }
 .home-request-cover.has-photo img { width:100%; height:100%; display:block; object-fit:cover; }
-.home-request-cover.has-photo small { position:absolute; left:8px; bottom:8px; }
 .home-request-card .home-request-cover { position:relative; }
 .need-thumb { width:100%; height:150px; margin:11px 0 0; display:block; object-fit:cover; border-radius:12px; background:#eef2f8; }
 .need-photo { width:100%; margin:11px 0 0; display:block; object-fit:cover; border-radius:14px; background:#eef2f8; }
@@ -172,6 +171,12 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .request-photo-copy small { margin-top:4px; color:#7f8da1; font-size:9px; line-height:1.5; }
 .request-photo>i { padding:7px 9px; border-radius:8px; background:#fff; color:var(--accent-ink); font-size:9px; font-style:normal; font-weight:800; white-space:nowrap; }
 
+.plan-cycle { padding:4px; display:grid; grid-template-columns:1fr 1fr; gap:4px; border-radius:11px; background:#eef2f8; }
+.plan-cycle button { min-height:40px; border:0; border-radius:8px; background:transparent; color:#5c6a80; font-size:12px; font-weight:800; }
+.plan-cycle button.active { background:#fff; color:var(--navy); box-shadow:0 2px 8px rgba(32,57,105,.12); }
+.plan-cycle em { margin-left:5px; padding:2px 6px; border-radius:99px; background:var(--accent-soft); color:var(--accent-ink); font-size:10px; font-style:normal; font-weight:900; }
+.plan-cycle button.active em { background:var(--accent); color:#fff; }
+.plan-list-per-month { margin-top:3px; color:var(--accent-ink); font-size:11px; font-weight:800; }
 .plan-list { margin:0; padding:0; list-style:none; display:grid; gap:7px; }
 .plan-list li { --bar:#c3ccdb; --tier-ink:#46536b; --tier-line:#e7ecf4; --tier-fill:#fff; --tier-tint:#eef1f7; position:relative; padding:9px 12px 9px 17px; overflow:hidden; border:1px solid var(--tier-line); border-radius:12px; background:var(--tier-fill); }
 .plan-list li::before { content:''; position:absolute; top:0; bottom:0; left:0; width:5px; background:var(--bar); }
@@ -266,6 +271,8 @@ body { font-weight:600; }
 .request-photo-copy b { font-size:13px; }
 .request-photo-copy small { font-size:11px; }
 .request-photo>i { font-size:11px; }
+.plan-cycle button { font-size:13px; }
+.plan-list-per-month { font-size:12px; }
 .plan-pick { font-size:13px; }
 .plan-manage { font-size:12px; }
 .rank-slim-foot b { font-size:13px; }
