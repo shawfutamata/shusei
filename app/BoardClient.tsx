@@ -11,6 +11,7 @@ import { getRegion, prefectures, regions, type Prefecture } from './profile-opti
 import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-options';
 import { findVenuePrefecture, isListedVenue, OTHER_VENUE, venuePrefectures, venuesByPrefecture } from './venue-options';
 import { UNLIMITED, plans, type BillingCycle, type Plan } from './entitlements';
+import { feedbackCategories } from './feedback-options';
 import { planCardLimit, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
 import { serviceName } from './brand';
@@ -96,6 +97,7 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [requestPhoto, setRequestPhoto] = useState<File | null>(null);
   const [requestPhotoPreview, setRequestPhotoPreview] = useState('');
   const [planCycle, setPlanCycle] = useState<BillingCycle>('month');
+  const [feedbackSent, setFeedbackSent] = useState(false);
   const [referral, setReferral] = useState<(ReferralSummary & { url: string; billing?: { ready: boolean; yearly: boolean; hasCustomer: boolean; cycle: BillingCycle; creditedYen: number; creditPerReferralYen: number } }) | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
 
@@ -348,6 +350,19 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     openCards('capture');
   }
 
+  async function submitFeedback(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true);
+    const form = event.currentTarget;
+    const raw = Object.fromEntries(new FormData(form));
+    const response = await fetch('/api/feedback', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ category: raw.category, body: raw.body }),
+    });
+    const result = await response.json() as { error?: string }; setBusy(false);
+    if (!response.ok) return showToast(result.error ?? '送信できませんでした。');
+    form.reset(); setFeedbackSent(true); showToast('ありがとうございます。いただいたご意見は必ず読みます。');
+  }
+
   async function copyInviteLink() {
     if (!referral) return;
     try {
@@ -491,6 +506,16 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           </ul>
           <p className="invite-terms">この特典は、予告なく内容の変更または終了をすることがあります。すでに確定したぶんは、そのままご利用いただけます。</p>
         </section>}
+
+        <section className="feedback-card" aria-label="機能改善のご意見">
+          <div className="feedback-heading"><p>YOUR VOICE</p><h2>こうしてほしい、を聞かせてください</h2><span>{serviceName}は作っている途中です。使ってみて足りないところ、使いにくいところを教えてください。いただいたご意見は運営が必ず読みます。</span></div>
+          {feedbackSent ? <div className="feedback-done"><b>お送りいただきました</b><span>ありがとうございます。続けてお気づきの点があれば、また送ってください。</span><button onClick={() => setFeedbackSent(false)}>もう1件送る</button></div> : <form className="feedback-form" onSubmit={submitFeedback}>
+            <label><span>種類</span><select name="category" defaultValue="feature">{feedbackCategories.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select></label>
+            <label><span>内容</span><textarea name="body" required maxLength={1000} rows={4} placeholder="例：会場ごとの探しごとをまとめて見たい／名刺の並び替えができると助かる" /></label>
+            <button className="submit-button" disabled={busy}>{busy ? '送信しています…' : '送る'}</button>
+          </form>}
+        </section>
+
 
         <div className="profile-form profile-page-form">
           <div className="profile-form-heading"><b>プロフィール情報</b><span>入力内容は探しごとや紹介時に表示されます。</span></div>

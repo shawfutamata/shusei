@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import type { ChatGPTUser } from '@/app/chatgpt-auth';
 import { cleanFacebookUrl } from '@/app/social-links';
+import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
 import { UNLIMITED, currentPlan, extendedPlanEnd, isPaid, limits, remainingBusinessCards, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
 import { matchesIndustry } from '@/app/industry-options';
 
@@ -191,6 +192,14 @@ const statements = [
     deadline TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'open',
     image_version INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS feedback (
+    id TEXT PRIMARY KEY,
+    member_id TEXT NOT NULL REFERENCES members(id),
+    category TEXT NOT NULL,
+    body TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'new',
     created_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS introductions (
@@ -1062,6 +1071,35 @@ function calculateRank(member: Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'
   thresholds.forEach((threshold, index) => { if (member.introCount >= threshold) level = index + 1; });
   return { ...member, rank: names[level - 1], level, nextRankAt: thresholds[level] ?? member.introCount };
 }
+
+// --- 機能改善の受け口 ここから ------------------------------------------------
+// 会員が「こうしてほしい」を送れるようにする。運営はD1を見て拾う。
+// 画像は受け取らない（保存も配信も増やさないため）。
+
+export async function createFeedback(user: ChatGPTUser, input: { category: FeedbackCategory; body: string }) {
+  await upsertMember(user);
+  const body = input.body.trim().slice(0, 1000);
+  if (!body) throw new Error('内容を入力してください。');
+
+  const dayAgo = new Date(Date.now() - 86400000).toISOString();
+  const sent = await env.DB.prepare('SELECT COUNT(*) AS count FROM feedback WHERE member_id = ? AND created_at >= ?')
+    .bind(user.userId, dayAgo).first<{ count: number }>();
+  if (Number(sent?.count ?? 0) >= FEEDBACK_PER_DAY) {
+    throw new Error(`1日に送れるご意見は${FEEDBACK_PER_DAY}件までです。また明日お聞かせください。`);
+  }
+
+  await env.DB.prepare('INSERT INTO feedback (id, member_id, category, body, status, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(crypto.randomUUID(), user.userId, input.category, body, 'new', new Date().toISOString()).run();
+}
+
+/** その会員がこれまでに送った件数。「届いています」と返すために使う。 */
+export async function countFeedback(memberId: string) {
+  await ensureDatabase();
+  const row = await env.DB.prepare('SELECT COUNT(*) AS count FROM feedback WHERE member_id = ?')
+    .bind(memberId).first<{ count: number }>();
+  return Number(row?.count ?? 0);
+}
+// --- 機能改善の受け口 ここまで ------------------------------------------------
 
 // --- 探しごとへのコメント ここから -----------------------------------------
 // 紹介の前後で、投稿した人と答える人がその場でやり取りできるようにするための機能。

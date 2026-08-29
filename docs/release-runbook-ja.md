@@ -289,3 +289,23 @@ npx eas-cli submit --platform android --profile production
 ### 会員から見える導線
 
 ログイン画面・招待受け取り画面の下、サポートページ、各法務ページの下部に相互リンクを置いてある。Stripeの決済画面からも遡れるよう、Stripeダッシュボードの「ブランディング」に利用規約とプライバシーポリシーのURLを設定しておくこと。
+
+## 会員の声を読む
+
+マイページの「こうしてほしい、を聞かせてください」から届く。運営画面はまだないので、D1を直接見る。
+
+```bash
+npx wrangler d1 execute <D1_DATABASE> --remote \
+  --command "SELECT f.created_at, f.category, f.body, m.display_name, m.email
+             FROM feedback f JOIN members m ON m.id = f.member_id
+             WHERE f.status = 'new' ORDER BY f.created_at DESC LIMIT 50"
+```
+
+読み終えたものは印を付けておくと、次に見るときに新しいぶんだけ出る。
+
+```bash
+npx wrangler d1 execute <D1_DATABASE> --remote \
+  --command "UPDATE feedback SET status = 'read' WHERE id = '<feedbackのid>'"
+```
+
+種類は `feature`（ほしい機能）／`usability`（使いにくいところ）／`bug`（うまく動かない）／`other`。1人1日5件までで、本文は1,000文字まで。画像は受け取らない。
