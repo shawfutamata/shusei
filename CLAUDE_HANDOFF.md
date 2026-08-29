@@ -53,6 +53,7 @@
 主要資料:
 
 - `docs/release-runbook-ja.md`（ゴールから逆算した進め方。まずこれを読む）
+- `docs/deploy-ja.md`（いまのコードを本番に反映する手順。デプロイのたびに読む）
 - `docs/release-checklist.md`
 - `docs/member-provisioning.md`
 - `docs/store-listing-ja.md`

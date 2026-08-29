@@ -10,6 +10,7 @@
     "build": "vinext build",
     "start": "vinext start",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "preflight": "bash scripts/preflight-deploy.sh",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "sync:venues": "node --experimental-strip-types scripts/sync-mobile-venues.mjs",
