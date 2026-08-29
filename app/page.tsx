@@ -25,8 +25,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ l
   if (!access.membership.canUseApp) {
     return <main className="signin-page"><div className="signin-card"><BrandMark /><p className="eyebrow">MEMBERS ONLY</p><h1>{serviceName}</h1><h2>まだ利用権限がありません。</h2><p>{access.user.email} は会員として登録されていないか、現在利用権限が停止しています。ご入会手続きや状態のご確認は運営窓口までお問い合わせください。</p><small>登録済みの会員メールアドレスでログインし直すと利用できます</small><LegalLinks /></div></main>;
   }
-  const { requests, stats } = await getBoardData(access.user);
-  return <BoardClient initialRequests={requests} initialStats={stats} userName={access.user.displayName} />;
+  const { requests, stats, ads } = await getBoardData(access.user);
+  return <BoardClient initialRequests={requests} initialStats={stats} initialAds={ads} userName={access.user.displayName} />;
 }
 
 function GoogleMark() {

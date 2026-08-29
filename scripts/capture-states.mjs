@@ -21,6 +21,13 @@ const setStatus = (status) => execFileSync('python3', ['-c',
 const setPlan = (plan, end = '') => execFileSync('python3', ['-c',
   'import sqlite3,sys;c=sqlite3.connect(sys.argv[1]);c.execute("UPDATE members SET plan=?, plan_period_end=?, plan_source=? WHERE id=?",(sys.argv[2],sys.argv[3],"" if sys.argv[2]=="free" else "direct",sys.argv[4]));c.commit()',
   localDb(), plan, end, process.env.PREVIEW_MEMBER_ID || 'local_seedy']);
+// 出稿枠は上位ランクの特典なので、その画面を撮るあいだだけ紹介数を上げる。
+const getIntroCount = () => Number(execFileSync('python3', ['-c',
+  'import sqlite3,sys;c=sqlite3.connect(sys.argv[1]);print(c.execute("SELECT intro_count FROM members WHERE id=?",(sys.argv[2],)).fetchone()[0])',
+  localDb(), process.env.PREVIEW_MEMBER_ID || 'local_seedy']).toString().trim());
+const setIntroCount = (count) => execFileSync('python3', ['-c',
+  'import sqlite3,sys;c=sqlite3.connect(sys.argv[1]);c.execute("UPDATE members SET intro_count=? WHERE id=?",(int(sys.argv[2]),sys.argv[3]));c.commit()',
+  localDb(), String(count), process.env.PREVIEW_MEMBER_ID || 'local_seedy']);
 
 const states = {};
 const browser = await chromium.launch({ executablePath: BROWSER, args: ['--no-sandbox'] });
@@ -72,8 +79,9 @@ const closeModal = async () => { await page.locator('.modal-close, .cardbook-hea
 await nav(0).click();
 await save('home', page);
 
-// バナー4枚
-for (let index = 0; index < 4; index += 1) {
+// バナーは固定3枚＋掲載中の広告。出ている枚数だけ撮る。
+const bannerCount = await page.locator('.carousel-dots button').count();
+for (let index = 0; index < bannerCount; index += 1) {
   await page.locator('.carousel-dots button').nth(index).click();
   await save(`home:banner:${index}`, page);
 }
@@ -174,6 +182,18 @@ await page.waitForTimeout(250);
 await save('mypage:plan', page);
 await page.locator('.plan-card > summary').click();
 await page.waitForTimeout(250);
+
+// 上位ランクだけに出る、トップバナーの出稿枠
+const introCount = getIntroCount();
+setIntroCount(12);
+await page.reload({ waitUntil: 'networkidle' });
+await nav(3).click();
+await page.locator('.ad-card').waitFor({ timeout: 15000 }).catch(() => console.warn('\n出稿カードが出ませんでした'));
+await save('mypage:ad', page);
+setIntroCount(introCount);
+await page.reload({ waitUntil: 'networkidle' });
+await nav(3).click();
+await page.waitForTimeout(600);
 
 // 都道府県ごとの会場は、実際にselectを切り替えて読み取る
 const venuePicker = page.locator('.profile-venue-select select');

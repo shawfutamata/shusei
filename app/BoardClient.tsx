@@ -2,7 +2,7 @@
 
 import { ChangeEvent, CSSProperties, FormEvent, useEffect, useMemo, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
-import type { BoardRequest, MemberStats, ReferralSummary } from '@/db/data';
+import type { AdSlot, BoardRequest, MemberStats, ReferralSummary } from '@/db/data';
 import ReceivedIntroductions from './ReceivedIntroductions';
 import RequestComments from './RequestComments';
 import FacebookLink from './FacebookLink';
@@ -11,7 +11,7 @@ import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-op
 import { findVenuePrefecture, isListedVenue, OTHER_VENUE, venuePrefectures, venuesByPrefecture } from './venue-options';
 import { UNLIMITED, plans, type BillingCycle, type Plan } from './entitlements';
 import { feedbackCategories } from './feedback-options';
-import { planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
+import { adSlotPrice, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
 import { serviceName } from './brand';
 import BrandMark from './BrandMark';
@@ -49,9 +49,29 @@ const historyStorageKey = 'give-hub-request-history-v1';
 const favoriteStorageKey = 'give-hub-request-favorites-v1';
 const rankThresholds = [0, 3, 6, 10, 20];
 
-export default function BoardClient({ initialRequests, initialStats, userName }: { initialRequests: BoardRequest[]; initialStats: MemberStats; userName: string }) {
+/** /api/ads が返すもの。金額は含まない（画面が plan-catalog から出す）。 */
+type AdOffer = {
+  ready: boolean; eligible: boolean; level: number; rank: string;
+  minRankLevel: number; titleMax: number; month: string; remaining: number; slots: AdSlot[];
+};
+
+const rankNames = ['PEARL', 'EMERALD', 'SAPPHIRE', 'RUBY', 'DIAMOND'];
+
+function monthLabel(month: string) {
+  const [year, index] = month.split('-');
+  return year && index ? `${year}年${Number(index)}月` : month;
+}
+
+/** 枠の狭いところ用。年を小さく上に置いて、折り返さないようにする。 */
+function monthParts(month: string) {
+  const [year, index] = month.split('-');
+  return year && index ? { year: `${year}年`, month: `${Number(index)}月` } : { year: '', month };
+}
+
+export default function BoardClient({ initialRequests, initialStats, initialAds, userName }: { initialRequests: BoardRequest[]; initialStats: MemberStats; initialAds: AdSlot[]; userName: string }) {
   const [requests, setRequests] = useState(initialRequests);
   const [stats, setStats] = useState(initialStats);
+  const [ads, setAds] = useState(initialAds);
   const [filter, setFilter] = useState('all');
   const [revenueFilter, setRevenueFilter] = useState('all');
   const [venueFilter, setVenueFilter] = useState('all');
@@ -97,6 +117,9 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [referral, setReferral] = useState<(ReferralSummary & { url: string; billing?: { ready: boolean; yearly: boolean; hasCustomer: boolean; cycle: BillingCycle; creditedYen: number; creditPerReferralYen: number } }) | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [adInfo, setAdInfo] = useState<AdOffer | null>(null);
+  const [editingAd, setEditingAd] = useState('');
+  const [adFileName, setAdFileName] = useState('');
 
   // 全国の会場を都道府県ごとにまとめて出す。一覧に無い会場（その他で登録された人）も
   // 投稿があるぶんだけ末尾に足して、絞り込めない会場が出ないようにする。
@@ -177,14 +200,18 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     fetch('/api/referral').then((response) => response.ok ? response.json() : null)
       .then((data) => { if (alive && data) setReferral(data as ReferralSummary & { url: string }); })
       .catch(() => {});
+    // 出稿枠はWebだけの機能。マイページを開いたときに空き枠を見る。
+    fetch('/api/ads').then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (alive && data) setAdInfo(data as AdOffer); })
+      .catch(() => {});
     return () => { alive = false; };
   }, [activeTab, referral]);
 
   async function refreshBoard() {
     const response = await fetch('/api/board');
     if (!response.ok) return;
-    const data = await response.json() as { requests: BoardRequest[]; stats: MemberStats };
-    setRequests(data.requests); setStats(data.stats);
+    const data = await response.json() as { requests: BoardRequest[]; stats: MemberStats; ads: AdSlot[] };
+    setRequests(data.requests); setStats(data.stats); setAds(data.ads ?? []);
   }
 
   function chooseRequestPhoto(event: ChangeEvent<HTMLInputElement>) {
@@ -278,6 +305,44 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
   }
 
 
+  async function buyAdSlot() {
+    if (busy || !adInfo?.month) return;
+    setBusy(true);
+    try {
+      const response = await fetch('/api/ads/checkout', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ month: adInfo.month }),
+      });
+      const data = await response.json() as { url?: string; error?: string };
+      if (data.url) { window.location.href = data.url; return; }
+      showToast(data.error || 'お支払い画面を開けませんでした。');
+    } catch {
+      showToast('通信に失敗しました。時間をおいてお試しください。');
+    }
+    setBusy(false);
+  }
+
+  async function saveAd(event: FormEvent<HTMLFormElement>, id: string) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    const form = event.currentTarget;
+    const raw = new FormData(form);
+    const picked = raw.get('image');
+    const body = new FormData();
+    body.set('title', String(raw.get('title') ?? ''));
+    body.set('linkUrl', String(raw.get('linkUrl') ?? ''));
+    // 画像の縮小は投稿する人の端末でやる。Workersでは変換しない。
+    if (picked instanceof File && picked.size > 0) body.set('image', await detailImage(picked));
+    const response = await fetch(`/api/ads/${encodeURIComponent(id)}`, { method: 'POST', body });
+    const result = await response.json() as { error?: string };
+    setBusy(false);
+    if (!response.ok) return showToast(result.error ?? '保存できませんでした。');
+    setEditingAd('');
+    showToast('掲載内容を保存しました。');
+    await fetch('/api/ads').then((r) => r.ok ? r.json() : null).then((data) => { if (data) setAdInfo(data as AdOffer); }).catch(() => {});
+    await refreshBoard();
+  }
+
   async function startBilling(plan: Plan) {
     if (busy) return;
     setBusy(true);
@@ -339,10 +404,20 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  // 固定のバナー3枚のうしろに、掲載中の広告を並べる。
+  const slides = useMemo(() => [
+    ...topBanners.map((banner) => ({ ...banner, ad: null as AdSlot | null })),
+    ...ads.filter((ad) => ad.imageUrl).map((ad) => ({ src: ad.imageUrl, alt: `${ad.memberName}さんの広告 ${ad.title}`, ad })),
+  ], [ads]);
+  const slide = slides[Math.min(carouselIndex, slides.length - 1)];
+
   function openCurrentBanner() {
+    if (slide?.ad) {
+      if (slide.ad.linkUrl) window.open(slide.ad.linkUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
     if (carouselIndex === 0) return openRequest();
     if (carouselIndex === 1) return setModal('responses');
-    if (carouselIndex === 2) return showProfile();
     showProfile();
   }
 
@@ -386,8 +461,8 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
 
       {activeTab === 'home' ? <div className="home-dashboard">
         <section className="hero-carousel" aria-label={`${serviceName}の使い方`}>
-          <button key={carouselIndex} className="hero-image-slide" onClick={openCurrentBanner} aria-label={`${topBanners[carouselIndex].alt}を開く`}><img src={topBanners[carouselIndex].src} alt={topBanners[carouselIndex].alt} /></button>
-          <div className="carousel-dots" aria-label="バナーを切り替える">{[0,1,2].map((index) => <button key={index} aria-label={`${index + 1}枚目`} className={carouselIndex === index ? 'active' : ''} onClick={() => setCarouselIndex(index)} />)}</div>
+          <button key={carouselIndex} className={`hero-image-slide${slide?.ad ? ' is-ad' : ''}`} onClick={openCurrentBanner} aria-label={`${slide?.alt ?? ''}を開く`}><img src={slide?.src} alt={slide?.alt ?? ''} />{slide?.ad && <span className="hero-ad-tag">PR<em>{slide.ad.memberName}</em></span>}</button>
+          <div className="carousel-dots" aria-label="バナーを切り替える">{slides.map((_, index) => <button key={index} aria-label={`${index + 1}枚目`} className={carouselIndex === index ? 'active' : ''} onClick={() => setCarouselIndex(index)} />)}</div>
         </section>
 
         <HomeShelf title="あなたにおすすめの探しごと" count={recommended.length}
@@ -501,6 +576,37 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
             {referral.waitingCredits > 0 && <li><b>受け取り済み</b><span>合計{referral.capTotal}ヶ月ぶんの上限に達しました。ご紹介はいつでも歓迎ですが、これ以上の無料月は付きません</span></li>}
           </ul>
           <p className="invite-terms">この特典は、予告なく内容の変更または終了をすることがあります。すでに確定したぶんは、そのままご利用いただけます。</p>
+        </section>}
+
+        {adInfo && <section className="ad-card" aria-label="トップバナーへの出稿">
+          <div className="ad-heading"><p>TOP BANNER</p><h2>トップバナーに出す</h2><span>ホームのいちばん上に、1ヶ月あいだ自分の告知を出せます。{rankNames[adInfo.minRankLevel - 1]}以上の方の特典です。</span></div>
+
+          {adInfo.slots.length > 0 && <ul className="ad-slot-list">{adInfo.slots.map((ad) => <li key={ad.id}>
+            <div className="ad-slot-head"><b>{monthLabel(ad.month)}の掲載枠</b><span>{ad.imageUrl ? '掲載中' : '内容が未入力です'}</span></div>
+            {ad.imageUrl && <img className="ad-slot-preview" src={ad.imageUrl} alt={`${ad.title}のバナー`} />}
+            {editingAd === ad.id
+              ? <form className="ad-form" onSubmit={(event) => saveAd(event, ad.id)}>
+                  <label><span>見出し</span><input name="title" defaultValue={ad.title} maxLength={adInfo.titleMax} required placeholder="例：現場の職人さんを探しています" /></label>
+                  <label><span>リンク先 <small>任意</small></span><input name="linkUrl" defaultValue={ad.linkUrl} maxLength={200} inputMode="url" placeholder="https://example.com" /></label>
+                  <label className="ad-file"><span>画像 <small>横長・JPEG/PNG/WebP</small></span><input name="image" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setAdFileName(event.target.files?.[0]?.name ?? '')} /><i>{adFileName || (ad.imageUrl ? 'いまの画像のまま' : '画像を選ぶ')}</i></label>
+                  <div className="ad-form-actions"><button type="button" onClick={() => setEditingAd('')} disabled={busy}>やめる</button><button className="submit-button" disabled={busy}>{busy ? '保存しています…' : '保存する'}</button></div>
+                </form>
+              : <div className="ad-slot-foot"><b>{ad.title || '見出しが未入力です'}</b><button onClick={() => { setAdFileName(''); setEditingAd(ad.id); }}>{ad.imageUrl ? '内容を変える' : '内容を入れる'}</button></div>}
+          </li>)}</ul>}
+
+          {!adInfo.eligible
+            ? <p className="ad-note">いまは{adInfo.rank}です。紹介を重ねて{rankNames[adInfo.minRankLevel - 1]}になると、この枠をお申し込みいただけます。</p>
+            : !adInfo.ready
+              ? <p className="ad-note">出稿枠のお申し込みは準備中です。ご希望の方は運営窓口へお問い合わせください。</p>
+              : <div className="ad-buy">
+                  <dl className="ad-buy-facts">
+                    <div><dt>掲載する月</dt><dd><small className="ad-buy-year">{monthParts(adInfo.month).year}</small>{monthParts(adInfo.month).month}</dd></div>
+                    <div><dt>のこり</dt><dd>{adInfo.remaining}<small>枠</small></dd></div>
+                    <div><dt>料金</dt><dd><small className="ad-buy-year">1枠あたり</small>{adSlotPrice()}</dd></div>
+                  </dl>
+                  <button className="submit-button" onClick={buyAdSlot} disabled={busy || adInfo.remaining === 0}>{adInfo.remaining === 0 ? 'この先1年ぶんが満枠です' : `${monthLabel(adInfo.month)}の枠を申し込む`}</button>
+                  <p className="ad-note">枠は早い者勝ちです。今月が埋まっているときは、いちばん近い空いている月をご案内しています。自動更新はありません。掲載内容は、お申し込みのあとにこの画面から入れられます。</p>
+                </div>}
         </section>}
 
         <section className="feedback-card" aria-label="機能改善のご意見">

@@ -51,6 +51,7 @@ const screens = [
     ['status:closed', '募集終了だけ'],
     ['mypage', 'マイページ・プラン・招待'],
     ['mypage:plan', 'プランを開いたところ'],
+    ['mypage:ad', 'トップバナーの出稿枠'],
     ['modal:post:limit', '投稿の上限に当たったとき'],
   ] },
   { group: 'モーダル', items: [
@@ -260,6 +261,8 @@ const html = `<title>TASUKI プレビュー</title>
     if (!target.closest) return;
     const at = (selector) => target.closest(selector);
 
+    if (at('.ad-card .submit-button')) { event.preventDefault(); return notice('お申し込みは決済会社（Stripe）の画面へ進みます。プレビューでは開きません。'); }
+    if (at('.ad-slot-foot button')) { event.preventDefault(); return notice('掲載内容の入力は、枠をお申し込みいただいたあとに開きます。'); }
     if (at('.modal-close')) { event.preventDefault(); return go(base); }
     if (target.classList && target.classList.contains('modal-backdrop')) { event.preventDefault(); return go(base); }
 

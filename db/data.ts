@@ -256,6 +256,9 @@ const statements = [
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   )`,
+  'CREATE INDEX IF NOT EXISTS idx_ad_slots_month_status ON ad_slots(month, status)',
+  'CREATE INDEX IF NOT EXISTS idx_ad_slots_member ON ad_slots(member_id)',
+  'CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at)',
   'CREATE INDEX IF NOT EXISTS idx_requests_status_created_at ON requests(status, created_at)',
   'CREATE INDEX IF NOT EXISTS idx_requests_category ON requests(category)',
   'CREATE INDEX IF NOT EXISTS idx_introductions_introducer_id ON introductions(introducer_id)',
@@ -676,7 +679,7 @@ export async function getBoardData(user: ChatGPTUser) {
     imageUrl: requestImageUrl(request.id, imageVersion, 'full'),
     authorAvatarUrl: avatarUrl(authorId, authorAvatarKey, authorAvatarVersion),
   }));
-  return { requests, stats };
+  return { requests, stats, ads: await listActiveAds() };
 }
 
 export async function updateMemberProfile(user: ChatGPTUser, input: { company: string; venue: string; positionTitle: string; badge: string; businessArea: string; primaryIndustry: string; notifyIndustries: string[]; annualRevenueBand: string; facebookUrl: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {
@@ -1049,6 +1052,11 @@ export async function reserveAdSlot(memberId: string, month: string) {
   return id;
 }
 
+/** 決済画面を開けなかったときに、押さえた枠をすぐ返す。60分待たせないため。 */
+export async function releaseAdSlot(id: string) {
+  await env.DB.prepare("DELETE FROM ad_slots WHERE id = ? AND status = 'reserved'").bind(id).run();
+}
+
 export async function saveAdSlotSession(id: string, sessionId: string) {
   await env.DB.prepare('UPDATE ad_slots SET stripe_session_id = ? WHERE id = ?').bind(sessionId, id).run();
 }
@@ -1108,6 +1116,15 @@ export async function getAdImage(id: string) {
     .bind(id).first<{ imageVersion: number }>();
   if (!row?.imageVersion) return null;
   return env.AVATARS.get(adImageKey(id));
+}
+
+/** ランクだけを引く。出稿枠の判定で、掲示板ぜんぶを読まないため。 */
+export async function getMemberRank(memberId: string) {
+  await ensureDatabase();
+  const row = await env.DB.prepare('SELECT intro_count AS introCount FROM members WHERE id = ?')
+    .bind(memberId).first<{ introCount: number }>();
+  const { rank, level } = calculateRank({ introCount: Number(row?.introCount ?? 0) } as Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'>);
+  return { rank, level };
 }
 
 /** 出稿できるランクかどうか。紹介を積んだ人だけが買える。 */

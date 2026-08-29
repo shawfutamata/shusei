@@ -33,6 +33,9 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .hero-image-slide { width:100%; aspect-ratio:3/2; padding:0; display:block; overflow:hidden; border:0; border-radius:23px; background:#1478d6; box-shadow:0 15px 34px rgba(30,78,180,.22); animation:hero-in .32s ease; }
 .hero-image-slide img { width:100%; height:100%; display:block; object-fit:cover; }
 .hero-image-slide:focus-visible { outline:4px solid #93c5fd; outline-offset:3px; }
+.hero-image-slide.is-ad { position:relative; }
+.hero-ad-tag { position:absolute; left:11px; top:11px; padding:5px 10px; display:flex; align-items:center; gap:7px; border-radius:99px; background:rgba(11,32,66,.72); color:#fff; font-size:9px; font-weight:900; letter-spacing:.12em; }
+.hero-ad-tag em { max-width:150px; overflow:hidden; font-size:10px; font-style:normal; font-weight:800; letter-spacing:0; text-overflow:ellipsis; white-space:nowrap; }
 .hero-slide { min-height:274px; padding:25px 22px 23px; position:relative; overflow:hidden; border-radius:23px; display:grid; grid-template-columns:minmax(0,1fr) 108px; align-items:center; gap:12px; color:#fff; background:linear-gradient(135deg,#0d55b4,#46c6fb); box-shadow:0 15px 34px rgba(30,78,180,.22); animation:hero-in .32s ease; }
 .hero-slide::before { content:''; width:210px; height:210px; position:absolute; right:-100px; top:-115px; border:1px solid rgba(255,255,255,.25); border-radius:50%; }
 .hero-slide-1 { background:linear-gradient(135deg,#173e8f,#2868df); }.hero-slide-2 { background:linear-gradient(135deg,#0c516a,#1f9bc0); }.hero-slide-3 { background:linear-gradient(135deg,#1548b8,#5b8df0); }
@@ -109,6 +112,40 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .invite-note li { display:grid; grid-template-columns:auto 1fr; align-items:baseline; gap:9px; }
 .invite-note b { color:var(--navy); font-size:12px; font-weight:900; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .invite-note span { color:#62728a; font-size:10px; line-height:1.6; }
+/* トップバナーの出稿枠。上位ランクの特典なので、招待カードの下に置く。 */
+.ad-card { margin:12px 14px 0; padding:18px; display:grid; gap:14px; border:1px solid var(--accent-line); border-radius:18px; background:linear-gradient(150deg,var(--accent-soft),#fff); box-shadow:0 7px 22px rgba(93,52,28,.06); }
+.ad-heading p { margin:0 0 4px; color:var(--accent-ink); font-size:9px; font-weight:900; letter-spacing:.16em; }
+.ad-heading h2 { margin:0; font-size:19px; }
+.ad-heading span { display:block; margin-top:7px; color:#62728a; font-size:11px; line-height:1.75; }
+.ad-slot-list { margin:0; padding:0; list-style:none; display:grid; gap:10px; }
+.ad-slot-list>li { padding:13px; display:grid; gap:10px; border:1px solid #e8d6cd; border-radius:14px; background:#fff; }
+.ad-slot-head { display:flex; align-items:baseline; justify-content:space-between; gap:9px; }
+.ad-slot-head b { color:var(--navy); font-size:13px; font-weight:900; }
+.ad-slot-head span { color:var(--accent-ink); font-size:10px; font-weight:800; white-space:nowrap; }
+.ad-slot-preview { width:100%; aspect-ratio:3/2; display:block; object-fit:cover; border-radius:11px; background:#eef2f7; }
+.ad-slot-foot { display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px; }
+.ad-slot-foot b { min-width:0; overflow:hidden; color:#3a4a63; font-size:12px; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
+.ad-slot-foot button { min-height:38px; padding:0 13px; border:1px solid var(--accent-line); border-radius:9px; background:#fff; color:var(--accent-ink); font-size:11px; font-weight:900; white-space:nowrap; }
+.ad-form { display:grid; gap:11px; }
+.ad-form label { display:grid; gap:6px; color:#34445d; font-size:10px; font-weight:800; }
+.ad-form label small { margin-left:5px; color:#8b98ac; font-weight:700; }
+.ad-form input { width:100%; min-height:44px; padding:0 11px; border:1px solid #d7deea; border-radius:10px; background:#fff; color:var(--ink); font-size:12px; outline:none; }
+.ad-file { position:relative; }
+.ad-file input[type=file] { position:absolute; inset:auto 0 0; width:100%; height:44px; opacity:0; }
+.ad-file i { min-height:44px; padding:0 13px; display:flex; align-items:center; overflow:hidden; border:1px dashed #c9b3a8; border-radius:10px; background:#fff; color:var(--accent-ink); font-size:12px; font-style:normal; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
+.ad-form input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.ad-form-actions { display:grid; grid-template-columns:auto 1fr; gap:9px; }
+.ad-form-actions>button:first-child { min-height:46px; padding:0 15px; border:1px solid var(--line); border-radius:10px; background:#fff; color:#61708a; font-size:12px; font-weight:800; }
+.ad-buy { display:grid; gap:11px; }
+.ad-buy-facts { margin:0; display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
+.ad-buy-facts>div { padding:11px 9px; border:1px solid #eddbd1; border-radius:12px; background:#fff; text-align:center; }
+.ad-buy-facts dt { color:#7f8da1; font-size:9px; font-weight:800; }
+.ad-buy-facts dd { margin:5px 0 0; color:var(--accent-ink); font-size:17px; font-weight:900; font-variant-numeric:tabular-nums; }
+.ad-buy-facts dd { white-space:nowrap; }
+.ad-buy-facts dd small { margin-left:2px; color:#9aa6b8; font-size:9px; font-weight:800; }
+.ad-buy-facts dd small.ad-buy-year { display:block; margin:0 0 1px; color:#8b98ac; font-size:10px; }
+.ad-note { margin:0; color:#7b8ca4; font-size:10px; line-height:1.75; }
+
 /* 機能改善の受け口。招待カードの下に置く。 */
 .feedback-card { margin:12px 14px 0; padding:18px; border:1px solid #d7e3f5; border-radius:18px; background:linear-gradient(150deg,#fbfdff,#f2f7ff); box-shadow:0 6px 18px rgba(28,52,93,.05); }
 .feedback-heading p { margin:0 0 4px; color:var(--accent-ink); font-size:9px; font-weight:900; letter-spacing:.16em; }

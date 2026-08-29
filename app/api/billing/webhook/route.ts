@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { env } from 'cloudflare:workers';
 import Stripe from 'stripe';
 import { planForPrice, stripeClient } from '@/app/stripe';
-import { applyStripeSubscription, findMemberByStripeCustomer } from '@/db/data';
+import { activateAdSlot, applyStripeSubscription, findMemberByStripeCustomer } from '@/db/data';
 
 // Stripeからの通知だけを受ける。署名を必ず確かめる。
 // ログインは通さない（Stripeは会員ではない）ので、署名が唯一の身元確認。
@@ -27,6 +27,11 @@ export async function POST(request: Request) {
       const memberId = session.metadata?.memberId ?? '';
       if (memberId && typeof session.subscription === 'string') {
         await syncSubscription(await stripe.subscriptions.retrieve(session.subscription), memberId);
+      }
+      // 出稿枠は1回きりの支払い。購読ではないので subscription が付かない。
+      const adSlotId = session.metadata?.adSlotId ?? '';
+      if (adSlotId && session.mode === 'payment' && session.payment_status === 'paid') {
+        await activateAdSlot(adSlotId);
       }
       break;
     }
