@@ -465,17 +465,19 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
             <i aria-hidden="true">▾</i>
           </summary>
           <div className="plan-body">
-            {stats.paid && stats.planPeriodEnd && <p className="plan-until">{stats.planPeriodEnd} までご利用いただけます</p>}
+            {stats.bonusPlan !== 'free' && stats.bonusPeriodEnd
+              ? <p className="plan-until">招待特典で{planCatalog[stats.bonusPlan].name}を{stats.bonusPeriodEnd}までご利用いただけます。そのあとは{planCatalog[stats.contractedPlan].name}に戻ります。</p>
+              : stats.paid && stats.planPeriodEnd && <p className="plan-until">{stats.planPeriodEnd} までご利用いただけます</p>}
             {referral?.billing?.yearly && <div className="plan-cycle" role="group" aria-label="お支払いの周期">
               <button className={planCycle === 'month' ? 'active' : ''} onClick={() => setPlanCycle('month')}>月払い</button>
               <button className={planCycle === 'year' ? 'active' : ''} onClick={() => setPlanCycle('year')}>年払い <em>20%OFF</em></button>
             </div>}
             <ul className="plan-list">
               {plans.map((plan) => <li key={plan} className={`plan-${plan}${plan === stats.plan ? ' current' : ''}`}>
-                <p className="plan-list-head"><b>{planCatalog[plan].name}</b>{plan === stats.plan && <em>いま</em>}<span>{planPrice(plan, planCycle)}</span></p>
+                <p className="plan-list-head"><b>{planCatalog[plan].name}</b>{plan === stats.contractedPlan && <em>契約中</em>}{plan !== stats.contractedPlan && plan === stats.bonusPlan && <em className="bonus">招待特典</em>}<span>{planPrice(plan, planCycle)}</span></p>
                 {planCycle === 'year' && plan !== 'free' && <p className="plan-list-per-month">{planPerMonthNote(plan)}</p>}
                 <p className="plan-list-what"><span>探しごと {planPostLimit(plan)}</span><span>名刺 {planCardLimit(plan)}</span></p>
-                {referral?.billing?.ready && plan !== 'free' && plan !== stats.plan
+                {referral?.billing?.ready && plan !== 'free' && plan !== stats.contractedPlan
                   && <button className="plan-pick" onClick={() => startBilling(plan)} disabled={busy}>このプランにする</button>}
               </li>)}
             </ul>
@@ -500,9 +502,8 @@ export default function BoardClient({ initialRequests, initialStats, userName }:
           <ul className="invite-note">
             {referral.waitingCount > 0 && <li><b>{referral.waitingCount}人</b><span>いまご利用を停止しています</span></li>}
             {!!referral.billing?.creditPerReferralYen && <li><b>1人につき {referral.billing.creditPerReferralYen.toLocaleString('ja-JP')}円</b><span>{referral.billing.cycle === 'year' ? '次回の年額のお支払いから引かれます' : '次回の請求から引かれます'}</span></li>}
-            {referral.qualifyingCount > 0 && <li><b>{referral.qualifyingCount}人</b><span>ご利用が{referral.qualifyDays}日続くと、1ヶ月ぶんが決まります</span></li>}
+            {referral.qualifyingCount > 0 && <li><b>{referral.qualifyingCount}人</b><span>ご利用が{referral.qualifyDays}日続くと、1ヶ月分の利用料が無料になります</span></li>}
             {referral.waitingCredits > 0 && <li><b>{referral.waitingCredits}人ぶん</b><span>順番待ちです。空きが出しだい自動で反映されます</span></li>}
-            <li><b>{referral.remainingThisYear > 0 ? `あと${referral.remainingThisYear}ヶ月ぶん` : '受け取り済み'}</b><span>{referral.remainingThisYear > 0 ? `この1年で受け取れる残りです（1年あたり${referral.capPerYear}ヶ月まで）` : `この1年ぶん（${referral.capPerYear}ヶ月）は受け取りました`}</span></li>
           </ul>
           <p className="invite-terms">この特典は、予告なく内容の変更または終了をすることがあります。すでに確定したぶんは、そのままご利用いただけます。</p>
         </section>}

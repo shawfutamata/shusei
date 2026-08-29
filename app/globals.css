@@ -204,7 +204,8 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .plan-list p { margin:0; }
 .plan-list-head { display:flex; align-items:center; gap:6px; }
 .plan-list-head b { color:var(--tier-ink); font-size:14px; font-weight:900; }
-.plan-list-head em { padding:2px 7px; border-radius:99px; background:var(--tier-ink); color:#fff; font-size:9px; font-style:normal; font-weight:900; letter-spacing:.06em; }
+.plan-list-head em { padding:2px 7px; border-radius:99px; background:var(--tier-ink); color:#fff; font-size:9px; font-style:normal; font-weight:900; letter-spacing:.06em; white-space:nowrap; }
+.plan-list-head em.bonus { background:var(--accent); }
 .plan-list-head>span { margin-left:auto; color:var(--tier-ink); font-size:12px; font-weight:900; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .plan-list-what { margin-top:4px; display:flex; flex-wrap:wrap; gap:4px 14px; color:#5b6980; font-size:11px; font-weight:700; }
 .plan-list-what span { white-space:nowrap; }

@@ -3,7 +3,7 @@ import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-
 import type { ChatGPTUser } from '@/app/chatgpt-auth';
 import { cleanFacebookUrl } from '@/app/social-links';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
-import { UNLIMITED, currentPlan, extendedPlanEnd, isPaid, limits, remainingBusinessCards, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
+import { UNLIMITED, bonusPlan, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingBusinessCards, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
 import { matchesIndustry } from '@/app/industry-options';
 
 export type BoardRequest = {
@@ -55,6 +55,11 @@ export type MemberStats = {
   nextRankAt: number;
   plan: Plan;
   paid: boolean;
+  /** 契約しているプラン。招待特典が切れたらここへ戻る。 */
+  contractedPlan: Plan;
+  /** 招待特典で開いているプラン。無ければ free。 */
+  bonusPlan: Plan;
+  bonusPeriodEnd: string;
   planPeriodEnd: string;
   requestsThisMonth: number;
   requestLimit: number;
@@ -332,6 +337,8 @@ export async function ensureDatabase() {
     ['stripe_customer_id', "ALTER TABLE members ADD COLUMN stripe_customer_id TEXT NOT NULL DEFAULT ''"],
     ['stripe_subscription_id', "ALTER TABLE members ADD COLUMN stripe_subscription_id TEXT NOT NULL DEFAULT ''"],
     ['plan_interval', "ALTER TABLE members ADD COLUMN plan_interval TEXT NOT NULL DEFAULT 'month'"],
+    ['bonus_plan', "ALTER TABLE members ADD COLUMN bonus_plan TEXT NOT NULL DEFAULT 'free'"],
+    ['bonus_period_end', "ALTER TABLE members ADD COLUMN bonus_period_end TEXT NOT NULL DEFAULT ''"],
   ];
   for (const [columnName, sql] of missingColumns) {
     if (!existingColumns.has(columnName)) await env.DB.prepare(sql).run();
@@ -345,6 +352,10 @@ export async function ensureDatabase() {
     await env.DB.prepare('ALTER TABLE requests ADD COLUMN image_version INTEGER NOT NULL DEFAULT 0').run();
   }
   await env.DB.prepare("UPDATE referral_credits SET status = 'waiting', earned_at = '' WHERE status = 'capped'").run();
+  // 招待特典は契約プランと別の列に持つようにした。前の置き場から移す。
+  await env.DB.prepare(`UPDATE members SET bonus_plan = plan, bonus_period_end = plan_period_end,
+      plan = 'free', plan_period_end = '', plan_source = ''
+    WHERE plan_source = 'referral'`).run();
   // 登録した人はその場で使えるようにしたので、承認待ちで止まっていた人を通す。
   // 以後 'invited' は作られない。利用を止めるときは 'suspended' を使うこと。
   await env.DB.prepare(`UPDATE members SET membership_status = 'active',
@@ -685,7 +696,9 @@ export async function getBoardData(user: ChatGPTUser) {
   const { notifyIndustriesJson, ...memberFields } = baseMember;
   const plan = await getPlanSummary(user.userId);
   const stats = calculateRank({ ...memberFields, notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion),
-    plan: plan.activePlan, paid: plan.paid, planPeriodEnd: plan.planPeriodEnd, requestsThisMonth: plan.requestsThisMonth, requestLimit: plan.requestLimit,
+    plan: plan.activePlan, paid: plan.paid, planPeriodEnd: plan.planPeriodEnd,
+    contractedPlan: plan.contracted, bonusPlan: plan.bonus, bonusPeriodEnd: plan.bonusPeriodEnd ?? '',
+    requestsThisMonth: plan.requestsThisMonth, requestLimit: plan.requestLimit,
     businessCards: plan.businessCards, businessCardLimit: plan.businessCardLimit });
   const requests = requestsResult.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, industryTagsJson, imageVersion, ...request }) => ({
     ...request,
@@ -1168,14 +1181,22 @@ export async function deleteRequestComment(user: ChatGPTUser, commentId: string)
 // 判定そのものは app/entitlements.ts に置いてある。
 
 export type PlanSummary = PlanState & { activePlan: Plan; paid: boolean; source: string;
+  /** 契約しているプラン。特典を除いたもの。特典が切れたらここへ戻る。 */
+  contracted: Plan;
+  /** 招待特典で開いているプラン。無ければ free。 */
+  bonus: Plan;
   requestsThisMonth: number; requestLimit: number; requestsLeft: number;
   businessCards: number; businessCardLimit: number; businessCardsLeft: number };
 
 export async function getPlanState(memberId: string): Promise<PlanState> {
   await ensureDatabase();
-  const row = await env.DB.prepare('SELECT plan, plan_period_end AS planPeriodEnd FROM members WHERE id = ?')
-    .bind(memberId).first<{ plan: string; planPeriodEnd: string }>();
-  return { plan: toPlan(row?.plan), planPeriodEnd: row?.planPeriodEnd ?? '' };
+  const row = await env.DB.prepare(`SELECT plan, plan_period_end AS planPeriodEnd,
+      bonus_plan AS bonusPlan, bonus_period_end AS bonusPeriodEnd FROM members WHERE id = ?`)
+    .bind(memberId).first<{ plan: string; planPeriodEnd: string; bonusPlan: string; bonusPeriodEnd: string }>();
+  return {
+    plan: toPlan(row?.plan), planPeriodEnd: row?.planPeriodEnd ?? '',
+    bonusPlan: toPlan(row?.bonusPlan), bonusPeriodEnd: row?.bonusPeriodEnd ?? '',
+  };
 }
 
 export async function countRequestsThisMonth(memberId: string) {
@@ -1201,18 +1222,21 @@ export async function getPlanSummary(memberId: string): Promise<PlanSummary> {
   const cap = limits(state);
   return {
     ...state, activePlan: currentPlan(state), paid: isPaid(state), source: row?.source ?? '',
+    contracted: contractedPlan(state), bonus: bonusPlan(state),
     requestsThisMonth, requestLimit: cap.requestsPerMonth, requestsLeft: remainingRequests(state, requestsThisMonth),
     businessCards, businessCardLimit: cap.businessCards, businessCardsLeft: remainingBusinessCards(state, businessCards),
   };
 }
 
-/** 無料月クレジット1件ぶん、有料期間を1ヶ月延ばす。運営の請求とは別に、無料会員へその場で効かせる。 */
-async function grantProMonth(memberId: string, source: string) {
+/**
+ * 無料月クレジット1件ぶん、招待特典のプレミアムを1ヶ月延ばす。
+ * 契約しているプランとは別の列に書くので、あとで契約しても特典は消えない。
+ * 特典が切れたら、契約しているプラン（無ければ無料）に戻る。
+ */
+async function grantProMonth(memberId: string) {
   const state = await getPlanState(memberId);
-  // 無料の人には上のプランを試してもらう。すでに有料なら、そのプランの期間を延ばす。
-  const plan: Plan = state.plan === 'free' ? 'premium' : state.plan;
-  await env.DB.prepare('UPDATE members SET plan = ?, plan_period_end = ?, plan_source = ? WHERE id = ?')
-    .bind(plan, extendedPlanEnd(state.planPeriodEnd), source, memberId).run();
+  await env.DB.prepare('UPDATE members SET bonus_plan = ?, bonus_period_end = ? WHERE id = ?')
+    .bind('premium', extendedPlanEnd(state.bonusPeriodEnd ?? ''), memberId).run();
 }
 // --- プランここまで ---------------------------------------------------------
 
@@ -1406,8 +1430,8 @@ async function reconcileReferralCredits(inviterId: string) {
 
   // 3. 無料会員には、その場で有料機能を1ヶ月ぶん開ける。試してもらうのがいちばんの入口になる。
   //    有料会員のぶんは請求で引くので、ここでは何もしない（applied_month が空のまま運営が使う）。
-  if (!isPaid(await getPlanState(inviterId))) {
-    for (let index = 0; index < waiting.results.length; index += 1) await grantProMonth(inviterId, 'referral');
+  if (!hasPaidContract(await getPlanState(inviterId))) {
+    for (let index = 0; index < waiting.results.length; index += 1) await grantProMonth(inviterId);
     await env.DB.prepare(`UPDATE referral_credits SET applied_month = ?
       WHERE inviter_id = ? AND status = 'earned' AND applied_month = ''`)
       .bind(nowIso.slice(0, 7), inviterId).run();

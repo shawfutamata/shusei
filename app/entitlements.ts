@@ -16,7 +16,20 @@ export function toBillingCycle(value: unknown): BillingCycle {
 }
 
 export type Plan = (typeof plans)[number];
-export type PlanState = { plan: Plan; planPeriodEnd: string };
+/**
+ * プランは2本立てで持つ。
+ * - plan / planPeriodEnd … 契約しているプラン（Stripeの購読、または運営が入れたもの）
+ * - bonusPlan / bonusPeriodEnd … 招待特典で一時的に開いているプラン
+ *
+ * 別々に持つのは、契約すると特典が消える事故を防ぐため。実際に使えるのは
+ * 「2つのうち上のほう」で、特典が切れたら契約しているプランに戻る。
+ */
+export type PlanState = {
+  plan: Plan;
+  planPeriodEnd: string;
+  bonusPlan?: Plan;
+  bonusPeriodEnd?: string;
+};
 
 /** 無制限は -1 で表す。JSONに載せるので Infinity は使わない。 */
 export const UNLIMITED = -1;
@@ -54,10 +67,31 @@ export function toPlan(value: unknown): Plan {
 }
 
 /** 期限切れなら無料に落とす。判定はすべてこれを通す。 */
-export function currentPlan(state: PlanState, today = new Date()): Plan {
+/** 契約しているプラン。期限切れなら無料。特典は含めない。 */
+export function contractedPlan(state: PlanState, today = new Date()): Plan {
   if (state.plan === 'free') return 'free';
   if (state.planPeriodEnd && state.planPeriodEnd < isoDate(today)) return 'free';
   return state.plan;
+}
+
+/** 招待特典で開いているプラン。期限切れなら無料。 */
+export function bonusPlan(state: PlanState, today = new Date()): Plan {
+  const plan = state.bonusPlan ?? 'free';
+  if (plan === 'free') return 'free';
+  if (!state.bonusPeriodEnd || state.bonusPeriodEnd < isoDate(today)) return 'free';
+  return plan;
+}
+
+/** 実際に使えるプラン。契約と特典の、上のほう。 */
+export function currentPlan(state: PlanState, today = new Date()): Plan {
+  const contracted = contractedPlan(state, today);
+  const bonus = bonusPlan(state, today);
+  return rank(bonus) > rank(contracted) ? bonus : contracted;
+}
+
+/** 特典ではなく、自分で契約している有料プランがあるか。 */
+export function hasPaidContract(state: PlanState, today = new Date()) {
+  return contractedPlan(state, today) !== 'free';
 }
 
 export function isPaid(state: PlanState, today = new Date()) {
