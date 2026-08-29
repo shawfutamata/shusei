@@ -7,9 +7,9 @@ export const company = {
   /** 登記上の法人名 */
   name: '株式会社ColourJam',
   /** 代表取締役、または業務の責任者の氏名 */
-  representative: '',
+  representative: '二俣 将',
   /** 登記上の所在地。番地・部屋番号まで */
-  address: '',
+  address: '〒153-0043 東京都目黒区東山2-2-5 日興パレス東山204',
   /** 連絡が取れる電話番号 */
   phone: '',
   /** 問い合わせ窓口 */
