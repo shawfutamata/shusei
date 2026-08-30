@@ -1042,3 +1042,71 @@ body { font-weight:600; }
   .admin-summary { grid-template-columns:repeat(4,1fr); }
 }
 .admin-self { align-self:center; color:#93a0b3; font-size:12px; font-weight:800; }
+
+/* ===== 管理画面の分析 =====
+   パソコンで見る前提で組み、狭い画面では1列に落とす。
+   グラフの色は3つだけ。**色だけで見分けさせない**ので、凡例に名前と
+   数字を必ず添え、棒の数字は棒の外に置く（色が分かりにくい人にも読める）。
+   3色は検証ずみ（CVDの最小差 ΔE 9.2・通常色覚 27.6）。 */
+/* グリッドとフレックスの子は、既定で「中身より小さくならない」。中に横スクロール
+   するグラフがあると、その幅ぶん外側まで押し広げて画面からはみ出す。
+   min-width:0 を通しておくと、はみ出しは .viz-scroll の中だけで収まる。 */
+.viz-panel { --viz-1:#2a78d6; --viz-2:#eb6834; --viz-3:#1baf7a; margin-top:14px; display:grid; gap:12px; }
+.viz-panel > *, .viz-grid > *, .viz-card, .viz-range, .viz-bars li { min-width:0; }
+.viz-range { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.viz-range button { min-height:42px; padding:0 16px; border:1px solid var(--line); border-radius:999px; background:#fff; color:#66758c; font-size:13px; font-weight:900; cursor:pointer; }
+.viz-range button.selected { border-color:var(--navy); background:var(--navy); color:#fff; }
+.viz-export { margin-left:auto; flex:0 0 auto; padding:11px 15px; border:1px solid #cfdcee; border-radius:10px; background:#fff; color:#0f5fc4; font-size:12px; font-weight:800; text-decoration:none; }
+
+.viz-card { padding:18px; border:1px solid #e0e6ef; border-radius:16px; background:#fff; }
+.viz-card h2 { margin:0; display:flex; align-items:baseline; gap:10px; color:var(--navy); font-size:17px; }
+.viz-count { padding:2px 9px; border-radius:99px; background:#eef1f5; color:#71809a; font-size:11px; font-weight:900; }
+.viz-lead { margin:7px 0 0; color:#62728a; font-size:12px; line-height:1.8; }
+.viz-lead b { color:#3f4d63; }
+.viz-empty { margin:14px 0 0; padding:16px; border-radius:12px; background:#f6f8fb; color:#7b8ca4; font-size:12px; text-align:center; }
+
+.viz-kpis { margin:14px 0 0; padding:0; display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+.viz-kpis div { padding:13px; border:1px solid #eef1f6; border-radius:12px; background:#fbfcfe; }
+.viz-kpis dt { color:#7b8ca4; font-size:11px; font-weight:800; }
+.viz-kpis dd { margin:5px 0 0; color:var(--navy); font-size:27px; font-weight:900; line-height:1; }
+.viz-kpis dd small { display:inline; margin-left:2px; font-size:12px; font-weight:800; }
+.viz-kpis dd ~ small { display:block; margin-top:6px; color:#93a0b3; font-size:10px; font-weight:700; }
+
+.viz { margin:14px 0 0; }
+.viz-legend { margin:0 0 10px; padding:0; list-style:none; display:flex; flex-wrap:wrap; gap:6px 16px; }
+.viz-legend li { display:flex; align-items:center; gap:6px; }
+.viz-legend i { width:11px; height:11px; flex:0 0 auto; border-radius:3px; }
+.viz-legend b { color:#3f4d63; font-size:12px; }
+.viz-legend span { color:#7b8ca4; font-size:12px; font-weight:700; }
+.viz-scroll { margin:0 -4px; overflow-x:auto; }
+.viz-svg { width:100%; height:auto; display:block; touch-action:pan-y; }
+.viz-grid { stroke:#e8edf4; stroke-width:1; }
+.viz-cross { stroke:#b8c4d4; stroke-width:1; stroke-dasharray:3 3; }
+.viz-tick { fill:#93a0b3; font-size:10px; font-weight:700; }
+.viz-caption { margin:9px 0 0; color:#7b8ca4; font-size:11px; font-weight:700; }
+.viz-caption b { color:#3f4d63; }
+
+.viz-bars { margin:14px 0 0; padding:0; list-style:none; display:grid; gap:11px; }
+.viz-bars li { display:grid; grid-template-columns:minmax(84px,auto) 1fr auto; align-items:center; gap:5px 10px; }
+.viz-bar-label { min-width:0; color:#3f4d63; font-size:12px; font-weight:800; overflow-wrap:anywhere; }
+.viz-bar-track { height:11px; border-radius:99px; background:#eef1f6; overflow:hidden; }
+.viz-bar-track i { display:block; height:100%; border-radius:99px; }
+.viz-bar-value { color:var(--navy); font-size:13px; font-weight:900; white-space:nowrap; }
+.viz-bar-note { grid-column:2 / -1; color:#93a0b3; font-size:10px; font-weight:700; }
+
+.viz-grid-2, .viz-grid { display:grid; gap:12px; }
+.viz-table-wrap { margin-top:12px; overflow-x:auto; }
+.viz-table { width:100%; border-collapse:collapse; font-size:12px; }
+.viz-table th { padding:8px 10px; border-bottom:1px solid #e8edf4; color:#7b8ca4; font-size:10px; font-weight:800; text-align:left; white-space:nowrap; }
+.viz-table td { padding:10px; border-bottom:1px solid #f1f4f8; color:#3f4d63; }
+.viz-table .is-num { text-align:right; white-space:nowrap; }
+.viz-table .is-num b { color:#b4380f; font-size:14px; font-weight:900; }
+.viz-more { margin:10px 0 0; color:#93a0b3; font-size:11px; font-weight:700; }
+
+@media(min-width:721px) {
+  .viz-kpis { grid-template-columns:repeat(4,1fr); }
+  .viz-grid { grid-template-columns:1fr 1fr; }
+}
+.viz-caption em { margin-left:4px; color:#93a0b3; font-size:10px; font-style:normal; }
+.viz-caption small { display:block; margin-top:5px; color:#a4b0c1; font-size:10px; }
+.viz-caption-values { margin-left:10px; }

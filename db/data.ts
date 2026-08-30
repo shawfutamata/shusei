@@ -376,6 +376,9 @@ export async function ensureDatabase() {
     ['placement', "ALTER TABLE ad_slots ADD COLUMN placement TEXT NOT NULL DEFAULT 'banner'"],
     // 掲示板の上位に出すとき、どの大分類の一覧に出すか。空なら全業種の先頭。
     ['industry', "ALTER TABLE ad_slots ADD COLUMN industry TEXT NOT NULL DEFAULT ''"],
+    // 実際に請求した税込額。あとから日数×単価で計算し直すと、ランク割引の
+    // かかり方が分からず実際とずれる。押さえた時点の額をそのまま残す。
+    ['amount_yen', 'ALTER TABLE ad_slots ADD COLUMN amount_yen INTEGER NOT NULL DEFAULT 0'],
   ] as const) {
     if (!adColumnNames.has(columnName)) await env.DB.prepare(sql).run();
   }
@@ -1383,7 +1386,7 @@ export async function adCalendar(daysAhead: number, placement: string = DEFAULT_
  * 枠を1つ押さえる。決済が終わるまでは reserved で、放置すると自動で解放される。
  * 期間のどこか1日でも満枠なら断る。早い者勝ちなので、押さえた順に確定する。
  */
-export async function reserveAdSlot(memberId: string, startDate: string, days: number, content: AdContent, placement: string = DEFAULT_PLACEMENT, industry = '') {
+export async function reserveAdSlot(memberId: string, startDate: string, days: number, content: AdContent, placement: string = DEFAULT_PLACEMENT, industry = '', amountYen = 0) {
   await ensureDatabase();
   await releaseStaleAdReservations();
   const endDate = shiftDate(startDate, days - 1);
@@ -1397,10 +1400,10 @@ export async function reserveAdSlot(memberId: string, startDate: string, days: n
   // 支払いのあとに「まだ何も出ていない枠」ができない。
   const imageVersion = content.image ? await putAdImage(id, memberId, content.image) : 0;
   await env.DB.prepare(`INSERT INTO ad_slots (id, member_id, month, start_date, end_date, status, created_at,
-      placement, industry, title, description, link_url, image_version)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      placement, industry, title, description, link_url, image_version, amount_yen)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(id, memberId, startDate.slice(0, 7), startDate, endDate, 'reserved', new Date().toISOString(), placement, industry,
-      cleanAdTitle(content.title), cleanAdDescription(content.description), cleanAdLink(content.linkUrl), imageVersion).run();
+      cleanAdTitle(content.title), cleanAdDescription(content.description), cleanAdLink(content.linkUrl), imageVersion, Math.max(0, Math.round(amountYen))).run();
 
   // 押さえたあとにもう一度数えて、競り負けていたら取り消す。
   const lost = remainingByDay(await overlappingSlots(startDate, endDate, placement), startDate, days, limit).find((day) => day.remaining < 0);

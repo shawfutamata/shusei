@@ -16,7 +16,7 @@ import RankCrest, { CrownMark } from './RankCrest';
 import LegalLinks from './LegalLinks';
 import type { BillingRecord } from './stripe';
 import PerkIcon from './PerkIcon';
-import { AD_MIN_DAYS, AD_ROTATE_MS, DEFAULT_PLACEMENT, adPlacements, placementName } from './ad-options';
+import { AD_MIN_DAYS, AD_ROTATE_MS, DEFAULT_PLACEMENT, adPlacements, placementName, placementSlots } from './ad-options';
 import { EXTEND_DAYS, canExtendRequest, canFilterByRevenue, canPostVideo, descriptionLimit, notifyIndustryLimit, photoLimit, rankNames, rankPerks, rankThresholds } from './rank-perks';
 import { serviceName } from './brand';
 import BrandMark from './BrandMark';
@@ -810,8 +810,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const bannerAds = useMemo(() => ads.filter((ad) => (ad.placement || DEFAULT_PLACEMENT) === 'banner'), [ads]);
   // 掲示板の上位。業種を狙った広告は、その大分類を見ているときだけ出す。
   // 狙っていない広告（industry が空）は、どの一覧でも先頭に出る。
+  // 出しすぎない歯止め。枠を押さえるときは日ごとに3件までしか通さないので
+  // 普通はここに4件以上来ない。ただし**業種を狙った広告と全業種の広告が
+  // 混ざる**ので、数え方が変わったときに一覧の先頭がPRだらけになりうる。
+  // どの業種を見ていても、絞り込まなくても、出るのは先頭3件まで。
   const listAds = useMemo(() => shuffle(ads.filter((ad) => ad.placement === 'list'
-    && (!ad.industry || ad.industry === (getIndustryGroup(industryFilter)?.name ?? industryFilter)))),
+    && (!ad.industry || ad.industry === (getIndustryGroup(industryFilter)?.name ?? industryFilter))))
+    .slice(0, placementSlots('list')),
   [ads, industryFilter]);
 
   // 出稿された広告を先に置く。お金をいただいている枠なので、いちばん先に目に入る場所に出す。

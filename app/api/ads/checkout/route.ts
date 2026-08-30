@@ -53,7 +53,10 @@ export async function POST(request: Request) {
   // 先に枠を押さえる。早い者勝ちなので、決済画面を開く前に取り合いを終わらせる。
   let reserved: { id: string; endDate: string };
   try {
-    reserved = await reserveAdSlot(gate.user.userId, startDate, days, parsed.content, placement, industry);
+    // 請求する額をここで決めて、そのまま枠にも記録する。**画面から受け取った
+    // 額は使わない**（書き換えられるため）。分析の売上はこの値だけを使う。
+    reserved = await reserveAdSlot(gate.user.userId, startDate, days, parsed.content, placement, industry,
+      adSlotTotalYen(placement, days, adDiscountRate(level)));
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : '枠を押さえられませんでした。' }, { status: 409 });
   }

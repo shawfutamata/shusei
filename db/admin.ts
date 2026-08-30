@@ -179,3 +179,155 @@ export async function adminSetFeedbackDone(feedbackId: string, done: boolean) {
   await env.DB.prepare('UPDATE feedback SET status = ? WHERE id = ?')
     .bind(done ? 'done' : 'new', feedbackId).run();
 }
+
+// ===== 分析 =====
+// 「いま何が起きているか」だけでなく、**次に何をすればいいか**が出るように作る。
+// 数を並べるだけの画面は、見た次の日から見なくなるため。
+
+export type AdminAnalytics = {
+  days: number;
+  /** 日ごとの動き。折れ線に使う。 */
+  timeline: { date: string; members: number; requests: number; introductions: number }[];
+  /** 紹介がどれだけ生まれているか。このサービスの核。 */
+  matching: {
+    requests: number; withIntro: number; introductions: number;
+    /** 紹介が1件でも付いた投稿の割合（%）。 */
+    hitRate: number;
+    /** 投稿から最初の紹介が届くまでの日数（中央値）。 */
+    medianDaysToFirstIntro: number | null;
+  };
+  /** 会場ごとの活きぐあい。どこに顔を出すかを決めるのに使う。 */
+  venues: { venue: string; members: number; requests: number; introductions: number }[];
+  /** 業種の需要と供給。**探されているのに会員がいない業種＝勧誘すべき業種。** */
+  industryGap: { industry: string; wanted: number; supply: number; gap: number }[];
+  /** 動きが止まっている会員。声をかける相手の一覧。 */
+  dormant: { id: string; displayName: string; company: string; venue: string; email: string; lastActive: string; daysSince: number }[];
+  /** 売上。広告は押さえた時点で記録した実額だけを使う。 */
+  revenue: { month: string; adYen: number; adCount: number }[];
+  paidMembers: number;
+};
+
+export async function adminAnalytics(days = 90): Promise<AdminAnalytics> {
+  await ensureDatabase();
+  const span = Math.min(365, Math.max(7, Math.round(days)));
+  const from = new Date(Date.now() - (span - 1) * 86400_000).toISOString().slice(0, 10);
+  const now = Date.now();
+
+  const daily = async (table: string, column = 'created_at') => {
+    const rows = await env.DB.prepare(
+      `SELECT substr(${column},1,10) AS date, COUNT(*) AS count FROM ${table} WHERE ${column} >= ? GROUP BY date`)
+      .bind(from).all<{ date: string; count: number }>();
+    return new Map(rows.results.map((row) => [row.date, Number(row.count)]));
+  };
+  const [memberDays, requestDays, introDays] = await Promise.all([
+    daily('members'), daily('requests'), daily('introductions'),
+  ]);
+  // 日付は歯抜けにしない。0の日が抜けると、折れ線が実際より活発に見える。
+  const timeline: AdminAnalytics['timeline'] = [];
+  for (let index = 0; index < span; index += 1) {
+    const date = new Date(now - (span - 1 - index) * 86400_000).toISOString().slice(0, 10);
+    timeline.push({ date, members: memberDays.get(date) ?? 0, requests: requestDays.get(date) ?? 0, introductions: introDays.get(date) ?? 0 });
+  }
+
+  // 期間内に出た投稿と、それに届いた最初の紹介まで。
+  const firstIntro = await env.DB.prepare(`SELECT r.id, r.created_at AS requestAt,
+      (SELECT MIN(i.created_at) FROM introductions i WHERE i.request_id = r.id) AS introAt
+    FROM requests r WHERE r.created_at >= ?`).bind(from).all<{ id: string; requestAt: string; introAt: string | null }>();
+  const gaps = firstIntro.results
+    .filter((row) => row.introAt)
+    .map((row) => (new Date(row.introAt as string).getTime() - new Date(row.requestAt).getTime()) / 86400_000)
+    .sort((a, b) => a - b);
+  const introCount = await env.DB.prepare('SELECT COUNT(*) AS count FROM introductions WHERE created_at >= ?')
+    .bind(from).first<{ count: number }>();
+  const requestTotal = firstIntro.results.length;
+  const withIntro = gaps.length;
+
+  const venueRows = await env.DB.prepare(`SELECT m.venue AS venue, COUNT(*) AS members,
+      (SELECT COUNT(*) FROM requests r JOIN members a ON a.id = r.author_id WHERE a.venue = m.venue) AS requests,
+      (SELECT COUNT(*) FROM introductions i JOIN members b ON b.id = i.introducer_id WHERE b.venue = m.venue) AS introductions
+    FROM members m WHERE m.venue <> '' GROUP BY m.venue ORDER BY members DESC LIMIT 15`)
+    .all<{ venue: string; members: number; requests: number; introductions: number }>();
+
+  // 業種は大分類でまとめる。詳細のままだと数が多すぎて、次に何をするか決められない。
+  const [tagRows, memberIndustries] = await Promise.all([
+    env.DB.prepare('SELECT industry_tags AS tags FROM requests WHERE created_at >= ?').bind(from).all<{ tags: string }>(),
+    env.DB.prepare("SELECT primary_industry AS industry, COUNT(*) AS count FROM members WHERE primary_industry <> '' GROUP BY industry")
+      .all<{ industry: string; count: number }>(),
+  ]);
+
+  const [{ industryGroups }] = await Promise.all([import('../app/industry-options')]);
+  const groupOf = new Map<string, string>();
+  for (const group of industryGroups) {
+    groupOf.set(group.name, group.name);
+    for (const child of group.children) groupOf.set(child, group.name);
+  }
+  const wanted = new Map<string, number>();
+  for (const row of tagRows.results) {
+    let tags: string[] = [];
+    try { tags = JSON.parse(row.tags) as string[]; } catch { tags = []; }
+    // 同じ投稿が同じ大分類に2回数えられないよう、まとめてから足す。
+    for (const group of new Set(tags.map((tag) => groupOf.get(tag)).filter(Boolean) as string[])) {
+      wanted.set(group, (wanted.get(group) ?? 0) + 1);
+    }
+  }
+  const supply = new Map<string, number>();
+  for (const row of memberIndustries.results) {
+    const group = groupOf.get(row.industry);
+    if (group) supply.set(group, (supply.get(group) ?? 0) + Number(row.count));
+  }
+  const industryGap = industryGroups
+    .map((group) => {
+      const want = wanted.get(group.name) ?? 0;
+      const have = supply.get(group.name) ?? 0;
+      return { industry: group.name, wanted: want, supply: have, gap: want - have };
+    })
+    .filter((row) => row.wanted > 0 || row.supply > 0)
+    .sort((a, b) => b.gap - a.gap || b.wanted - a.wanted);
+
+  const dormantRows = await env.DB.prepare(`SELECT m.id, m.display_name AS displayName, m.company, m.venue,
+      m.email, m.created_at AS createdAt,
+      (SELECT MAX(created_at) FROM requests WHERE author_id = m.id) AS lastRequest,
+      (SELECT MAX(created_at) FROM introductions WHERE introducer_id = m.id) AS lastIntro,
+      (SELECT MAX(created_at) FROM request_comments WHERE member_id = m.id) AS lastComment
+    FROM members m WHERE m.membership_status = 'active'`)
+    .all<{ id: string; displayName: string; company: string; venue: string; email: string;
+      createdAt: string; lastRequest: string | null; lastIntro: string | null; lastComment: string | null }>();
+  const dormant = dormantRows.results
+    .map((row) => {
+      // 何もしていない人は、登録した日を最後の動きとする。
+      const lastActive = [row.lastRequest, row.lastIntro, row.lastComment, row.createdAt]
+        .filter(Boolean).sort().pop() as string;
+      return {
+        id: row.id, displayName: row.displayName, company: row.company, venue: row.venue, email: row.email,
+        lastActive: lastActive.slice(0, 10),
+        daysSince: Math.floor((now - new Date(lastActive).getTime()) / 86400_000),
+      };
+    })
+    .filter((row) => row.daysSince >= 30)
+    .sort((a, b) => b.daysSince - a.daysSince);
+
+  const revenueRows = await env.DB.prepare(`SELECT substr(start_date,1,7) AS month,
+      SUM(amount_yen) AS adYen, COUNT(*) AS adCount FROM ad_slots
+    WHERE status IN ('active', 'stopped') AND amount_yen > 0
+    GROUP BY month ORDER BY month DESC LIMIT 12`).all<{ month: string; adYen: number; adCount: number }>();
+  const paid = await env.DB.prepare("SELECT COUNT(*) AS count FROM members WHERE plan <> 'free'").first<{ count: number }>();
+
+  return {
+    days: span,
+    timeline,
+    matching: {
+      requests: requestTotal,
+      withIntro,
+      introductions: Number(introCount?.count ?? 0),
+      hitRate: requestTotal ? Math.round((withIntro / requestTotal) * 1000) / 10 : 0,
+      medianDaysToFirstIntro: gaps.length
+        ? Math.round(gaps[Math.floor((gaps.length - 1) / 2)] * 10) / 10
+        : null,
+    },
+    venues: venueRows.results.map((row) => ({ ...row, members: Number(row.members), requests: Number(row.requests), introductions: Number(row.introductions) })),
+    industryGap,
+    dormant,
+    revenue: revenueRows.results.map((row) => ({ month: row.month, adYen: Number(row.adYen ?? 0), adCount: Number(row.adCount ?? 0) })).reverse(),
+    paidMembers: Number(paid?.count ?? 0),
+  };
+}

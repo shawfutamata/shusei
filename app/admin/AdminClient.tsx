@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import type { AdminAd, AdminFeedback, AdminMember, AdminRequest, AdminSummary } from '@/db/admin';
+import { useEffect, useState } from 'react';
+import type { AdminAd, AdminAnalytics, AdminFeedback, AdminMember, AdminRequest, AdminSummary } from '@/db/admin';
 import { placementName } from '@/app/ad-options';
+import { BarList, TrendChart } from './Charts';
 
 type AdminData = {
   summary: AdminSummary; members: AdminMember[]; requests: AdminRequest[];
@@ -10,6 +11,7 @@ type AdminData = {
 };
 
 const tabs = [
+  { key: 'analytics', label: '分析' },
   { key: 'members', label: '会員' },
   { key: 'requests', label: '投稿' },
   { key: 'ads', label: '広告' },
@@ -24,12 +26,24 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   adminName: string; adminEmail: string; serviceName: string; initial: AdminData;
 }) {
   const [data, setData] = useState(initial);
-  const [tab, setTab] = useState<(typeof tabs)[number]['key']>('members');
+  const [tab, setTab] = useState<(typeof tabs)[number]['key']>('analytics');
+  const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
+  const [range, setRange] = useState(90);
   const [keyword, setKeyword] = useState('');
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
   /** 消す前に必ず一度止める。取り消せない操作なので。 */
   const [confirming, setConfirming] = useState<AdminRequest | null>(null);
+
+  // 分析は集計が重いので、そのタブを開いたときだけ読む。
+  useEffect(() => {
+    if (tab !== 'analytics') return;
+    let alive = true;
+    fetch(`/api/admin/analytics?days=${range}`).then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (alive && data) setAnalytics(data as AdminAnalytics); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [tab, range]);
 
   async function reload(nextKeyword = keyword) {
     const response = await fetch(`/api/admin/data?q=${encodeURIComponent(nextKeyword)}`);
@@ -78,10 +92,88 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       {tabs.map((item) => <button key={item.key} className={tab === item.key ? 'selected' : ''}
         onClick={() => setTab(item.key)} aria-pressed={tab === item.key}>
         {item.label}
-        <span>{item.key === 'members' ? data.members.length : item.key === 'requests' ? data.requests.length
-          : item.key === 'ads' ? data.ads.length : data.feedback.filter((row) => row.status === 'new').length}</span>
+        {item.key !== 'analytics' && <span>{item.key === 'members' ? data.members.length : item.key === 'requests' ? data.requests.length
+          : item.key === 'ads' ? data.ads.length : data.feedback.filter((row) => row.status === 'new').length}</span>}
       </button>)}
     </nav>
+
+    {tab === 'analytics' && <section className="viz-panel">
+      <div className="viz-range" role="group" aria-label="集計する期間">
+        {[30, 90, 365].map((value) => <button key={value} className={range === value ? 'selected' : ''}
+          onClick={() => { setAnalytics(null); setRange(value); }} aria-pressed={range === value}>{value === 365 ? '1年' : `${value}日`}</button>)}
+        <a className="viz-export" href="/api/admin/export?type=members">会員をCSVで書き出す</a>
+      </div>
+
+      {!analytics ? <p className="viz-empty">集計しています…</p> : <>
+        <section className="viz-card">
+          <h2>動きの推移</h2>
+          <p className="viz-lead">この{analytics.days}日間で、会員・探しごと・紹介がどれだけ増えたか。</p>
+          <TrendChart points={analytics.timeline} />
+        </section>
+
+        <section className="viz-card">
+          <h2>紹介が生まれているか</h2>
+          <p className="viz-lead">投稿が紹介につながった割合。<b>この数字がこのサービスの成否そのものです。</b></p>
+          <dl className="viz-kpis">
+            <div><dt>紹介がついた投稿</dt><dd>{analytics.matching.hitRate}<small>%</small></dd>
+              <small>{analytics.matching.requests}件中 {analytics.matching.withIntro}件</small></div>
+            <div><dt>届いた紹介</dt><dd>{analytics.matching.introductions}<small>件</small></dd>
+              <small>1投稿あたり {analytics.matching.requests ? (analytics.matching.introductions / analytics.matching.requests).toFixed(1) : '0.0'}件</small></div>
+            <div><dt>最初の紹介まで</dt><dd>{analytics.matching.medianDaysToFirstIntro ?? '—'}<small>日</small></dd>
+              <small>まん中の人の日数</small></div>
+            <div><dt>有料の会員</dt><dd>{analytics.paidMembers}<small>人</small></dd>
+              <small>広告 {analytics.revenue.reduce((sum, row) => sum + row.adCount, 0)}件</small></div>
+          </dl>
+        </section>
+
+        <div className="viz-grid">
+          <section className="viz-card">
+            <h2>足りていない業種</h2>
+            <p className="viz-lead"><b>探されている数から、その業種の会員数を引いた差</b>です。差が大きい業種ほど、次に誘うべき相手がはっきりしています。</p>
+            <BarList color="var(--viz-2)" unit="" rows={analytics.industryGap.slice(0, 8).map((row) => ({
+              label: row.industry, value: row.gap,
+              note: `探されている ${row.wanted}件 ／ 会員 ${row.supply}人`,
+            }))} />
+          </section>
+
+          <section className="viz-card">
+            <h2>会場ごとの動き</h2>
+            <p className="viz-lead">会員が多くても、探しごとが出ていない会場があります。顔を出す先を決めるのに使えます。</p>
+            <BarList unit="人" rows={analytics.venues.slice(0, 8).map((row) => ({
+              label: row.venue, value: row.members,
+              note: `探しごと ${row.requests}件 ／ 紹介 ${row.introductions}件`,
+            }))} />
+          </section>
+        </div>
+
+        {analytics.revenue.length > 0 && <section className="viz-card">
+          <h2>広告の売上</h2>
+          <p className="viz-lead">申し込みのときに実際に請求した額です。あとから計算し直していないので、Stripeの数字と一致します。</p>
+          <BarList color="var(--viz-3)" unit="円" rows={analytics.revenue.map((row) => ({
+            label: row.month.replace('-', '年') + '月', value: row.adYen, note: `${row.adCount}件`,
+          }))} />
+        </section>}
+
+        <section className="viz-card">
+          <h2>動きが止まっている会員<span className="viz-count">{analytics.dormant.length}人</span></h2>
+          <p className="viz-lead">30日以上、投稿も紹介もやり取りもしていない方です。<b>この一覧が、次に声をかける相手です。</b></p>
+          <div className="viz-range">
+            <a className="viz-export" href={`/api/admin/export?type=dormant&days=${range}`}>この一覧をCSVで書き出す</a>
+          </div>
+          {!analytics.dormant.length ? <p className="viz-empty">全員が動いています。</p>
+            : <div className="viz-table-wrap">
+              <table className="viz-table">
+                <thead><tr><th>名前</th><th>会社</th><th>会場</th><th className="is-num">何日前</th></tr></thead>
+                <tbody>{analytics.dormant.slice(0, 40).map((row) => <tr key={row.id}>
+                  <td>{row.displayName}</td><td>{row.company || '—'}</td><td>{row.venue}</td>
+                  <td className="is-num"><b>{row.daysSince}</b>日</td>
+                </tr>)}</tbody>
+              </table>
+              {analytics.dormant.length > 40 && <p className="viz-more">ほか {analytics.dormant.length - 40}人。全員ぶんはCSVに入っています。</p>}
+            </div>}
+        </section>
+      </>}
+    </section>}
 
     {(tab === 'members' || tab === 'requests') && <form className="admin-search" onSubmit={(event) => { event.preventDefault(); reload(); }}>
       <input value={keyword} onChange={(event) => setKeyword(event.target.value)}
