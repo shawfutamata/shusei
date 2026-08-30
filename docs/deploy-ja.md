@@ -70,6 +70,24 @@ npx wrangler secret put STRIPE_PRICE_AD_SLOT
 
 **`STRIPE_WEBHOOK_SECRET` を入れ忘れやすい。** 秘密鍵だけ入れると、決済画面までは進めて支払いも通るのに、掲載も有料プランも有効にならない。いちばん気づきにくい壊れ方なので、鍵とセットで入れる。
 
+## GitHubにつないで自動で出す（ターミナルを使わない道）
+
+Cloudflareの管理画面で **Workers & Pages → Create → Connect to Git** からリポジトリをつなぐと、pushのたびに自動でデプロイされる。ターミナルは要らなくなる。
+
+| 設定 | 値 |
+|---|---|
+| リポジトリ | `shawfutamata/shusei` |
+| Worker名 | `tasuki`（**`wrangler.jsonc` の `name` と一致していないとつながらない**） |
+| ビルドコマンド | `npm run build` |
+| デプロイコマンド | `npx wrangler deploy` |
+| 本番ブランチ | デプロイしたいブランチ |
+
+**本番ブランチの指定を間違えると、出したつもりで出ていない。** Cloudflareは本番ブランチ以外では `npx wrangler versions upload`（下書きの保存だけ）を走らせる。既定は `main` なので、別のブランチから出すなら、そのブランチを本番ブランチに設定する。
+
+ビルドで使うNodeは `.node-version` で固定してある。`package.json` の `engines` が22.13以上を求めるので、ここが古いとビルドが落ちる。
+
+秘密の値は **Settings → Variables and Secrets** から入れる（下の表のとおり）。
+
 ## 毎回の手順
 
 ### 1. あげるコードを確定する
