@@ -239,10 +239,18 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     return [...matched].sort((a, b) => Number(promoted(b)) - Number(promoted(a)));
   }, [filter, industryFilter, regionFilter, revenueFilter, statusMatched, venueFilter]);
   // 通知はアプリを出してから。それまでは選んだ業種をホームのおすすめに使う。
-  const recommended = useMemo(() => requests.filter((item) =>
-    isOpenRequest(item) && item.authorName !== userName &&
-    stats.notifyIndustries.some((industry) => matchesIndustry(item.industryTags, getIndustryGroup(industry)?.name ?? industry))
-  ).slice(0, 12), [requests, stats.notifyIndustries, userName]);
+  // 自分の投稿は外す。おすすめは「自分が紹介できる相手」を出す場所なので。
+  // 判定は名前ではなくIDで行う。同姓同名の会員がいると、名前では他人の投稿まで消える。
+  const { recommended, ownMatching } = useMemo(() => {
+    const matches = (item: BoardRequest) => isOpenRequest(item)
+      && stats.notifyIndustries.some((industry) => matchesIndustry(item.industryTags, getIndustryGroup(industry)?.name ?? industry));
+    return {
+      recommended: requests.filter((item) => !item.mine && matches(item)).slice(0, 12),
+      // 業種は合っているのに自分の投稿しか無い、という状態を見分けるため。
+      // 「選んだのに何も出ない」と見えるのは、たいていこれ。
+      ownMatching: requests.filter((item) => item.mine && matches(item)).length,
+    };
+  }, [requests, stats.notifyIndustries]);
   const viewedRequests = useMemo(() => viewedIds.map((id) => requests.find((item) => item.id === id)).filter((item): item is BoardRequest => Boolean(item)), [requests, viewedIds]);
   const favoriteRequests = useMemo(() => favoriteIds.map((id) => requests.find((item) => item.id === id)).filter((item): item is BoardRequest => Boolean(item)), [favoriteIds, requests]);
   const canPostRequest = stats.requestLimit === UNLIMITED || stats.requestsThisMonth < stats.requestLimit;
@@ -787,8 +795,11 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </section>
 
         <HomeShelf title="あなたにおすすめの探しごと" count={recommended.length}
-          emptyTitle={stats.notifyIndustries.length ? '今はおすすめできる探しごとがありません' : 'おすすめに出したい業種を選びましょう'}
-          emptyText={stats.notifyIndustries.length ? '選んだ業種の探しごとが投稿されると、ここに並びます。' : 'マイページで業種を選ぶと、関係のありそうな探しごとがここに並びます。'}
+          emptyTitle={!stats.notifyIndustries.length ? 'おすすめに出したい業種を選びましょう'
+            : ownMatching > 0 ? 'いまは、ご自身の投稿だけです' : '今はおすすめできる探しごとがありません'}
+          emptyText={!stats.notifyIndustries.length ? 'マイページで業種を選ぶと、関係のありそうな探しごとがここに並びます。'
+            : ownMatching > 0 ? `選んだ業種に合う探しごとは${ownMatching}件ありますが、すべてご自身の投稿です。ここには紹介できる相手だけを並べるため、ご自身のぶんは出しません。ほかの会員が投稿すると並びます。`
+            : '選んだ業種の探しごとが投稿されると、ここに並びます。'}
           onMore={() => stats.notifyIndustries.length ? showSearch() : showProfile()}>
           {recommended.map((need) => <HomeRequestCard key={need.id} need={need} favorite={favoriteIds.includes(need.id)} onOpen={() => openNeed(need)} onFavorite={() => toggleFavorite(need)} />)}
         </HomeShelf>
