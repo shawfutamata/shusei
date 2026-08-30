@@ -28,7 +28,7 @@ export async function applyReferralCreditsToStripe(memberId: string) {
   if (total <= 0) return 0;
 
   try {
-    await creditCustomer(link.customerId, total, `紹介 ${credits.length}人ぶんの無料月`);
+    await creditCustomer(link.customerId, total, `紹介 ${credits.length}人分の無料月`);
   } catch (error) {
     // 入れられなかったときは applied_month を埋めない。次に開いたときやり直す。
     console.error('referral credit failed', error);

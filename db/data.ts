@@ -825,7 +825,7 @@ export async function createRequest(user: SessionUser, input: { category: string
   const requestPlan = await getPlanState(user.userId);
   const requestCap = limits(requestPlan).requestsPerMonth;
   if (requestCap !== UNLIMITED && await countRequestsThisMonth(user.userId) >= requestCap) {
-    throw new Error(`いまのプランで投稿できる探しごとは月${requestCap}件までです。今月ぶんはすでに投稿済みです。`);
+    throw new Error(`いまのプランで投稿できる探しごとは月${requestCap}件までです。今月分はすでに投稿済みです。`);
   }
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
