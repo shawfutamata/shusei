@@ -5,7 +5,7 @@ import { cleanFacebookUrl } from '@/app/social-links';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
 import { AD_DESCRIPTION_MAX, AD_MIN_RANK_LEVEL, AD_RESERVATION_MINUTES, AD_TITLE_MAX, DEFAULT_PLACEMENT, placementSlots } from '@/app/ad-options';
 import { UNLIMITED, bonusPlan, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
-import { EXTEND_DAYS, PIN_DAYS, PROMO_DAYS, canExtendRequest, canPinRequest, canPromoteInIndustry, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
+import { EXTEND_DAYS, canExtendRequest, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
 import { matchesIndustry } from '@/app/industry-options';
 
 export type BoardRequest = {
@@ -1105,68 +1105,6 @@ export async function extendRequest(memberId: string, requestId: string) {
   await env.DB.prepare("UPDATE requests SET deadline = ?, status = 'open', extended_at = ? WHERE id = ?")
     .bind(deadline, new Date().toISOString(), requestId).run();
   return deadline;
-}
-
-/** 今月ピンを使ったかどうか。ひと月に1回までにするため。 */
-async function pinnedThisMonth(memberId: string) {
-  const month = new Date().toISOString().slice(0, 7);
-  const row = await env.DB.prepare(`SELECT COUNT(*) AS count FROM requests
-    WHERE author_id = ? AND pinned_until <> '' AND substr(pinned_until, 1, 7) >= ?`)
-    .bind(memberId, month).first<{ count: number }>();
-  return Number(row?.count ?? 0) > 0;
-}
-
-/** 自分の探しごとを1件、一覧の先頭に固定する。SAPPHIRE以上の特典。 */
-export async function pinRequest(memberId: string, requestId: string) {
-  await ensureDatabase();
-  const { level } = await getMemberRank(memberId);
-  if (!canPinRequest(level)) throw new Error('注目ピンは SAPPHIRE 以上の特典です。');
-
-  const owned = await env.DB.prepare('SELECT id FROM requests WHERE id = ? AND author_id = ?')
-    .bind(requestId, memberId).first<{ id: string }>();
-  if (!owned) throw new Error('自分が投稿した探しごとだけ固定できます。');
-  if (await pinnedThisMonth(memberId)) throw new Error('注目ピンは、ひと月に1件までです。来月またお使いいただけます。');
-
-  const until = new Date(Date.now() + PIN_DAYS * 86400000).toISOString();
-  await env.DB.prepare('UPDATE requests SET pinned_until = ? WHERE id = ?').bind(until, requestId).run();
-  return until;
-}
-
-/**
- * 自分の探しごとを、選んだ業種の一覧で先頭に出す。DIAMONDの特典。
- * ひと月に1件まで。ピンと同じく、場を独占させないための上限。
- */
-export async function promoteRequest(memberId: string, requestId: string, industry: string) {
-  await ensureDatabase();
-  const { level } = await getMemberRank(memberId);
-  if (!canPromoteInIndustry(level)) throw new Error('業種別プロモーションは DIAMOND の特典です。');
-
-  const owned = await env.DB.prepare('SELECT industry_tags AS industryTagsJson FROM requests WHERE id = ? AND author_id = ?')
-    .bind(requestId, memberId).first<{ industryTagsJson: string }>();
-  if (!owned) throw new Error('自分が投稿した探しごとだけ選べます。');
-  if (!parseStringArray(owned.industryTagsJson).includes(industry)) {
-    throw new Error('その探しごとに付いている業種から選んでください。');
-  }
-
-  const month = new Date().toISOString().slice(0, 7);
-  const used = await env.DB.prepare(`SELECT COUNT(*) AS count FROM requests
-    WHERE author_id = ? AND promo_until <> '' AND substr(promo_until, 1, 7) >= ?`)
-    .bind(memberId, month).first<{ count: number }>();
-  if (Number(used?.count ?? 0) > 0) {
-    throw new Error('業種別プロモーションは、ひと月に1件までです。来月またお使いいただけます。');
-  }
-
-  const until = new Date(Date.now() + PROMO_DAYS * 86400000).toISOString();
-  await env.DB.prepare('UPDATE requests SET promo_industry = ?, promo_until = ? WHERE id = ?')
-    .bind(industry, until, requestId).run();
-  return { industry, until };
-}
-
-/** 今月まだピンを使えるか。画面の出し分けに使う。 */
-export async function pinAvailable(memberId: string, level: number) {
-  if (!canPinRequest(level)) return false;
-  await ensureDatabase();
-  return !(await pinnedThisMonth(memberId));
 }
 
 /** おすすめに出したい業種を、いくつまで選べるか。ランクで増える。 */

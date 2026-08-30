@@ -772,7 +772,8 @@ body { font-weight:600; }
 .perk-ladder small { color:var(--muted); font-size:8px; font-weight:700; white-space:nowrap; }
 
 .perk-now { margin:0; padding:13px 15px; display:grid; gap:4px; border-radius:13px; background:linear-gradient(150deg,var(--accent-soft),#fff); border:1px solid var(--accent-line); }
-.perk-now b { color:var(--accent-ink); font-size:15px; }
+.perk-now b { display:flex; align-items:baseline; gap:9px; color:var(--accent-ink); font-size:19px; letter-spacing:.04em; }
+.perk-now b small { color:#8b7a6d; font-size:10px; font-weight:900; letter-spacing:.12em; }
 .perk-now span { color:#62728a; font-size:11px; font-weight:700; line-height:1.6; }
 
 .perk-grid { margin:0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(4,1fr); gap:12px 6px; }
@@ -786,8 +787,16 @@ body { font-weight:600; }
 .perk-badge { width:56px; height:56px; display:grid; place-items:center; border-radius:50%; border:1px solid #cfe0fb; background:linear-gradient(150deg,#eaf3ff,#f7fbff); color:var(--blue-dark); }
 .perk-icon { width:26px; height:26px; display:block; }
 .perk-tile small { color:#3a4a63; font-size:10px; font-weight:800; line-height:1.35; text-align:center; }
-.perk-tile.locked .perk-badge { border:1px dashed #ccd5e1; background:#f4f6f9; color:#aab4c2; }
-.perk-tile.locked small { color:#9aa6b8; }
+/* ロック中は、どのランクで開くのかを色で見分けられるようにする。
+   全部おなじ灰色だと、あと何を目指せばいいのかが読み取れない。
+   色は上のランクカード（.rank-pearl など）と同じ宝石の色にそろえてある。 */
+.perk-tile.locked .perk-badge { border:1px dashed var(--need-line,#ccd5e1); background:var(--need-bg,#f4f6f9); color:var(--need-ink,#aab4c2); }
+.perk-tile.locked small { color:#8e9bad; }
+.perk-tile.locked>i { background:var(--need-ink,#59677d); }
+.perk-tile.needs-emerald  { --need-ink:#0b7a5c; --need-bg:#e9f6f0; --need-line:#a5d6c4; }
+.perk-tile.needs-sapphire { --need-ink:#1a5cae; --need-bg:#e9f1fd; --need-line:#a9c6ee; }
+.perk-tile.needs-ruby     { --need-ink:#a52347; --need-bg:#fdecf1; --need-line:#efaec1; }
+.perk-tile.needs-diamond  { --need-ink:#3d4b5c; --need-bg:#eef1f5; --need-line:#bcc6d3; }
 .perk-tile.open .perk-badge { box-shadow:0 0 0 3px var(--accent-soft); border-color:var(--accent); }
 
 .perk-detail { padding:14px; display:grid; gap:7px; border:1px solid var(--accent-line); border-radius:13px; background:#fff; }

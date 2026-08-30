@@ -13,9 +13,10 @@ import { UNLIMITED, plans, type BillingCycle, type Plan } from './entitlements';
 import { feedbackCategories } from './feedback-options';
 import { adDailyPrice, adTotalPrice, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
+import LegalLinks from './LegalLinks';
 import PerkIcon from './PerkIcon';
 import { AD_MIN_DAYS, AD_ROTATE_MS, DEFAULT_PLACEMENT, adPlacements, placementName } from './ad-options';
-import { EXTEND_DAYS, PROMO_DAYS, canExtendRequest, canPromoteInIndustry, descriptionLimit, notifyIndustryLimit, photoLimit, rankNames, rankPerks, rankThresholds } from './rank-perks';
+import { EXTEND_DAYS, canExtendRequest, descriptionLimit, notifyIndustryLimit, photoLimit, rankNames, rankPerks, rankThresholds } from './rank-perks';
 import { serviceName } from './brand';
 import BrandMark from './BrandMark';
 import { detailImage, listThumbnail } from './resize-image';
@@ -340,22 +341,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     return '延長は1件につき1回までです。一覧の上位に出すのは、広告メニューからお申し込みいただけます。';
   }
 
-  const promoUsedThisMonth = requests.some((item) => item.mine && item.promoUntil.slice(0, 7) >= new Date().toISOString().slice(0, 7));
-  const isPromoted = (need: BoardRequest) => need.promoUntil > new Date().toISOString();
-
-  async function promoteOwnRequest(need: BoardRequest, industry: string) {
-    if (busy) return;
-    setBusy(true);
-    const response = await fetch(`/api/requests/${encodeURIComponent(need.id)}/promote`, {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ industry }),
-    });
-    const result = await response.json() as { industry?: string; until?: string; error?: string };
-    setBusy(false);
-    if (!response.ok) return showToast(result.error ?? '設定できませんでした。');
-    showToast(`「${industry}」の一覧で、${PROMO_DAYS}日間いちばん上に出ます。`);
-    await refreshBoard();
-    setSelected((current) => current && current.id === need.id ? { ...current, promoIndustry: industry, promoUntil: result.until ?? current.promoUntil } : current);
-  }
 
   async function extendOwnRequest(need: BoardRequest) {
     if (busy) return;
@@ -972,6 +957,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <label>Facebook <small>任意・紹介のあとに直接やり取りできます</small><input value={profileFacebook} onChange={(event) => setProfileFacebook(event.target.value)} maxLength={200} placeholder="https://www.facebook.com/your.name" inputMode="url" /></label>
           <button className="profile-save-button" onClick={saveProfile} disabled={busy || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
         </div>
+
+        <LegalLinks />
       </section>}
 
       <nav className="bottom-nav" aria-label="アプリメニュー">
@@ -1000,14 +987,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           })}</ol>
 
           <p className="perk-now">
-            <b>いまは {stats.rank}</b>
+            <b><small>会員ランク</small>{stats.rank}</b>
             <span>{stats.level >= rankNames.length ? '最高ランクです。ありがとうございます。' : `あと${introductionsToNextRank}件の紹介で ${rankNames[stats.level]} になります。`}</span>
           </p>
 
           <ul className="perk-grid">{rankPerks.map((perk) => {
             const unlocked = stats.level >= perk.minLevel;
             return <li key={perk.key}>
-              <button className={`perk-tile${unlocked ? '' : ' locked'}${openPerk === perk.key ? ' open' : ''}`} onClick={() => setOpenPerk(openPerk === perk.key ? '' : perk.key)}>
+              <button className={`perk-tile${unlocked ? '' : ' locked'}${openPerk === perk.key ? ' open' : ''} needs-${rankNames[perk.minLevel - 1].toLowerCase()}`} onClick={() => setOpenPerk(openPerk === perk.key ? '' : perk.key)}>
                 <span className="perk-badge"><PerkIcon perk={perk.key} /></span>
                 <i className={perk.soon ? 'soon' : ''}>{perk.soon ? '近日公開' : unlocked ? '' : rankNames[perk.minLevel - 1]}</i>
                 <small>{perk.label}</small>
@@ -1164,12 +1151,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 <button disabled={busy || !canExtend(selected)} onClick={() => extendOwnRequest(selected)}>{selected.extendedAt ? '延長ずみ' : `期限を${EXTEND_DAYS}日のばす`}</button>
                 <button onClick={() => { setSelected(null); openAdSettings(); }}>広告で上位に出す</button>
               </div>
-              {canPromoteInIndustry(stats.level) && <div className="owner-promo">
-                <p>{isPromoted(selected) ? `「${selected.promoIndustry}」の一覧で先頭に出しています` : '業種を選ぶと、その一覧で先頭に出せます'}</p>
-                <div className="owner-promo-row">{selected.industryTags.map((industry) => <button key={industry} disabled={busy || promoUsedThisMonth || isPromoted(selected)}
-                  className={selected.promoIndustry === industry ? 'active' : ''}
-                  onClick={() => promoteOwnRequest(selected, industry)}>{industry}</button>)}</div>
-              </div>}
               <p className="owner-tools-note">{ownerToolsNote(selected)}</p>
             </div>
           : <button className="submit-button" onClick={() => openIntroduction(selected)}>この人を紹介できる</button>}

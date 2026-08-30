@@ -28,10 +28,6 @@ export type RankPerk = {
 
 export const rankPerks: RankPerk[] = [
   {
-    key: 'crest', label: 'ランクの紋章', minLevel: 1,
-    detail: 'プロフィールと投稿にランクの紋章が付きます。どれだけ紹介してきた人かが、ひと目で伝わります。',
-  },
-  {
     key: 'extend', label: '募集の延長', minLevel: 2,
     detail: '期限が来た探しごとを、1件につき1回だけ2週間延ばせます。もう少し待てば見つかりそうなときに。',
   },
@@ -44,12 +40,8 @@ export const rankPerks: RankPerk[] = [
     detail: '通知を受け取る業種が6個から8個に増えます。RUBY以上では10個まで選べます。',
   },
   {
-    key: 'photos', label: '写真を複数枚', minLevel: 3,
+    key: 'photos', label: '写真の複数枚投稿', minLevel: 3,
     detail: '探しごとに付けられる写真が1枚から3枚に増えます。RUBY以上では5枚まで。現場や商品を何枚も見せられます。',
-  },
-  {
-    key: 'ad', label: 'トップバナーへの出稿', minLevel: 4, webOnly: true,
-    detail: 'ホームのいちばん先に目に入る場所へ、選んだ期間だけ自分の告知を出せるようになります。',
   },
   {
     key: 'ad-ahead', label: '広告の事前予約', minLevel: 4, webOnly: true,
@@ -58,14 +50,6 @@ export const rankPerks: RankPerk[] = [
   {
     key: 'video', label: '動画を投稿できる', minLevel: 4, soon: true,
     detail: '探しごとに短い動画を付けられるようになります。現場や商品は、写真より動画のほうが伝わります。',
-  },
-  {
-    key: 'promo', label: '業種別プロモーション', minLevel: 5,
-    detail: '自分の探しごとを1件、選んだ業種の一覧でいちばん上に出せます。その業種の人にだけ、確実に届きます。',
-  },
-  {
-    key: 'ad-long', label: '広告期間の延長', minLevel: 5, webOnly: true,
-    detail: '広告を1回で出せる期間が30日から60日に延びます。長く出すほど、目に留まる回数が増えます。',
   },
 ];
 
@@ -97,14 +81,6 @@ export function photoLimit(level: number) {
   if (level >= 3) return 3;
   return 1;
 }
-
-/** 業種別プロモーションを使えるか。 */
-export function canPromoteInIndustry(level: number) {
-  return level >= 5;
-}
-
-/** 業種別プロモーションで上に出しておく日数。 */
-export const PROMO_DAYS = 7;
 
 /** おすすめに出したい業種を、いくつまで選べるか。 */
 export function notifyIndustryLimit(level: number) {

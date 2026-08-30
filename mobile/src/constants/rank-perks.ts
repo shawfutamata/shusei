@@ -8,13 +8,11 @@ export const rankNames = ['PEARL', 'EMERALD', 'SAPPHIRE', 'RUBY', 'DIAMOND'];
 export const rankThresholds = [0, 3, 6, 10, 20];
 
 export const rankPerks: RankPerk[] = [
-  { key: 'crest', label: 'ランクの紋章', minLevel: 1, detail: 'プロフィールと投稿にランクの紋章が付きます。どれだけ紹介してきた人かが、ひと目で伝わります。' },
   { key: 'extend', label: '募集の延長', minLevel: 2, detail: '期限が来た探しごとを、1件につき1回だけ2週間延ばせます。もう少し待てば見つかりそうなときに。' },
   { key: 'longtext', label: '掲載文章の上限なし', minLevel: 2, detail: '探しごとの本文が600字までの制限から外れ、いくらでも書けるようになります。背景や条件を省かずに伝えられます。' },
   { key: 'industries', label: 'おすすめ業種の枠', minLevel: 3, detail: '通知を受け取る業種が6個から8個に増えます。RUBY以上では10個まで選べます。' },
-  { key: 'photos', label: '写真を複数枚', minLevel: 3, detail: '探しごとに付けられる写真が1枚から3枚に増えます。RUBY以上では5枚まで。現場や商品を何枚も見せられます。' },
+  { key: 'photos', label: '写真の複数枚投稿', minLevel: 3, detail: '探しごとに付けられる写真が1枚から3枚に増えます。RUBY以上では5枚まで。現場や商品を何枚も見せられます。' },
   { key: 'video', label: '動画を投稿できる', minLevel: 4, soon: true, detail: '探しごとに短い動画を付けられるようになります。現場や商品は、写真より動画のほうが伝わります。' },
-  { key: 'promo', label: '業種別プロモーション', minLevel: 5, detail: '自分の探しごとを1件、選んだ業種の一覧でいちばん上に出せます。その業種の人にだけ、確実に届きます。' },
 ];
 
 export function levelFor(introCount: number) {
