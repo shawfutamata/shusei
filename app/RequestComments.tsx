@@ -52,24 +52,48 @@ export default function RequestComments({ requestId, onCountChange }: { requestI
   return <section className="comments" aria-label="この探しごとへのコメント">
     <div className="comments-heading"><b>やり取り</b><span>{loading ? '読み込み中…' : `${comments.length}件`}</span></div>
 
-    {!loading && comments.length === 0 && <p className="comments-empty">まだコメントはありません。心当たりがあれば、ひと言残してみてください。</p>}
+    {!loading && comments.length === 0 && <p className="comments-empty">
+      まだコメントはありません。<br />心当たりがあれば、ひと言残してみてください。
+    </p>}
 
+    {/* 会話として読めるように、投稿者の発言だけ右に寄せて色を変える */}
     <ol className="comment-list">
-      {comments.map((comment) => <li key={comment.id} className={comment.isAuthorOfRequest ? 'comment owner' : 'comment'}>
-        <span className="member-avatar">{comment.authorAvatarUrl ? <img src={comment.authorAvatarUrl} alt={`${comment.authorName}さんの顔写真`} /> : <span>{comment.authorName.slice(0, 1)}</span>}</span>
-        <div>
-          <p className="comment-who"><b>{comment.authorName}</b>{comment.isAuthorOfRequest && <em>投稿者</em>}<small>{[comment.authorCompany, comment.authorVenue].filter(Boolean).join('・')}</small></p>
-          <p className="comment-body">{comment.body}</p>
-          <div className="comment-foot"><time dateTime={comment.createdAt}>{formatDate(comment.createdAt)}</time><FacebookLink url={comment.authorFacebookUrl} name={comment.authorName} /></div>
+      {comments.map((comment) => <li key={comment.id} className={comment.isAuthorOfRequest ? 'comment is-owner' : 'comment'}>
+        <span className="comment-avatar">{comment.authorAvatarUrl
+          ? <img src={comment.authorAvatarUrl} alt={`${comment.authorName}さんの顔写真`} />
+          : <b>{comment.authorName.slice(0, 1)}</b>}</span>
+        <div className="comment-main">
+          <p className="comment-who">
+            <b>{comment.authorName}</b>
+            {comment.isAuthorOfRequest && <em>投稿者</em>}
+            <small>{[comment.authorCompany, comment.authorVenue].filter(Boolean).join('・')}</small>
+          </p>
+          <div className="comment-bubble">
+            <p>{comment.body}</p>
+            <FacebookLink url={comment.authorFacebookUrl} name={comment.authorName} />
+          </div>
+          <time dateTime={comment.createdAt}>{formatDate(comment.createdAt)}</time>
         </div>
       </li>)}
     </ol>
 
+    {/* 入力はチャットの入力欄と同じ形。文字数は右下に小さく重ねる（ボタンとぶつからない位置） */}
     <form className="comment-form" onSubmit={submit}>
-      <textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={MAX_LENGTH} rows={3}
-        placeholder="例：その業種でしたら心当たりがあります。詳しく伺えますか？" aria-label="コメントを書く" />
       {!!error && <p className="comment-error">{error}</p>}
-      <div className="comment-actions"><small>{body.length}/{MAX_LENGTH}</small><button className="submit-button" disabled={busy || !body.trim()}>{busy ? '送信中…' : 'コメントする'}</button></div>
+      <div className="comment-input">
+        <textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={MAX_LENGTH} rows={1}
+          placeholder="心当たりを書く…" aria-label="コメントを書く"
+          onInput={(event) => {
+            // 打った量に合わせて伸ばす。5行を超えたら中でスクロールさせる。
+            const field = event.currentTarget;
+            field.style.height = 'auto';
+            field.style.height = `${Math.min(field.scrollHeight, 132)}px`;
+          }} />
+        <button className="comment-send" disabled={busy || !body.trim()} aria-label="コメントを送る">
+          {busy ? <i className="comment-spinner" aria-hidden="true" /> : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.4 11.3 19.6 4.7c.8-.3 1.6.5 1.3 1.3l-6.6 15.2c-.3.8-1.5.7-1.7-.1l-1.5-5.4c-.1-.3-.3-.5-.6-.6l-5.4-1.5c-.8-.2-.9-1.4-.1-1.7z" /></svg>}
+        </button>
+      </div>
+      {body.length > MAX_LENGTH - 100 && <small className="comment-count-left">あと{MAX_LENGTH - body.length}文字</small>}
     </form>
   </section>;
 }

@@ -25,6 +25,8 @@ export type BoardRequest = {
   deadline: string;
   status: string;
   createdAt: string;
+  /** 自分がこの探しごとへ出した紹介の数。中身は出さない（本人と投稿者だけのもの）。 */
+  myIntroCount: number;
   /** 注目ピンでいちばん上に出している期限。空なら普通の並び。 */
   pinnedUntil: string;
   /** 募集を延長した日時。1件につき1回まで。空ならまだ使っていない。 */
@@ -743,11 +745,14 @@ export async function getBoardData(user: SessionUser) {
     m.id AS authorId, m.avatar_key AS authorAvatarKey, m.avatar_version AS authorAvatarVersion,
     m.facebook_url AS authorFacebookUrl,
     (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id) AS introCount,
+    -- 自分が出した紹介の数。紹介は本人と投稿者にしか見えないので、
+    -- やり取り欄では「出した／届いている」という事実だけを出す。
+    (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id AND i.introducer_id = ?) AS myIntroCount,
     (SELECT COUNT(*) FROM request_comments c WHERE c.request_id = r.id) AS commentCount
     FROM requests r
     JOIN members m ON m.id = r.author_id
     ORDER BY CASE WHEN r.pinned_until > ? THEN 0 ELSE 1 END, r.created_at DESC`)
-    .bind(new Date().toISOString())
+    .bind(user.userId, new Date().toISOString())
     .all<Omit<BoardRequest, 'industryTags' | 'thumbUrl' | 'imageUrl' | 'imageUrls' | 'mine'> & { industryTagsJson: string; imageVersion: number; imageCount: number; authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
 
   const member = await env.DB.prepare(`SELECT display_name AS displayName, venue, company,

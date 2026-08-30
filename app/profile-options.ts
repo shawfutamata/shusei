@@ -34,3 +34,25 @@ const regionByPrefecture = new Map<string, string>(
 export function getRegion(prefecture: string) {
   return regionByPrefecture.get(prefecture.trim()) ?? '';
 }
+
+/**
+ * 探しごとの「希望エリア」に出す選択肢。
+ *
+ * もとは自由記入だったので、書いた文字が絞り込みと噛み合わなかった
+ * （「東京都・オンライン」と書いても、地方ブロックの絞り込みには乗らない）。
+ * 都道府県から選んでもらえば、そのまま地方ブロックに畳める。
+ */
+export const ONLINE_AREA = 'オンライン・全国';
+
+export const requestAreaOptions = [ONLINE_AREA, ...prefectures] as const;
+
+/**
+ * その希望エリアが、指定の地方ブロックに当てはまるか。
+ * 「オンライン・全国」は場所を選ばないので、どのブロックでも当てはまる。
+ */
+export function areaMatchesRegion(area: string, region: string) {
+  const value = area.trim();
+  if (!value) return false;
+  if (value === ONLINE_AREA) return true;
+  return getRegion(value) === region;
+}
