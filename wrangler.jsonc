@@ -16,7 +16,7 @@
       "binding": "DB",
       "database_name": "tasuki",
       // ↓ `npx wrangler d1 create tasuki` が出したIDに置き換える。
-      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "database_id": "a242f10e-ee17-4173-ae8d-f1050533a220",
       // 手元の開発サーバーはこちらを使う。本番のIDと切り離しておくことで、
       // 上のIDを入れ替えても手元に溜めたデータが迷子にならない。
       // **本番には一切影響しない**（Miniflareがローカルのsqliteを引く鍵）。
