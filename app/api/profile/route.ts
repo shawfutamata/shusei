@@ -6,13 +6,21 @@ import { isIndustry } from '@/app/industry-options';
 import { cleanFacebookUrl } from '@/app/social-links';
 
 const allowedBands = ['', 'revenue_10_30', 'revenue_30_70', 'revenue_70_100', 'revenue_100_plus'];
+/**
+ * ふりがなに入れてよい文字。ひらがな・カタカナ・長音・中黒・空白だけ。
+ * 漢字のまま入れてしまう間違いを、ここで止める。任意なので空は通す。
+ */
+const kanaOnly = /^[ぁ-んァ-ヶー・\u3000\s]*$/;
 
 export async function PATCH(request: Request) {
   const gate = await requireActiveMember();
   if (gate.response) return gate.response;
   const user = gate.user;
   const body = await request.formData();
+  const displayName = clean(body.get('displayName'), 40);
+  const nameKana = clean(body.get('nameKana'), 60);
   const company = clean(body.get('company'), 80);
+  const companyKana = clean(body.get('companyKana'), 100);
   const venue = clean(body.get('venue'), 60);
   const positionTitle = clean(body.get('positionTitle'), 60);
   const businessArea = clean(body.get('businessArea'), 60);
@@ -27,8 +35,17 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'FacebookのURLを確認してください。例：https://www.facebook.com/your.name' }, { status: 400 });
   }
   const avatar = body.get('avatar');
+  if (!displayName) {
+    return NextResponse.json({ error: 'お名前を入力してください。' }, { status: 400 });
+  }
   if (!company || !venue) {
     return NextResponse.json({ error: '会社名と所属会場を入力してください。' }, { status: 400 });
+  }
+  if (!kanaOnly.test(nameKana)) {
+    return NextResponse.json({ error: 'お名前のふりがなは、ひらがな・カタカナで入力してください。' }, { status: 400 });
+  }
+  if (!kanaOnly.test(companyKana)) {
+    return NextResponse.json({ error: '会社名のふりがなは、ひらがな・カタカナで入力してください。' }, { status: 400 });
   }
   if (!allowedBands.includes(annualRevenueBand)) {
     return NextResponse.json({ error: '年商の選択内容を確認してください。' }, { status: 400 });
@@ -48,8 +65,8 @@ export async function PATCH(request: Request) {
     avatarUpload = { bytes, contentType: avatar.type };
   }
   try {
-    const avatarUrl = await updateMemberProfile(user, { company, venue, positionTitle, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, avatar: avatarUpload });
-    return NextResponse.json({ company, venue, positionTitle, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, avatarUrl });
+    const avatarUrl = await updateMemberProfile(user, { displayName, nameKana, company, companyKana, venue, positionTitle, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, avatar: avatarUpload });
+    return NextResponse.json({ displayName, nameKana, company, companyKana, venue, positionTitle, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, avatarUrl });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'プロフィールを保存できませんでした。' }, { status: 400 });
   }

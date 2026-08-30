@@ -168,7 +168,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [viewedIds, setViewedIds] = useState<string[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [localListsReady, setLocalListsReady] = useState(false);
+  // 画面に出す名前は stats を見る。プロフィールで変えた直後に、再読込しなくても変わるように。
+  const shownName = stats.displayName || userName;
+  const [profileName, setProfileName] = useState(initialStats.displayName || userName);
+  const [profileNameKana, setProfileNameKana] = useState(initialStats.nameKana);
   const [profileCompany, setProfileCompany] = useState(initialStats.company);
+  const [profileCompanyKana, setProfileCompanyKana] = useState(initialStats.companyKana);
   const [venuePrefecture, setVenuePrefecture] = useState(findVenuePrefecture(initialStats.venue));
   const [venueChoice, setVenueChoice] = useState(initialStats.venue ? (isListedVenue(initialStats.venue) ? initialStats.venue : OTHER_VENUE) : '');
   const [venueOther, setVenueOther] = useState(isListedVenue(initialStats.venue) ? '' : initialStats.venue);
@@ -460,6 +465,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     setBusy(true);
     const body = new FormData();
     body.set('company', profileCompany); body.set('venue', profileVenue); body.set('positionTitle', profilePosition);
+    body.set('displayName', profileName.trim()); body.set('nameKana', profileNameKana.trim());
+    body.set('companyKana', profileCompanyKana.trim());
     body.set('businessArea', profileArea); body.set('primaryIndustry', profileIndustry);
     body.set('notifyIndustries', JSON.stringify(profileNotifyIndustries)); body.set('annualRevenueBand', profileRevenue); body.set('facebookUrl', profileFacebook);
     if (profilePhoto) body.set('avatar', profilePhoto);
@@ -467,7 +474,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     const result = await response.json() as { error?: string; avatarUrl?: string }; setBusy(false);
     if (!response.ok) return showToast(result.error ?? 'プロフィールを保存できませんでした。');
     const avatarUrl = result.avatarUrl ?? stats.avatarUrl;
-    setStats((current) => ({ ...current, company: profileCompany, venue: profileVenue, positionTitle: profilePosition, businessArea: profileArea, primaryIndustry: profileIndustry, notifyIndustries: profileNotifyIndustries, annualRevenueBand: profileRevenue, facebookUrl: profileFacebook, avatarUrl }));
+    setStats((current) => ({ ...current, displayName: profileName.trim(), nameKana: profileNameKana.trim(), company: profileCompany, companyKana: profileCompanyKana.trim(), venue: profileVenue, positionTitle: profilePosition, businessArea: profileArea, primaryIndustry: profileIndustry, notifyIndustries: profileNotifyIndustries, annualRevenueBand: profileRevenue, facebookUrl: profileFacebook, avatarUrl }));
     setProfilePhoto(null); setPhotoPreview(avatarUrl);
     await refreshBoard(); showToast('顔写真とプロフィールを保存しました。');
   }
@@ -827,7 +834,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     <main className="app-shell" id="home">
       <header className="mobile-header">
         <button className="mobile-brand" onClick={showHome}><BrandMark /><b>{serviceName}</b></button>
-        <button className="header-profile" onClick={showProfileSettings}><span><small>こんにちは</small><b>{userName}</b></span><Avatar src={stats.avatarUrl} name={userName} className="mini-avatar" /></button>
+        <button className="header-profile" onClick={showProfileSettings}><span><small>こんにちは</small><b>{shownName}</b></span><Avatar src={stats.avatarUrl} name={shownName} className="mini-avatar" /></button>
       </header>
 
       {activeTab === 'home' ? <div className="home-dashboard">
@@ -904,7 +911,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <h2 className="rank-slim-title">{stats.rank}</h2>
           <p className="rank-slim-sub">MEMBER</p>
           <div className="rank-slim-foot">
-            <span><small>会員名</small><b>{userName}</b></span>
+            <span><small>会員名</small><b>{shownName}</b></span>
             <span className="rank-slim-venue"><small>会場</small><b>{stats.venue || '未設定'}</b></span>
           </div>
           <span className="rank-slim-more">特典を見る ›</span>
@@ -970,7 +977,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             ? null
             : <>
                 {liveAd && <div className="ad-entry-live">
-                  <AdBanner ad={{ title: liveAd.title, description: liveAd.description, imageUrl: liveAd.imageUrl, by: stats.company || userName }} />
+                  <AdBanner ad={{ title: liveAd.title, description: liveAd.description, imageUrl: liveAd.imageUrl, by: stats.company || shownName }} />
                   <p className="ad-entry-state"><b>掲載中　{formatRange(liveAd.startDate, liveAd.endDate)}</b><span>表示 {liveAd.viewCount.toLocaleString('ja-JP')}／クリック {liveAd.clickCount.toLocaleString('ja-JP')}</span></p>
                 </div>}
                 <button className="ad-entry-open" onClick={openAdSettings}>
@@ -996,7 +1003,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <header className="profile-page-heading"><p>PROFILE</p><h1 id="profile-settings-title">プロフィール設定</h1><span>ここで登録した内容が、探しごとや紹介のときに相手に見えます。</span></header>
         <div className="profile-form profile-page-form">
           <label className="photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />JPEG・PNG・WebP／5MBまで</small></span><i>{stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
+          <label>お名前 <small className="req">必須</small><input value={profileName} onChange={(event) => setProfileName(event.target.value)} maxLength={40} placeholder="二俣 将" required /></label>
+          <label>お名前のふりがな <small>任意</small><input value={profileNameKana} onChange={(event) => setProfileNameKana(event.target.value)} maxLength={60} placeholder="ふたまた しょう" /></label>
           <label>会社名 <small className="req">必須</small><input value={profileCompany} onChange={(event) => setProfileCompany(event.target.value)} maxLength={80} placeholder="株式会社〇〇" required /></label>
+          <label>会社名のふりがな <small>任意</small><input value={profileCompanyKana} onChange={(event) => setProfileCompanyKana(event.target.value)} maxLength={100} placeholder="かぶしきがいしゃ〇〇" /></label>
           <div className="profile-venue-select">
             <p>所属会場 <small className="req">必須</small></p>
             <label>都道府県<select value={venuePrefecture} onChange={(event) => { setVenuePrefecture(event.target.value); setVenueChoice(''); }}><option value="">選択してください</option>{venuePrefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
@@ -1009,7 +1019,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <IndustryPicker legend="おすすめに出したい業種" note={`${notifyIndustryLimit(stats.level)}個まで`} description="選んだ詳細業種の探しごとが、ホームの「あなたにおすすめ」に出ます。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, notifyIndustryLimit(stats.level))} className="profile-tag-field" />
           <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
           <label>Facebook <small>任意・紹介のあとに直接やり取りできます</small><input value={profileFacebook} onChange={(event) => setProfileFacebook(event.target.value)} maxLength={200} placeholder="https://www.facebook.com/your.name" inputMode="url" /></label>
-          <button className="profile-save-button" onClick={saveProfile} disabled={busy || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
+          <button className="profile-save-button" onClick={saveProfile} disabled={busy || !profileName.trim() || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
         </div>
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section>}
@@ -1084,12 +1094,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             const state = adState(ad);
             return <li key={ad.id} className={`ad-slot is-${state.tone}`}>
               <div className="ad-slot-head"><b>{formatRange(ad.startDate, ad.endDate)}</b><span className={`ad-state is-${state.tone}`}>{state.label}</span></div>
-              {editingAd !== ad.id && <AdBanner ad={{ title: ad.title, description: ad.description, imageUrl: ad.imageUrl, by: stats.company || userName }} />}
+              {editingAd !== ad.id && <AdBanner ad={{ title: ad.title, description: ad.description, imageUrl: ad.imageUrl, by: stats.company || shownName }} />}
 
               {editingAd === ad.id
                 ? <form className="ad-fields" onSubmit={(event) => saveAd(event, ad.id)}>
                     <AdFields offer={adInfo} draft={adDraft} onChange={setAdDraft} onImage={chooseAdImage} imageName={adFileName} keepImage={Boolean(ad.imageUrl)} />
-                    <AdPreview draft={adDraft} fallbackImage={ad.imageUrl} by={stats.company || userName} />
+                    <AdPreview draft={adDraft} fallbackImage={ad.imageUrl} by={stats.company || shownName} />
                     <div className="ad-step-actions"><button type="button" onClick={() => setEditingAd('')} disabled={busy}>キャンセル</button><button className="submit-button" disabled={busy}>{busy ? '保存しています…' : '変更を保存'}</button></div>
                   </form>
                 : <>
@@ -1146,7 +1156,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                   {adStep === 1 && <div className="ad-step">
                     <p className="ad-step-head"><b>掲載内容</b><span>タイトルのみでも掲載できます。画像を添えると目に留まりやすくなります。</span></p>
                     <div className="ad-fields"><AdFields offer={adInfo} draft={adDraft} onChange={setAdDraft} onImage={chooseAdImage} imageName={adFileName} /></div>
-                    <AdPreview draft={adDraft} by={stats.company || userName} />
+                    <AdPreview draft={adDraft} by={stats.company || shownName} />
                     <div className="ad-step-actions"><button type="button" onClick={() => setAdStep(0)}>戻る</button><button type="button" className="submit-button" disabled={!adDraft.title.trim()} onClick={() => setAdStep(2)}>{adDraft.title.trim() ? '次へ：掲載期間の指定' : 'タイトルをご入力ください'}</button></div>
                   </div>}
 
@@ -1174,7 +1184,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
                   {adStep === 3 && <div className="ad-step">
                     <p className="ad-step-head"><b>お申し込み内容</b><span>お支払いの完了後、ただちに掲載を開始します。</span></p>
-                    <AdBanner ad={{ title: adDraft.title, description: adDraft.description, imageUrl: adDraft.imagePreview, by: stats.company || userName }} />
+                    <AdBanner ad={{ title: adDraft.title, description: adDraft.description, imageUrl: adDraft.imagePreview, by: stats.company || shownName }} />
                     <dl className="ad-check">
                       <div><dt>掲載枠</dt><dd>{placementName(adPlacement)}<small>{currentPlacement.slots}枠のうち1枠{adPlacement === 'list' && `／${adIndustry ? `${adIndustry}の一覧` : 'すべての業種の一覧'}`}</small></dd></div><div><dt>掲載期間</dt><dd>{adStart && formatRange(adStart, shiftDate(adStart, adDays - 1))}<small>{adDays}日間</small></dd></div>
                       <div><dt>リンク先</dt><dd>{adDraft.linkUrl ? adDraft.linkUrl.replace(/^https?:\/\//, '') : <em>設定なし</em>}</dd></div>

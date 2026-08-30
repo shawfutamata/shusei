@@ -52,8 +52,12 @@ export type BoardRequest = {
 
 export type MemberStats = {
   displayName: string;
+  /** お名前のふりがな。会員が自分で入れる。 */
+  nameKana: string;
   venue: string;
   company: string;
+  /** 会社名のふりがな。 */
+  companyKana: string;
   positionTitle: string;
   businessArea: string;
   primaryIndustry: string;
@@ -133,8 +137,10 @@ const statements = [
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,
     display_name TEXT NOT NULL,
+    name_kana TEXT NOT NULL DEFAULT '',
     venue TEXT NOT NULL DEFAULT 'ひるのめぐろ会場',
     company TEXT NOT NULL DEFAULT '',
+    company_kana TEXT NOT NULL DEFAULT '',
     position_title TEXT NOT NULL DEFAULT '',
     -- バッヂは廃止。列は残す（消すと既存のDBと食い違い、起動が壊れる）。誰も読み書きしない。
     badge TEXT NOT NULL DEFAULT '',
@@ -301,6 +307,8 @@ export async function ensureDatabase() {
   const memberColumns = await env.DB.prepare('PRAGMA table_info(members)').all<{ name: string }>();
   const existingColumns = new Set(memberColumns.results.map((column) => column.name));
   const missingColumns = [
+    ['name_kana', "ALTER TABLE members ADD COLUMN name_kana TEXT NOT NULL DEFAULT ''"],
+    ['company_kana', "ALTER TABLE members ADD COLUMN company_kana TEXT NOT NULL DEFAULT ''"],
     ['position_title', "ALTER TABLE members ADD COLUMN position_title TEXT NOT NULL DEFAULT ''"],
     ['badge', "ALTER TABLE members ADD COLUMN badge TEXT NOT NULL DEFAULT ''"],
     ['business_area', "ALTER TABLE members ADD COLUMN business_area TEXT NOT NULL DEFAULT ''"],
@@ -760,7 +768,8 @@ export async function getBoardData(user: SessionUser) {
     .bind(user.userId, new Date().toISOString())
     .all<Omit<BoardRequest, 'industryTags' | 'thumbUrl' | 'imageUrl' | 'imageUrls' | 'mine'> & { industryTagsJson: string; imageVersion: number; imageCount: number; videoVersion: number; authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
 
-  const member = await env.DB.prepare(`SELECT display_name AS displayName, venue, company,
+  const member = await env.DB.prepare(`SELECT display_name AS displayName, name_kana AS nameKana,
+    venue, company, company_kana AS companyKana,
     position_title AS positionTitle, business_area AS businessArea,
     primary_industry AS primaryIndustry, notify_industries AS notifyIndustriesJson,
     annual_revenue_band AS annualRevenueBand, facebook_url AS facebookUrl,
@@ -770,7 +779,7 @@ export async function getBoardData(user: SessionUser) {
       WHERE r.author_id = members.id) AS receivedIntroCount
     FROM members WHERE id = ?`).bind(user.userId).first<Omit<MemberStats, 'rank' | 'level' | 'nextRankAt' | 'avatarUrl' | 'notifyIndustries'> & { notifyIndustriesJson: string; avatarKey: string; avatarVersion: number }>();
 
-  const baseMember = member ?? { displayName: user.displayName, venue: 'ひるのめぐろ会場', company: '', positionTitle: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', facebookUrl: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, dealCount: 0, points: 0 };
+  const baseMember = member ?? { displayName: user.displayName, nameKana: '', venue: 'ひるのめぐろ会場', company: '', companyKana: '', positionTitle: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', facebookUrl: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, dealCount: 0, points: 0 };
   const { notifyIndustriesJson, ...memberFields } = baseMember;
   const plan = await getPlanSummary(user.userId);
   const stats = calculateRank({ ...memberFields, notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion),
@@ -791,7 +800,7 @@ export async function getBoardData(user: SessionUser) {
   return { requests, stats, ads: await listActiveAds() };
 }
 
-export async function updateMemberProfile(user: SessionUser, input: { company: string; venue: string; positionTitle: string; businessArea: string; primaryIndustry: string; notifyIndustries: string[]; annualRevenueBand: string; facebookUrl: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {
+export async function updateMemberProfile(user: SessionUser, input: { displayName: string; nameKana: string; company: string; companyKana: string; venue: string; positionTitle: string; businessArea: string; primaryIndustry: string; notifyIndustries: string[]; annualRevenueBand: string; facebookUrl: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {
   await upsertMember(user);
   const existing = await env.DB.prepare('SELECT avatar_key AS avatarKey, avatar_version AS avatarVersion FROM members WHERE id = ?')
     .bind(user.userId).first<{ avatarKey: string; avatarVersion: number }>();
@@ -806,10 +815,15 @@ export async function updateMemberProfile(user: SessionUser, input: { company: s
     });
   }
   if (!avatarKey) throw new Error('顔写真を登録してください。');
-  await env.DB.prepare(`UPDATE members SET company = ?, venue = ?, position_title = ?,
+  // display_name もここで書き替える。upsertMember はセッションが持っている名前を
+  // 書き戻すが、その名前は毎回このテーブルから読んだものなので、上書き合戦にならない。
+  // 呼ぶ順番も upsertMember → UPDATE なので、新しい名前が最後に残る。
+  await env.DB.prepare(`UPDATE members SET display_name = ?, name_kana = ?,
+    company = ?, company_kana = ?, venue = ?, position_title = ?,
     business_area = ?, primary_industry = ?, notify_industries = ?, annual_revenue_band = ?,
     facebook_url = ?, avatar_key = ?, avatar_version = ? WHERE id = ?`)
-    .bind(input.company, input.venue, input.positionTitle, input.businessArea,
+    .bind(input.displayName, input.nameKana,
+      input.company, input.companyKana, input.venue, input.positionTitle, input.businessArea,
       input.primaryIndustry, JSON.stringify(input.notifyIndustries), input.annualRevenueBand,
       cleanFacebookUrl(input.facebookUrl), avatarKey, avatarVersion, user.userId).run();
   return avatarUrl(user.userId, avatarKey, avatarVersion);
@@ -1576,10 +1590,28 @@ export async function getPlanState(memberId: string): Promise<PlanState> {
   };
 }
 
+/**
+ * 日本時間での「今月1日の0時」を、UTCの瞬間で返す。
+ *
+ * `requests.created_at` はUTCで入っているので、境目もUTCの値でないと比べられない。
+ * 日本の9月1日0時は、UTCでは8月31日15時。
+ */
+export function monthStartUtc(now = new Date()) {
+  const jst = new Date(now.getTime() + 9 * 3600_000);
+  return new Date(Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), 1) - 9 * 3600_000).toISOString();
+}
+
+/**
+ * 今月の投稿数。区切りは**カレンダーの月**で、入会日は関係ない。毎月1日に戻る。
+ *
+ * 数えるのは日本時間の月。もとは `new Date().toISOString().slice(0,7)` と
+ * UTCで区切っていたので、日本の1日の0時〜8時59分に投稿しようとすると、
+ * UTCではまだ前月の末日で**前の月の枠から引かれていた**。使う人から見ると
+ * 「1日になったのに、まだ投稿できない」時間が毎月9時間あった。
+ */
 export async function countRequestsThisMonth(memberId: string) {
-  const monthStart = `${new Date().toISOString().slice(0, 7)}-01`;
   const row = await env.DB.prepare('SELECT COUNT(*) AS count FROM requests WHERE author_id = ? AND created_at >= ?')
-    .bind(memberId, monthStart).first<{ count: number }>();
+    .bind(memberId, monthStartUtc()).first<{ count: number }>();
   return Number(row?.count ?? 0);
 }
 
