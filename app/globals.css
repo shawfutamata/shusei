@@ -940,3 +940,31 @@ body { font-weight:600; }
 .receipt-what { color:#5d6b80; font-size:11px; line-height:1.65; }
 .receipt-what em { margin-left:6px; padding:2px 6px; border-radius:99px; background:#fdeee8; color:#b4380f; font-size:9px; font-style:normal; font-weight:900; }
 .receipt-open { margin-top:3px; color:#0f5fc4; font-size:12px; font-weight:800; text-decoration:none; }
+
+/* マイページから別ページへ渡すカード。件数を出しておくと、開く前に
+   何件あるのか分かる。投稿は増えていくので、一覧はマイページに置かない。 */
+.dashboard-link { width:calc(100% - 28px); margin:12px 14px 0; padding:17px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px; border:1px solid #e0e6ef; border-radius:18px; background:#fff; text-align:left; box-shadow:0 6px 18px rgba(28,52,93,.05); cursor:pointer; }
+.dashboard-link-copy { min-width:0; display:grid; gap:4px; }
+.dashboard-link-copy small { color:var(--blue); font-size:9px; font-weight:900; letter-spacing:.16em; }
+.dashboard-link-copy b { color:var(--navy); font-size:17px; }
+.dashboard-link-copy em { color:#62728a; font-size:11px; font-style:normal; font-weight:700; }
+.dashboard-link>i { flex:0 0 auto; color:#9aa8bb; font-size:20px; font-style:normal; }
+
+/* 自分の投稿ページの上に出す数字。いま何件あって、何件動いているか。 */
+.post-totals { margin:16px 0 0; padding:15px; display:grid; grid-template-columns:repeat(4,1fr); gap:9px; border:1px solid #e0e6ef; border-radius:16px; background:#fff; box-shadow:0 6px 18px rgba(28,52,93,.05); }
+.post-totals div { min-width:0; display:grid; gap:4px; justify-items:center; text-align:center; }
+.post-totals dt { color:#7b8ca4; font-size:9px; font-weight:800; white-space:nowrap; }
+.post-totals dd { margin:0; color:var(--navy); font-size:21px; font-weight:900; line-height:1; }
+.post-totals dd small { margin-left:2px; font-size:10px; font-weight:800; }
+
+/* 絞り込み。件数が増えたときに、終わったものを畳んで見られるように。 */
+.post-filters { margin:12px -14px 0; padding:2px 14px 3px; display:flex; gap:7px; overflow-x:auto; scrollbar-width:none; }
+.post-filters::-webkit-scrollbar { display:none; }
+.post-filters button { min-height:44px; padding:0 15px; flex:0 0 auto; border:1px solid var(--line); border-radius:999px; background:#fff; color:#66758c; font-size:13px; font-weight:900; white-space:nowrap; cursor:pointer; }
+.post-filters button span { margin-left:6px; color:#a1acbc; }
+.post-filters button.selected { border-color:var(--blue); background:var(--blue); color:#fff; }
+.post-filters button.selected span { color:#dbeafe; }
+
+/* 別ページに移したので、一覧そのものの外枠は要らない。 */
+.profile-page .my-request-list { margin-top:14px; }
+.profile-page .my-requests-empty { margin-top:14px; }

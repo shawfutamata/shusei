@@ -170,15 +170,27 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // 'mypage' はランク・プラン・招待・広告。'profile' は入力するプロフィール設定。
   // 顔写真がまだの人は先にプロフィール設定へ。出稿枠を買って戻ってきた人は、
   // 入稿できるマイページから始める。
-  const [activeTab, setActiveTab] = useState<'home' | 'search' | 'mypage' | 'profile'>(
+  const [activeTab, setActiveTab] = useState<'home' | 'search' | 'mypage' | 'profile' | 'posts'>(
     !initialStats.avatarUrl ? 'profile' : adReturn === 'done' ? 'mypage' : 'home');
   const [myRequests, setMyRequests] = useState<MyRequest[]>([]);
   /** 編集中の投稿。null なら新規投稿。投稿のモーダルを両方で使い回す。 */
   const [editingRequest, setEditingRequest] = useState<MyRequest | null>(null);
   const [deletingRequest, setDeletingRequest] = useState<MyRequest | null>(null);
   const [receipts, setReceipts] = useState<BillingRecord[] | null>(null);
+  /** 自分の投稿ページの絞り込み。件数が増えたときに探せるように。 */
+  const [postFilter, setPostFilter] = useState<'all' | 'open' | 'closed'>('all');
   /** きょうの日付。期限を過ぎた投稿に印を付けるのに使う。 */
   const today = new Date().toISOString().slice(0, 10);
+  /** 募集中＝終了しておらず、期限も過ぎていないもの。 */
+  const isPostOpen = useCallback((item: MyRequest) => item.status !== 'closed' && item.deadline >= today, [today]);
+  const openPostCount = useMemo(() => myRequests.filter(isPostOpen).length, [myRequests, isPostOpen]);
+  const shownPosts = useMemo(() => myRequests.filter((item) =>
+    postFilter === 'all' ? true : postFilter === 'open' ? isPostOpen(item) : !isPostOpen(item)),
+  [myRequests, postFilter, isPostOpen]);
+  /** ダッシュボードの数字。届いた紹介とやり取りの合計。 */
+  const postTotals = useMemo(() => myRequests.reduce((sum, item) => ({
+    intro: sum.intro + item.introCount, comment: sum.comment + item.commentCount,
+  }), { intro: 0, comment: 0 }), [myRequests]);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [carouselPaused, setCarouselPaused] = useState(false);
   const [viewedIds, setViewedIds] = useState<string[]>([]);
@@ -340,7 +352,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     setMyRequests(data.requests ?? []);
   }, []);
   useEffect(() => {
-    if (activeTab !== 'mypage') return;
+    if (activeTab !== 'mypage' && activeTab !== 'posts') return;
     let alive = true;
     fetch('/api/my-requests').then((response) => response.ok ? response.json() : null)
       .then((data) => { if (alive && data) setMyRequests((data as { requests: MyRequest[] }).requests ?? []); })
@@ -604,17 +616,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     const inRange = adCalendarDays.filter((day) => day.date >= adStart && day.date <= last);
     return inRange.length === adDays && inRange.every((day) => day.remaining > 0);
   }, [adInfo, adCalendarDays, adStart, adDays]);
-  // マイページの入口に出す、いま掲載中の1枠。
-  const liveAd = adInfo?.slots.find((ad) => adState(ad).tone === 'live');
-
-  /** マイページの広告ボタンに添える一行。押す前に、いま申し込めるのかどうかが分かるようにする。 */
-  function adEntryNote(offer: AdOffer) {
-    if (offer.slots.length) return `お申し込みずみ ${offer.slots.length}件・掲載内容の変更とレポートはこちらから`;
-    if (!offer.ready) return '受け付けの準備中です';
-    if (!nextOpenDay) return 'ただいま満枠です';
-    return `1日 ${adDailyPrice('banner')}から・${formatRange(nextOpenDay.date, nextOpenDay.date).split('〜')[0]}以降に空きがあります`;
-  }
-
   function openAdSettings() {
     setEditingAd('');
     setOpenStats('');
@@ -788,6 +789,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   function showMyPage() {
     setModal(null);
     setActiveTab('mypage');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /** 自分の投稿の一覧。件数が増えるので、マイページの中ではなく別ページにする。 */
+  function showMyPosts() {
+    setModal(null);
+    setActiveTab('posts');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -1049,49 +1057,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <p className="invite-terms">この特典は、予告なく内容の変更または終了をすることがあります。すでに確定した分は、そのままご利用いただけます。</p>
         </section>}
 
-        {adInfo && <section className="ad-entry" aria-label="トップバナーへの出稿">
-          <div className="ad-heading"><p>ADVERTISING</p><h2>広告を出す</h2><span>画面上部のバナーか、仕事の掲示板の上位に、ご指定の期間だけ広告を掲載できます。{adInfo.discountRate > 0 && `${adInfo.rank}は出稿料が${Math.round(adInfo.discountRate * 100)}%OFFです。`}</span></div>
-
-          {false
-            ? null
-            : <>
-                {liveAd && <div className="ad-entry-live">
-                  <AdBanner ad={{ title: liveAd.title, description: liveAd.description, imageUrl: liveAd.imageUrl, by: stats.company || shownName }} />
-                  <p className="ad-entry-state"><b>掲載中　{formatRange(liveAd.startDate, liveAd.endDate)}</b><span>表示 {liveAd.viewCount.toLocaleString('ja-JP')}／クリック {liveAd.clickCount.toLocaleString('ja-JP')}</span></p>
-                </div>}
-                <button className="ad-entry-open" onClick={openAdSettings}>
-                  <span><b>{adInfo.slots.length ? '広告を管理する' : '広告を出稿する'}</b><small>{adEntryNote(adInfo)}</small></span>
-                  <i aria-hidden="true">›</i>
-                </button>
-              </>}
-        </section>}
-
-        <section className="my-requests" aria-label="自分の投稿">
-          <div className="my-requests-heading"><p>MY POSTS</p><h2>自分の投稿</h2><span>これまでに出した探しごとです。募集が終わったものも残ります。内容はあとから直せます。</span></div>
-          {!myRequests.length
-            ? <p className="my-requests-empty">まだ投稿がありません。下の「＋」から、探している人を書いてみてください。</p>
-            : <ul className="my-request-list">{myRequests.map((item) => {
-              const expired = item.deadline < today;
-              return <li key={item.id} className={`my-request${item.status === 'closed' || expired ? ' is-done' : ''}`}>
-                <div className="my-request-top">
-                  <span className="my-request-state">{item.status === 'closed' ? '募集終了' : expired ? '期限切れ' : '募集中'}</span>
-                  <small>{item.createdAt.slice(0, 10).replace(/-/g, '/')} 投稿</small>
-                </div>
-                <b className="my-request-title">{item.title}</b>
-                <p className="my-request-meta">
-                  <span>期限 {item.deadline.replace(/-/g, '/')}</span>
-                  <span>紹介 {item.introCount}件</span>
-                  <span>やり取り {item.commentCount}件</span>
-                  {item.imageCount > 0 && <span>写真 {item.imageCount}枚</span>}
-                  {item.hasVideo && <span>動画あり</span>}
-                </p>
-                <div className="my-request-actions">
-                  <button onClick={() => openEditRequest(item)}>編集する</button>
-                  <button className="is-danger" onClick={() => setDeletingRequest(item)}>削除する</button>
-                </div>
-              </li>;
-            })}</ul>}
-        </section>
+        <button className="dashboard-link" onClick={showMyPosts}>
+          <span className="dashboard-link-copy">
+            <small>MY POSTS</small>
+            <b>自分の投稿</b>
+            <em>{myRequests.length ? `${myRequests.length}件（募集中 ${openPostCount}件）` : 'まだ投稿がありません'}</em>
+          </span>
+          <i aria-hidden="true">›</i>
+        </button>
 
         <section className="receipt-card" aria-label="支払い履歴">
           <div className="receipt-heading"><p>RECEIPTS</p><h2>支払い履歴</h2><span>お支払いのたびに領収書が作られます。ここからいつでも開いて、印刷や保存ができます。</span></div>
@@ -1118,6 +1091,49 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
 
         <LegalLinks />
+      </section> : activeTab === 'posts' ? <section className="profile-page" aria-labelledby="my-posts-title">
+        {/* 自分の投稿。件数が増えるので、マイページの中ではなく1ページ取る。 */}
+        <header className="profile-page-heading"><p>MY POSTS</p><h1 id="my-posts-title">自分の投稿</h1><span>これまでに出した探しごとです。募集が終わったものも残ります。内容はあとから直せます。</span></header>
+
+        <dl className="post-totals">
+          <div><dt>投稿</dt><dd>{myRequests.length}<small>件</small></dd></div>
+          <div><dt>募集中</dt><dd>{openPostCount}<small>件</small></dd></div>
+          <div><dt>届いた紹介</dt><dd>{postTotals.intro}<small>件</small></dd></div>
+          <div><dt>やり取り</dt><dd>{postTotals.comment}<small>件</small></dd></div>
+        </dl>
+
+        <div className="post-filters" role="group" aria-label="投稿の絞り込み">
+          {([['all', 'すべて', myRequests.length], ['open', '募集中', openPostCount], ['closed', '終わった募集', myRequests.length - openPostCount]] as const).map(([key, label, count]) =>
+            <button key={key} className={postFilter === key ? 'selected' : ''} onClick={() => setPostFilter(key)} aria-pressed={postFilter === key}>{label} <span>{count}</span></button>)}
+        </div>
+
+        {!myRequests.length
+          ? <p className="my-requests-empty">まだ投稿がありません。下の「＋」から、探している人を書いてみてください。</p>
+          : !shownPosts.length
+          ? <p className="my-requests-empty">この条件に当てはまる投稿はありません。</p>
+          : <ul className="my-request-list">{shownPosts.map((item) => {
+            const expired = item.deadline < today;
+            return <li key={item.id} className={`my-request${isPostOpen(item) ? '' : ' is-done'}`}>
+              <div className="my-request-top">
+                <span className="my-request-state">{item.status === 'closed' ? '募集終了' : expired ? '期限切れ' : '募集中'}</span>
+                <small>{item.createdAt.slice(0, 10).replace(/-/g, '/')} 投稿</small>
+              </div>
+              <b className="my-request-title">{item.title}</b>
+              <p className="my-request-meta">
+                <span>期限 {item.deadline.replace(/-/g, '/')}</span>
+                <span>紹介 {item.introCount}件</span>
+                <span>やり取り {item.commentCount}件</span>
+                {item.imageCount > 0 && <span>写真 {item.imageCount}枚</span>}
+                {item.hasVideo && <span>動画あり</span>}
+              </p>
+              <div className="my-request-actions">
+                <button onClick={() => openEditRequest(item)}>編集する</button>
+                <button className="is-danger" onClick={() => setDeletingRequest(item)}>削除する</button>
+              </div>
+            </li>;
+          })}</ul>}
+
+        <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section> : <section className="profile-page" aria-labelledby="profile-settings-title">
         {/* プロフィール設定。入口は右上の顔写真と、マイページの「プロフィールを編集する」。 */}
         <header className="profile-page-heading"><p>PROFILE</p><h1 id="profile-settings-title">プロフィール設定</h1><span>ここで登録した内容が、探しごとや紹介のときに相手に見えます。</span></header>
@@ -1149,7 +1165,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <button className={activeTab === 'search' ? 'active' : ''} onClick={() => showSearch()}><span>⌕</span><small>探す</small></button>
         <button className="nav-post" onClick={openRequest} aria-label="探しごとを投稿する"><span>＋</span></button>
         <button className={modal === 'ads' ? 'active' : ''} onClick={openAdSettings}><span><BannerIcon /></span><small>広告</small></button>
-        <button className={modal !== 'ads' && (activeTab === 'mypage' || activeTab === 'profile') ? 'active' : ''} onClick={showMyPage}><span><PersonIcon /></span><small>マイページ</small></button>
+        <button className={modal !== 'ads' && activeTab !== 'home' && activeTab !== 'search' ? 'active' : ''} onClick={showMyPage}><span><PersonIcon /></span><small>マイページ</small></button>
       </nav>
 
       {modal === 'request' && !canPostRequest && !editingRequest && <Modal title="今月分の投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showMyPage(); }}>マイページを開く</button></div></Modal>}
