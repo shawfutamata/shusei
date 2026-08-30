@@ -518,6 +518,11 @@ body { font-weight:600; }
 .category-guide-example small { display:block; margin-bottom:3px; color:#7b8ba3; font-size:9px; font-weight:900; letter-spacing:.08em; }
 .category-guide-note { margin:14px 0 0; color:#7b8ba3; font-size:11px; text-align:center; }
 
+/* 掲載日数を動かしたときの金額。バーのすぐ下で、その場で変わる。 */
+.ad-quote { margin:10px 0 0; padding:13px; display:grid; gap:4px; justify-items:center; border-radius:12px; background:#fff6f2; }
+.ad-quote b { color:var(--accent-ink); font-size:22px; }
+.ad-quote small { color:#8a7568; font-size:11px; font-weight:700; }
+
 /* 掲載枠の選択。どこに出るのかを画面の形で見せる。 */
 .ad-placements { display:grid; gap:10px; }
 .ad-placement { padding:13px; display:grid; grid-template-columns:64px minmax(0,1fr); align-items:start; gap:13px; border:1px solid #d7e0ed; border-radius:14px; background:#fff; text-align:left; cursor:pointer; }

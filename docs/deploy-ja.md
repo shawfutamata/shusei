@@ -50,7 +50,6 @@ npx wrangler secret put AUTH_CODE_PEPPER          # 適当な長い文字列を1
 npx wrangler secret put STRIPE_SECRET_KEY
 npx wrangler secret put STRIPE_WEBHOOK_SECRET
 npx wrangler secret put STRIPE_PRICE_STANDARD
-npx wrangler secret put STRIPE_PRICE_AD_SLOT
 ```
 
 | 変数 | 無いとどうなるか | いつ要るか |
@@ -58,9 +57,9 @@ npx wrangler secret put STRIPE_PRICE_AD_SLOT
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | **誰もログインできない** | 公開前に必須 |
 | `AUTH_CODE_PEPPER` | セッションを作るところで落ちる。**Googleログインも通らない** | 公開前に必須 |
 | `STRIPE_SECRET_KEY` | 有料プランも広告も申し込めない | 課金を出すとき |
+| （広告に価格IDは要らない） | 金額は日数×単価でその都度変わるので、`price_data` で毎回渡している | — |
 | `STRIPE_PRICE_STANDARD` | プラン画面が「準備中」 | 同上 |
 | `STRIPE_PRICE_STANDARD_YEAR` | 年払いが出ないだけ（月払いは動く） | 任意 |
-| `STRIPE_PRICE_AD_SLOT` | 広告が「広告の受け付けは準備中です」で止まる | 広告を売るとき |
 | `STRIPE_WEBHOOK_SECRET` | 支払いは通るが**掲載が始まらない**（`active` にならない） | `STRIPE_SECRET_KEY` と同時 |
 | `RESEND_API_KEY` / `AUTH_FROM_EMAIL` | 6桁コードのメールが送れない | フェーズ2 |
 | `REVIEW_AUTH_EMAIL` / `REVIEW_AUTH_CODE` | 審査担当者がログインできない | ストア提出時 |

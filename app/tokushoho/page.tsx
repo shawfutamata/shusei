@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { serviceName } from '../brand';
 import { company, missingCompanyFields } from '../company';
-import { adSlotPrice, planCatalog, planPrice, yearlyYen } from '../plan-catalog';
+import { adDailyPrice, planCatalog, planPrice, yearlyYen } from '../plan-catalog';
 import LegalPage, { LegalSection, LegalTable, LegalTodo } from '../LegalPage';
 
 export const metadata: Metadata = { title: `特定商取引法に基づく表記｜${serviceName}`, description: `${serviceName}の販売条件` };
@@ -16,7 +16,7 @@ export default function TokushohoPage() {
     ['お問い合わせ', <>{company.email}<br />{company.hours}<br />お問い合わせはメールにて承ります。お電話をご希望の場合は、上記の電話番号へご連絡ください。</>],
     ['販売価格', <>
       スタンダード：{planPrice('standard')}（税込）／{planPrice('standard', 'year')}（税込）<br />
-      トップバナーへの出稿枠：1枠1ヶ月 {adSlotPrice()}（税込）<br />
+      広告の出稿枠：画面上部のバナー 1日 {adDailyPrice('banner')}／仕事の掲示板の上位 1日 {adDailyPrice('list')}（いずれも税込・1枠あたり）<br />
       無料プランは料金がかかりません。
     </>],
     ['商品代金以外の必要料金', 'インターネット接続に必要な通信料金、および通信機器等の費用はお客様のご負担となります。'],

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
-import { adSlotConfigured, adSlotPriceId, stripeClient } from '@/app/stripe';
-import { DEFAULT_PLACEMENT, isAdPlacement } from '@/app/ad-options';
+import { adSlotConfigured, stripeClient } from '@/app/stripe';
+import { AD_MIN_DAYS, DEFAULT_PLACEMENT, isAdPlacement, placementName } from '@/app/ad-options';
+import { adSlotTotalYen } from '@/app/plan-catalog';
 import { canBuyAdSlot, getMemberRank, getStripeLink, releaseAdSlot, reserveAdSlot, saveAdSlotSession, saveStripeCustomer, shiftDate } from '@/db/data';
 import { adDaysAhead, adMaxDays } from '@/app/rank-perks';
 import { readAdContent } from '@/app/ad-upload';
@@ -35,8 +36,8 @@ export async function POST(request: Request) {
   if (!isAdPlacement(placement)) return NextResponse.json({ error: '掲載する場所をお選びください。' }, { status: 400 });
   const maxDays = adMaxDays(level);
   if (!startDate) return NextResponse.json({ error: '掲載を始める日をお選びください。' }, { status: 400 });
-  if (!Number.isInteger(days) || days < 1 || days > maxDays) {
-    return NextResponse.json({ error: `掲載できるのは1日から${maxDays}日までです。` }, { status: 400 });
+  if (!Number.isInteger(days) || days < AD_MIN_DAYS || days > maxDays) {
+    return NextResponse.json({ error: `掲載できるのは${AD_MIN_DAYS}日から${maxDays}日までです。` }, { status: 400 });
   }
   // 過ぎた日や、ずっと先の日を押さえられないようにする。
   const today = new Date().toISOString().slice(0, 10);
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    return await createCheckout(gate.user.userId, gate.user.email, gate.user.displayName, reserved.id, startDate, reserved.endDate, new URL(request.url).origin);
+    return await createCheckout(gate.user.userId, gate.user.email, gate.user.displayName, reserved.id, startDate, reserved.endDate, placement, days, new URL(request.url).origin);
   } catch (error) {
     // 決済画面を開けなかったのに枠を押さえたままにしない。次の人がすぐ買える。
     await releaseAdSlot(reserved.id).catch(() => undefined);
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
   }
 }
 
-async function createCheckout(memberId: string, userEmail: string, userName: string, slotId: string, startDate: string, endDate: string, origin: string) {
+async function createCheckout(memberId: string, userEmail: string, userName: string, slotId: string, startDate: string, endDate: string, placement: string, days: number, origin: string) {
   const stripe = stripeClient();
   const link = await getStripeLink(memberId);
 
@@ -82,7 +83,19 @@ async function createCheckout(memberId: string, userEmail: string, userName: str
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     customer: customerId,
-    line_items: [{ price: adSlotPriceId(), quantity: 1 }],
+    // 金額は日数×単価。**画面から受け取った額は使わない**（書き換えられるため）。
+    // Stripeに価格を作り置きせず、その場の金額を price_data で渡す。
+    line_items: [{
+      price_data: {
+        currency: 'jpy',
+        unit_amount: adSlotTotalYen(placement, days),
+        product_data: {
+          name: `TASUKI ${placementName(placement)} ${days}日間`,
+          description: `${startDate} 〜 ${endDate}`,
+        },
+      },
+      quantity: 1,
+    }],
     locale: 'ja',
     success_url: `${origin}/?ad=done`,
     cancel_url: `${origin}/?ad=cancel`,

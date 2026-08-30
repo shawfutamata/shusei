@@ -37,11 +37,39 @@ export function planPerMonthNote(plan: Plan) {
   return `月あたり ${monthlyEquivalentYen(plan, 'year').toLocaleString('ja-JP')}円・${Math.round(YEARLY_DISCOUNT * 100)}%OFF`;
 }
 
-/** トップバナーの出稿枠。1枠・1ヶ月ぶんの税込価格。 */
-export const AD_SLOT_YEN = 10000;
+/**
+ * 広告の1日あたりの単価（税込）。**枠ごとに違う。**
+ *
+ * 日割りにしているのは、固定額だと1日でも30日でも同じ値段になり、
+ * 全員が最長を選ぶだけで、期間を選ばせる意味が無くなるため。
+ *
+ * 掲示板の上位が高いのは、枠が3つしかなく、探している人がいちばん
+ * 熱心に見る場所だから。バナーは5枠あるぶん安い。
+ *
+ * **表示回数では値段を変えない。** 同じ枠に入った人は同じだけ回るので、
+ * 多く払った人が多く表示される仕組みにはなっていない。
+ * 「積めば伸びる」と読める作りにすると、払った人を裏切ることになる。
+ */
+export const AD_DAILY_YEN: Record<string, number> = {
+  banner: 350,
+  list: 600,
+};
 
-export function adSlotPrice() {
-  return `${AD_SLOT_YEN.toLocaleString('ja-JP')}円`;
+export function adDailyYen(placement: string) {
+  return AD_DAILY_YEN[placement] ?? AD_DAILY_YEN.banner;
+}
+
+/** その枠を日数ぶん買ったときの税込総額。**請求はこの値だけを使う。** */
+export function adSlotTotalYen(placement: string, days: number) {
+  return adDailyYen(placement) * days;
+}
+
+export function adDailyPrice(placement: string) {
+  return `${adDailyYen(placement).toLocaleString('ja-JP')}円`;
+}
+
+export function adTotalPrice(placement: string, days: number) {
+  return `${adSlotTotalYen(placement, days).toLocaleString('ja-JP')}円`;
 }
 
 export function planPostLimit(plan: Plan) {

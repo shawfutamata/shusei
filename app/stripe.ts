@@ -21,13 +21,14 @@ export function stripeConfigured() {
   return Boolean(env.STRIPE_SECRET_KEY && env.STRIPE_PRICE_STANDARD);
 }
 
-/** 出稿枠の1回きりの支払いが使えるか。 */
+/**
+ * 出稿枠の1回きりの支払いが使えるか。
+ *
+ * 金額は日数×単価でその都度変わるので、Stripeに価格を作り置きしない
+ * （price_data で毎回渡す）。だから必要なのは秘密鍵だけ。
+ */
 export function adSlotConfigured() {
-  return Boolean(env.STRIPE_SECRET_KEY && env.STRIPE_PRICE_AD_SLOT);
-}
-
-export function adSlotPriceId() {
-  return env.STRIPE_PRICE_AD_SLOT || '';
+  return Boolean(env.STRIPE_SECRET_KEY);
 }
 
 /** 有料プランと Stripe の price を対応させる。無料プランに price は無い。 */

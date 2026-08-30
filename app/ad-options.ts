@@ -46,6 +46,12 @@ export function isAdPlacement(value: string): value is AdPlacement {
 /** バナーが次へ送るまでの時間。5枠×3秒で1周15秒。 */
 export const AD_ROTATE_MS = 3000;
 
+/**
+ * 1回の申し込みで買える最短の日数。
+ * 1日だけの予約が乱立すると、カレンダーが虫食いになって空きが読めなくなる。
+ */
+export const AD_MIN_DAYS = 7;
+
 /** 1回の申し込みで選べる掲載日数の上限。ランクの特典で延びる。 */
 export const AD_MAX_DAYS = 30;
 

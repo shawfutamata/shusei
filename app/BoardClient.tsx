@@ -11,10 +11,10 @@ import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-op
 import { findVenuePrefecture, isListedVenue, OTHER_VENUE, venuePrefectures, venuesByPrefecture } from './venue-options';
 import { UNLIMITED, plans, type BillingCycle, type Plan } from './entitlements';
 import { feedbackCategories } from './feedback-options';
-import { adSlotPrice, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
+import { adDailyPrice, adTotalPrice, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
 import PerkIcon from './PerkIcon';
-import { AD_ROTATE_MS, DEFAULT_PLACEMENT, adPlacements, placementName } from './ad-options';
+import { AD_MIN_DAYS, AD_ROTATE_MS, DEFAULT_PLACEMENT, adPlacements, placementName } from './ad-options';
 import { EXTEND_DAYS, PROMO_DAYS, canExtendRequest, canPromoteInIndustry, descriptionLimit, notifyIndustryLimit, photoLimit, rankNames, rankPerks, rankThresholds } from './rank-perks';
 import { serviceName } from './brand';
 import BrandMark from './BrandMark';
@@ -205,6 +205,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [adPlacement, setAdPlacement] = useState<string>(DEFAULT_PLACEMENT);
   const [adStart, setAdStart] = useState('');
   const [adDays, setAdDays] = useState(30);
+
   const [openStats, setOpenStats] = useState('');
   const [adStats, setAdStats] = useState<{ slot: AdSlot; days: AdDay[] } | null>(null);
   const [openPerk, setOpenPerk] = useState('');
@@ -500,8 +501,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     if (offer.slots.length) return `お申し込みずみ ${offer.slots.length}件・掲載内容の変更とレポートはこちらから`;
     if (!offer.ready) return '受け付けの準備中です';
     if (!offer.eligible) return `${rankNames[offer.minRankLevel - 1]}ランクから出稿いただけます`;
-    if (!nextOpenDay) return `${adSlotPrice()}／1枠・ただいま満枠です`;
-    return `${adSlotPrice()}／1枠・${formatRange(nextOpenDay.date, nextOpenDay.date).split('〜')[0]}以降に空きがあります`;
+    if (!nextOpenDay) return 'ただいま満枠です';
+    return `1日 ${adDailyPrice('banner')}から・${formatRange(nextOpenDay.date, nextOpenDay.date).split('〜')[0]}以降に空きがあります`;
   }
 
   function openAdSettings() {
@@ -539,7 +540,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     if (modal !== 'ads' || adStart || !nextOpenDay) return;
     const timer = window.setTimeout(() => {
       setAdStart(nextOpenDay.date);
-      setAdDays((current) => Math.min(current, adInfo?.maxDays ?? 30));
+      setAdDays((current) => Math.max(AD_MIN_DAYS, Math.min(current, adInfo?.maxDays ?? 30)));
     }, 0);
     return () => window.clearTimeout(timer);
   }, [modal, adStart, nextOpenDay, adInfo?.maxDays]);
@@ -1030,7 +1031,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </div>
       </Modal>}
 
-      {modal === 'ads' && adInfo && <Modal title="トップバナー広告" lead={`ホーム画面の最上部に、ご指定の期間だけ広告を掲載できます。1枠 ${adSlotPrice()}（税込）のお支払いが1回のみ。`} onClose={closeAdSettings}>
+      {modal === 'ads' && adInfo && <Modal title="トップバナー広告" lead={`ご指定の期間だけ広告を掲載できます。お支払いは日数ぶんの1回のみ（税込）。`} onClose={closeAdSettings}>
         <div className="ad-panel">
           {/* いま持っている枠。ここは見るところで、申し込みは下の流れで行う。 */}
           {adInfo.slots.length > 0 && !adFlow && <ul className="ad-slot-list">{adInfo.slots.map((ad) => {
@@ -1063,7 +1064,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             ? <p className="ad-note">ただいま{adInfo.daysAhead}日先まで、{placementName(adPlacement)}の{currentPlacement.slots}枠すべてが埋まっています。空きが出ましたらお申し込みいただけます。</p>
             : !adFlow
               ? <button className="ad-entry-open ad-flow-open" onClick={startAdFlow}>
-                  <span><b>新規のお申し込み</b><small>3ステップで完了します。{adSlotPrice()}（税込・1回のみ）</small></span>
+                  <span><b>新規のお申し込み</b><small>4ステップで完了します。掲載日数ぶんのお支払いが1回のみ</small></span>
                   <i aria-hidden="true">›</i>
                 </button>
               : <form className="ad-flow" onSubmit={buyAdSlot}>
@@ -1103,10 +1104,15 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                   {adStep === 2 && <div className="ad-step">
                     <p className="ad-step-head"><b>掲載期間</b><span>カレンダーから掲載開始日を選び、掲載日数をご指定ください。{placementName(adPlacement)}は同一期間に{currentPlacement.slots}枠までです。</span></p>
                     <AdCalendar days={adCalendarDays} startDate={adStart} spanDays={adDays} onPick={setAdStart} />
-                    <label className="ad-days"><span>掲載日数 <small>最長{adInfo.maxDays}日</small></span>
-                      <input type="range" min={1} max={adInfo.maxDays} value={adDays} onChange={(event) => setAdDays(Number(event.target.value))} />
+                    <label className="ad-days"><span>掲載日数 <small>{AD_MIN_DAYS}〜{adInfo.maxDays}日</small></span>
+                      <input type="range" min={AD_MIN_DAYS} max={adInfo.maxDays} value={adDays} onChange={(event) => setAdDays(Number(event.target.value))} />
                       <b>{adDays}日</b>
                     </label>
+                    {/* 動かした結果がいくらになるのか、その場で見えるようにする */}
+                    <p className="ad-quote">
+                      <b>{adTotalPrice(adPlacement, adDays)}</b>
+                      <small>{adDailyPrice(adPlacement)} × {adDays}日（税込・1回のみ）</small>
+                    </p>
                     <p className={`ad-period${adStart && !periodOpen ? ' is-full' : ''}`}>{!adStart
                       ? 'カレンダーから掲載開始日をお選びください'
                       : periodOpen
@@ -1121,7 +1127,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                     <dl className="ad-check">
                       <div><dt>掲載枠</dt><dd>{placementName(adPlacement)}<small>{currentPlacement.slots}枠のうち1枠</small></dd></div><div><dt>掲載期間</dt><dd>{adStart && formatRange(adStart, shiftDate(adStart, adDays - 1))}<small>{adDays}日間</small></dd></div>
                       <div><dt>リンク先</dt><dd>{adDraft.linkUrl ? adDraft.linkUrl.replace(/^https?:\/\//, '') : <em>設定なし</em>}</dd></div>
-                      <div className="ad-check-pay"><dt>お支払い額</dt><dd>{adSlotPrice()}<small>税込・1回のみ</small></dd></div>
+                      <div className="ad-check-pay"><dt>お支払い額</dt><dd>{adTotalPrice(adPlacement, adDays)}<small>{adDailyPrice(adPlacement)}×{adDays}日・税込・1回のみ</small></dd></div>
                     </dl>
                     <div className="ad-step-actions"><button type="button" onClick={() => setAdStep(2)}>戻る</button><button className="submit-button" disabled={busy || !adStart || !periodOpen}>{busy ? '処理しています…' : 'お支払いへ進む'}</button></div>
                     <p className="ad-note">お支払いは決済代行会社（Stripe）の画面で行います。掲載内容は掲載開始後も変更いただけます。</p>
