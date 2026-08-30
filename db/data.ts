@@ -42,7 +42,6 @@ export type BoardRequest = {
   authorCompany: string;
   authorVenue: string;
   authorPositionTitle: string;
-  authorBadge: string;
   authorBusinessArea: string;
   authorRevenueBand: string;
   authorAvatarUrl: string;
@@ -56,7 +55,6 @@ export type MemberStats = {
   venue: string;
   company: string;
   positionTitle: string;
-  badge: string;
   businessArea: string;
   primaryIndustry: string;
   notifyIndustries: string[];
@@ -138,6 +136,7 @@ const statements = [
     venue TEXT NOT NULL DEFAULT 'ひるのめぐろ会場',
     company TEXT NOT NULL DEFAULT '',
     position_title TEXT NOT NULL DEFAULT '',
+    -- バッヂは廃止。列は残す（消すと既存のDBと食い違い、起動が壊れる）。誰も読み書きしない。
     badge TEXT NOT NULL DEFAULT '',
     business_area TEXT NOT NULL DEFAULT '',
     primary_industry TEXT NOT NULL DEFAULT '',
@@ -392,11 +391,6 @@ export async function ensureDatabase() {
     WHERE membership_status = 'invited'`).run();
   await env.DB.prepare("UPDATE members SET plan = 'premium' WHERE plan = 'pro'").run();
   await seedDemoData();
-  await env.DB.batch([
-    env.DB.prepare("UPDATE members SET badge = '赤' WHERE badge IN ('赤バッヂ', '赤バッジ')"),
-    env.DB.prepare("UPDATE members SET badge = '緑' WHERE badge IN ('緑バッヂ', '緑バッジ')"),
-    env.DB.prepare("UPDATE members SET badge = '' WHERE badge NOT IN ('', '緑', '赤', 'ゴールド', 'ダイヤモンド')"),
-  ]);
   initialized = true;
 }
 
@@ -750,7 +744,7 @@ export async function getBoardData(user: SessionUser) {
     r.image_count AS imageCount, r.video_version AS videoVersion,
     r.promo_industry AS promoIndustry, r.promo_until AS promoUntil,
     m.display_name AS authorName, m.company AS authorCompany, m.venue AS authorVenue,
-    m.position_title AS authorPositionTitle, m.badge AS authorBadge,
+    m.position_title AS authorPositionTitle,
     m.business_area AS authorBusinessArea,
     m.annual_revenue_band AS authorRevenueBand,
     m.id AS authorId, m.avatar_key AS authorAvatarKey, m.avatar_version AS authorAvatarVersion,
@@ -767,7 +761,7 @@ export async function getBoardData(user: SessionUser) {
     .all<Omit<BoardRequest, 'industryTags' | 'thumbUrl' | 'imageUrl' | 'imageUrls' | 'mine'> & { industryTagsJson: string; imageVersion: number; imageCount: number; videoVersion: number; authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
 
   const member = await env.DB.prepare(`SELECT display_name AS displayName, venue, company,
-    position_title AS positionTitle, badge, business_area AS businessArea,
+    position_title AS positionTitle, business_area AS businessArea,
     primary_industry AS primaryIndustry, notify_industries AS notifyIndustriesJson,
     annual_revenue_band AS annualRevenueBand, facebook_url AS facebookUrl,
     avatar_key AS avatarKey, avatar_version AS avatarVersion,
@@ -776,7 +770,7 @@ export async function getBoardData(user: SessionUser) {
       WHERE r.author_id = members.id) AS receivedIntroCount
     FROM members WHERE id = ?`).bind(user.userId).first<Omit<MemberStats, 'rank' | 'level' | 'nextRankAt' | 'avatarUrl' | 'notifyIndustries'> & { notifyIndustriesJson: string; avatarKey: string; avatarVersion: number }>();
 
-  const baseMember = member ?? { displayName: user.displayName, venue: 'ひるのめぐろ会場', company: '', positionTitle: '', badge: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', facebookUrl: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, dealCount: 0, points: 0 };
+  const baseMember = member ?? { displayName: user.displayName, venue: 'ひるのめぐろ会場', company: '', positionTitle: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', facebookUrl: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, dealCount: 0, points: 0 };
   const { notifyIndustriesJson, ...memberFields } = baseMember;
   const plan = await getPlanSummary(user.userId);
   const stats = calculateRank({ ...memberFields, notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion),
@@ -797,7 +791,7 @@ export async function getBoardData(user: SessionUser) {
   return { requests, stats, ads: await listActiveAds() };
 }
 
-export async function updateMemberProfile(user: SessionUser, input: { company: string; venue: string; positionTitle: string; badge: string; businessArea: string; primaryIndustry: string; notifyIndustries: string[]; annualRevenueBand: string; facebookUrl: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {
+export async function updateMemberProfile(user: SessionUser, input: { company: string; venue: string; positionTitle: string; businessArea: string; primaryIndustry: string; notifyIndustries: string[]; annualRevenueBand: string; facebookUrl: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {
   await upsertMember(user);
   const existing = await env.DB.prepare('SELECT avatar_key AS avatarKey, avatar_version AS avatarVersion FROM members WHERE id = ?')
     .bind(user.userId).first<{ avatarKey: string; avatarVersion: number }>();
@@ -812,10 +806,10 @@ export async function updateMemberProfile(user: SessionUser, input: { company: s
     });
   }
   if (!avatarKey) throw new Error('顔写真を登録してください。');
-  await env.DB.prepare(`UPDATE members SET company = ?, venue = ?, position_title = ?, badge = ?,
+  await env.DB.prepare(`UPDATE members SET company = ?, venue = ?, position_title = ?,
     business_area = ?, primary_industry = ?, notify_industries = ?, annual_revenue_band = ?,
     facebook_url = ?, avatar_key = ?, avatar_version = ? WHERE id = ?`)
-    .bind(input.company, input.venue, input.positionTitle, input.badge, input.businessArea,
+    .bind(input.company, input.venue, input.positionTitle, input.businessArea,
       input.primaryIndustry, JSON.stringify(input.notifyIndustries), input.annualRevenueBand,
       cleanFacebookUrl(input.facebookUrl), avatarKey, avatarVersion, user.userId).run();
   return avatarUrl(user.userId, avatarKey, avatarVersion);

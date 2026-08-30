@@ -6,7 +6,6 @@ import { isIndustry } from '@/app/industry-options';
 import { cleanFacebookUrl } from '@/app/social-links';
 
 const allowedBands = ['', 'revenue_10_30', 'revenue_30_70', 'revenue_70_100', 'revenue_100_plus'];
-const allowedBadges = ['', '緑', '赤', 'ゴールド', 'ダイヤモンド'];
 
 export async function PATCH(request: Request) {
   const gate = await requireActiveMember();
@@ -16,7 +15,6 @@ export async function PATCH(request: Request) {
   const company = clean(body.get('company'), 80);
   const venue = clean(body.get('venue'), 60);
   const positionTitle = clean(body.get('positionTitle'), 60);
-  const badge = clean(body.get('badge'), 40);
   const businessArea = clean(body.get('businessArea'), 60);
   const primaryIndustry = clean(body.get('primaryIndustry'), 40);
   // 選べる数はランクで増える（app/rank-perks.ts）。画面の見た目ではなく、ここで止める。
@@ -35,9 +33,6 @@ export async function PATCH(request: Request) {
   if (!allowedBands.includes(annualRevenueBand)) {
     return NextResponse.json({ error: '年商の選択内容を確認してください。' }, { status: 400 });
   }
-  if (!allowedBadges.includes(badge)) {
-    return NextResponse.json({ error: 'バッヂは緑・赤・ゴールド・ダイヤモンドから選択してください。' }, { status: 400 });
-  }
   if (businessArea && !prefectures.includes(businessArea as Prefecture)) {
     return NextResponse.json({ error: '活動エリアは47都道府県から選択してください。' }, { status: 400 });
   }
@@ -53,8 +48,8 @@ export async function PATCH(request: Request) {
     avatarUpload = { bytes, contentType: avatar.type };
   }
   try {
-    const avatarUrl = await updateMemberProfile(user, { company, venue, positionTitle, badge, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, avatar: avatarUpload });
-    return NextResponse.json({ company, venue, positionTitle, badge, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, avatarUrl });
+    const avatarUrl = await updateMemberProfile(user, { company, venue, positionTitle, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, avatar: avatarUpload });
+    return NextResponse.json({ company, venue, positionTitle, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, avatarUrl });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'プロフィールを保存できませんでした。' }, { status: 400 });
   }

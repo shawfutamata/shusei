@@ -7,6 +7,7 @@ export const members = sqliteTable('members', {
   venue: text('venue').notNull().default('ひるのめぐろ会場'),
   company: text('company').notNull().default(''),
   positionTitle: text('position_title').notNull().default(''),
+  // バッヂは廃止。列だけ残っている（既存のDBと食い違わせないため）。読み書きしない。
   badge: text('badge').notNull().default(''),
   businessArea: text('business_area').notNull().default(''),
   primaryIndustry: text('primary_industry').notNull().default(''),
