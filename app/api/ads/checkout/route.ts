@@ -4,7 +4,7 @@ import { adSlotConfigured, stripeClient } from '@/app/stripe';
 import { AD_MIN_DAYS, DEFAULT_PLACEMENT, isAdPlacement, placementName } from '@/app/ad-options';
 import { adSlotTotalYen } from '@/app/plan-catalog';
 import { canBuyAdSlot, getMemberRank, getStripeLink, releaseAdSlot, reserveAdSlot, saveAdSlotSession, saveStripeCustomer, shiftDate } from '@/db/data';
-import { adDaysAhead, adMaxDays } from '@/app/rank-perks';
+import { AD_DAYS_AHEAD_ALL, AD_MAX_DAYS_ALL, adDiscountRate } from '@/app/rank-perks';
 import { readAdContent } from '@/app/ad-upload';
 
 // **Web専用**。トップバナーの出稿枠を1ヶ月ぶん買う。
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   }
 
   const { level } = await getMemberRank(gate.user.userId);
-  if (!canBuyAdSlot(level)) {
+  if (!canBuyAdSlot()) {
     return NextResponse.json({ error: '出稿枠は上位ランクの方の特典です。紹介を重ねてランクが上がるとお申し込みいただけます。' }, { status: 403 });
   }
 
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   // どこに出すか。知らない値が来たらバナー扱いにせず、はっきり断る。
   const placement = String(form.get('placement') ?? DEFAULT_PLACEMENT);
   if (!isAdPlacement(placement)) return NextResponse.json({ error: '掲載する場所をお選びください。' }, { status: 400 });
-  const maxDays = adMaxDays(level);
+  const maxDays = AD_MAX_DAYS_ALL;
   if (!startDate) return NextResponse.json({ error: '掲載を始める日をお選びください。' }, { status: 400 });
   if (!Number.isInteger(days) || days < AD_MIN_DAYS || days > maxDays) {
     return NextResponse.json({ error: `掲載できるのは${AD_MIN_DAYS}日から${maxDays}日までです。` }, { status: 400 });
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   // 過ぎた日や、ずっと先の日を押さえられないようにする。
   const today = new Date().toISOString().slice(0, 10);
   if (startDate < today) return NextResponse.json({ error: '過ぎた日は選べません。' }, { status: 400 });
-  if (startDate > shiftDate(today, adDaysAhead(level) - 1)) {
+  if (startDate > shiftDate(today, AD_DAYS_AHEAD_ALL - 1)) {
     return NextResponse.json({ error: 'その日はまだお申し込みいただけません。カレンダーに出ている日からお選びください。' }, { status: 400 });
   }
 
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    return await createCheckout(gate.user.userId, gate.user.email, gate.user.displayName, reserved.id, startDate, reserved.endDate, placement, days, new URL(request.url).origin);
+    return await createCheckout(gate.user.userId, gate.user.email, gate.user.displayName, reserved.id, startDate, reserved.endDate, placement, days, level, new URL(request.url).origin);
   } catch (error) {
     // 決済画面を開けなかったのに枠を押さえたままにしない。次の人がすぐ買える。
     await releaseAdSlot(reserved.id).catch(() => undefined);
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
   }
 }
 
-async function createCheckout(memberId: string, userEmail: string, userName: string, slotId: string, startDate: string, endDate: string, placement: string, days: number, origin: string) {
+async function createCheckout(memberId: string, userEmail: string, userName: string, slotId: string, startDate: string, endDate: string, placement: string, days: number, level: number, origin: string) {
   const stripe = stripeClient();
   const link = await getStripeLink(memberId);
 
@@ -88,7 +88,7 @@ async function createCheckout(memberId: string, userEmail: string, userName: str
     line_items: [{
       price_data: {
         currency: 'jpy',
-        unit_amount: adSlotTotalYen(placement, days),
+        unit_amount: adSlotTotalYen(placement, days, adDiscountRate(level)),
         product_data: {
           name: `TASUKI ${placementName(placement)} ${days}日間`,
           description: `${startDate} 〜 ${endDate}`,

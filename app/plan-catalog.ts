@@ -59,17 +59,23 @@ export function adDailyYen(placement: string) {
   return AD_DAILY_YEN[placement] ?? AD_DAILY_YEN.banner;
 }
 
-/** その枠を日数ぶん買ったときの税込総額。**請求はこの値だけを使う。** */
-export function adSlotTotalYen(placement: string, days: number) {
-  return adDailyYen(placement) * days;
+/**
+ * その枠を日数ぶん買ったときの税込総額。**請求はこの値だけを使う。**
+ *
+ * ランクの割引（PLATINUM 10% / DIAMOND 30%）はここで引く。重ねない。
+ * 端数は1円未満を切り捨てる（会員に有利な側）。
+ */
+export function adSlotTotalYen(placement: string, days: number, discountRate = 0) {
+  const gross = adDailyYen(placement) * days;
+  return Math.floor(gross * (1 - discountRate));
 }
 
 export function adDailyPrice(placement: string) {
   return `${adDailyYen(placement).toLocaleString('ja-JP')}円`;
 }
 
-export function adTotalPrice(placement: string, days: number) {
-  return `${adSlotTotalYen(placement, days).toLocaleString('ja-JP')}円`;
+export function adTotalPrice(placement: string, days: number, discountRate = 0) {
+  return `${adSlotTotalYen(placement, days, discountRate).toLocaleString('ja-JP')}円`;
 }
 
 export function planPostLimit(plan: Plan) {

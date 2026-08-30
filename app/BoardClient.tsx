@@ -16,7 +16,7 @@ import RankCrest, { CrownMark } from './RankCrest';
 import LegalLinks from './LegalLinks';
 import PerkIcon from './PerkIcon';
 import { AD_MIN_DAYS, AD_ROTATE_MS, DEFAULT_PLACEMENT, adPlacements, placementName } from './ad-options';
-import { EXTEND_DAYS, canExtendRequest, descriptionLimit, notifyIndustryLimit, photoLimit, rankNames, rankPerks, rankThresholds } from './rank-perks';
+import { EXTEND_DAYS, canExtendRequest, canFilterByRevenue, descriptionLimit, notifyIndustryLimit, photoLimit, rankNames, rankPerks, rankThresholds } from './rank-perks';
 import { serviceName } from './brand';
 import BrandMark from './BrandMark';
 import { detailImage, listThumbnail } from './resize-image';
@@ -110,7 +110,9 @@ const favoriteStorageKey = 'give-hub-request-favorites-v1';
 type AdCalendarDay = { date: string; remaining: number };
 type AdOffer = {
   ready: boolean; eligible: boolean; level: number; rank: string;
-  minRankLevel: number; titleMax: number; descriptionMax: number;
+  titleMax: number; descriptionMax: number;
+  /** ランクによる広告の割引率（0〜1）。0なら割引なし。 */
+  discountRate: number;
   maxDays: number; daysAhead: number;
   /** 出せる場所。バナーと仕事の掲示板の上位。 */
   placements: { key: string; name: string; where: string; detail: string; slots: number }[];
@@ -344,7 +346,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const canExtend = (need: BoardRequest) => canExtendRequest(stats.level) && !need.extendedAt;
 
   function ownerToolsNote(need: BoardRequest) {
-    if (!canExtendRequest(stats.level)) return `募集の延長は EMERALD から使えます。あと${Math.max(0, rankThresholds[1] - stats.introCount)}件の紹介で EMERALD です。`;
+    if (!canExtendRequest(stats.level)) return `募集の延長は GOLD から使えます。あと${Math.max(0, rankThresholds[1] - stats.introCount)}件の紹介で GOLD です。`;
     if (isPinned(need)) return 'いま一覧のいちばん上に出ています。';
     return '延長は1件につき1回までです。一覧の上位に出すのは、広告メニューからお申し込みいただけます。';
   }
@@ -493,7 +495,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   function adEntryNote(offer: AdOffer) {
     if (offer.slots.length) return `お申し込みずみ ${offer.slots.length}件・掲載内容の変更とレポートはこちらから`;
     if (!offer.ready) return '受け付けの準備中です';
-    if (!offer.eligible) return `${rankNames[offer.minRankLevel - 1]}ランクから出稿いただけます`;
     if (!nextOpenDay) return 'ただいま満枠です';
     return `1日 ${adDailyPrice('banner')}から・${formatRange(nextOpenDay.date, nextOpenDay.date).split('〜')[0]}以降に空きがあります`;
   }
@@ -829,7 +830,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <label><span>会場</span><select value={venueFilter} onChange={(event) => setVenueFilter(event.target.value)}><option value="all">すべての会場</option>{venueGroups.map(([prefecture, venues]) => <optgroup label={prefecture} key={prefecture}>{venues.map((venue) => <option value={venue} key={venue}>{venue}</option>)}</optgroup>)}</select></label>
           <label><span>エリア</span><select value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)}><option value="all">全国</option>{regions.map((region) => <option value={region.name} key={region.name}>{region.name}</option>)}</select></label>
           <label><span>業種</span><select value={getIndustryGroup(industryFilter)?.name ?? 'all'} onChange={(event) => setIndustryFilter(event.target.value)}><option value="all">すべての業種</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label>
-          <label><span>会社の年商</span><select value={revenueFilter} onChange={(event) => setRevenueFilter(event.target.value)}><option value="all">すべての年商</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+          <label className={canFilterByRevenue(stats.level) ? '' : 'is-locked'}><span>会社の年商 {!canFilterByRevenue(stats.level) && <em>{rankNames[2]}から</em>}</span><select value={revenueFilter} disabled={!canFilterByRevenue(stats.level)} onChange={(event) => setRevenueFilter(event.target.value)}><option value="all">すべての年商</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         </div>
         <div className="card-list">
           {/* お金をいただいている枠なので、絞り込みに関係なくいちばん上に出す */}
@@ -889,8 +890,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 <p className="plan-list-head"><b>{planCatalog[plan].name}</b>{plan === stats.contractedPlan && <em>契約中</em>}{plan !== stats.contractedPlan && plan === stats.bonusPlan && <em className="bonus">招待特典</em>}<span>{planPrice(plan, planCycle)}</span></p>
                 {planCycle === 'year' && plan !== 'free' && <p className="plan-list-per-month">{planPerMonthNote(plan)}</p>}
                 <p className="plan-list-what"><span>探しごと {planPostLimit(plan)}</span></p>
-                {referral?.billing?.ready && plan !== 'free' && plan !== stats.contractedPlan
-                  && <button className="plan-pick" onClick={() => startBilling(plan)} disabled={busy}>このプランにする</button>}
+                {plan !== 'free' && plan !== stats.contractedPlan && (referral?.billing?.ready
+                  ? <button className="plan-pick" onClick={() => startBilling(plan)} disabled={busy}>このプランにする</button>
+                  : <p className="plan-not-ready">オンラインでのお申し込みは準備中です。ご希望の方は運営窓口までお知らせください。</p>)}
               </li>)}
             </ul>
             <ul className="plan-detail">
@@ -920,14 +922,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </section>}
 
         {adInfo && <section className="ad-entry" aria-label="トップバナーへの出稿">
-          <div className="ad-heading"><p>TOP BANNER</p><h2>トップバナー広告</h2><span>ホーム画面の最上部に、ご指定の期間だけ広告を掲載できます。{rankNames[adInfo.minRankLevel - 1]}以上の会員さま限定の特典です。</span></div>
+          <div className="ad-heading"><p>ADVERTISING</p><h2>広告を出す</h2><span>画面上部のバナーか、仕事の掲示板の上位に、ご指定の期間だけ広告を掲載できます。{adInfo.discountRate > 0 && `${adInfo.rank}は出稿料が${Math.round(adInfo.discountRate * 100)}%OFFです。`}</span></div>
 
-          {!adInfo.eligible
-            ? <div className="ad-locked">
-                <b>いまは{adInfo.rank}です</b>
-                <span>あと{Math.max(0, rankThresholds[adInfo.minRankLevel - 1] - stats.introCount)}件のご紹介で{rankNames[adInfo.minRankLevel - 1]}に到達し、広告をお申し込みいただけるようになります。</span>
-                <span className="ad-locked-why">上位ランクの会員さまに限らせていただいているのは、ご紹介を重ねてこられた方から順に、より多くの目に留まる場所をお使いいただくためです。</span>
-              </div>
+          {false
+            ? null
             : <>
                 {liveAd && <div className="ad-entry-live">
                   <AdBanner ad={{ title: liveAd.title, description: liveAd.description, imageUrl: liveAd.imageUrl, by: stats.company || userName }} />
@@ -1054,10 +1052,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
           {!adInfo.ready
             ? <p className="ad-note">広告の受け付けは準備中です。ご希望の方は運営窓口までお問い合わせください。</p>
-            : !adInfo.eligible
-            // ランクが足りない方をお申し込みの流れへ入れない。
-            // 入れてしまうと、選べる日が1日も無いカレンダーの前で行き止まりになる。
-            ? <p className="ad-note">トップバナー広告は<b>{rankNames[adInfo.minRankLevel - 1]}ランク</b>以上の会員さまにご提供しています。あと{Math.max(0, rankThresholds[adInfo.minRankLevel - 1] - stats.introCount)}件のご紹介で、お申し込みいただけるようになります。</p>
             : !nextOpenDay
             ? <p className="ad-note">ただいま{adInfo.daysAhead}日先まで、{placementName(adPlacement)}の{currentPlacement.slots}枠すべてが埋まっています。空きが出ましたらお申し込みいただけます。</p>
             : !adFlow
@@ -1108,8 +1102,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                     </label>
                     {/* 動かした結果がいくらになるのか、その場で見えるようにする */}
                     <p className="ad-quote">
-                      <b>{adTotalPrice(adPlacement, adDays)}</b>
-                      <small>{adDailyPrice(adPlacement)} × {adDays}日（税込・1回のみ）</small>
+                      {adInfo.discountRate > 0 && <s>{adTotalPrice(adPlacement, adDays)}</s>}
+                      <b>{adTotalPrice(adPlacement, adDays, adInfo.discountRate)}</b>
+                      <small>{adDailyPrice(adPlacement)} × {adDays}日（税込・1回のみ）
+                        {adInfo.discountRate > 0 && `／${adInfo.rank}の${Math.round(adInfo.discountRate * 100)}%OFF適用`}</small>
                     </p>
                     <p className={`ad-period${adStart && !periodOpen ? ' is-full' : ''}`}>{!adStart
                       ? 'カレンダーから掲載開始日をお選びください'
@@ -1125,7 +1121,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                     <dl className="ad-check">
                       <div><dt>掲載枠</dt><dd>{placementName(adPlacement)}<small>{currentPlacement.slots}枠のうち1枠</small></dd></div><div><dt>掲載期間</dt><dd>{adStart && formatRange(adStart, shiftDate(adStart, adDays - 1))}<small>{adDays}日間</small></dd></div>
                       <div><dt>リンク先</dt><dd>{adDraft.linkUrl ? adDraft.linkUrl.replace(/^https?:\/\//, '') : <em>設定なし</em>}</dd></div>
-                      <div className="ad-check-pay"><dt>お支払い額</dt><dd>{adTotalPrice(adPlacement, adDays)}<small>{adDailyPrice(adPlacement)}×{adDays}日・税込・1回のみ</small></dd></div>
+                      <div className="ad-check-pay"><dt>お支払い額</dt><dd>{adTotalPrice(adPlacement, adDays, adInfo.discountRate)}<small>{adDailyPrice(adPlacement)}×{adDays}日{adInfo.discountRate > 0 && `・${adInfo.rank}の${Math.round(adInfo.discountRate * 100)}%OFF`}・税込・1回のみ</small></dd></div>
                     </dl>
                     <div className="ad-step-actions"><button type="button" onClick={() => setAdStep(2)}>戻る</button><button className="submit-button" disabled={busy || !adStart || !periodOpen}>{busy ? '処理しています…' : 'お支払いへ進む'}</button></div>
                     <p className="ad-note">お支払いは決済代行会社（Stripe）の画面で行います。掲載内容は掲載開始後も変更いただけます。</p>

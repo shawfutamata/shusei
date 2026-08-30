@@ -3,7 +3,7 @@ import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-
 import type { SessionUser } from '@/app/session-user';
 import { cleanFacebookUrl } from '@/app/social-links';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
-import { AD_DESCRIPTION_MAX, AD_MIN_RANK_LEVEL, AD_RESERVATION_MINUTES, AD_TITLE_MAX, DEFAULT_PLACEMENT, placementSlots } from '@/app/ad-options';
+import { AD_DESCRIPTION_MAX, AD_RESERVATION_MINUTES, AD_TITLE_MAX, DEFAULT_PLACEMENT, placementSlots } from '@/app/ad-options';
 import { UNLIMITED, bonusPlan, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
 import { EXTEND_DAYS, canExtendRequest, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
 import { matchesIndustry } from '@/app/industry-options';
@@ -1085,11 +1085,11 @@ function calculateRank(member: Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'
 // 何が使えるかは app/rank-perks.ts が決める。ここは書き込みと、その前の確認だけ。
 // **画面は隠すだけ。実際に止めるのはここ。**
 
-/** 募集の期限を延ばす。1件につき1回まで。EMERALD以上の特典。 */
+/** 募集の期限を延ばす。1件につき1回まで。GOLD以上の特典。 */
 export async function extendRequest(memberId: string, requestId: string) {
   await ensureDatabase();
   const { level } = await getMemberRank(memberId);
-  if (!canExtendRequest(level)) throw new Error('募集の延長は EMERALD 以上の特典です。');
+  if (!canExtendRequest(level)) throw new Error('募集の延長は GOLD 以上の特典です。');
 
   const row = await env.DB.prepare('SELECT deadline, extended_at AS extendedAt FROM requests WHERE id = ? AND author_id = ?')
     .bind(requestId, memberId).first<{ deadline: string; extendedAt: string }>();
@@ -1408,8 +1408,9 @@ export async function getMemberRank(memberId: string) {
 }
 
 /** 出稿できるランクかどうか。紹介を積んだ人だけが買える。 */
-export function canBuyAdSlot(level: number) {
-  return level >= AD_MIN_RANK_LEVEL;
+/** 広告は会員なら誰でも買える。ランクで変わるのは値段（割引）だけ。 */
+export function canBuyAdSlot() {
+  return true;
 }
 
 // リンク先は http/https だけ。javascript: などを弾く。
@@ -1702,6 +1703,46 @@ export async function findInviterByCode(code: string) {
  * 招待リンクから来た人を登録する。ここでは利用権限を与えない。
  * 運営が `active` にするまでは `invited` のまま。招待でゲートを緩めない。
  */
+/**
+ * 先行テストの枠。**先着50名まで、Googleでログインした人をそのまま会員にする。**
+ *
+ * 立ち上げのあいだ、運営が1人ずつD1へ入れて回るのは現実的ではない。
+ * かといって誰でも入れるようにはできないので、人数で上限を切る。
+ * 枠が埋まったら、この経路は自動的に閉じる（招待リンク経由だけが残る）。
+ *
+ * 数えるのは `membership_source = 'early_access'` の行だけ。運営が手で入れた
+ * 会員や、招待から入った会員は枠を消費しない。
+ */
+export const EARLY_ACCESS_LIMIT = 50;
+
+export async function earlyAccessCount() {
+  await ensureDatabase();
+  const row = await env.DB.prepare("SELECT COUNT(*) AS count FROM members WHERE membership_source = 'early_access'")
+    .first<{ count: number }>();
+  return Number(row?.count ?? 0);
+}
+
+/**
+ * 先行枠でそのまま会員にする。枠が埋まっていれば null を返す。
+ * すでに会員なら、ここは呼ばれない（先に startMemberSessionByEmail が通る）。
+ */
+export async function registerEarlyAccessMember(rawEmail: string, displayName: string) {
+  await ensureDatabase();
+  const email = normalizeAuthEmail(rawEmail);
+  if (!email) return null;
+  if (await earlyAccessCount() >= EARLY_ACCESS_LIMIT) return null;
+
+  const now = new Date().toISOString();
+  // 競り合って51人目が入らないよう、枠の数を条件に入れてから書く。
+  const result = await env.DB.prepare(`INSERT INTO members (id, email, display_name, membership_status, membership_source, activated_at, created_at)
+    SELECT ?, ?, ?, 'active', 'early_access', ?, ?
+    WHERE (SELECT COUNT(*) FROM members WHERE membership_source = 'early_access') < ?
+      AND NOT EXISTS (SELECT 1 FROM members WHERE email = ?)`)
+    .bind(`early-${crypto.randomUUID()}`, email, displayName.trim() || email.split('@')[0], now, now, EARLY_ACCESS_LIMIT, email)
+    .run();
+  return result.meta.changes > 0 ? { email } : null;
+}
+
 export async function registerInvitedMember(rawEmail: string, displayName: string, code: string) {
   await ensureDatabase();
   const email = rawEmail.trim().toLowerCase();

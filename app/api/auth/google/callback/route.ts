@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE } from '@/app/app-auth';
 import { GOOGLE_INVITE_COOKIE, GOOGLE_STATE_COOKIE, exchangeGoogleCode, googleRedirectUri } from '@/app/google-auth';
-import { registerInvitedMember, startMemberSessionByEmail } from '@/db/data';
+import { registerEarlyAccessMember, registerInvitedMember, startMemberSessionByEmail } from '@/db/data';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -33,6 +33,17 @@ export async function GET(request: Request) {
     if (inviteCode) {
       const registered = await registerInvitedMember(account.email, account.name, inviteCode);
       if (registered) return redirectHome(request, registered.alreadyMember ? 'denied' : 'pending');
+    }
+    // 先行テストの枠（先着50名）。空いていれば、そのまま会員として入れる。
+    // 埋まったらこの経路は閉じ、招待リンク経由だけになる。
+    const early = await registerEarlyAccessMember(account.email, account.name);
+    if (early) {
+      const started = await startMemberSessionByEmail(account.email);
+      const welcome = redirectHome(request, 'early');
+      welcome.cookies.set(SESSION_COOKIE, started.token, {
+        httpOnly: true, secure: true, sameSite: 'lax', path: '/', expires: new Date(started.expiresAt),
+      });
+      return welcome;
     }
     return redirectHome(request, 'notmember');
   }

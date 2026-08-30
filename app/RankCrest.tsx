@@ -16,25 +16,20 @@ function Laurel({ flip = false }: { flip?: boolean }) {
   );
 }
 
-// ランクごとの意匠。PEARLは冠、EMERALDは盾、SAPPHIREは羅針星、
-// RUBYは剣、DIAMONDは翼のある冠で、上に行くほど密度が上がるようにしてある。
+// ランクごとの意匠。SILVERは冠、GOLDは盾、PLATINUMは羅針星、
+// DIAMONDは翼のある冠で、上に行くほど密度が上がるようにしてある。
 const emblems: Record<string, React.ReactNode> = {
-  PEARL: <>
+  SILVER: <>
     <path d="M11 32h22l3-17-8.5 6L22 9l-5.5 12L8 15z" fill="currentColor" opacity="0.9" />
     <path d="M11 35.5h22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
   </>,
-  EMERALD: <>
+  GOLD: <>
     <path d="M22 4l15 5.5v12.5c0 9.5-6.4 15.8-15 19.5-8.6-3.7-15-10-15-19.5V9.5z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
     <path d="M15 26h14l2-10.5-5.5 4L22 12l-3.5 7.5-5.5-4z" fill="currentColor" opacity="0.9" />
   </>,
-  SAPPHIRE: <>
+  PLATINUM: <>
     <path d="M22 3l16.5 9.75v19.5L22 42 5.5 32.25v-19.5z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
     <path d="M22 11l3 8.8 8.8 3-8.8 3-3 8.8-3-8.8-8.8-3 8.8-3z" fill="currentColor" opacity="0.9" />
-  </>,
-  RUBY: <>
-    <path d="M22 2l5.5 11.5v13.5L22 43l-5.5-16V13.5z" fill="currentColor" opacity="0.9" />
-    <rect x="9" y="14.5" width="26" height="3.4" rx="1.7" fill="currentColor" opacity="0.9" />
-    <path d="M9 22c5.5.6 9.6 4 12 10-3.4-2.6-7.4-3.6-12-3zM35 22c-5.5.6-9.6 4-12 10 3.4-2.6 7.4-3.6 12-3z" fill="currentColor" opacity="0.75" />
   </>,
   DIAMOND: <>
     <path d="M13 30h18l2.5-13-7 4.5L22 8l-6.5 13.5-7-4.5z" fill="currentColor" opacity="0.9" />
@@ -47,7 +42,7 @@ export default function RankCrest({ rank }: { rank: string }) {
   return (
     <div className="rank-crest" aria-hidden="true">
       <Laurel />
-      <svg className="rank-emblem-mark" viewBox="0 0 44 46">{emblems[rank] ?? emblems.PEARL}</svg>
+      <svg className="rank-emblem-mark" viewBox="0 0 44 46">{emblems[rank] ?? emblems.SILVER}</svg>
       <Laurel flip />
     </div>
   );

@@ -58,9 +58,6 @@ export const AD_MAX_DAYS = 30;
 /** 何日先まで申し込めるか。ランクの特典で先まで見えるようになる。 */
 export const AD_DAYS_AHEAD = 60;
 
-/** 出稿できるランクの下限。1=PEARL 2=EMERALD 3=SAPPHIRE 4=RUBY 5=DIAMOND */
-export const AD_MIN_RANK_LEVEL = 4;
-
 /** タイトルの上限。バナーの見出しになるので短く。 */
 export const AD_TITLE_MAX = 30;
 
