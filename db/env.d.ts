@@ -20,6 +20,9 @@ declare namespace Cloudflare {
     STRIPE_PRICE_STANDARD_YEAR: string;
     // トップバナーの出稿枠（1回きりの支払い）。未設定なら出稿の申し込みが出ない。
     STRIPE_PRICE_AD_SLOT: string;
+    // 管理画面に入れる人のメールアドレス（カンマ区切り）。
+    // **空なら誰も入れない。** 設定を忘れたときに素通りさせないため。
+    ADMIN_EMAILS: string;
   }
 }
 

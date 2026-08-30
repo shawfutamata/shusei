@@ -21,9 +21,13 @@ export default defineConfig(async () => {
 
   return {
     css: { postcss: { plugins: [tailwindcss()] } },
-    server: isCodexSeatbeltSandbox
-      ? { watch: { useFsEvents: false, usePolling: true } }
-      : undefined,
+    server: {
+      // 管理画面は `admin.` で始まる名前で来た人を /admin へ送る。
+      // Viteは知らないホスト名を既定で断るので、手元でその道を通すために許す。
+      // **開発サーバーだけの設定**（本番のCloudflareにこの仕組みは無い）。
+      allowedHosts: ['admin.tasuki.club', 'admin.localhost'],
+      ...(isCodexSeatbeltSandbox ? { watch: { useFsEvents: false, usePolling: true } } : {}),
+    },
     plugins: [
       vinext(),
       cloudflare({

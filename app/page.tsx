@@ -1,3 +1,5 @@
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import BoardClient from './BoardClient';
 import { getAppAccess } from './app-auth';
 import { serviceName } from './brand';
@@ -16,6 +18,12 @@ const loginErrors: Record<string, string> = {
 };
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ login?: string; ad?: string }> }) {
+  // admin.tasuki.club は同じWorkerが受ける。管理画面の入口として使うので、
+  // その名前で来た人は掲示板ではなく /admin へ送る。
+  // **入れるかどうかは /admin 側でメールを見て決める。** ここは道案内だけ。
+  const host = (await headers()).get('host') ?? '';
+  if (host.split(':')[0].startsWith('admin.')) redirect('/admin');
+
   const access = await getAppAccess();
   if (!access) {
     const { login } = await searchParams;
