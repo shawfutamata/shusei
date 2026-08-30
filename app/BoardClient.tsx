@@ -1259,7 +1259,11 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                   {adStep === 0 && <div className="ad-step">
                     <p className="ad-step-head"><b>掲載枠</b><span>どこに出すかをお選びください。場所によって枠数と見え方が変わります。</span></p>
                     <div className="ad-placements">{adInfo.placements.map((item) => {
-                      const open = (adInfo.calendars[item.key] ?? []).some((day) => day.remaining > 0);
+                      // 残りは日によって違う。**いちばん早く空いている日**の残りを出す。
+                      // その日がまず選ばれるので、出稿する人がいちばん知りたい数になる。
+                      const calendar = adInfo.calendars[item.key] ?? [];
+                      const firstOpen = calendar.find((day) => day.remaining > 0);
+                      const fromToday = Boolean(firstOpen && calendar[0] && firstOpen.date === calendar[0].date);
                       return <button type="button" key={item.key}
                         className={`ad-placement${adPlacement === item.key ? ' is-picked' : ''}`}
                         aria-pressed={adPlacement === item.key}
@@ -1269,7 +1273,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                           <b>{item.name}<em>{item.slots}枠</em></b>
                           <small>{item.where}</small>
                           <small>{item.detail}</small>
-                          <i className={open ? '' : 'is-full'}>{open ? '空きがあります' : 'ただいま満枠です'}</i>
+                          <i className={firstOpen ? '' : 'is-full'}>{!firstOpen ? 'ただいま満枠です'
+                            : fromToday ? `${item.slots}枠のうち 残り${firstOpen.remaining}枠`
+                            : `${formatDay(firstOpen.date)}から 残り${firstOpen.remaining}枠`}</i>
                         </span>
                       </button>;
                     })}</div>
@@ -1412,11 +1418,19 @@ function AdPreview({ draft, fallbackImage = '', by }: { draft: AdDraft; fallback
  * 文字で「画面上部」「一覧の上位」と言われても、どこのことか伝わらない。
  * スマホの画面を縮めた絵の中で、その枠だけを色付きで光らせる。
  */
+/** 「9月3日」の形。空き状況の一行に添える。 */
+function formatDay(date: string) {
+  const [, month, day] = date.split('-');
+  return `${Number(month)}月${Number(day)}日`;
+}
+
 function PlacementDemo({ placement }: { placement: string }) {
   const isBanner = placement === 'banner';
   return <span className="placement-demo" aria-hidden="true">
     <span className={`placement-demo-screen${isBanner ? ' is-banner' : ''}`}>
-      <b className="pd-header" />
+      {/* バナーは画面のいちばん上に出るので、その上には何も置かない。
+          掲示板の上位は、見出しと絞り込みの下に出るので1本だけ残す。 */}
+      {!isBanner && <b className="pd-header" />}
       {isBanner
         // バナーは縦長（4:5）。ホームを開いて最初に目に入る面。
         ? <>
