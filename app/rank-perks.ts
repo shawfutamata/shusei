@@ -44,10 +44,6 @@ export const rankPerks: RankPerk[] = [
     detail: '通知を受け取る業種が6個から8個に増えます。RUBY以上では10個まで選べます。',
   },
   {
-    key: 'pin', label: '注目ピン', minLevel: 3,
-    detail: '自分の探しごとを1件、一覧のいちばん上に3日間だけ固定できます。ひと月に1回まで。',
-  },
-  {
     key: 'photos', label: '写真を複数枚', minLevel: 3,
     detail: '探しごとに付けられる写真が1枚から3枚に増えます。RUBY以上では5枚まで。現場や商品を何枚も見せられます。',
   },

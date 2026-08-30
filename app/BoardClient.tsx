@@ -14,7 +14,8 @@ import { feedbackCategories } from './feedback-options';
 import { adSlotPrice, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
 import PerkIcon from './PerkIcon';
-import { EXTEND_DAYS, PIN_DAYS, PROMO_DAYS, canExtendRequest, canPinRequest, canPromoteInIndustry, descriptionLimit, notifyIndustryLimit, photoLimit, rankNames, rankPerks, rankThresholds } from './rank-perks';
+import { AD_ROTATE_MS, DEFAULT_PLACEMENT, adPlacements, placementName } from './ad-options';
+import { EXTEND_DAYS, PROMO_DAYS, canExtendRequest, canPromoteInIndustry, descriptionLimit, notifyIndustryLimit, photoLimit, rankNames, rankPerks, rankThresholds } from './rank-perks';
 import { serviceName } from './brand';
 import BrandMark from './BrandMark';
 import { detailImage, listThumbnail } from './resize-image';
@@ -76,11 +77,16 @@ const historyStorageKey = 'give-hub-request-history-v1';
 const favoriteStorageKey = 'give-hub-request-favorites-v1';
 
 /** /api/ads が返すもの。金額は含まない（画面が plan-catalog から出す）。 */
+type AdCalendarDay = { date: string; remaining: number };
 type AdOffer = {
   ready: boolean; eligible: boolean; level: number; rank: string;
   minRankLevel: number; titleMax: number; descriptionMax: number;
-  concurrent: number; maxDays: number; daysAhead: number;
-  calendar: { date: string; remaining: number }[]; slots: AdSlot[];
+  maxDays: number; daysAhead: number;
+  /** 出せる場所。バナーと困りごとの上位。 */
+  placements: { key: string; name: string; where: string; detail: string; slots: number }[];
+  /** 空きは場所ごとに違うので、場所をキーにして持つ。 */
+  calendars: Record<string, AdCalendarDay[]>;
+  slots: AdSlot[];
 };
 
 /** 出稿する人が入れる内容。画像は送る前の状態で持っておく。 */
@@ -167,6 +173,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // 出す流れは3つの手順に分ける。1画面に全部出すと、どこまでやったか分からなくなる。
   const [adFlow, setAdFlow] = useState(false);
   const [adStep, setAdStep] = useState(0);
+  const [adPlacement, setAdPlacement] = useState<string>(DEFAULT_PLACEMENT);
   const [adStart, setAdStart] = useState('');
   const [adDays, setAdDays] = useState(30);
   const [openStats, setOpenStats] = useState('');
@@ -294,17 +301,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
   // --- ランクの特典を使うところ -------------------------------------------
   // 押せるかどうかの判断はここに集める。実際に止めるのは必ずAPI側（db/data.ts）。
-  const pinUsedThisMonth = requests.some((item) => item.mine && item.pinnedUntil.slice(0, 7) >= new Date().toISOString().slice(0, 7));
   const isPinned = (need: BoardRequest) => need.pinnedUntil > new Date().toISOString();
   const canExtend = (need: BoardRequest) => canExtendRequest(stats.level) && !need.extendedAt;
-  const canPin = (need: BoardRequest) => canPinRequest(stats.level) && !pinUsedThisMonth && !isPinned(need);
 
   function ownerToolsNote(need: BoardRequest) {
-    if (!canExtendRequest(stats.level)) return `募集の延長は EMERALD、注目ピンは SAPPHIRE から使えます。あと${Math.max(0, rankThresholds[1] - stats.introCount)}件の紹介で EMERALD です。`;
-    if (!canPinRequest(stats.level)) return `注目ピンは SAPPHIRE から使えます。あと${Math.max(0, rankThresholds[2] - stats.introCount)}件の紹介で SAPPHIRE です。`;
+    if (!canExtendRequest(stats.level)) return `募集の延長は EMERALD から使えます。あと${Math.max(0, rankThresholds[1] - stats.introCount)}件の紹介で EMERALD です。`;
     if (isPinned(need)) return 'いま一覧のいちばん上に出ています。';
-    if (pinUsedThisMonth) return '注目ピンは今月ぶんを使いました。来月またお使いいただけます。';
-    return `延長は1件につき1回まで、注目ピンはひと月に1件までです。`;
+    return '延長は1件につき1回までです。一覧の上位に出すのは、広告メニューからお申し込みいただけます。';
   }
 
   const promoUsedThisMonth = requests.some((item) => item.mine && item.promoUntil.slice(0, 7) >= new Date().toISOString().slice(0, 7));
@@ -334,18 +337,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     showToast(`募集期限を ${result.deadline} まで延ばしました。`);
     await refreshBoard();
     setSelected((current) => current && current.id === need.id ? { ...current, deadline: result.deadline ?? current.deadline, extendedAt: new Date().toISOString(), status: 'open' } : current);
-  }
-
-  async function pinOwnRequest(need: BoardRequest) {
-    if (busy) return;
-    setBusy(true);
-    const response = await fetch(`/api/requests/${encodeURIComponent(need.id)}/pin`, { method: 'POST' });
-    const result = await response.json() as { pinnedUntil?: string; error?: string };
-    setBusy(false);
-    if (!response.ok) return showToast(result.error ?? '固定できませんでした。');
-    showToast(`${PIN_DAYS}日間、一覧のいちばん上に出ます。`);
-    await refreshBoard();
-    setSelected((current) => current && current.id === need.id ? { ...current, pinnedUntil: result.pinnedUntil ?? current.pinnedUntil } : current);
   }
 
   async function refreshBoard() {
@@ -461,14 +452,17 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
 
   // いちばん近い空いている日。カレンダーの初期値に使う。
-  const nextOpenDay = adInfo?.calendar.find((day) => day.remaining > 0);
+  // 空きは場所ごとに違う。いま選んでいる場所のぶんだけ見る。
+  const adCalendarDays = adInfo?.calendars[adPlacement] ?? [];
+  const currentPlacement = adInfo?.placements.find((item) => item.key === adPlacement) ?? adPlacements[0];
+  const nextOpenDay = adCalendarDays.find((day) => day.remaining > 0);
   // 選んだ期間に満枠の日が1日でもあれば申し込めない。
   const periodOpen = useMemo(() => {
     if (!adInfo || !adStart) return false;
     const last = shiftDate(adStart, adDays - 1);
-    const inRange = adInfo.calendar.filter((day) => day.date >= adStart && day.date <= last);
+    const inRange = adCalendarDays.filter((day) => day.date >= adStart && day.date <= last);
     return inRange.length === adDays && inRange.every((day) => day.remaining > 0);
-  }, [adInfo, adStart, adDays]);
+  }, [adInfo, adCalendarDays, adStart, adDays]);
   // マイページの入口に出す、いま掲載中の1枠。
   const liveAd = adInfo?.slots.find((ad) => adState(ad).tone === 'live');
 
@@ -532,6 +526,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       body.set('title', adDraft.title);
       body.set('description', adDraft.description);
       body.set('linkUrl', adDraft.linkUrl);
+      body.set('placement', adPlacement);
       body.set('startDate', adStart);
       body.set('days', String(adDays));
       // 縮小は出す人の端末でやる。Workersでは変換しない。
@@ -654,12 +649,16 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  // 広告は出す場所で分かれる。バナーはカルーセル、一覧は困りごとの先頭。
+  const bannerAds = useMemo(() => ads.filter((ad) => (ad.placement || DEFAULT_PLACEMENT) === 'banner'), [ads]);
+  const listAds = useMemo(() => shuffle(ads.filter((ad) => ad.placement === 'list')), [ads]);
+
   // 出稿された広告を先に置く。お金をいただいている枠なので、いちばん先に目に入る場所に出す。
   // 並びは開くたびに入れ替える。同じ月に出した人へ均等に順番が回るようにするため。
   const slides = useMemo(() => [
-    ...shuffle(ads).map((ad) => ({ src: ad.imageUrl, alt: `${ad.memberName}さんの広告「${ad.title}」`, ad })),
+    ...shuffle(bannerAds).map((ad) => ({ src: ad.imageUrl, alt: `${ad.memberName}さんの広告「${ad.title}」`, ad })),
     ...topBanners.map((banner) => ({ ...banner, ad: null as AdSlot | null })),
-  ], [ads]);
+  ], [bannerAds]);
   const slide = slides[Math.min(carouselIndex, slides.length - 1)];
 
   // 広告は自分から送らないと見てもらえないので、一定の間隔で次へ送る。
@@ -667,7 +666,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // ホームを見ているあいだだけ動かす。自分で送った人は、そこで止める。
   useEffect(() => {
     if (activeTab !== 'home' || slides.length < 2 || carouselPaused) return;
-    const timer = window.setInterval(() => setCarouselIndex((index) => (index + 1) % slides.length), 5200);
+    const timer = window.setInterval(() => setCarouselIndex((index) => (index + 1) % slides.length), AD_ROTATE_MS);
     return () => window.clearInterval(timer);
   }, [activeTab, slides.length, carouselPaused]);
 
@@ -691,6 +690,27 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     } catch { /* 保存できない設定でも、数えられないだけで表示は続ける */ }
     trackAd({ views: [ad.id] });
   }, [slide, activeTab]);
+
+  /** 困りごとの上位に出している広告を押したとき。数え方はバナーと同じ。 */
+  function openListAd(ad: AdSlot) {
+    trackAd({ clicks: [ad.id] });
+    if (ad.linkUrl) window.open(ad.linkUrl, '_blank', 'noopener,noreferrer');
+    else showToast(`${ad.memberCompany || ad.memberName}さまの広告です。詳しくは会場やメッセージで直接おたずねください。`);
+  }
+
+  // 困りごとを開いているあいだ、上位の広告も見られた数を数える。
+  // 間引き方はバナーと同じ（同じ広告は1日1回まで）。
+  useEffect(() => {
+    if (activeTab !== 'search' || !listAds.length) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const key = `${adSeenStorageKey}:${today}`;
+    let seen: string[] = [];
+    try { seen = JSON.parse(window.localStorage.getItem(key) ?? '[]') as string[]; } catch { seen = []; }
+    const fresh = listAds.filter((ad) => !seen.includes(ad.id)).map((ad) => ad.id);
+    if (!fresh.length) return;
+    try { window.localStorage.setItem(key, JSON.stringify([...seen, ...fresh])); } catch { /* 数えられないだけ */ }
+    trackAd({ views: fresh });
+  }, [activeTab, listAds]);
 
   function openCurrentBanner() {
     const ad = slide?.ad;
@@ -786,6 +806,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <label><span>会社の年商</span><select value={revenueFilter} onChange={(event) => setRevenueFilter(event.target.value)}><option value="all">すべての年商</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         </div>
         <div className="card-list">
+          {/* お金をいただいている枠なので、絞り込みに関係なくいちばん上に出す */}
+          {listAds.map((ad) => <article className="need-card is-ad" key={ad.id} onClick={() => openListAd(ad)}>
+            <div className="card-topline"><span className="kind ad-kind">PR</span><span className="card-top-actions"><span className="deadline">{ad.memberCompany || ad.memberName}</span></span></div>
+            <h3>{ad.title}</h3>
+            {ad.imageUrl && <img className="need-thumb" src={ad.imageUrl} alt="" loading="lazy" decoding="async" />}
+            {ad.description && <p className="need-body">{ad.description}</p>}
+            {ad.linkUrl && <p className="ad-card-link">{ad.linkUrl.replace(/^https?:\/\//, '')}</p>}
+          </article>)}
           {shown.length === 0 ? <div className="empty"><b>条件に合う投稿がありません</b><span>絞り込みを変えて探してみましょう。</span></div> : shown.map((need) => (
             <article className={isOpenRequest(need) ? 'need-card' : 'need-card closed'} key={need.id} onClick={() => openNeed(need)}>
               <div className="card-topline"><span className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</span><span className="card-top-actions">{isOpenRequest(need) ? <span className="deadline">あと{daysLeft(need.deadline)}日</span> : <span className="deadline ended">募集終了</span>}<button className={favoriteIds.includes(need.id) ? 'card-heart active' : 'card-heart'} aria-label={favoriteIds.includes(need.id) ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={(event) => { event.stopPropagation(); toggleFavorite(need); }}>♥</button></span></div>
@@ -1003,7 +1031,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             // 入れてしまうと、選べる日が1日も無いカレンダーの前で行き止まりになる。
             ? <p className="ad-note">トップバナー広告は<b>{rankNames[adInfo.minRankLevel - 1]}ランク</b>以上の会員さまにご提供しています。あと{Math.max(0, rankThresholds[adInfo.minRankLevel - 1] - stats.introCount)}件のご紹介で、お申し込みいただけるようになります。</p>
             : !nextOpenDay
-            ? <p className="ad-note">ただいま{adInfo.daysAhead}日先まで{adInfo.concurrent}枠すべてが埋まっています。空きが出ましたらお申し込みいただけます。</p>
+            ? <p className="ad-note">ただいま{adInfo.daysAhead}日先まで、{placementName(adPlacement)}の{currentPlacement.slots}枠すべてが埋まっています。空きが出ましたらお申し込みいただけます。</p>
             : !adFlow
               ? <button className="ad-entry-open ad-flow-open" onClick={startAdFlow}>
                   <span><b>新規のお申し込み</b><small>3ステップで完了します。{adSlotPrice()}（税込・1回のみ）</small></span>
@@ -1011,21 +1039,41 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 </button>
               : <form className="ad-flow" onSubmit={buyAdSlot}>
                   <ol className="ad-steps" aria-label="出すまでの手順">
-                    {['掲載内容', '掲載期間', 'ご確認'].map((name, index) => <li key={name} className={`${index === adStep ? 'now' : ''}${index < adStep ? ' done' : ''}`.trim()}>
+                    {['掲載枠', '掲載内容', '掲載期間', 'ご確認'].map((name, index) => <li key={name} className={`${index === adStep ? 'now' : ''}${index < adStep ? ' done' : ''}`.trim()}>
                       <b>{index < adStep ? '✓' : index + 1}</b><span>{name}</span>
                     </li>)}
                   </ol>
 
                   {adStep === 0 && <div className="ad-step">
-                    <p className="ad-step-head"><b>掲載内容</b><span>タイトルのみでも掲載できます。画像を添えると目に留まりやすくなります。</span></p>
-                    <div className="ad-fields"><AdFields offer={adInfo} draft={adDraft} onChange={setAdDraft} onImage={chooseAdImage} imageName={adFileName} /></div>
-                    <AdPreview draft={adDraft} by={stats.company || userName} />
-                    <div className="ad-step-actions"><button type="button" onClick={closeAdFlow}>キャンセル</button><button type="button" className="submit-button" disabled={!adDraft.title.trim()} onClick={() => setAdStep(1)}>{adDraft.title.trim() ? '次へ：掲載期間の指定' : 'タイトルをご入力ください'}</button></div>
+                    <p className="ad-step-head"><b>掲載枠</b><span>どこに出すかをお選びください。場所によって枠数と見え方が変わります。</span></p>
+                    <div className="ad-placements">{adInfo.placements.map((item) => {
+                      const open = (adInfo.calendars[item.key] ?? []).some((day) => day.remaining > 0);
+                      return <button type="button" key={item.key}
+                        className={`ad-placement${adPlacement === item.key ? ' is-picked' : ''}`}
+                        aria-pressed={adPlacement === item.key}
+                        onClick={() => { setAdPlacement(item.key); setAdStart(''); }}>
+                        <PlacementDemo placement={item.key} />
+                        <span className="ad-placement-copy">
+                          <b>{item.name}<em>{item.slots}枠</em></b>
+                          <small>{item.where}</small>
+                          <small>{item.detail}</small>
+                          <i className={open ? '' : 'is-full'}>{open ? '空きがあります' : 'ただいま満枠です'}</i>
+                        </span>
+                      </button>;
+                    })}</div>
+                    <div className="ad-step-actions"><button type="button" onClick={closeAdFlow}>キャンセル</button><button type="button" className="submit-button" onClick={() => setAdStep(1)}>次へ：掲載内容</button></div>
                   </div>}
 
                   {adStep === 1 && <div className="ad-step">
-                    <p className="ad-step-head"><b>掲載期間</b><span>カレンダーから掲載開始日を選び、掲載日数をご指定ください。同一期間に掲載できるのは{adInfo.concurrent}枠までです。</span></p>
-                    <AdCalendar offer={adInfo} startDate={adStart} days={adDays} onPick={setAdStart} />
+                    <p className="ad-step-head"><b>掲載内容</b><span>タイトルのみでも掲載できます。画像を添えると目に留まりやすくなります。</span></p>
+                    <div className="ad-fields"><AdFields offer={adInfo} draft={adDraft} onChange={setAdDraft} onImage={chooseAdImage} imageName={adFileName} /></div>
+                    <AdPreview draft={adDraft} by={stats.company || userName} />
+                    <div className="ad-step-actions"><button type="button" onClick={() => setAdStep(0)}>戻る</button><button type="button" className="submit-button" disabled={!adDraft.title.trim()} onClick={() => setAdStep(2)}>{adDraft.title.trim() ? '次へ：掲載期間の指定' : 'タイトルをご入力ください'}</button></div>
+                  </div>}
+
+                  {adStep === 2 && <div className="ad-step">
+                    <p className="ad-step-head"><b>掲載期間</b><span>カレンダーから掲載開始日を選び、掲載日数をご指定ください。{placementName(adPlacement)}は同一期間に{currentPlacement.slots}枠までです。</span></p>
+                    <AdCalendar days={adCalendarDays} startDate={adStart} spanDays={adDays} onPick={setAdStart} />
                     <label className="ad-days"><span>掲載日数 <small>最長{adInfo.maxDays}日</small></span>
                       <input type="range" min={1} max={adInfo.maxDays} value={adDays} onChange={(event) => setAdDays(Number(event.target.value))} />
                       <b>{adDays}日</b>
@@ -1035,18 +1083,18 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                       : periodOpen
                         ? `掲載期間　${formatRange(adStart, shiftDate(adStart, adDays - 1))}`
                         : 'ご指定の期間に満枠の日が含まれています。掲載日数を短くするか、開始日を変更してください'}</p>
-                    <div className="ad-step-actions"><button type="button" onClick={() => setAdStep(0)}>戻る</button><button type="button" className="submit-button" disabled={!adStart || !periodOpen} onClick={() => setAdStep(2)}>次へ：内容のご確認</button></div>
+                    <div className="ad-step-actions"><button type="button" onClick={() => setAdStep(1)}>戻る</button><button type="button" className="submit-button" disabled={!adStart || !periodOpen} onClick={() => setAdStep(3)}>次へ：内容のご確認</button></div>
                   </div>}
 
-                  {adStep === 2 && <div className="ad-step">
+                  {adStep === 3 && <div className="ad-step">
                     <p className="ad-step-head"><b>お申し込み内容</b><span>お支払いの完了後、ただちに掲載を開始します。</span></p>
                     <AdBanner ad={{ title: adDraft.title, description: adDraft.description, imageUrl: adDraft.imagePreview, by: stats.company || userName }} />
                     <dl className="ad-check">
-                      <div><dt>掲載期間</dt><dd>{adStart && formatRange(adStart, shiftDate(adStart, adDays - 1))}<small>{adDays}日間</small></dd></div>
+                      <div><dt>掲載枠</dt><dd>{placementName(adPlacement)}<small>{currentPlacement.slots}枠のうち1枠</small></dd></div><div><dt>掲載期間</dt><dd>{adStart && formatRange(adStart, shiftDate(adStart, adDays - 1))}<small>{adDays}日間</small></dd></div>
                       <div><dt>リンク先</dt><dd>{adDraft.linkUrl ? adDraft.linkUrl.replace(/^https?:\/\//, '') : <em>設定なし</em>}</dd></div>
                       <div className="ad-check-pay"><dt>お支払い額</dt><dd>{adSlotPrice()}<small>税込・1回のみ</small></dd></div>
                     </dl>
-                    <div className="ad-step-actions"><button type="button" onClick={() => setAdStep(1)}>戻る</button><button className="submit-button" disabled={busy || !adStart || !periodOpen}>{busy ? '処理しています…' : 'お支払いへ進む'}</button></div>
+                    <div className="ad-step-actions"><button type="button" onClick={() => setAdStep(2)}>戻る</button><button className="submit-button" disabled={busy || !adStart || !periodOpen}>{busy ? '処理しています…' : 'お支払いへ進む'}</button></div>
                     <p className="ad-note">お支払いは決済代行会社（Stripe）の画面で行います。掲載内容は掲載開始後も変更いただけます。</p>
                   </div>}
                 </form>}
@@ -1070,7 +1118,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               <p className="owner-tools-head"><b>あなたの探しごと</b><span>{stats.rank}の特典が使えます</span></p>
               <div className="owner-tools-row">
                 <button disabled={busy || !canExtend(selected)} onClick={() => extendOwnRequest(selected)}>{selected.extendedAt ? '延長ずみ' : `期限を${EXTEND_DAYS}日のばす`}</button>
-                <button disabled={busy || !canPin(selected)} onClick={() => pinOwnRequest(selected)}>{isPinned(selected) ? `${PIN_DAYS}日間 いちばん上` : '注目ピンで上に出す'}</button>
+                <button onClick={() => { setSelected(null); openAdSettings(); }}>広告で上位に出す</button>
               </div>
               {canPromoteInIndustry(stats.level) && <div className="owner-promo">
                 <p>{isPromoted(selected) ? `「${selected.promoIndustry}」の一覧で先頭に出しています` : '業種を選ぶと、その一覧で先頭に出せます'}</p>
@@ -1128,18 +1176,43 @@ function AdPreview({ draft, fallbackImage = '', by }: { draft: AdDraft; fallback
  * 出し始める日を選ぶカレンダー。満枠の日は押せない。
  * 1ヶ月ずつ送る。何ヶ月ぶんも縦に並べると、どこを見ればいいのか分からなくなる。
  */
-function AdCalendar({ offer, startDate, days, onPick }: {
-  offer: AdOffer; startDate: string; days: number; onPick: (date: string) => void;
+/**
+ * どこに出るのかを、実際の画面の形で見せる小さな図。
+ *
+ * 文字で「画面上部」「一覧の上位」と言われても、どこのことか伝わらない。
+ * スマホの画面を縮めた絵の中で、その枠だけを色付きで光らせる。
+ */
+function PlacementDemo({ placement }: { placement: string }) {
+  const isBanner = placement === 'banner';
+  return <span className="placement-demo" aria-hidden="true">
+    <span className="placement-demo-screen">
+      {/* 上の帯＝ヘッダー */}
+      <b className="pd-header" />
+      {/* バナーの位置 */}
+      <b className={`pd-banner${isBanner ? ' is-here' : ''}`}>{isBanner && <i>PR</i>}</b>
+      {/* 一覧のカード。上位3枚が対象。 */}
+      {[0, 1, 2, 3, 4].map((index) => <b key={index}
+        className={`pd-card${!isBanner && index < 3 ? ' is-here' : ''}`}>
+        {!isBanner && index < 3 && <i>PR</i>}
+      </b>)}
+      {/* 下のメニュー */}
+      <b className="pd-nav" />
+    </span>
+  </span>;
+}
+
+function AdCalendar({ days, startDate, spanDays, onPick }: {
+  days: AdCalendarDay[]; startDate: string; spanDays: number; onPick: (date: string) => void;
 }) {
-  const endDate = startDate ? shiftDate(startDate, days - 1) : '';
+  const endDate = startDate ? shiftDate(startDate, spanDays - 1) : '';
   const months = useMemo(() => {
-    const grouped = new Map<string, { date: string; remaining: number }[]>();
-    for (const day of offer.calendar) {
+    const grouped = new Map<string, AdCalendarDay[]>();
+    for (const day of days) {
       const key = day.date.slice(0, 7);
       grouped.set(key, [...(grouped.get(key) ?? []), day]);
     }
     return [...grouped.entries()];
-  }, [offer.calendar]);
+  }, [days]);
 
   // 選んだ日のある月を開いておく。送ったあとは、その月のまま。
   const startIndex = Math.max(0, months.findIndex(([month]) => month === (startDate || '').slice(0, 7)));

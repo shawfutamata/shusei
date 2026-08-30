@@ -503,6 +503,33 @@ body { font-weight:600; }
    もとは .comment-list / .comment-form などに指定がほとんど無く、
    段落が素のまま縦に積まれ、文字数カウンタと送信ボタンも重なっていた。 */
 /* 紹介を出した／届いた、という事実だけを出す欄。中身はここに出さない。 */
+/* 掲載枠の選択。どこに出るのかを画面の形で見せる。 */
+.ad-placements { display:grid; gap:10px; }
+.ad-placement { padding:13px; display:grid; grid-template-columns:64px minmax(0,1fr); align-items:start; gap:13px; border:1px solid #d7e0ed; border-radius:14px; background:#fff; text-align:left; cursor:pointer; }
+.ad-placement.is-picked { border-color:#1478d6; border-width:2px; padding:12px; background:#f4f9ff; }
+.ad-placement-copy { min-width:0; display:grid; gap:4px; }
+.ad-placement-copy b { display:flex; align-items:center; gap:7px; color:#22324a; font-size:14px; }
+.ad-placement-copy b em { padding:2px 7px; border-radius:99px; background:#1478d6; color:#fff; font-size:10px; font-style:normal; font-weight:900; }
+.ad-placement-copy small { color:#6b7c94; font-size:11px; line-height:1.6; }
+.ad-placement-copy i { margin-top:3px; color:#1c7a45; font-size:10px; font-style:normal; font-weight:800; }
+.ad-placement-copy i.is-full { color:#b42318; }
+
+/* スマホの画面を縮めた絵。該当の枠だけ色を付ける。 */
+.placement-demo { display:block; }
+.placement-demo-screen { width:64px; padding:4px; display:grid; gap:3px; border:1.5px solid #c8d5e6; border-radius:7px; background:#f7fafd; }
+.placement-demo-screen b { display:block; border-radius:2px; background:#dde5ef; }
+.pd-header { height:5px; }
+.pd-banner { height:14px; position:relative; }
+.pd-card { height:7px; position:relative; }
+.pd-nav { height:5px; margin-top:2px; }
+.placement-demo-screen .is-here { background:#1478d6; }
+.placement-demo-screen i { position:absolute; top:50%; left:3px; transform:translateY(-50%); color:#fff; font-size:5px; font-style:normal; font-weight:900; letter-spacing:.02em; }
+
+/* 困りごとの上位に出る広告カード。PRであることを隠さない。 */
+.need-card.is-ad { border-color:#f6c9b6; background:linear-gradient(180deg,#fffaf7,#fff); }
+.need-card.is-ad .kind.ad-kind { background:var(--accent); color:#fff; }
+.ad-card-link { margin:8px 0 0; color:#1478d6; font-size:11px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
 .intro-notice { margin-top:18px; padding:13px; display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:11px; border:1px solid #cfe6d3; border-radius:14px; background:#f2faf4; }
 .intro-notice>span { width:26px; height:26px; display:grid; place-items:center; border-radius:50%; background:#22894b; color:#fff; font-size:14px; font-weight:900; }
 .intro-notice p { margin:0; }

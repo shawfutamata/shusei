@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
 import { adCalendar, canBuyAdSlot, getMemberRank, listMemberAds } from '@/db/data';
-import { AD_CONCURRENT_SLOTS, AD_DESCRIPTION_MAX, AD_MIN_RANK_LEVEL, AD_TITLE_MAX } from '@/app/ad-options';
+import { AD_DESCRIPTION_MAX, AD_MIN_RANK_LEVEL, AD_TITLE_MAX, adPlacements } from '@/app/ad-options';
 import { adDaysAhead, adMaxDays } from '@/app/rank-perks';
 import { adSlotConfigured } from '@/app/stripe';
 
@@ -14,7 +14,12 @@ export async function GET() {
   const { rank, level } = await getMemberRank(gate.user.userId);
   const eligible = canBuyAdSlot(level);
   // 買えない会員にカレンダーを数えさせない。D1の読み出しを増やさないため。
-  const calendar = eligible ? await adCalendar(adDaysAhead(level)) : [];
+  const daysAhead = adDaysAhead(level);
+  // 空きは場所ごとに違う（バナー5枠・一覧3枠）。2つぶんまとめて返す。
+  const calendars = eligible
+    ? Object.fromEntries(await Promise.all(adPlacements.map(async (item) =>
+        [item.key, await adCalendar(daysAhead, item.key)] as const)))
+    : {};
 
   return NextResponse.json({
     ready: adSlotConfigured(),
@@ -24,11 +29,11 @@ export async function GET() {
     minRankLevel: AD_MIN_RANK_LEVEL,
     titleMax: AD_TITLE_MAX,
     descriptionMax: AD_DESCRIPTION_MAX,
-    // 同じ日に出せる本数と、この会員が選べる期間・先行きの上限。
-    concurrent: AD_CONCURRENT_SLOTS,
+    // 出せる場所と、それぞれの枠数。
+    placements: adPlacements,
     maxDays: adMaxDays(level),
-    daysAhead: adDaysAhead(level),
-    calendar,
+    daysAhead,
+    calendars,
     slots: await listMemberAds(gate.user.userId),
   });
 }

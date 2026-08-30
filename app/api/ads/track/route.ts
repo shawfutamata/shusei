@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
 import { recordAdClick, recordAdViews } from '@/db/data';
-import { AD_CONCURRENT_SLOTS } from '@/app/ad-options';
+import { adPlacements } from '@/app/ad-options';
 
 // 掲載の成果を数える。出稿した人に「何人に見られて、何回押されたか」を返すため。
 //
@@ -26,5 +26,6 @@ function idList(value: unknown) {
   if (!Array.isArray(value)) return [];
   return value
     .filter((item): item is string => typeof item === 'string' && item.length > 0 && item.length <= 64)
-    .slice(0, AD_CONCURRENT_SLOTS);
+    // 1回の送信で受けるのは、同時に出ている枠の総数まで。
+    .slice(0, adPlacements.reduce((total, item) => total + item.slots, 0));
 }

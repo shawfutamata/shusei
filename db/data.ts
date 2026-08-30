@@ -3,7 +3,7 @@ import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-
 import type { SessionUser } from '@/app/session-user';
 import { cleanFacebookUrl } from '@/app/social-links';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
-import { AD_CONCURRENT_SLOTS, AD_DESCRIPTION_MAX, AD_MIN_RANK_LEVEL, AD_RESERVATION_MINUTES, AD_TITLE_MAX } from '@/app/ad-options';
+import { AD_DESCRIPTION_MAX, AD_MIN_RANK_LEVEL, AD_RESERVATION_MINUTES, AD_TITLE_MAX, DEFAULT_PLACEMENT, placementSlots } from '@/app/ad-options';
 import { UNLIMITED, bonusPlan, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
 import { EXTEND_DAYS, PIN_DAYS, PROMO_DAYS, canExtendRequest, canPinRequest, canPromoteInIndustry, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
 import { matchesIndustry } from '@/app/industry-options';
@@ -359,6 +359,9 @@ export async function ensureDatabase() {
     ['end_date', "ALTER TABLE ad_slots ADD COLUMN end_date TEXT NOT NULL DEFAULT ''"],
     // 説明文。バナーはタイトルと説明文から組み立てるようにした。
     ['description', "ALTER TABLE ad_slots ADD COLUMN description TEXT NOT NULL DEFAULT ''"],
+    // 出す場所。バナーと困りごとの上位で、空きの数え方を分ける。
+    // 既存の枠はすべてバナーとして扱う（既定値がそうなる）。
+    ['placement', "ALTER TABLE ad_slots ADD COLUMN placement TEXT NOT NULL DEFAULT 'banner'"],
   ] as const) {
     if (!adColumnNames.has(columnName)) await env.DB.prepare(sql).run();
   }
@@ -367,7 +370,7 @@ export async function ensureDatabase() {
       end_date = date(month || '-01', '+1 month', '-1 day')
     WHERE start_date = '' AND month <> ''`).run();
   // 索引は列ができたあとに作る。statements に混ぜると、列が無い初回に全部こける。
-  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_ad_slots_period ON ad_slots(status, start_date, end_date)').run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_ad_slots_period ON ad_slots(placement, status, start_date, end_date)').run();
   // 写真を1枚だけ持っていた投稿を、枚数1として数え直す。1回だけ効く。
   await env.DB.prepare('UPDATE requests SET image_count = 1 WHERE image_count = 0 AND image_version > 0').run();
   await env.DB.prepare("UPDATE referral_credits SET status = 'waiting', earned_at = '' WHERE status = 'capped'").run();
@@ -1192,6 +1195,8 @@ export type AdSlot = {
   linkUrl: string;
   imageUrl: string;
   status: string;
+  /** 出している場所。'banner'（画面上部）か 'list'（困りごとの上位）。 */
+  placement: string;
   memberName: string;
   memberCompany: string;
   /** 見た人の合計。同じ会員は1日1回までしか数えない。 */
@@ -1231,15 +1236,15 @@ async function releaseStaleAdReservations() {
  * その期間に重なっている枠を、日付だけ読み出す。
  * 日ごとに数えると問い合わせが増えるので、重なるものを1回で取ってJS側で数える。
  */
-async function overlappingSlots(from: string, to: string) {
+async function overlappingSlots(from: string, to: string, placement: string) {
   const rows = await env.DB.prepare(`SELECT start_date AS startDate, end_date AS endDate FROM ad_slots
-    WHERE status IN ('reserved', 'active') AND start_date <= ? AND end_date >= ?`)
-    .bind(to, from).all<{ startDate: string; endDate: string }>();
+    WHERE status IN ('reserved', 'active') AND placement = ? AND start_date <= ? AND end_date >= ?`)
+    .bind(placement, to, from).all<{ startDate: string; endDate: string }>();
   return rows.results;
 }
 
 /** 日ごとの空き枠。0なら満枠。 */
-function remainingByDay(slots: { startDate: string; endDate: string }[], from: string, days: number) {
+function remainingByDay(slots: { startDate: string; endDate: string }[], from: string, days: number, limit: number) {
   const used = new Map<string, number>();
   for (const slot of slots) {
     for (let date = slot.startDate; date <= slot.endDate; date = shiftDate(date, 1)) {
@@ -1249,7 +1254,7 @@ function remainingByDay(slots: { startDate: string; endDate: string }[], from: s
   const calendar: { date: string; remaining: number }[] = [];
   for (let index = 0; index < days; index += 1) {
     const date = shiftDate(from, index);
-    calendar.push({ date, remaining: Math.max(0, AD_CONCURRENT_SLOTS - (used.get(date) ?? 0)) });
+    calendar.push({ date, remaining: Math.max(0, limit - (used.get(date) ?? 0)) });
   }
   return calendar;
 }
@@ -1258,24 +1263,25 @@ function remainingByDay(slots: { startDate: string; endDate: string }[], from: s
  * 申し込める日をカレンダーで返す。今日から daysAhead 日ぶん。
  * 先まで見えるようにしているのは、催しや繁忙期に合わせて先に押さえたい人がいるため。
  */
-export async function adCalendar(daysAhead: number) {
+export async function adCalendar(daysAhead: number, placement: string = DEFAULT_PLACEMENT) {
   await ensureDatabase();
   await releaseStaleAdReservations();
   const from = today();
   const to = shiftDate(from, daysAhead - 1);
-  return remainingByDay(await overlappingSlots(from, to), from, daysAhead);
+  return remainingByDay(await overlappingSlots(from, to, placement), from, daysAhead, placementSlots(placement));
 }
 
 /**
  * 枠を1つ押さえる。決済が終わるまでは reserved で、放置すると自動で解放される。
  * 期間のどこか1日でも満枠なら断る。早い者勝ちなので、押さえた順に確定する。
  */
-export async function reserveAdSlot(memberId: string, startDate: string, days: number, content: AdContent) {
+export async function reserveAdSlot(memberId: string, startDate: string, days: number, content: AdContent, placement: string = DEFAULT_PLACEMENT) {
   await ensureDatabase();
   await releaseStaleAdReservations();
   const endDate = shiftDate(startDate, days - 1);
 
-  const full = remainingByDay(await overlappingSlots(startDate, endDate), startDate, days).find((day) => day.remaining <= 0);
+  const limit = placementSlots(placement);
+  const full = remainingByDay(await overlappingSlots(startDate, endDate, placement), startDate, days, limit).find((day) => day.remaining <= 0);
   if (full) throw new Error(`${formatDay(full.date)}は満枠です。ほかの期間をお選びください。`);
 
   const id = crypto.randomUUID();
@@ -1283,13 +1289,13 @@ export async function reserveAdSlot(memberId: string, startDate: string, days: n
   // 支払いのあとに「まだ何も出ていない枠」ができない。
   const imageVersion = content.image ? await putAdImage(id, memberId, content.image) : 0;
   await env.DB.prepare(`INSERT INTO ad_slots (id, member_id, month, start_date, end_date, status, created_at,
-      title, description, link_url, image_version)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(id, memberId, startDate.slice(0, 7), startDate, endDate, 'reserved', new Date().toISOString(),
+      placement, title, description, link_url, image_version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(id, memberId, startDate.slice(0, 7), startDate, endDate, 'reserved', new Date().toISOString(), placement,
       cleanAdTitle(content.title), cleanAdDescription(content.description), cleanAdLink(content.linkUrl), imageVersion).run();
 
   // 押さえたあとにもう一度数えて、競り負けていたら取り消す。
-  const lost = remainingByDay(await overlappingSlots(startDate, endDate), startDate, days).find((day) => day.remaining < 0);
+  const lost = remainingByDay(await overlappingSlots(startDate, endDate, placement), startDate, days, limit).find((day) => day.remaining < 0);
   if (lost) {
     await env.DB.prepare('DELETE FROM ad_slots WHERE id = ?').bind(id).run();
     throw new Error(`${formatDay(lost.date)}は満枠になりました。ほかの期間をお選びください。`);
@@ -1319,7 +1325,7 @@ export async function activateAdSlot(id: string) {
 
 const adSelect = `SELECT a.id, a.start_date AS startDate, a.end_date AS endDate, a.title, a.description,
     a.link_url AS linkUrl, a.image_version AS imageVersion,
-    a.status, a.view_count AS viewCount, a.click_count AS clickCount,
+    a.status, a.placement, a.view_count AS viewCount, a.click_count AS clickCount,
     m.display_name AS memberName, m.company AS memberCompany
   FROM ad_slots a JOIN members m ON m.id = a.member_id`;
 
@@ -1330,12 +1336,16 @@ const toAdSlot = ({ imageVersion, ...ad }: AdRow): AdSlot => ({ ...ad, imageUrl:
  * いま出ている広告。ホームのバナーに出す。
  * 運営が止めた枠（status='stopped'）はここから外れる。docs/ad-slots-ja.md 参照。
  */
-export async function listActiveAds(): Promise<AdSlot[]> {
+export async function listActiveAds(placement?: string): Promise<AdSlot[]> {
   await ensureDatabase();
   const now = today();
-  const rows = await env.DB.prepare(`${adSelect}
-    WHERE a.start_date <= ? AND a.end_date >= ? AND a.status = 'active' AND a.title <> ''
-    ORDER BY a.created_at`).bind(now, now).all<AdRow>();
+  const rows = placement
+    ? await env.DB.prepare(`${adSelect}
+        WHERE a.start_date <= ? AND a.end_date >= ? AND a.status = 'active' AND a.title <> '' AND a.placement = ?
+        ORDER BY a.created_at`).bind(now, now, placement).all<AdRow>()
+    : await env.DB.prepare(`${adSelect}
+        WHERE a.start_date <= ? AND a.end_date >= ? AND a.status = 'active' AND a.title <> ''
+        ORDER BY a.created_at`).bind(now, now).all<AdRow>();
   return rows.results.map(toAdSlot);
 }
 

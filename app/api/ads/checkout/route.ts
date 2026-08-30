@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
 import { adSlotConfigured, adSlotPriceId, stripeClient } from '@/app/stripe';
+import { DEFAULT_PLACEMENT, isAdPlacement } from '@/app/ad-options';
 import { canBuyAdSlot, getMemberRank, getStripeLink, releaseAdSlot, reserveAdSlot, saveAdSlotSession, saveStripeCustomer, shiftDate } from '@/db/data';
 import { adDaysAhead, adMaxDays } from '@/app/rank-perks';
 import { readAdContent } from '@/app/ad-upload';
@@ -29,6 +30,9 @@ export async function POST(request: Request) {
   const raw = String(form.get('startDate') ?? '');
   const startDate = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : '';
   const days = Number(form.get('days'));
+  // どこに出すか。知らない値が来たらバナー扱いにせず、はっきり断る。
+  const placement = String(form.get('placement') ?? DEFAULT_PLACEMENT);
+  if (!isAdPlacement(placement)) return NextResponse.json({ error: '掲載する場所をお選びください。' }, { status: 400 });
   const maxDays = adMaxDays(level);
   if (!startDate) return NextResponse.json({ error: '掲載を始める日をお選びください。' }, { status: 400 });
   if (!Number.isInteger(days) || days < 1 || days > maxDays) {
@@ -44,7 +48,7 @@ export async function POST(request: Request) {
   // 先に枠を押さえる。早い者勝ちなので、決済画面を開く前に取り合いを終わらせる。
   let reserved: { id: string; endDate: string };
   try {
-    reserved = await reserveAdSlot(gate.user.userId, startDate, days, parsed.content);
+    reserved = await reserveAdSlot(gate.user.userId, startDate, days, parsed.content, placement);
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : '枠を押さえられませんでした。' }, { status: 409 });
   }
