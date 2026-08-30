@@ -367,6 +367,8 @@ export async function ensureDatabase() {
     // 出す場所。バナーと困りごとの上位で、空きの数え方を分ける。
     // 既存の枠はすべてバナーとして扱う（既定値がそうなる）。
     ['placement', "ALTER TABLE ad_slots ADD COLUMN placement TEXT NOT NULL DEFAULT 'banner'"],
+    // 掲示板の上位に出すとき、どの大分類の一覧に出すか。空なら全業種の先頭。
+    ['industry', "ALTER TABLE ad_slots ADD COLUMN industry TEXT NOT NULL DEFAULT ''"],
   ] as const) {
     if (!adColumnNames.has(columnName)) await env.DB.prepare(sql).run();
   }
@@ -1169,8 +1171,10 @@ export type AdSlot = {
   linkUrl: string;
   imageUrl: string;
   status: string;
-  /** 出している場所。'banner'（画面上部）か 'list'（困りごとの上位）。 */
+  /** 出している場所。'banner'（画面上部）か 'list'（仕事の掲示板の上位）。 */
   placement: string;
+  /** 狙う大分類。空なら全業種の先頭に出る。'list' のときだけ意味がある。 */
+  industry: string;
   memberName: string;
   memberCompany: string;
   /** 見た人の合計。同じ会員は1日1回までしか数えない。 */
@@ -1249,7 +1253,7 @@ export async function adCalendar(daysAhead: number, placement: string = DEFAULT_
  * 枠を1つ押さえる。決済が終わるまでは reserved で、放置すると自動で解放される。
  * 期間のどこか1日でも満枠なら断る。早い者勝ちなので、押さえた順に確定する。
  */
-export async function reserveAdSlot(memberId: string, startDate: string, days: number, content: AdContent, placement: string = DEFAULT_PLACEMENT) {
+export async function reserveAdSlot(memberId: string, startDate: string, days: number, content: AdContent, placement: string = DEFAULT_PLACEMENT, industry = '') {
   await ensureDatabase();
   await releaseStaleAdReservations();
   const endDate = shiftDate(startDate, days - 1);
@@ -1263,9 +1267,9 @@ export async function reserveAdSlot(memberId: string, startDate: string, days: n
   // 支払いのあとに「まだ何も出ていない枠」ができない。
   const imageVersion = content.image ? await putAdImage(id, memberId, content.image) : 0;
   await env.DB.prepare(`INSERT INTO ad_slots (id, member_id, month, start_date, end_date, status, created_at,
-      placement, title, description, link_url, image_version)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(id, memberId, startDate.slice(0, 7), startDate, endDate, 'reserved', new Date().toISOString(), placement,
+      placement, industry, title, description, link_url, image_version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(id, memberId, startDate.slice(0, 7), startDate, endDate, 'reserved', new Date().toISOString(), placement, industry,
       cleanAdTitle(content.title), cleanAdDescription(content.description), cleanAdLink(content.linkUrl), imageVersion).run();
 
   // 押さえたあとにもう一度数えて、競り負けていたら取り消す。
@@ -1299,7 +1303,7 @@ export async function activateAdSlot(id: string) {
 
 const adSelect = `SELECT a.id, a.start_date AS startDate, a.end_date AS endDate, a.title, a.description,
     a.link_url AS linkUrl, a.image_version AS imageVersion,
-    a.status, a.placement, a.view_count AS viewCount, a.click_count AS clickCount,
+    a.status, a.placement, a.industry, a.view_count AS viewCount, a.click_count AS clickCount,
     m.display_name AS memberName, m.company AS memberCompany
   FROM ad_slots a JOIN members m ON m.id = a.member_id`;
 

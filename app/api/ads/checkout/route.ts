@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
 import { adSlotConfigured, stripeClient } from '@/app/stripe';
 import { AD_MIN_DAYS, DEFAULT_PLACEMENT, isAdPlacement, placementName } from '@/app/ad-options';
+import { industryGroups } from '@/app/industry-options';
 import { adSlotTotalYen } from '@/app/plan-catalog';
 import { canBuyAdSlot, getMemberRank, getStripeLink, releaseAdSlot, reserveAdSlot, saveAdSlotSession, saveStripeCustomer, shiftDate } from '@/db/data';
 import { AD_DAYS_AHEAD_ALL, AD_MAX_DAYS_ALL, adDiscountRate } from '@/app/rank-perks';
@@ -34,6 +35,9 @@ export async function POST(request: Request) {
   // どこに出すか。知らない値が来たらバナー扱いにせず、はっきり断る。
   const placement = String(form.get('placement') ?? DEFAULT_PLACEMENT);
   if (!isAdPlacement(placement)) return NextResponse.json({ error: '掲載する場所をお選びください。' }, { status: 400 });
+  // 掲示板の上位だけ、大分類を1つ狙える。空なら全業種の先頭に出る。
+  const industryRaw = String(form.get('industry') ?? '').trim();
+  const industry = placement === 'list' && industryGroups.some((group) => group.name === industryRaw) ? industryRaw : '';
   const maxDays = AD_MAX_DAYS_ALL;
   if (!startDate) return NextResponse.json({ error: '掲載を始める日をお選びください。' }, { status: 400 });
   if (!Number.isInteger(days) || days < AD_MIN_DAYS || days > maxDays) {
@@ -49,7 +53,7 @@ export async function POST(request: Request) {
   // 先に枠を押さえる。早い者勝ちなので、決済画面を開く前に取り合いを終わらせる。
   let reserved: { id: string; endDate: string };
   try {
-    reserved = await reserveAdSlot(gate.user.userId, startDate, days, parsed.content, placement);
+    reserved = await reserveAdSlot(gate.user.userId, startDate, days, parsed.content, placement, industry);
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : '枠を押さえられませんでした。' }, { status: 409 });
   }

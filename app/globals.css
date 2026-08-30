@@ -186,10 +186,10 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 /* 出す流れ。①内容 ②期間 ③確認 の3つに分ける。1画面に全部出すと、
    どこまでやったのか分からなくなる。 */
 .ad-flow { display:grid; gap:14px; }
-.ad-steps { margin:0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.ad-steps { margin:0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px; }
 .ad-steps li { display:grid; justify-items:center; gap:4px; }
-.ad-steps b { width:26px; height:26px; display:grid; place-items:center; border-radius:50%; border:1px solid var(--line); background:#fff; color:#9aa6b8; font-size:12px; font-weight:900; }
-.ad-steps span { color:#9aa6b8; font-size:10px; font-weight:800; }
+.ad-steps b { width:24px; height:24px; display:grid; place-items:center; border-radius:50%; border:1px solid var(--line); background:#fff; color:#9aa6b8; font-size:12px; font-weight:900; }
+.ad-steps span { min-width:0; color:#9aa6b8; font-size:9px; font-weight:800; white-space:nowrap; }
 .ad-steps li.now b { border-color:var(--accent); background:var(--accent); color:#fff; }
 .ad-steps li.now span { color:var(--accent-ink); }
 .ad-steps li.done b { border-color:#bfe0cb; background:#e6f7ec; color:#16794a; }
@@ -561,16 +561,25 @@ body { font-weight:600; }
 .ad-placement-copy i { margin-top:3px; color:#1c7a45; font-size:10px; font-style:normal; font-weight:800; }
 .ad-placement-copy i.is-full { color:#b42318; }
 
+/* どの業種の一覧に出すか。掲示板の上位を選んだときだけ出る。 */
+.ad-industry-pick { margin-top:12px; padding:13px; display:grid; gap:7px; border:1px solid #d7e0ed; border-radius:12px; background:#f9fbfe; }
+.ad-industry-pick>span { color:#34445d; font-size:12px; font-weight:900; }
+.ad-industry-pick>span small { margin-left:5px; color:#8794a7; font-size:9px; font-weight:700; }
+.ad-industry-pick select { width:100%; min-height:44px; padding:0 11px; border:1px solid #d7deea; border-radius:10px; background:#fff; color:var(--ink); font-size:12px; }
+.ad-industry-pick>small { color:#7a889c; font-size:10px; line-height:1.7; }
+
 /* スマホの画面を縮めた絵。該当の枠だけ色を付ける。 */
 .placement-demo { display:block; }
-.placement-demo-screen { width:64px; padding:4px; display:grid; gap:3px; border:1.5px solid #c8d5e6; border-radius:7px; background:#f7fafd; }
+.placement-demo-screen { width:60px; padding:4px; display:grid; gap:3px; align-content:start; border:1.5px solid #c8d5e6; border-radius:7px; background:#f7fafd; }
 .placement-demo-screen b { display:block; border-radius:2px; background:#dde5ef; }
 .pd-header { height:5px; }
-.pd-banner { height:14px; position:relative; }
+/* バナーは縦長（4:5）。中身52px幅に対して65px。 */
+.pd-banner { height:65px; position:relative; border-radius:3px; }
 .pd-card { height:7px; position:relative; }
 .pd-nav { height:5px; margin-top:2px; }
 .placement-demo-screen .is-here { background:#1478d6; }
 .placement-demo-screen i { position:absolute; top:50%; left:3px; transform:translateY(-50%); color:#fff; font-size:5px; font-style:normal; font-weight:900; letter-spacing:.02em; }
+.placement-demo-screen.is-banner i { font-size:7px; top:6px; left:5px; transform:none; }
 
 /* 困りごとの上位に出る広告カード。PRであることを隠さない。 */
 .need-card.is-ad { border-color:#f6c9b6; background:linear-gradient(180deg,#fffaf7,#fff); }

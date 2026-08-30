@@ -211,6 +211,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [adFlow, setAdFlow] = useState(false);
   const [adStep, setAdStep] = useState(0);
   const [adPlacement, setAdPlacement] = useState<string>(DEFAULT_PLACEMENT);
+  // 掲示板の上位に出すとき、どの大分類の一覧を狙うか。空なら全業種。
+  const [adIndustry, setAdIndustry] = useState('');
   const [adStart, setAdStart] = useState('');
   const [adDays, setAdDays] = useState(30);
 
@@ -577,6 +579,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       body.set('description', adDraft.description);
       body.set('linkUrl', adDraft.linkUrl);
       body.set('placement', adPlacement);
+      body.set('industry', adPlacement === 'list' ? adIndustry : '');
       body.set('startDate', adStart);
       body.set('days', String(adDays));
       // 縮小は出す人の端末でやる。Workersでは変換しない。
@@ -701,7 +704,11 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
   // 広告は出す場所で分かれる。バナーはカルーセル、一覧は掲示板の先頭。
   const bannerAds = useMemo(() => ads.filter((ad) => (ad.placement || DEFAULT_PLACEMENT) === 'banner'), [ads]);
-  const listAds = useMemo(() => shuffle(ads.filter((ad) => ad.placement === 'list')), [ads]);
+  // 掲示板の上位。業種を狙った広告は、その大分類を見ているときだけ出す。
+  // 狙っていない広告（industry が空）は、どの一覧でも先頭に出る。
+  const listAds = useMemo(() => shuffle(ads.filter((ad) => ad.placement === 'list'
+    && (!ad.industry || ad.industry === (getIndustryGroup(industryFilter)?.name ?? industryFilter)))),
+  [ads, industryFilter]);
 
   // 出稿された広告を先に置く。お金をいただいている枠なので、いちばん先に目に入る場所に出す。
   // 並びは開くたびに入れ替える。同じ月に出した人へ均等に順番が回るようにするため。
@@ -1115,6 +1122,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                         </span>
                       </button>;
                     })}</div>
+                    {adPlacement === 'list' && <label className="ad-industry-pick"><span>どの業種の一覧に出しますか <small>任意</small></span>
+                      <select value={adIndustry} onChange={(event) => setAdIndustry(event.target.value)}>
+                        <option value="">すべての業種の一覧に出す</option>
+                        {industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}の一覧だけに出す</option>)}
+                      </select>
+                      <small>業種を選ぶと、その大分類を見ている方にだけ出ます。届く人数は減りますが、その業種を探している方に確実に当たります。</small>
+                    </label>}
                     <div className="ad-step-actions"><button type="button" onClick={closeAdFlow}>キャンセル</button><button type="button" className="submit-button" onClick={() => setAdStep(1)}>次へ：掲載内容</button></div>
                   </div>}
 
@@ -1151,7 +1165,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                     <p className="ad-step-head"><b>お申し込み内容</b><span>お支払いの完了後、ただちに掲載を開始します。</span></p>
                     <AdBanner ad={{ title: adDraft.title, description: adDraft.description, imageUrl: adDraft.imagePreview, by: stats.company || userName }} />
                     <dl className="ad-check">
-                      <div><dt>掲載枠</dt><dd>{placementName(adPlacement)}<small>{currentPlacement.slots}枠のうち1枠</small></dd></div><div><dt>掲載期間</dt><dd>{adStart && formatRange(adStart, shiftDate(adStart, adDays - 1))}<small>{adDays}日間</small></dd></div>
+                      <div><dt>掲載枠</dt><dd>{placementName(adPlacement)}<small>{currentPlacement.slots}枠のうち1枠{adPlacement === 'list' && `／${adIndustry ? `${adIndustry}の一覧` : 'すべての業種の一覧'}`}</small></dd></div><div><dt>掲載期間</dt><dd>{adStart && formatRange(adStart, shiftDate(adStart, adDays - 1))}<small>{adDays}日間</small></dd></div>
                       <div><dt>リンク先</dt><dd>{adDraft.linkUrl ? adDraft.linkUrl.replace(/^https?:\/\//, '') : <em>設定なし</em>}</dd></div>
                       <div className="ad-check-pay"><dt>お支払い額</dt><dd>{adTotalPrice(adPlacement, adDays, adInfo.discountRate)}<small>{adDailyPrice(adPlacement)}×{adDays}日{adInfo.discountRate > 0 && `・${adInfo.rank}の${Math.round(adInfo.discountRate * 100)}%OFF`}・税込・1回のみ</small></dd></div>
                     </dl>
@@ -1250,17 +1264,20 @@ function AdPreview({ draft, fallbackImage = '', by }: { draft: AdDraft; fallback
 function PlacementDemo({ placement }: { placement: string }) {
   const isBanner = placement === 'banner';
   return <span className="placement-demo" aria-hidden="true">
-    <span className="placement-demo-screen">
-      {/* 上の帯＝ヘッダー */}
+    <span className={`placement-demo-screen${isBanner ? ' is-banner' : ''}`}>
       <b className="pd-header" />
-      {/* バナーの位置 */}
-      <b className={`pd-banner${isBanner ? ' is-here' : ''}`}>{isBanner && <i>PR</i>}</b>
-      {/* 一覧のカード。上位3枚が対象。 */}
-      {[0, 1, 2, 3, 4].map((index) => <b key={index}
-        className={`pd-card${!isBanner && index < 3 ? ' is-here' : ''}`}>
-        {!isBanner && index < 3 && <i>PR</i>}
-      </b>)}
-      {/* 下のメニュー */}
+      {isBanner
+        // バナーは縦長（4:5）。ホームを開いて最初に目に入る面。
+        ? <>
+            <b className="pd-banner is-here"><i>PR</i></b>
+            <b className="pd-card" />
+            <b className="pd-card" />
+          </>
+        // 掲示板の上位は、一覧のいちばん上の3本。上に何も挟まない。
+        : <>
+            {[0, 1, 2].map((index) => <b key={index} className="pd-card is-here"><i>PR</i></b>)}
+            {[3, 4, 5, 6, 7].map((index) => <b key={index} className="pd-card" />)}
+          </>}
       <b className="pd-nav" />
     </span>
   </span>;
