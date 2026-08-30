@@ -391,7 +391,6 @@ export async function ensureDatabase() {
       activated_at = CASE WHEN activated_at = '' THEN created_at ELSE activated_at END
     WHERE membership_status = 'invited'`).run();
   await env.DB.prepare("UPDATE members SET plan = 'premium' WHERE plan = 'pro'").run();
-  await removeDemoData();
   await seedDemoData();
   await env.DB.batch([
     env.DB.prepare("UPDATE members SET badge = '赤' WHERE badge IN ('赤バッヂ', '赤バッジ')"),
@@ -699,53 +698,6 @@ function safeHashEqual(left: string, right: string) {
 function randomMobileToken() {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-}
-
-/**
- * 立ち上げの途中まで入れていたサンプルの会員と募集を片づける。
- *
- * **手元でも本番でも動かす。** 前は本番だけで動かしていたため一度も実行されず、
- * 外部キー制約で落ちて全画面が500になった。環境で分けたコードは、分けたほうが
- * 必ず未検証になる。
- *
- * **消す募集はIDを決め打ちせず、DBに聞く。** 種まきで作ったIDだけを想定して
- * いたが、実際にはサンプル会員が別のIDの募集も持っていて、そこにぶら下がった
- * 紹介やコメントが外部キーに引っかかっていた。
- *
- * **1文ずつ流し、失敗しても先へ進む。** 片づけは「あとで消えていればよい」もので、
- * ここで例外を投げると ensureDatabase ごと落ちてサイト全体が開かなくなる。
- * 掃除のためにサービスを止めるのは、どう考えても割に合わない。
- */
-async function removeDemoData() {
-  const memberIds = ['demo-tanaka', 'demo-sato'];
-  const seeded = ['request-video-partner', 'request-salon-designer'];
-
-  // サンプル会員が持っている募集を、IDを決め打ちせずに引く。
-  const owned = await env.DB.prepare(
-    `SELECT id FROM requests WHERE author_id IN (${memberIds.map(() => '?').join(',')})`,
-  ).bind(...memberIds).all<{ id: string }>().catch(() => null);
-  const requestIds = [...new Set([...seeded, ...(owned?.results ?? []).map((row) => row.id)])];
-
-  const run = async (sql: string, ids: string[]) => {
-    for (const id of ids) await env.DB.prepare(sql).bind(id).run().catch(() => undefined);
-  };
-
-  // 参照している側から順に。最後が members。
-  await run('DELETE FROM introductions WHERE request_id = ?', requestIds);
-  await run('DELETE FROM request_comments WHERE request_id = ?', requestIds);
-  await run('DELETE FROM requests WHERE id = ?', requestIds);
-  await run('DELETE FROM attendance_people WHERE owner_id = ?', memberIds);
-  await run('DELETE FROM attendance_events WHERE owner_id = ?', memberIds);
-  await run('DELETE FROM mobile_push_tokens WHERE member_id = ?', memberIds);
-  await run('DELETE FROM mobile_sessions WHERE member_id = ?', memberIds);
-  await run('DELETE FROM push_subscriptions WHERE member_id = ?', memberIds);
-  await run('DELETE FROM feedback WHERE member_id = ?', memberIds);
-  await run('DELETE FROM ad_slots WHERE member_id = ?', memberIds);
-  await run('DELETE FROM request_comments WHERE member_id = ?', memberIds);
-  await run('DELETE FROM introductions WHERE introducer_id = ?', memberIds);
-  await run('DELETE FROM referral_credits WHERE inviter_id = ?', memberIds);
-  await run('DELETE FROM referral_credits WHERE invitee_id = ?', memberIds);
-  await run('DELETE FROM members WHERE id = ?', memberIds);
 }
 
 /**
