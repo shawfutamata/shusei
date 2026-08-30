@@ -30,6 +30,35 @@ const categories = {
   consultation: { label: '相談・情報', className: 'consultation' },
 };
 
+/**
+ * 3つの区別。会員がいちばん迷うところなので、選ぶ言葉・違い・例をそろえて置く。
+ *
+ * 見分け方は「お金がどう動くか」。
+ *   案件   … こちらが払う（発注する相手を探している）
+ *   協業先 … 一緒に稼ぐ（組んで案件を取りにいく相手を探している）
+ *   相談   … お金は動かない（やり方や事情を知っている人を探している）
+ */
+const categoryGuide = [
+  {
+    key: 'project', label: '案件', pick: '案件の発注先',
+    summary: 'こちらが発注する相手を探しています',
+    detail: 'お金を払って仕事をお願いする相手を探すときに選びます。予算と納期が決まっている（またはおおよそ見えている）お話です。',
+    example: '「採用動画を作りたい。20〜40万円で、来月中に撮影できる制作会社」',
+  },
+  {
+    key: 'collaboration', label: '協業先', pick: '協業パートナー',
+    summary: '組んで一緒に仕事をする相手を探しています',
+    detail: '発注でも受注でもなく、対等に組む相手を探すときに選びます。案件を一緒に取りにいく、お互いの商品を扱い合う、といったお話です。',
+    example: '「工務店さま向けの営業に強い方と組んで、リフォーム案件を一緒に取りにいきたい」',
+  },
+  {
+    key: 'consultation', label: '相談・情報', pick: '相談相手・情報',
+    summary: '知っている人に話を聞きたい',
+    detail: 'その場でお金は動きません。やり方や事情を知っている方から、経験を聞かせていただくときに選びます。',
+    example: '「補助金の申請を通した経験のある方に、進め方を伺いたい」',
+  },
+] as const;
+
 const revenueBands: Record<string, string> = {
   revenue_10_30: '1,000万〜3,000万円',
   revenue_30_70: '3,000万〜7,000万円',
@@ -38,7 +67,7 @@ const revenueBands: Record<string, string> = {
 };
 
 const topBanners = [
-  { src: '/banners/top-request.webp', alt: 'こんな人、探しています。困りごとを投稿する案内' },
+  { src: '/banners/top-request.webp', alt: 'こんな人、探しています。探しごとを投稿する案内' },
   { src: '/banners/top-introductions.webp', alt: '届いた紹介をまとめて確認する案内' },
   { src: '/banners/top-rank.webp', alt: '紹介するほど会員ランクが上がる仕組みの案内' },
 ] as const;
@@ -82,7 +111,7 @@ type AdOffer = {
   ready: boolean; eligible: boolean; level: number; rank: string;
   minRankLevel: number; titleMax: number; descriptionMax: number;
   maxDays: number; daysAhead: number;
-  /** 出せる場所。バナーと困りごとの上位。 */
+  /** 出せる場所。バナーと仕事の掲示板の上位。 */
   placements: { key: string; name: string; where: string; detail: string; slots: number }[];
   /** 空きは場所ごとに違うので、場所をキーにして持つ。 */
   calendars: Record<string, AdCalendarDay[]>;
@@ -156,7 +185,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [zoom, setZoom] = useState(1);
   const [croppedArea, setCroppedArea] = useState<Area | null>(null);
   const [cropping, setCropping] = useState(false);
-  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'responses' | 'ads' | 'perks' | null>(null);
+  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'responses' | 'ads' | 'perks' | 'categories' | null>(null);
   const [selected, setSelected] = useState<BoardRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
@@ -649,7 +678,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // 広告は出す場所で分かれる。バナーはカルーセル、一覧は困りごとの先頭。
+  // 広告は出す場所で分かれる。バナーはカルーセル、一覧は掲示板の先頭。
   const bannerAds = useMemo(() => ads.filter((ad) => (ad.placement || DEFAULT_PLACEMENT) === 'banner'), [ads]);
   const listAds = useMemo(() => shuffle(ads.filter((ad) => ad.placement === 'list')), [ads]);
 
@@ -691,14 +720,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     trackAd({ views: [ad.id] });
   }, [slide, activeTab]);
 
-  /** 困りごとの上位に出している広告を押したとき。数え方はバナーと同じ。 */
+  /** 掲示板の上位に出している広告を押したとき。数え方はバナーと同じ。 */
   function openListAd(ad: AdSlot) {
     trackAd({ clicks: [ad.id] });
     if (ad.linkUrl) window.open(ad.linkUrl, '_blank', 'noopener,noreferrer');
     else showToast(`${ad.memberCompany || ad.memberName}さまの広告です。詳しくは会場やメッセージで直接おたずねください。`);
   }
 
-  // 困りごとを開いているあいだ、上位の広告も見られた数を数える。
+  // 掲示板を開いているあいだ、上位の広告も見られた数を数える。
   // 間引き方はバナーと同じ（同じ広告は1日1回まで）。
   useEffect(() => {
     if (activeTab !== 'search' || !listAds.length) return;
@@ -793,7 +822,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
         {!stats.avatarUrl && <button className="photo-required-banner" onClick={showProfile}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・紹介ができます。</b><i>登録する →</i></button>}
       </div> : activeTab === 'search' ? <section className="mobile-board search-page" id="board">
-        <div className="section-title"><div><p>REQUESTS</p><h2>{industryFilter === 'all' ? 'みんなの探しごと' : industryFilter}</h2></div><span>{shown.length}件</span></div>
+        <div className="section-title"><div><p>REQUESTS</p><h2>{industryFilter === 'all' ? '仕事の掲示板' : industryFilter}<button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="案件・協業先・相談の違いを見る">i</button></h2></div><span>{shown.length}件</span></div>
         {industryFilter !== 'all' && <button className="clear-industry" onClick={() => setIndustryFilter('all')}><IndustryIcon group={getIndustryGroup(industryFilter)?.name ?? 'その他'} />{industryFilter}で絞り込み中 <i>×</i></button>}
         {industryFilter !== 'all' && getIndustryGroup(industryFilter) && <div className="subindustry-filter" aria-label="詳細業種で絞り込む"><button className={industryFilter === getIndustryGroup(industryFilter)?.name ? 'selected' : ''} onClick={() => setIndustryFilter(getIndustryGroup(industryFilter)?.name ?? 'all')}>すべて</button>{getIndustryGroup(industryFilter)?.children.map((industry) => <button key={industry} className={industryFilter === industry ? 'selected' : ''} onClick={() => setIndustryFilter(industry)}>{industry}</button>)}</div>}
         <div className="filters" role="group" aria-label="投稿を絞り込む">{[['all','すべて'],['project','案件'],['collaboration','協業先'],['consultation','相談']].map(([key,label]) => <button key={key} className={filter === key ? 'selected' : ''} onClick={() => setFilter(key)}>{label}<span>{count(key)}</span></button>)}</div>
@@ -946,7 +975,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       <nav className="bottom-nav" aria-label="アプリメニュー">
         <button className={activeTab === 'home' ? 'active' : ''} onClick={showHome}><span>⌂</span><small>ホーム</small></button>
-        <button className={activeTab === 'search' ? 'active' : ''} onClick={() => showSearch()}><span>⌕</span><small>困りごと</small></button>
+        <button className={activeTab === 'search' ? 'active' : ''} onClick={() => showSearch()}><span>⌕</span><small>探す</small></button>
         <button className="nav-post" onClick={openRequest} aria-label="探しごとを投稿する"><span>＋</span></button>
         <button className={modal === 'ads' ? 'active' : ''} onClick={openAdSettings}><span><BannerIcon /></span><small>広告</small></button>
         <button className={modal !== 'ads' && activeTab === 'profile' ? 'active' : ''} onClick={showProfile}><span><PersonIcon /></span><small>マイページ</small></button>
@@ -954,7 +983,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {modal === 'request' && !canPostRequest && <Modal title="今月ぶんの投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showProfile(); }}>マイページを開く</button></div></Modal>}
 
-      {modal === 'request' && canPostRequest && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの<select name="category" required defaultValue=""><option value="" disabled>選択してください</option><option value="project">案件の発注先</option><option value="collaboration">協業パートナー</option><option value="consultation">相談相手・情報</option></select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容 {descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" required maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア <small>任意</small><select name="area" defaultValue=""><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><div className="request-photos"><p><b>写真を付ける <em>任意</em></b><small>{photoLimit(stats.level) > 1 ? `${stats.rank}は${photoLimit(stats.level)}枚まで付けられます` : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></p><div className="request-photo-grid">{requestPhotoPreviews.map((preview, index) => <span key={preview} className="request-photo-item"><img src={preview} alt={`添付する写真 ${index + 1}枚目`} /><button type="button" onClick={() => removeRequestPhoto(index)} aria-label={`${index + 1}枚目を削除`}>×</button></span>)}{requestPhotos.length < photoLimit(stats.level) && <label className="request-photo-add"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" multiple={photoLimit(stats.level) > 1} onChange={chooseRequestPhoto} /><b>＋</b><small>{requestPhotos.length ? 'もう1枚' : '写真を選ぶ'}</small></label>}</div></div><button className="submit-button" disabled={busy || !requestIndustries.length}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
+      {modal === 'request' && canPostRequest && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue=""><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容 {descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" required maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア <small>任意</small><select name="area" defaultValue=""><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><div className="request-photos"><p><b>写真を付ける <em>任意</em></b><small>{photoLimit(stats.level) > 1 ? `${stats.rank}は${photoLimit(stats.level)}枚まで付けられます` : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></p><div className="request-photo-grid">{requestPhotoPreviews.map((preview, index) => <span key={preview} className="request-photo-item"><img src={preview} alt={`添付する写真 ${index + 1}枚目`} /><button type="button" onClick={() => removeRequestPhoto(index)} aria-label={`${index + 1}枚目を削除`}>×</button></span>)}{requestPhotos.length < photoLimit(stats.level) && <label className="request-photo-add"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" multiple={photoLimit(stats.level) > 1} onChange={chooseRequestPhoto} /><b>＋</b><small>{requestPhotos.length ? 'もう1枚' : '写真を選ぶ'}</small></label>}</div></div><button className="submit-button" disabled={busy || !requestIndustries.length}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
 
       {modal === 'intro' && selected && <Modal title="知っている人を紹介" lead={`「${selected.title}」への紹介です。`} onClose={() => setModal(null)}><form className="form" onSubmit={submitIntroduction}><label>お名前<input name="personName" required maxLength={60} /></label><label>会社・屋号<input name="personCompany" required maxLength={80} /></label><label>あなたとの関係<input name="relationship" required maxLength={120} placeholder="例：取引先、友人" /></label><label>紹介したい理由<textarea name="fitReason" required maxLength={400} rows={3} /></label><label className="consent"><input type="checkbox" name="consentConfirmed" required /> ご本人に紹介の了承を得ています</label><button className="submit-button" disabled={busy}>{busy ? '届けています…' : '紹介を届ける'}</button></form></Modal>}
 
@@ -1099,6 +1128,15 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                   </div>}
                 </form>}
         </div>
+      </Modal>}
+
+      {modal === 'categories' && <Modal title="3つの違い" lead="迷ったら「お金がどう動くか」で選んでください。" onClose={() => setModal(null)}>
+        <ul className="category-guide">{categoryGuide.map((item) => <li key={item.key}>
+          <p className="category-guide-head"><span className={`kind ${categories[item.key].className}`}>{item.label}</span><b>{item.summary}</b></p>
+          <p className="category-guide-detail">{item.detail}</p>
+          <p className="category-guide-example"><small>例</small>{item.example}</p>
+        </li>)}</ul>
+        <p className="category-guide-note">あとから選び直せます。近いものを選んでいただければ大丈夫です。</p>
       </Modal>}
 
       {modal === 'responses' && <Modal title="届いた紹介" lead="あなたが投稿した探しごとへの紹介です。" onClose={() => setModal(null)}><ReceivedIntroductions /></Modal>}

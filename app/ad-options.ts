@@ -19,8 +19,8 @@ export const adPlacements = [
   },
   {
     key: 'list',
-    name: '困りごとの上位',
-    where: '困りごと一覧のいちばん上',
+    name: '仕事の掲示板の上位',
+    where: '仕事の掲示板のいちばん上',
     detail: '一覧の先頭3件として出ます。探している人がいちばん熱心に見ている場所です。',
     slots: 3,
   },

@@ -503,6 +503,21 @@ body { font-weight:600; }
    もとは .comment-list / .comment-form などに指定がほとんど無く、
    段落が素のまま縦に積まれ、文字数カウンタと送信ボタンも重なっていた。 */
 /* 紹介を出した／届いた、という事実だけを出す欄。中身はここに出さない。 */
+/* 説明を開く小さな i。見出しや項目名の横に置く。 */
+.info-button { width:18px; height:18px; margin-left:7px; padding:0; display:inline-grid; place-items:center; vertical-align:middle; border:0; border-radius:50%; background:#5b6b82; color:#fff; font-size:11px; font-weight:900; font-style:italic; line-height:1; cursor:pointer; font-family:Georgia,'Times New Roman',serif; }
+.info-button:hover { background:#1478d6; }
+
+/* 案件・協業先・相談の違い。 */
+.category-guide { margin:0; padding:0; list-style:none; display:grid; gap:12px; }
+.category-guide li { padding:14px; border:1px solid #e0e7f0; border-radius:14px; background:#fbfcfe; }
+.category-guide-head { margin:0; display:flex; align-items:center; gap:9px; }
+.category-guide-head .kind { flex:0 0 auto; white-space:nowrap; }
+.category-guide-head b { color:#22324a; font-size:14px; }
+.category-guide-detail { margin:9px 0 0; color:#54637a; font-size:12px; line-height:1.8; }
+.category-guide-example { margin:9px 0 0; padding:10px 12px; border-radius:10px; background:#eef4fb; color:#2c3e59; font-size:12px; line-height:1.7; }
+.category-guide-example small { display:block; margin-bottom:3px; color:#7b8ba3; font-size:9px; font-weight:900; letter-spacing:.08em; }
+.category-guide-note { margin:14px 0 0; color:#7b8ba3; font-size:11px; text-align:center; }
+
 /* 掲載枠の選択。どこに出るのかを画面の形で見せる。 */
 .ad-placements { display:grid; gap:10px; }
 .ad-placement { padding:13px; display:grid; grid-template-columns:64px minmax(0,1fr); align-items:start; gap:13px; border:1px solid #d7e0ed; border-radius:14px; background:#fff; text-align:left; cursor:pointer; }
