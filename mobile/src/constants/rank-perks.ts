@@ -12,7 +12,7 @@ export const rankPerks: RankPerk[] = [
   { key: 'longtext', label: '掲載文章の上限なし', minLevel: 2, detail: '探しごとの本文が600字までの制限から外れ、いくらでも書けるようになります。背景や条件を省かずに伝えられます。' },
   { key: 'industries', label: 'おすすめ業種を10枠', minLevel: 2, detail: 'ホームの「あなたにおすすめ」に出す業種が、6個から10個に増えます。守備範囲の広い方ほど効きます。' },
   { key: 'photos', label: '写真の複数枚投稿', minLevel: 3, detail: '探しごとに付けられる写真が1枚から5枚に増えます。現場や商品を何枚も見せられます。' },
-  { key: 'video', label: '動画を投稿できる', minLevel: 3, soon: true, detail: '探しごとに短い動画を付けられるようになります。大きい動画は送る前に端末側で自動的に縮めるので、通信量を気にせず選べます。' },
+  { key: 'video', label: '動画を投稿できる', minLevel: 3, detail: '探しごとに短い動画を付けられるようになります。大きい動画は送る前に端末側で自動的に縮めるので、通信量を気にせず選べます。' },
   { key: 'revenue', label: '年商での絞り込み', minLevel: 3, detail: '仕事の掲示板を、投稿した会社の年商で絞り込めます。規模の合う相手だけを見たいときに。' },
 ];
 

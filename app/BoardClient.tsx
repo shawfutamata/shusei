@@ -16,9 +16,10 @@ import RankCrest, { CrownMark } from './RankCrest';
 import LegalLinks from './LegalLinks';
 import PerkIcon from './PerkIcon';
 import { AD_MIN_DAYS, AD_ROTATE_MS, DEFAULT_PLACEMENT, adPlacements, placementName } from './ad-options';
-import { EXTEND_DAYS, canExtendRequest, canFilterByRevenue, descriptionLimit, notifyIndustryLimit, photoLimit, rankNames, rankPerks, rankThresholds } from './rank-perks';
+import { EXTEND_DAYS, canExtendRequest, canFilterByRevenue, canPostVideo, descriptionLimit, notifyIndustryLimit, photoLimit, rankNames, rankPerks, rankThresholds } from './rank-perks';
 import { serviceName } from './brand';
 import BrandMark from './BrandMark';
+import { VIDEO_MAX_SECONDS, compressVideo } from './compress-video';
 import { detailImage, listThumbnail } from './resize-image';
 import AdAnalytics, { formatRange } from './AdAnalytics';
 import type { AdDay } from '@/db/data';
@@ -193,6 +194,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
   const [requestPhotos, setRequestPhotos] = useState<File[]>([]);
+  // 動画は1本まで。選んだ時点で端末側で縮めるので、進み具合を持っておく。
+  const [requestVideo, setRequestVideo] = useState<File | null>(null);
+  const [requestVideoPreview, setRequestVideoPreview] = useState('');
+  const [videoProgress, setVideoProgress] = useState(-1);
   const [requestPhotoPreviews, setRequestPhotoPreviews] = useState<string[]>([]);
   const [planCycle, setPlanCycle] = useState<BillingCycle>('month');
   const [feedbackSent, setFeedbackSent] = useState(false);
@@ -371,6 +376,24 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     setRequests(data.requests); setStats(data.stats); setAds(data.ads ?? []);
   }
 
+  async function chooseRequestVideo(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setVideoProgress(0);
+    // 実時間かかるので、進み具合を出しながら待たせる。
+    const result = await compressVideo(file, setVideoProgress);
+    setVideoProgress(-1);
+    if (!result.ok) return showToast(result.error);
+    setRequestVideo(result.file);
+    setRequestVideoPreview((current) => { if (current) URL.revokeObjectURL(current); return URL.createObjectURL(result.file); });
+  }
+
+  function removeRequestVideo() {
+    setRequestVideoPreview((current) => { if (current) URL.revokeObjectURL(current); return ''; });
+    setRequestVideo(null);
+  }
+
   function chooseRequestPhoto(event: ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(event.target.files ?? []);
     event.target.value = '';
@@ -410,9 +433,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       body.append('imageThumb', thumb);
       body.append('imageFull', full);
     }
+    body.delete('videoPick');
+    if (requestVideo) body.set('video', requestVideo);
     const response = await fetch('/api/board', { method: 'POST', body });
     const result = await response.json() as { error?: string }; setBusy(false);
     if (!response.ok) return showToast(result.error ?? '投稿できませんでした。');
+    removeRequestVideo();
     setModal(null); form.reset(); setRequestIndustries([]); clearRequestPhoto(); await refreshBoard(); showToast('探しごとを投稿しました。関連業種の会員へ通知します。');
   }
 
@@ -980,7 +1006,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {modal === 'request' && !canPostRequest && <Modal title="今月ぶんの投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showProfile(); }}>マイページを開く</button></div></Modal>}
 
-      {modal === 'request' && canPostRequest && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue=""><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容 {descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" required maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア <small>任意</small><select name="area" defaultValue=""><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><div className="request-photos"><p><b>写真を付ける <em>任意</em></b><small>{photoLimit(stats.level) > 1 ? `${stats.rank}は${photoLimit(stats.level)}枚まで付けられます` : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></p><div className="request-photo-grid">{requestPhotoPreviews.map((preview, index) => <span key={preview} className="request-photo-item"><img src={preview} alt={`添付する写真 ${index + 1}枚目`} /><button type="button" onClick={() => removeRequestPhoto(index)} aria-label={`${index + 1}枚目を削除`}>×</button></span>)}{requestPhotos.length < photoLimit(stats.level) && <label className="request-photo-add"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" multiple={photoLimit(stats.level) > 1} onChange={chooseRequestPhoto} /><b>＋</b><small>{requestPhotos.length ? 'もう1枚' : '写真を選ぶ'}</small></label>}</div></div><button className="submit-button" disabled={busy || !requestIndustries.length}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
+      {modal === 'request' && canPostRequest && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue=""><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容 {descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" required maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア <small>任意</small><select name="area" defaultValue=""><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><div className="request-photos"><p><b>写真を付ける <em>任意</em></b><small>{photoLimit(stats.level) > 1 ? `${stats.rank}は${photoLimit(stats.level)}枚まで付けられます` : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></p><div className="request-photo-grid">{requestPhotoPreviews.map((preview, index) => <span key={preview} className="request-photo-item"><img src={preview} alt={`添付する写真 ${index + 1}枚目`} /><button type="button" onClick={() => removeRequestPhoto(index)} aria-label={`${index + 1}枚目を削除`}>×</button></span>)}{requestPhotos.length < photoLimit(stats.level) && <label className="request-photo-add"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" multiple={photoLimit(stats.level) > 1} onChange={chooseRequestPhoto} /><b>＋</b><small>{requestPhotos.length ? 'もう1枚' : '写真を選ぶ'}</small></label>}</div></div>{canPostVideo(stats.level) && <div className="request-video"><p><b>動画を付ける <em>任意</em></b><small>{VIDEO_MAX_SECONDS}秒まで。選ぶと端末の中で自動的に小さくします。</small></p>
+        {videoProgress >= 0
+          ? <div className="request-video-busy"><span style={{ width: `${Math.round(videoProgress * 100)}%` }} /><b>動画を小さくしています… {Math.round(videoProgress * 100)}%</b></div>
+          : requestVideoPreview
+            ? <div className="request-video-item"><video src={requestVideoPreview} controls playsInline preload="metadata" /><button type="button" onClick={removeRequestVideo}>動画を外す</button></div>
+            : <label className="request-video-add"><input name="videoPick" type="file" accept="video/*" onChange={chooseRequestVideo} /><b>＋</b><small>動画を選ぶ</small></label>}
+      </div>}<button className="submit-button" disabled={busy || !requestIndustries.length || videoProgress >= 0}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
 
       {modal === 'intro' && selected && <Modal title="知っている人を紹介" lead={`「${selected.title}」への紹介です。`} onClose={() => setModal(null)}><form className="form" onSubmit={submitIntroduction}><label>お名前<input name="personName" required maxLength={60} /></label><label>会社・屋号<input name="personCompany" required maxLength={80} /></label><label>あなたとの関係<input name="relationship" required maxLength={120} placeholder="例：取引先、友人" /></label><label>紹介したい理由<textarea name="fitReason" required maxLength={400} rows={3} /></label><label className="consent"><input type="checkbox" name="consentConfirmed" required /> ご本人に紹介の了承を得ています</label><button className="submit-button" disabled={busy}>{busy ? '届けています…' : '紹介を届ける'}</button></form></Modal>}
 
@@ -1027,7 +1059,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </div>
       </Modal>}
 
-      {modal === 'ads' && adInfo && <Modal title="トップバナー広告" lead={`ご指定の期間だけ広告を掲載できます。お支払いは日数ぶんの1回のみ（税込）。`} onClose={closeAdSettings}>
+      {modal === 'ads' && adInfo && <Modal title="広告を出す" lead={`ご指定の期間だけ広告を掲載できます。お支払いは日数ぶんの1回のみ（税込）。`} onClose={closeAdSettings}>
         <div className="ad-panel">
           {/* いま持っている枠。ここは見るところで、申し込みは下の流れで行う。 */}
           {adInfo.slots.length > 0 && !adFlow && <ul className="ad-slot-list">{adInfo.slots.map((ad) => {
@@ -1148,6 +1180,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           ? <div className="need-gallery">{selected.imageUrls.map((url, index) => <img key={url} src={url} alt={`${selected.title}に添えられた写真 ${index + 1}枚目`} loading="lazy" decoding="async" />)}</div>
           : selected.imageUrl && <img className="need-photo" src={selected.imageUrl} alt={`${selected.title}に添えられた写真`} loading="lazy" decoding="async" />}
         <p>{selected.description}</p>
+        {selected.videoUrl && <video className="need-video" src={selected.videoUrl} controls playsInline preload="metadata" />}
         <div className="industry-tags">{selected.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
         <dl><div><dt>予算</dt><dd>{selected.budgetLabel}</dd></div><div><dt>希望エリア</dt><dd>{selected.area || '指定なし'}</dd></div><div><dt>募集期限</dt><dd>{selected.deadline}</dd></div></dl>
         <div className="detail-author"><Avatar src={selected.authorAvatarUrl} name={selected.authorName} className="member-avatar" /><p><b>{selected.authorName}</b><span>{selected.authorPositionTitle && `${selected.authorPositionTitle}｜`}{selected.authorCompany || '会社名未設定'}</span><small>{selected.authorVenue}{selected.authorBusinessArea && `・${selected.authorBusinessArea}`}</small></p><FacebookLink url={selected.authorFacebookUrl} name={selected.authorName} /></div>

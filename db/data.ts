@@ -5,7 +5,7 @@ import { cleanFacebookUrl } from '@/app/social-links';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
 import { AD_DESCRIPTION_MAX, AD_RESERVATION_MINUTES, AD_TITLE_MAX, DEFAULT_PLACEMENT, placementSlots } from '@/app/ad-options';
 import { UNLIMITED, bonusPlan, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
-import { EXTEND_DAYS, canExtendRequest, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
+import { EXTEND_DAYS, canExtendRequest, canPostVideo, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
 import { matchesIndustry } from '@/app/industry-options';
 
 export type BoardRequest = {
@@ -16,6 +16,8 @@ export type BoardRequest = {
   imageUrl: string;
   /** 2枚目以降を含めた、詳細用の画像すべて。1枚だけなら imageUrl と同じ1件。 */
   imageUrls: string[];
+  /** 付いている動画。無ければ空。1本まで。 */
+  videoUrl: string;
   category: 'project' | 'collaboration' | 'consultation';
   title: string;
   description: string;
@@ -343,6 +345,9 @@ export async function ensureDatabase() {
     ['extended_at', "ALTER TABLE requests ADD COLUMN extended_at TEXT NOT NULL DEFAULT ''"],
     // 写真の枚数。0なら写真なし、1以上ならその枚数だけR2に置いてある。
     ['image_count', 'ALTER TABLE requests ADD COLUMN image_count INTEGER NOT NULL DEFAULT 0'],
+    // 動画は1本まで。版番号は写真と同じ考え方（0なら無し）。
+    ['video_version', 'ALTER TABLE requests ADD COLUMN video_version INTEGER NOT NULL DEFAULT 0'],
+    ['video_type', "ALTER TABLE requests ADD COLUMN video_type TEXT NOT NULL DEFAULT ''"],
     // 業種別プロモーション。この業種の一覧で、この日時まで先頭に出す。
     ['promo_industry', "ALTER TABLE requests ADD COLUMN promo_industry TEXT NOT NULL DEFAULT ''"],
     ['promo_until', "ALTER TABLE requests ADD COLUMN promo_until TEXT NOT NULL DEFAULT ''"],
@@ -740,7 +745,8 @@ export async function getBoardData(user: SessionUser) {
     r.budget_label AS budgetLabel, r.area, r.industry_tags AS industryTagsJson,
     r.deadline, r.status, r.image_version AS imageVersion, r.created_at AS createdAt,
     r.pinned_until AS pinnedUntil, r.extended_at AS extendedAt,
-    r.image_count AS imageCount, r.promo_industry AS promoIndustry, r.promo_until AS promoUntil,
+    r.image_count AS imageCount, r.video_version AS videoVersion,
+    r.promo_industry AS promoIndustry, r.promo_until AS promoUntil,
     m.display_name AS authorName, m.company AS authorCompany, m.venue AS authorVenue,
     m.position_title AS authorPositionTitle, m.badge AS authorBadge,
     m.business_area AS authorBusinessArea,
@@ -756,7 +762,7 @@ export async function getBoardData(user: SessionUser) {
     JOIN members m ON m.id = r.author_id
     ORDER BY CASE WHEN r.pinned_until > ? THEN 0 ELSE 1 END, r.created_at DESC`)
     .bind(user.userId, new Date().toISOString())
-    .all<Omit<BoardRequest, 'industryTags' | 'thumbUrl' | 'imageUrl' | 'imageUrls' | 'mine'> & { industryTagsJson: string; imageVersion: number; imageCount: number; authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
+    .all<Omit<BoardRequest, 'industryTags' | 'thumbUrl' | 'imageUrl' | 'imageUrls' | 'mine'> & { industryTagsJson: string; imageVersion: number; imageCount: number; videoVersion: number; authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
 
   const member = await env.DB.prepare(`SELECT display_name AS displayName, venue, company,
     position_title AS positionTitle, badge, business_area AS businessArea,
@@ -776,9 +782,10 @@ export async function getBoardData(user: SessionUser) {
     contractedPlan: plan.contracted, bonusPlan: plan.bonus, bonusPeriodEnd: plan.bonusPeriodEnd ?? '',
     requestsThisMonth: plan.requestsThisMonth, requestLimit: plan.requestLimit,
   });
-  const requests = requestsResult.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, industryTagsJson, imageVersion, imageCount, ...request }) => ({
+  const requests = requestsResult.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, industryTagsJson, imageVersion, imageCount, videoVersion, ...request }) => ({
     ...request,
     mine: authorId === user.userId,
+    videoUrl: requestVideoUrl(request.id, videoVersion),
     imageUrls: Array.from({ length: Math.max(0, imageCount) }, (_, index) => requestImageUrl(request.id, imageVersion, 'full', index)),
     industryTags: parseStringArray(industryTagsJson),
     thumbUrl: requestImageUrl(request.id, imageVersion, 'thumb'),
@@ -813,8 +820,10 @@ export async function updateMemberProfile(user: SessionUser, input: { company: s
 }
 
 export type RequestImageUpload = { thumb: { bytes: ArrayBuffer; contentType: string }; full: { bytes: ArrayBuffer; contentType: string } };
+/** 動画は端末側で圧縮ずみのものを1本だけ受け取る。サーバーでは変換しない。 */
+export type RequestVideoUpload = { bytes: ArrayBuffer; contentType: string };
 
-export async function createRequest(user: SessionUser, input: { category: string; title: string; description: string; budgetLabel: string; area: string; industryTags: string[]; deadline: string; images?: RequestImageUpload[] }) {
+export async function createRequest(user: SessionUser, input: { category: string; title: string; description: string; budgetLabel: string; area: string; industryTags: string[]; deadline: string; images?: RequestImageUpload[]; video?: RequestVideoUpload | null }) {
   await upsertMember(user);
   await requireFacePhoto(user.userId);
   const requestPlan = await getPlanState(user.userId);
@@ -842,8 +851,19 @@ export async function createRequest(user: SessionUser, input: { category: string
       }),
     ]));
   }
-  await env.DB.prepare('INSERT INTO requests (id, author_id, category, title, description, budget_label, area, industry_tags, deadline, status, image_version, image_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, user.userId, input.category, input.title, input.description.slice(0, descriptionLimit(level)), input.budgetLabel, input.area, JSON.stringify(input.industryTags), input.deadline, 'open', imageVersion, images.length, createdAt).run();
+  // 動画はPLATINUM以上の特典。画面ではなくここで止める。
+  let videoVersion = 0;
+  let videoType = '';
+  if (input.video && canPostVideo(level)) {
+    videoVersion = Date.now();
+    videoType = input.video.contentType;
+    await env.AVATARS.put(requestVideoKey(id), input.video.bytes, {
+      httpMetadata: { contentType: videoType },
+      customMetadata: { ownerId: user.userId, requestId: id },
+    });
+  }
+  await env.DB.prepare('INSERT INTO requests (id, author_id, category, title, description, budget_label, area, industry_tags, deadline, status, image_version, image_count, video_version, video_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, user.userId, input.category, input.title, input.description.slice(0, descriptionLimit(level)), input.budgetLabel, input.area, JSON.stringify(input.industryTags), input.deadline, 'open', imageVersion, images.length, videoVersion, videoType, createdAt).run();
   await sendMatchingPushNotifications(user.userId, { id, title: input.title, industryTags: input.industryTags }).catch(() => undefined);
   await sendMatchingMobileNotifications(user.userId, { id, title: input.title, industryTags: input.industryTags }).catch(() => undefined);
   return id;
@@ -972,6 +992,22 @@ function avatarUrl(memberId: string, avatarKey: string, avatarVersion: number) {
 }
 
 // 1枚目は番号なしのまま置く。以前に投稿された写真をそのまま読めるようにするため。
+/** 動画の置き場。1つの探しごとにつき1本。 */
+function requestVideoKey(id: string) {
+  return `request-videos/${id}`;
+}
+
+/** 保存した動画を読み出す。 */
+export async function getRequestVideo(id: string) {
+  await ensureDatabase();
+  return env.AVATARS.get(requestVideoKey(id));
+}
+
+/** 動画のURL。版番号つきなので1年キャッシュできる。 */
+function requestVideoUrl(id: string, version: number) {
+  return version ? `/api/request-video/${encodeURIComponent(id)}?v=${version}` : '';
+}
+
 function requestImageKey(id: string, size: 'thumb' | 'full', index = 0) {
   const folder = size === 'thumb' ? 'request-thumbs' : 'request-images';
   return index === 0 ? `${folder}/${id}` : `${folder}/${id}/${index}`;

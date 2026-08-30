@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
-import { createRequest, getBoardData, type RequestImageUpload } from '@/db/data';
+import { createRequest, getBoardData, type RequestImageUpload, type RequestVideoUpload } from '@/db/data';
+// 動画の上限は、圧縮する側（app/compress-video.ts）と同じ値を使う。ずれると片側だけ通る。
+import { VIDEO_MAX_BYTES } from '@/app/compress-video';
 import { isIndustry } from '@/app/industry-options';
 import { descriptionLimit } from '@/app/rank-perks';
 
@@ -59,8 +61,21 @@ export async function POST(request: Request) {
     }
   }
 
+  // 動画は1本まで。圧縮は端末側で済んでいる前提なので、ここでは大きさだけ見る。
+  let video: RequestVideoUpload | null = null;
+  const videoFile = form?.get('video');
+  if (videoFile instanceof File && videoFile.size > 0) {
+    if (videoFile.size > VIDEO_MAX_BYTES) {
+      return NextResponse.json({ error: '動画が大きすぎます。短く切ってからお試しください。' }, { status: 400 });
+    }
+    if (!/^video\/(mp4|webm|quicktime)$/.test(videoFile.type)) {
+      return NextResponse.json({ error: '動画はMP4かWebMでお願いします。' }, { status: 400 });
+    }
+    video = { bytes: await videoFile.arrayBuffer(), contentType: videoFile.type };
+  }
+
   try {
-    const id = await createRequest(user, { category, title, description, budgetLabel, area, industryTags, deadline, images });
+    const id = await createRequest(user, { category, title, description, budgetLabel, area, industryTags, deadline, images, video });
     return NextResponse.json({ id }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : '投稿できませんでした。' }, { status: 400 });

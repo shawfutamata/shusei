@@ -317,7 +317,7 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .quota-block p { margin:0; color:#4c5a70; font-size:13px; line-height:1.8; }
 
 /* Rank card: a membership card. Crest in the middle, member fields below. */
-.rank-card.rank-card-slim { min-height:0; margin:14px 14px 0; padding:14px 18px; aspect-ratio:1.586; display:flex; flex-direction:column; }
+.rank-card.rank-card-slim { min-height:0; margin:14px 14px 0; padding:14px 18px 17px; aspect-ratio:1.586; display:flex; flex-direction:column; }
 .rank-card.rank-card-slim::before { inset:5px; }
 .rank-slim-top { margin:0; display:flex; align-items:center; gap:7px; }
 /* ランクカードは押すと特典が開く。ボタンにしても見た目は変えない。 */
@@ -335,7 +335,8 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .rank-slim-foot small { display:block; color:var(--rank-muted); font-size:8px; font-weight:900; letter-spacing:.16em; }
 .rank-slim-foot b { display:block; margin-top:3px; font-size:12px; line-height:1.45; }
 .rank-slim-foot>span:nth-child(2) { text-align:right; }
-.rank-slim-venue { grid-column:1 / 3; }
+.rank-slim-venue { grid-column:1 / 3; min-width:0; }
+.rank-slim-venue b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .rank-next { width:calc(100% - 28px); margin:10px 14px 0; padding:12px 15px; display:block; border:1px solid var(--line); border-radius:14px; background:#fff; text-align:left; box-shadow:0 5px 16px rgba(28,52,93,.05); }
 
 .rank-next-copy { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
@@ -508,6 +509,25 @@ body { font-weight:600; }
 
 /* 決済が未設定のときに、ボタンの代わりに出す一行。黙って消さない。 */
 .plan-not-ready { margin:9px 0 0; padding:9px 11px; border-radius:9px; background:#f4f6fa; color:#6b7a90; font-size:10px; font-weight:700; line-height:1.6; }
+
+/* 動画。付けるところと、詳細で再生するところ。 */
+.request-video { padding:13px; border:1px solid #d7deea; border-radius:12px; background:#f9fbfe; }
+.request-video>p { margin:0 0 10px; }
+.request-video b { display:block; color:#34445d; font-size:11px; }
+.request-video b em { margin-left:5px; padding:2px 5px; border-radius:4px; background:#8695ab; color:#fff; font-size:8px; font-style:normal; }
+.request-video small { display:block; margin-top:4px; color:#8794a7; font-size:10px; line-height:1.6; }
+.request-video-add { min-height:74px; display:grid; place-items:center; align-content:center; gap:3px; border:1.5px dashed #b9c8dd; border-radius:11px; background:#fff; color:#5b6d86; cursor:pointer; }
+.request-video-add input { display:none; }
+.request-video-add>b { font-size:20px; font-weight:400; }
+.request-video-add>small { font-size:10px; }
+.request-video-item { display:grid; gap:8px; }
+.request-video-item video { width:100%; max-height:220px; border-radius:11px; background:#000; }
+.request-video-item button { min-height:38px; border:1px solid #d7deea; border-radius:9px; background:#fff; color:#6b7a90; font-size:10px; font-weight:800; }
+/* 圧縮は実時間かかる。進み具合を出さないと固まったように見える。 */
+.request-video-busy { position:relative; min-height:56px; display:grid; place-items:center; overflow:hidden; border-radius:11px; background:#eaf2ff; }
+.request-video-busy>span { position:absolute; inset:0 auto 0 0; background:#cfe3fb; transition:width .2s linear; }
+.request-video-busy>b { position:relative; color:#1a4f96; font-size:11px; }
+.need-video { width:100%; margin:12px 0 0; max-height:320px; border-radius:12px; background:#000; }
 
 /* 説明を開く小さな i。見出しや項目名の横に置く。 */
 .info-button { width:18px; height:18px; margin-left:7px; padding:0; display:inline-grid; place-items:center; vertical-align:middle; border:0; border-radius:50%; background:#5b6b82; color:#fff; font-size:11px; font-weight:900; font-style:italic; line-height:1; cursor:pointer; font-family:Georgia,'Times New Roman',serif; }

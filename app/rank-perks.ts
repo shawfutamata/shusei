@@ -44,7 +44,7 @@ export const rankPerks: RankPerk[] = [
     detail: '探しごとに付けられる写真が1枚から5枚に増えます。現場や商品を何枚も見せられます。',
   },
   {
-    key: 'video', label: '動画を投稿できる', minLevel: 3, soon: true,
+    key: 'video', label: '動画を投稿できる', minLevel: 3,
     detail: '探しごとに短い動画を付けられるようになります。大きい動画は送る前に端末側で自動的に縮めるので、通信量を気にせず選べます。',
   },
   {
@@ -100,6 +100,11 @@ export function canExtendRequest(level: number) {
 
 /** 延長したときに増える日数。 */
 export const EXTEND_DAYS = 14;
+
+/** 動画を付けられるか。PLATINUM以上。 */
+export function canPostVideo(level: number) {
+  return level >= 3;
+}
 
 /** 年商で絞り込めるか。PLATINUM以上。 */
 export function canFilterByRevenue(level: number) {

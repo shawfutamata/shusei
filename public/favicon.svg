@@ -1,23 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="TASUKI">
   <title>TASUKI</title>
   <defs>
-    <!-- 外は角丸の四角、内はたすきが交差してできる木の葉。差分がリングになる。
-         いちど真円にしたが、正のロゴは上下・左右が平たい角丸四角だったので戻した。
-         **正のベクターデータが入ったら、このファイルごと差し替えること。** -->
+    <!-- 外は角丸の四角（辺が少し平ら）、内はたすきが交差してできる木の葉。
+         差分がリングになる。 -->
     <path id="tasuki-ring" fill-rule="evenodd" d="
-      M86 6 H114 A80 80 0 0 1 194 86 V114 A80 80 0 0 1 114 194 H86 A80 80 0 0 1 6 114 V86 A80 80 0 0 1 86 6 Z
-      M100 26 C152 62 152 138 100 174 C48 138 48 62 100 26 Z" />
-    <!-- 分け目を斜めにすると、上は水色、下は紺が相手側へ渡る。たすきの交差。 -->
-    <clipPath id="tasuki-left"><path d="M0 0 H80 L120 200 H0 Z" /></clipPath>
-    <clipPath id="tasuki-right"><path d="M80 0 H200 V200 H120 Z" /></clipPath>
+      M80 6 H120 A74 74 0 0 1 194 80 V120 A74 74 0 0 1 120 194 H80 A74 74 0 0 1 6 120 V80 A74 74 0 0 1 80 6 Z
+      M100 16 C168 58 168 142 100 184 C32 142 32 58 100 16 Z" />
+    <!-- 分け目は少し斜め。上では紺が右へ、下では水色が左へ渡る。たすきの交差。 -->
+    <clipPath id="tasuki-left"><path d="M0 0 H110 L90 200 H0 Z" /></clipPath>
+    <clipPath id="tasuki-right"><path d="M110 0 H200 V200 H90 Z" /></clipPath>
     <clipPath id="tasuki-ring-clip"><use href="#tasuki-ring" /></clipPath>
     <linearGradient id="tasuki-navy" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0" stop-color="#06397f" />
-      <stop offset="1" stop-color="#1160bf" />
+      <stop offset="0" stop-color="#0a3f8f" />
+      <stop offset="1" stop-color="#1565cc" />
     </linearGradient>
     <linearGradient id="tasuki-sky" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0" stop-color="#199fe8" />
-      <stop offset="1" stop-color="#52cbfb" />
+      <stop offset="0" stop-color="#28a8ef" />
+      <stop offset="1" stop-color="#5fd0fb" />
     </linearGradient>
   </defs>
 
@@ -26,7 +25,7 @@
 
   <!-- 左右の中ほどに橙。たすきを受け渡す一点。帯の幅いっぱいに掛ける。 -->
   <g clip-path="url(#tasuki-ring-clip)" fill="#f4501e">
-    <rect x="0" y="84" width="62" height="32" />
-    <rect x="138" y="84" width="62" height="32" />
+    <rect x="0" y="88" width="54" height="25" />
+    <rect x="146" y="88" width="54" height="25" />
   </g>
 </svg>
