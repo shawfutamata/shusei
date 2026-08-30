@@ -702,25 +702,50 @@ function randomMobileToken() {
 }
 
 /**
- * 本番に入ってしまったサンプルを片づける。
+ * 立ち上げの途中まで入れていたサンプルの会員と募集を片づける。
  *
- * 立ち上げの途中まで、サンプルの会員と募集を本番にも入れていた。実際の会員から
- * 見れば知らない人の知らない募集なので、消す。IDは決まった2件だけなので、
- * 何度走らせても同じ結果になる（すでに無ければ何も起きない）。
+ * **手元でも本番でも動かす。** 前は本番だけで動かしていたため一度も実行されず、
+ * 外部キー制約で落ちて全画面が500になった。環境で分けたコードは、分けたほうが
+ * 必ず未検証になる。
+ *
+ * **消す募集はIDを決め打ちせず、DBに聞く。** 種まきで作ったIDだけを想定して
+ * いたが、実際にはサンプル会員が別のIDの募集も持っていて、そこにぶら下がった
+ * 紹介やコメントが外部キーに引っかかっていた。
+ *
+ * **1文ずつ流し、失敗しても先へ進む。** 片づけは「あとで消えていればよい」もので、
+ * ここで例外を投げると ensureDatabase ごと落ちてサイト全体が開かなくなる。
+ * 掃除のためにサービスを止めるのは、どう考えても割に合わない。
  */
 async function removeDemoData() {
-  if (import.meta.env.DEV) return;
-  const requestIds = ['request-video-partner', 'request-salon-designer'];
   const memberIds = ['demo-tanaka', 'demo-sato'];
-  await env.DB.batch([
-    ...requestIds.map((id) => env.DB.prepare('DELETE FROM introductions WHERE request_id = ?').bind(id)),
-    ...requestIds.map((id) => env.DB.prepare('DELETE FROM request_comments WHERE request_id = ?').bind(id)),
-    ...requestIds.map((id) => env.DB.prepare('DELETE FROM requests WHERE id = ?').bind(id)),
-    ...memberIds.map((id) => env.DB.prepare('DELETE FROM requests WHERE author_id = ?').bind(id)),
-    ...memberIds.map((id) => env.DB.prepare('DELETE FROM introductions WHERE introducer_id = ?').bind(id)),
-    ...memberIds.map((id) => env.DB.prepare('DELETE FROM request_comments WHERE author_id = ?').bind(id)),
-    ...memberIds.map((id) => env.DB.prepare('DELETE FROM members WHERE id = ?').bind(id)),
-  ]);
+  const seeded = ['request-video-partner', 'request-salon-designer'];
+
+  // サンプル会員が持っている募集を、IDを決め打ちせずに引く。
+  const owned = await env.DB.prepare(
+    `SELECT id FROM requests WHERE author_id IN (${memberIds.map(() => '?').join(',')})`,
+  ).bind(...memberIds).all<{ id: string }>().catch(() => null);
+  const requestIds = [...new Set([...seeded, ...(owned?.results ?? []).map((row) => row.id)])];
+
+  const run = async (sql: string, ids: string[]) => {
+    for (const id of ids) await env.DB.prepare(sql).bind(id).run().catch(() => undefined);
+  };
+
+  // 参照している側から順に。最後が members。
+  await run('DELETE FROM introductions WHERE request_id = ?', requestIds);
+  await run('DELETE FROM request_comments WHERE request_id = ?', requestIds);
+  await run('DELETE FROM requests WHERE id = ?', requestIds);
+  await run('DELETE FROM attendance_people WHERE owner_id = ?', memberIds);
+  await run('DELETE FROM attendance_events WHERE owner_id = ?', memberIds);
+  await run('DELETE FROM mobile_push_tokens WHERE member_id = ?', memberIds);
+  await run('DELETE FROM mobile_sessions WHERE member_id = ?', memberIds);
+  await run('DELETE FROM push_subscriptions WHERE member_id = ?', memberIds);
+  await run('DELETE FROM feedback WHERE member_id = ?', memberIds);
+  await run('DELETE FROM ad_slots WHERE member_id = ?', memberIds);
+  await run('DELETE FROM request_comments WHERE member_id = ?', memberIds);
+  await run('DELETE FROM introductions WHERE introducer_id = ?', memberIds);
+  await run('DELETE FROM referral_credits WHERE inviter_id = ?', memberIds);
+  await run('DELETE FROM referral_credits WHERE invitee_id = ?', memberIds);
+  await run('DELETE FROM members WHERE id = ?', memberIds);
 }
 
 /**
@@ -737,13 +762,13 @@ async function seedDemoData() {
 
   const now = new Date().toISOString();
   await env.DB.batch([
-    env.DB.prepare('INSERT OR IGNORE INTO members (id, email, display_name, venue, company, intro_count, deal_count, points, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind('demo-tanaka', 'tanaka@example.jp', '田中 美咲', 'ひるのめぐろ会場', '株式会社ミナト｜採用支援', 11, 4, 520, now),
-    env.DB.prepare('INSERT OR IGNORE INTO members (id, email, display_name, venue, company, intro_count, deal_count, points, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind('demo-sato', 'sato@example.jp', '佐藤 健一', '渋谷会場', 'SATO HAIR｜美容室経営', 6, 2, 260, now),
+    env.DB.prepare('INSERT OR IGNORE INTO members (id, email, display_name, venue, company, intro_count, deal_count, points, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind('sample-tanaka', 'tanaka@example.jp', '田中 美咲', 'ひるのめぐろ会場', '株式会社ミナト｜採用支援', 11, 4, 520, now),
+    env.DB.prepare('INSERT OR IGNORE INTO members (id, email, display_name, venue, company, intro_count, deal_count, points, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind('sample-sato', 'sato@example.jp', '佐藤 健一', '渋谷会場', 'SATO HAIR｜美容室経営', 6, 2, 260, now),
   ]);
 
   await env.DB.batch([
-    env.DB.prepare('INSERT OR IGNORE INTO requests (id, author_id, category, title, description, budget_label, area, deadline, status, industry_tags, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind('request-video-partner', 'demo-tanaka', 'collaboration', '店舗の採用課題を一緒に解決できる、動画制作会社を探しています', '飲食店向けの採用支援をしています。採用SNSの企画から撮影・編集まで、長く組める制作パートナーと出会いたいです。', '月額 20〜40万円', '東京都', '2026-09-30', 'open', '["映像・写真","Web・広告"]', '2026-08-27T09:00:00.000Z'),
-    env.DB.prepare('INSERT OR IGNORE INTO requests (id, author_id, category, title, description, budget_label, area, deadline, status, industry_tags, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind('request-salon-designer', 'demo-sato', 'project', '10月オープン予定の美容室に強い、内装デザイナーを探しています', '恵比寿の18坪の物件です。動線設計と照明にこだわりたいので、美容室の実績がある方をご紹介ください。', '300〜450万円', '東京都', '2026-09-10', 'open', '["美容・健康","建設・不動産"]', '2026-08-26T10:30:00.000Z'),
+    env.DB.prepare('INSERT OR IGNORE INTO requests (id, author_id, category, title, description, budget_label, area, deadline, status, industry_tags, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind('sample-video-partner', 'sample-tanaka', 'collaboration', '店舗の採用課題を一緒に解決できる、動画制作会社を探しています', '飲食店向けの採用支援をしています。採用SNSの企画から撮影・編集まで、長く組める制作パートナーと出会いたいです。', '月額 20〜40万円', '東京都', '2026-09-30', 'open', '["映像・写真","Web・広告"]', '2026-08-27T09:00:00.000Z'),
+    env.DB.prepare('INSERT OR IGNORE INTO requests (id, author_id, category, title, description, budget_label, area, deadline, status, industry_tags, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind('sample-salon-designer', 'sample-sato', 'project', '10月オープン予定の美容室に強い、内装デザイナーを探しています', '恵比寿の18坪の物件です。動線設計と照明にこだわりたいので、美容室の実績がある方をご紹介ください。', '300〜450万円', '東京都', '2026-09-10', 'open', '["美容・健康","建設・不動産"]', '2026-08-26T10:30:00.000Z'),
   ]);
 }
 
