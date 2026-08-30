@@ -18,7 +18,8 @@
     "sync:perks": "node --experimental-strip-types scripts/sync-mobile-perks.mjs",
     "check:perks": "node --experimental-strip-types scripts/sync-mobile-perks.mjs --check",
     "deploy": "vinext build && wrangler deploy",
-    "tail": "wrangler tail"
+    "tail": "wrangler tail",
+    "setup": "bash scripts/setup-cloudflare.sh"
   },
   "dependencies": {
     "@block65/webcrypto-web-push": "^1.0.2",

@@ -17,16 +17,25 @@
 
 ## はじめの1回だけ
 
-Cloudflareのアカウントで、置き場所を3つ作る。**APIトークンはチャットに貼らない。** `wrangler login` はブラウザが開いて本人が承認する。
+```bash
+npm run setup
+```
+
+ログイン、D1とR2の作成、`wrangler.jsonc` への `database_id` の書き込み、`AUTH_CODE_PEPPER` の生成と設定までを1本でやる。**すでにあるものは作り直さない**ので、途中で止まってもそのまま流し直せる。
+
+- `wrangler login` はブラウザが開いて本人が承認する。**チャットに貼るものは何も無い**
+- `AUTH_CODE_PEPPER` はその場で生成して、そのまま `wrangler secret put` の標準入力へ渡す。**画面にもコマンド履歴にも残らない**
+- `database_id` は秘密ではないので、書き込まれたらそのままコミットしてよい
+
+手で順にやる場合はこちら。
 
 ```bash
 npx wrangler login
-
 npx wrangler d1 create tasuki               # → database_id が出る
 npx wrangler r2 bucket create tasuki-avatars
+# 出たIDを wrangler.jsonc の REPLACE_WITH_YOUR_D1_DATABASE_ID に貼る
+openssl rand -hex 32 | npx wrangler secret put AUTH_CODE_PEPPER
 ```
-
-`d1 create` が出した `database_id` を `wrangler.jsonc` の `REPLACE_WITH_YOUR_D1_DATABASE_ID` に貼る。**IDは秘密ではない**ので、そのままコミットしてよい。
 
 `preview_database_id` は触らない。手元の開発サーバー専用の鍵で、本番のIDを入れ替えても手元に溜めたデータが迷子にならないようにしてある。
 
