@@ -391,19 +391,12 @@ export async function ensureDatabase() {
       activated_at = CASE WHEN activated_at = '' THEN created_at ELSE activated_at END
     WHERE membership_status = 'invited'`).run();
   await env.DB.prepare("UPDATE members SET plan = 'premium' WHERE plan = 'pro'").run();
+  await removeDemoData();
   await seedDemoData();
   await env.DB.batch([
-    env.DB.prepare("UPDATE members SET annual_revenue_band = 'revenue_30_70' WHERE id = 'demo-tanaka' AND annual_revenue_band = ''"),
-    env.DB.prepare("UPDATE members SET annual_revenue_band = 'revenue_70_100' WHERE id = 'demo-sato' AND annual_revenue_band = ''"),
-    env.DB.prepare("UPDATE members SET position_title = '代表取締役', badge = '赤', business_area = '東京都' WHERE id = 'demo-tanaka' AND business_area = ''"),
-    env.DB.prepare("UPDATE members SET position_title = 'オーナー', badge = '緑', business_area = '東京都' WHERE id = 'demo-sato' AND business_area = ''"),
     env.DB.prepare("UPDATE members SET badge = '赤' WHERE badge IN ('赤バッヂ', '赤バッジ')"),
     env.DB.prepare("UPDATE members SET badge = '緑' WHERE badge IN ('緑バッヂ', '緑バッジ')"),
     env.DB.prepare("UPDATE members SET badge = '' WHERE badge NOT IN ('', '緑', '赤', 'ゴールド', 'ダイヤモンド')"),
-    env.DB.prepare("UPDATE members SET primary_industry = '人材・教育', notify_industries = '[\"人材・教育\",\"映像・写真\",\"Web・広告\"]' WHERE id = 'demo-tanaka' AND primary_industry = ''"),
-    env.DB.prepare("UPDATE members SET primary_industry = '美容・健康', notify_industries = '[\"美容・健康\",\"デザイン・印刷\",\"建設・不動産\"]' WHERE id = 'demo-sato' AND primary_industry = ''"),
-    env.DB.prepare("UPDATE requests SET industry_tags = '[\"映像・写真\",\"Web・広告\"]' WHERE id = 'request-video-partner' AND industry_tags = '[]'"),
-    env.DB.prepare("UPDATE requests SET industry_tags = '[\"美容・健康\",\"建設・不動産\"]' WHERE id = 'request-salon-designer' AND industry_tags = '[]'"),
   ]);
   initialized = true;
 }
@@ -708,7 +701,37 @@ function randomMobileToken() {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
+/**
+ * 本番に入ってしまったサンプルを片づける。
+ *
+ * 立ち上げの途中まで、サンプルの会員と募集を本番にも入れていた。実際の会員から
+ * 見れば知らない人の知らない募集なので、消す。IDは決まった2件だけなので、
+ * 何度走らせても同じ結果になる（すでに無ければ何も起きない）。
+ */
+async function removeDemoData() {
+  if (import.meta.env.DEV) return;
+  const requestIds = ['request-video-partner', 'request-salon-designer'];
+  const memberIds = ['demo-tanaka', 'demo-sato'];
+  await env.DB.batch([
+    ...requestIds.map((id) => env.DB.prepare('DELETE FROM introductions WHERE request_id = ?').bind(id)),
+    ...requestIds.map((id) => env.DB.prepare('DELETE FROM request_comments WHERE request_id = ?').bind(id)),
+    ...requestIds.map((id) => env.DB.prepare('DELETE FROM requests WHERE id = ?').bind(id)),
+    ...memberIds.map((id) => env.DB.prepare('DELETE FROM requests WHERE author_id = ?').bind(id)),
+    ...memberIds.map((id) => env.DB.prepare('DELETE FROM introductions WHERE introducer_id = ?').bind(id)),
+    ...memberIds.map((id) => env.DB.prepare('DELETE FROM request_comments WHERE author_id = ?').bind(id)),
+    ...memberIds.map((id) => env.DB.prepare('DELETE FROM members WHERE id = ?').bind(id)),
+  ]);
+}
+
+/**
+ * 手元で動かすときのサンプル。**本番には入れない。**
+ *
+ * import.meta.env.DEV は本番ビルドで false になるので、この関数の中身ごと消える。
+ * もとは本番でも入れていて、投稿が0件になると入り直す作りだった。会員が
+ * サンプルを消しても、次に誰かが開いた瞬間また生えてくることになる。
+ */
 async function seedDemoData() {
+  if (!import.meta.env.DEV) return;
   const row = await env.DB.prepare('SELECT COUNT(*) AS count FROM requests').first<{ count: number }>();
   if (Number(row?.count ?? 0) > 0) return;
 
@@ -719,8 +742,8 @@ async function seedDemoData() {
   ]);
 
   await env.DB.batch([
-    env.DB.prepare('INSERT OR IGNORE INTO requests (id, author_id, category, title, description, budget_label, area, deadline, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind('request-video-partner', 'demo-tanaka', 'collaboration', '店舗の採用課題を一緒に解決できる、動画制作会社を探しています', '飲食店向けの採用支援をしています。採用SNSの企画から撮影・編集まで、長く組める制作パートナーと出会いたいです。', '月額 20〜40万円', '東京都・オンライン', '2026-09-30', 'open', '2026-08-27T09:00:00.000Z'),
-    env.DB.prepare('INSERT OR IGNORE INTO requests (id, author_id, category, title, description, budget_label, area, deadline, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind('request-salon-designer', 'demo-sato', 'project', '10月オープン予定の美容室に強い、内装デザイナーを探しています', '恵比寿の18坪の物件です。動線設計と照明にこだわりたいので、美容室の実績がある方をご紹介ください。', '300〜450万円', '東京都', '2026-09-10', 'open', '2026-08-26T10:30:00.000Z'),
+    env.DB.prepare('INSERT OR IGNORE INTO requests (id, author_id, category, title, description, budget_label, area, deadline, status, industry_tags, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind('request-video-partner', 'demo-tanaka', 'collaboration', '店舗の採用課題を一緒に解決できる、動画制作会社を探しています', '飲食店向けの採用支援をしています。採用SNSの企画から撮影・編集まで、長く組める制作パートナーと出会いたいです。', '月額 20〜40万円', '東京都', '2026-09-30', 'open', '["映像・写真","Web・広告"]', '2026-08-27T09:00:00.000Z'),
+    env.DB.prepare('INSERT OR IGNORE INTO requests (id, author_id, category, title, description, budget_label, area, deadline, status, industry_tags, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind('request-salon-designer', 'demo-sato', 'project', '10月オープン予定の美容室に強い、内装デザイナーを探しています', '恵比寿の18坪の物件です。動線設計と照明にこだわりたいので、美容室の実績がある方をご紹介ください。', '300〜450万円', '東京都', '2026-09-10', 'open', '["美容・健康","建設・不動産"]', '2026-08-26T10:30:00.000Z'),
   ]);
 }
 
