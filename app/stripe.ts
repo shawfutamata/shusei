@@ -65,3 +65,72 @@ export async function creditCustomer(customerId: string, yen: number, descriptio
   const stripe = stripeClient();
   await stripe.customers.createBalanceTransaction(customerId, { amount: -yen, currency: 'jpy', description });
 }
+
+/** 支払い1件ぶん。会員のマイページに出す。 */
+export type BillingRecord = {
+  id: string;
+  /** YYYY-MM-DD。日本時間で出す。 */
+  date: string;
+  /** 税込の請求額（円）。 */
+  yen: number;
+  what: string;
+  /** 領収書・請求書のPDF。Stripeが持っているものをそのまま渡す。 */
+  receiptUrl: string;
+  paid: boolean;
+};
+
+/**
+ * その会員の支払い履歴を返す。
+ *
+ * 請求書（invoice）を見る。購読は Stripe が毎回作り、出稿枠の1回きりの
+ * 支払いも `invoice_creation` で作らせているので、**両方ここに並ぶ**。
+ * 請求書が無い古い支払いだけ、charge のレシートで拾う。
+ *
+ * 金額はStripeが持っているものを使う。こちらで計算し直さない。
+ * 会員に見せる領収書の額と、実際に引き落とした額がずれないようにするため。
+ */
+export async function listBillingHistory(customerId: string, limit = 24): Promise<BillingRecord[]> {
+  if (!customerId) return [];
+  const stripe = stripeClient();
+  const [invoices, charges] = await Promise.all([
+    stripe.invoices.list({ customer: customerId, limit }),
+    stripe.charges.list({ customer: customerId, limit }),
+  ]);
+
+  const records: BillingRecord[] = invoices.data
+    .filter((invoice) => invoice.status !== 'draft' && invoice.status !== 'void')
+    .map((invoice) => ({
+      id: invoice.id ?? '',
+      date: jstDate(invoice.created),
+      yen: invoice.amount_paid || invoice.amount_due || 0,
+      what: invoice.lines.data[0]?.description || 'TASUKI ご利用料金',
+      receiptUrl: invoice.hosted_invoice_url || invoice.invoice_pdf || '',
+      paid: invoice.status === 'paid',
+    }));
+
+  // 請求書が付いていない古い支払いだけ足す。
+  // 突き合わせは「日付と金額」で見る。SDKの版によって invoice と charge を
+  // つなぐ項目名が変わる（22系で invoice.charge が無くなった）ので、
+  // 版に左右されない見分け方にしておく。いまは出稿枠にも請求書を作らせて
+  // いるので、ここを通るのはこの変更より前の支払いだけ。
+  const seen = new Set(records.map((record) => `${record.date}:${record.yen}`));
+  for (const charge of charges.data) {
+    if (charge.status !== 'succeeded') continue;
+    if (seen.has(`${jstDate(charge.created)}:${charge.amount}`)) continue;
+    records.push({
+      id: charge.id,
+      date: jstDate(charge.created),
+      yen: charge.amount,
+      what: charge.description || 'TASUKI ご利用料金',
+      receiptUrl: charge.receipt_url ?? '',
+      paid: true,
+    });
+  }
+
+  return records.sort((a, b) => b.date.localeCompare(a.date)).slice(0, limit);
+}
+
+/** Stripeの秒を、日本時間の日付にする。 */
+function jstDate(seconds: number) {
+  return new Date(seconds * 1000 + 9 * 3600_000).toISOString().slice(0, 10);
+}

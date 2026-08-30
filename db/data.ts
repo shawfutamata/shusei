@@ -743,6 +743,20 @@ export async function upsertMember(user: SessionUser) {
     ON CONFLICT(id) DO UPDATE SET email = excluded.email, display_name = excluded.display_name`).bind(user.userId, user.email, user.displayName, now).run();
 }
 
+/**
+ * サンプルの投稿を本番の一覧から外す条件。
+ *
+ * サンプルの会員はメールが `@example.jp`（RFC2606の予約ドメインなので、
+ * 本物の会員とぶつからない）。行そのものを消すのは1回きりの作業なので
+ * `docs/sample-cleanup-ja.md` の手順に譲り、**ここでは見せないだけ**にする。
+ * 消す処理を起動経路に置いて全画面を落としたことがあるため、二度とやらない。
+ *
+ * 手元の開発サーバーでは外さない。中身が無いと画面の確認ができない。
+ * `import.meta.env.DEV` は本番ビルドで false の定数に置き換わる。
+ */
+const hideSamples = import.meta.env.DEV ? ''
+  : "WHERE m.email NOT LIKE '%@example.jp' AND m.email NOT LIKE '%@example.com'";
+
 export async function getBoardData(user: SessionUser) {
   await upsertMember(user);
   const requestsResult = await env.DB.prepare(`SELECT r.id, r.category, r.title, r.description,
@@ -764,6 +778,7 @@ export async function getBoardData(user: SessionUser) {
     (SELECT COUNT(*) FROM request_comments c WHERE c.request_id = r.id) AS commentCount
     FROM requests r
     JOIN members m ON m.id = r.author_id
+    ${hideSamples}
     ORDER BY CASE WHEN r.pinned_until > ? THEN 0 ELSE 1 END, r.created_at DESC`)
     .bind(user.userId, new Date().toISOString())
     .all<Omit<BoardRequest, 'industryTags' | 'thumbUrl' | 'imageUrl' | 'imageUrls' | 'mine'> & { industryTagsJson: string; imageVersion: number; imageCount: number; videoVersion: number; authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
@@ -877,6 +892,113 @@ export async function createRequest(user: SessionUser, input: { category: string
   await sendMatchingPushNotifications(user.userId, { id, title: input.title, industryTags: input.industryTags }).catch(() => undefined);
   await sendMatchingMobileNotifications(user.userId, { id, title: input.title, industryTags: input.industryTags }).catch(() => undefined);
   return id;
+}
+
+/**
+ * 自分が出した探しごとを、新しい順に返す。マイページの「自分の投稿」に出す。
+ *
+ * 掲示板の一覧とは別に引く。掲示板は募集中のものを他人に見せる場所で、
+ * ここは**期限が切れたものも含めて自分の記録を全部見せる**場所だから。
+ */
+export async function listMyRequests(user: SessionUser) {
+  await upsertMember(user);
+  const rows = await env.DB.prepare(`SELECT r.id, r.category, r.title, r.description,
+    r.budget_label AS budgetLabel, r.area, r.industry_tags AS industryTagsJson,
+    r.deadline, r.status, r.image_version AS imageVersion, r.image_count AS imageCount,
+    r.video_version AS videoVersion, r.created_at AS createdAt, r.extended_at AS extendedAt,
+    (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id) AS introCount,
+    (SELECT COUNT(*) FROM request_comments c WHERE c.request_id = r.id) AS commentCount
+    FROM requests r WHERE r.author_id = ? ORDER BY r.created_at DESC`)
+    .bind(user.userId).all<{ id: string; category: string; title: string; description: string;
+      budgetLabel: string; area: string; industryTagsJson: string; deadline: string; status: string;
+      imageVersion: number; imageCount: number; videoVersion: number; createdAt: string;
+      extendedAt: string; introCount: number; commentCount: number }>();
+  return rows.results.map(({ industryTagsJson, imageVersion, imageCount, videoVersion, ...rest }) => ({
+    ...rest,
+    industryTags: parseStringArray(industryTagsJson),
+    thumbUrl: requestImageUrl(rest.id, imageVersion, 'thumb'),
+    imageCount,
+    hasVideo: videoVersion > 0,
+  }));
+}
+
+/**
+ * 自分の探しごとを直す。
+ *
+ * **他人の投稿を書き替えられないよう、WHERE に author_id を入れる。**
+ * 画面側で編集ボタンを出し分けるだけでは、APIを直接叩かれたときに守れない。
+ * 写真は「選び直したときだけ」入れ替える。触らなければそのまま残る。
+ */
+export async function updateRequest(user: SessionUser, id: string, input: {
+  category: string; title: string; description: string; budgetLabel: string; area: string;
+  industryTags: string[]; deadline: string; status: string; images?: RequestImageUpload[];
+}) {
+  await upsertMember(user);
+  const own = await env.DB.prepare('SELECT image_count AS imageCount FROM requests WHERE id = ? AND author_id = ?')
+    .bind(id, user.userId).first<{ imageCount: number }>();
+  if (!own) throw new Error('この探しごとは編集できません。');
+
+  const { level } = await getMemberRank(user.userId);
+  let imageSet = '';
+  const imageBinds: (string | number)[] = [];
+  const images = input.images ?? [];
+  if (images.length) {
+    // 選び直したぶんで全部入れ替える。前より枚数が減ったときに、古い写真が
+    // 残って見えてしまわないよう、余ったキーはあとで消す。
+    const kept = images.slice(0, photoLimit(level));
+    const version = Date.now();
+    await Promise.all(kept.flatMap((image, index) => [
+      env.AVATARS.put(requestImageKey(id, 'thumb', index), image.thumb.bytes, {
+        httpMetadata: { contentType: image.thumb.contentType },
+        customMetadata: { ownerId: user.userId, requestId: id },
+      }),
+      env.AVATARS.put(requestImageKey(id, 'full', index), image.full.bytes, {
+        httpMetadata: { contentType: image.full.contentType },
+        customMetadata: { ownerId: user.userId, requestId: id },
+      }),
+    ]));
+    for (let index = kept.length; index < (own.imageCount ?? 0); index += 1) {
+      await Promise.allSettled([
+        env.AVATARS.delete(requestImageKey(id, 'thumb', index)),
+        env.AVATARS.delete(requestImageKey(id, 'full', index)),
+      ]);
+    }
+    imageSet = ', image_version = ?, image_count = ?';
+    imageBinds.push(version, kept.length);
+  }
+
+  await env.DB.prepare(`UPDATE requests SET category = ?, title = ?, description = ?,
+    budget_label = ?, area = ?, industry_tags = ?, deadline = ?, status = ?${imageSet}
+    WHERE id = ? AND author_id = ?`)
+    .bind(input.category, input.title, input.description.slice(0, descriptionLimit(level)),
+      input.budgetLabel, input.area, JSON.stringify(input.industryTags), input.deadline,
+      input.status === 'closed' ? 'closed' : 'open', ...imageBinds, id, user.userId).run();
+}
+
+/**
+ * 自分の探しごとを消す。ぶら下がっているやり取りと紹介も一緒に消す。
+ *
+ * 順番が要る。子（コメント・紹介）を先に消さないと外部キーで止まる。
+ * D1に `ON DELETE CASCADE` は入っていないので、ここで面倒を見る。
+ */
+export async function deleteRequest(user: SessionUser, id: string) {
+  await upsertMember(user);
+  const own = await env.DB.prepare('SELECT image_count AS imageCount, video_version AS videoVersion FROM requests WHERE id = ? AND author_id = ?')
+    .bind(id, user.userId).first<{ imageCount: number; videoVersion: number }>();
+  if (!own) throw new Error('この探しごとは削除できません。');
+
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM request_comments WHERE request_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM introductions WHERE request_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM requests WHERE id = ? AND author_id = ?').bind(id, user.userId),
+  ]);
+
+  // R2の後片づけ。ここが失敗しても投稿は消えているので、握りつぶしてよい。
+  const keys = [requestVideoKey(id)];
+  for (let index = 0; index < Math.max(1, own.imageCount ?? 0); index += 1) {
+    keys.push(requestImageKey(id, 'thumb', index), requestImageKey(id, 'full', index));
+  }
+  await Promise.allSettled(keys.map((key) => env.AVATARS.delete(key)));
 }
 
 export async function savePushSubscription(user: SessionUser, subscription: PushSubscription) {

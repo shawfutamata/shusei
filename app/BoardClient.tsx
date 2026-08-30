@@ -1,6 +1,6 @@
 'use client';
 
-import { ChangeEvent, CSSProperties, FormEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, CSSProperties, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import type { AdSlot, BoardRequest, MemberStats, ReferralSummary } from '@/db/data';
 import ReceivedIntroductions from './ReceivedIntroductions';
@@ -14,6 +14,7 @@ import { feedbackCategories } from './feedback-options';
 import { adDailyPrice, adTotalPrice, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
 import LegalLinks from './LegalLinks';
+import type { BillingRecord } from './stripe';
 import PerkIcon from './PerkIcon';
 import { AD_MIN_DAYS, AD_ROTATE_MS, DEFAULT_PLACEMENT, adPlacements, placementName } from './ad-options';
 import { EXTEND_DAYS, canExtendRequest, canFilterByRevenue, canPostVideo, descriptionLimit, notifyIndustryLimit, photoLimit, rankNames, rankPerks, rankThresholds } from './rank-perks';
@@ -148,6 +149,14 @@ function weekdayOf(date: string) {
   return new Date(`${date}T00:00:00Z`).getUTCDay();
 }
 
+/** マイページの「自分の投稿」に出す1件。掲示板の一覧とは別に読む。 */
+type MyRequest = {
+  id: string; category: string; title: string; description: string; budgetLabel: string;
+  area: string; industryTags: string[]; deadline: string; status: string; createdAt: string;
+  extendedAt: string; introCount: number; commentCount: number;
+  thumbUrl: string; imageCount: number; hasVideo: boolean;
+};
+
 export default function BoardClient({ initialRequests, initialStats, initialAds, userName, adReturn = '' }: { initialRequests: BoardRequest[]; initialStats: MemberStats; initialAds: AdSlot[]; userName: string; adReturn?: string }) {
   const [requests, setRequests] = useState(initialRequests);
   const [stats, setStats] = useState(initialStats);
@@ -163,6 +172,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // 入稿できるマイページから始める。
   const [activeTab, setActiveTab] = useState<'home' | 'search' | 'mypage' | 'profile'>(
     !initialStats.avatarUrl ? 'profile' : adReturn === 'done' ? 'mypage' : 'home');
+  const [myRequests, setMyRequests] = useState<MyRequest[]>([]);
+  /** 編集中の投稿。null なら新規投稿。投稿のモーダルを両方で使い回す。 */
+  const [editingRequest, setEditingRequest] = useState<MyRequest | null>(null);
+  const [deletingRequest, setDeletingRequest] = useState<MyRequest | null>(null);
+  const [receipts, setReceipts] = useState<BillingRecord[] | null>(null);
+  /** きょうの日付。期限を過ぎた投稿に印を付けるのに使う。 */
+  const today = new Date().toISOString().slice(0, 10);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [carouselPaused, setCarouselPaused] = useState(false);
   const [viewedIds, setViewedIds] = useState<string[]>([]);
@@ -315,6 +331,33 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     if (!localListsReady) return;
     window.localStorage.setItem(favoriteStorageKey, JSON.stringify(favoriteIds));
   }, [favoriteIds, localListsReady]);
+  // 自分の投稿は、マイページを開いたときに読む。掲示板の一覧には
+  // 期限切れや募集終了のものが出ないので、別に引く必要がある。
+  const loadMyRequests = useCallback(async () => {
+    const response = await fetch('/api/my-requests');
+    if (!response.ok) return;
+    const data = await response.json() as { requests: MyRequest[] };
+    setMyRequests(data.requests ?? []);
+  }, []);
+  useEffect(() => {
+    if (activeTab !== 'mypage') return;
+    let alive = true;
+    fetch('/api/my-requests').then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (alive && data) setMyRequests((data as { requests: MyRequest[] }).requests ?? []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [activeTab]);
+
+  // 支払い履歴と領収書。Stripeに問い合わせるので、マイページを開いたときに1回だけ。
+  useEffect(() => {
+    if (activeTab !== 'mypage' || receipts) return;
+    let alive = true;
+    fetch('/api/billing/receipts').then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (alive && data) setReceipts((data as { records: BillingRecord[] }).records ?? []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [activeTab, receipts]);
+
   useEffect(() => {
     if (activeTab !== 'mypage' || referral) return;
     let alive = true;
@@ -444,11 +487,19 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     }
     body.delete('videoPick');
     if (requestVideo) body.set('video', requestVideo);
-    const response = await fetch('/api/board', { method: 'POST', body });
+
+    // 編集は PATCH。通知は出さない（同じ投稿で何度も知らせない）。
+    const editing = editingRequest;
+    const response = editing
+      ? await fetch(`/api/requests/${encodeURIComponent(editing.id)}`, { method: 'PATCH', body })
+      : await fetch('/api/board', { method: 'POST', body });
     const result = await response.json() as { error?: string }; setBusy(false);
-    if (!response.ok) return showToast(result.error ?? '投稿できませんでした。');
+    if (!response.ok) return showToast(result.error ?? (editing ? '保存できませんでした。' : '投稿できませんでした。'));
     removeRequestVideo();
-    setModal(null); form.reset(); setRequestIndustries([]); clearRequestPhoto(); await refreshBoard(); showToast('探しごとを投稿しました。関連業種の会員へ通知します。');
+    setModal(null); setEditingRequest(null); form.reset(); setRequestIndustries([]); clearRequestPhoto();
+    await refreshBoard();
+    await loadMyRequests().catch(() => {});
+    showToast(editing ? '探しごとを保存しました。' : '探しごとを投稿しました。関連業種の会員へ通知します。');
   }
 
   async function submitIntroduction(event: FormEvent<HTMLFormElement>) {
@@ -504,7 +555,35 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
   function openRequest() {
     if (!stats.avatarUrl) { showProfileSettings(); return showToast('投稿の前に顔写真を登録してください。'); }
+    setEditingRequest(null); setRequestIndustries([]); clearRequestPhoto(); removeRequestVideo();
     setModal('request');
+  }
+
+  /** 自分の投稿を直す。同じモーダルを、中身を入れて開く。 */
+  function openEditRequest(item: MyRequest) {
+    setEditingRequest(item);
+    setRequestIndustries(item.industryTags);
+    setRequestIndustryGroup(getIndustryGroup(item.industryTags[0] ?? '')?.name ?? 'IT・システム');
+    clearRequestPhoto(); removeRequestVideo();
+    setModal('request');
+  }
+
+  function closeRequestModal() {
+    setModal(null); setEditingRequest(null);
+  }
+
+  /** 自分の投稿を消す。取り消せないので、確かめてから呼ぶ。 */
+  async function confirmDeleteRequest() {
+    const target = deletingRequest;
+    if (!target) return;
+    setBusy(true);
+    const response = await fetch(`/api/requests/${encodeURIComponent(target.id)}`, { method: 'DELETE' });
+    const result = await response.json() as { error?: string }; setBusy(false);
+    setDeletingRequest(null);
+    if (!response.ok) return showToast(result.error ?? '削除できませんでした。');
+    await refreshBoard();
+    await loadMyRequests().catch(() => {});
+    showToast('探しごとを削除しました。');
   }
 
   function openIntroduction(need: BoardRequest) {
@@ -987,6 +1066,47 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               </>}
         </section>}
 
+        <section className="my-requests" aria-label="自分の投稿">
+          <div className="my-requests-heading"><p>MY POSTS</p><h2>自分の投稿</h2><span>これまでに出した探しごとです。募集が終わったものも残ります。内容はあとから直せます。</span></div>
+          {!myRequests.length
+            ? <p className="my-requests-empty">まだ投稿がありません。下の「＋」から、探している人を書いてみてください。</p>
+            : <ul className="my-request-list">{myRequests.map((item) => {
+              const expired = item.deadline < today;
+              return <li key={item.id} className={`my-request${item.status === 'closed' || expired ? ' is-done' : ''}`}>
+                <div className="my-request-top">
+                  <span className="my-request-state">{item.status === 'closed' ? '募集終了' : expired ? '期限切れ' : '募集中'}</span>
+                  <small>{item.createdAt.slice(0, 10).replace(/-/g, '/')} 投稿</small>
+                </div>
+                <b className="my-request-title">{item.title}</b>
+                <p className="my-request-meta">
+                  <span>期限 {item.deadline.replace(/-/g, '/')}</span>
+                  <span>紹介 {item.introCount}件</span>
+                  <span>やり取り {item.commentCount}件</span>
+                  {item.imageCount > 0 && <span>写真 {item.imageCount}枚</span>}
+                  {item.hasVideo && <span>動画あり</span>}
+                </p>
+                <div className="my-request-actions">
+                  <button onClick={() => openEditRequest(item)}>編集する</button>
+                  <button className="is-danger" onClick={() => setDeletingRequest(item)}>削除する</button>
+                </div>
+              </li>;
+            })}</ul>}
+        </section>
+
+        <section className="receipt-card" aria-label="支払い履歴">
+          <div className="receipt-heading"><p>RECEIPTS</p><h2>支払い履歴</h2><span>お支払いのたびに領収書が作られます。ここからいつでも開いて、印刷や保存ができます。</span></div>
+          {receipts === null ? <p className="receipt-empty">読み込んでいます…</p>
+            : !receipts.length ? <p className="receipt-empty">まだお支払いはありません。有料プランや広告のお申し込みをいただくと、ここに並びます。</p>
+            : <ul className="receipt-list">{receipts.map((record) => <li key={record.id}>
+              <div className="receipt-row">
+                <span className="receipt-date">{record.date.replace(/-/g, '/')}</span>
+                <b className="receipt-yen">{record.yen.toLocaleString('ja-JP')}円</b>
+              </div>
+              <small className="receipt-what">{record.what}{!record.paid && <em>お支払い待ち</em>}</small>
+              {record.receiptUrl && <a className="receipt-open" href={record.receiptUrl} target="_blank" rel="noopener noreferrer">領収書を開く ›</a>}
+            </li>)}</ul>}
+        </section>
+
         <section className="feedback-card" aria-label="機能改善のご意見">
           <div className="feedback-heading"><p>YOUR VOICE</p><h2>こうしてほしい、を聞かせてください</h2><span>{serviceName}は作っている途中です。使ってみて足りないところ、使いにくいところを教えてください。いただいたご意見は運営が必ず読みます。</span></div>
           {feedbackSent ? <div className="feedback-done"><b>お送りいただきました</b><span>ありがとうございます。続けてお気づきの点があれば、また送ってください。</span><button onClick={() => setFeedbackSent(false)}>もう1件送る</button></div> : <form className="feedback-form" onSubmit={submitFeedback}>
@@ -1032,15 +1152,25 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <button className={modal !== 'ads' && (activeTab === 'mypage' || activeTab === 'profile') ? 'active' : ''} onClick={showMyPage}><span><PersonIcon /></span><small>マイページ</small></button>
       </nav>
 
-      {modal === 'request' && !canPostRequest && <Modal title="今月分の投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showMyPage(); }}>マイページを開く</button></div></Modal>}
+      {modal === 'request' && !canPostRequest && !editingRequest && <Modal title="今月分の投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showMyPage(); }}>マイページを開く</button></div></Modal>}
 
-      {modal === 'request' && canPostRequest && <Modal title="探しごとを投稿" lead="紹介してほしい人を具体的に書きましょう。" onClose={() => setModal(null)}><form className="form" onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue=""><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" /></label><label>詳しい内容 {descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" required maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" /></label><label>希望エリア <small>任意</small><select name="area" defaultValue=""><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" /></label><div className="request-photos"><p><b>写真を付ける <em>任意</em></b><small>{photoLimit(stats.level) > 1 ? `${stats.rank}は${photoLimit(stats.level)}枚まで付けられます` : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></p><div className="request-photo-grid">{requestPhotoPreviews.map((preview, index) => <span key={preview} className="request-photo-item"><img src={preview} alt={`添付する写真 ${index + 1}枚目`} /><button type="button" onClick={() => removeRequestPhoto(index)} aria-label={`${index + 1}枚目を削除`}>×</button></span>)}{requestPhotos.length < photoLimit(stats.level) && <label className="request-photo-add"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" multiple={photoLimit(stats.level) > 1} onChange={chooseRequestPhoto} /><b>＋</b><small>{requestPhotos.length ? 'もう1枚' : '写真を選ぶ'}</small></label>}</div></div>{canPostVideo(stats.level) && <div className="request-video"><p><b>動画を付ける <em>任意</em></b><small>{VIDEO_MAX_SECONDS}秒まで。選ぶと端末の中で自動的に小さくします。</small></p>
+      {modal === 'request' && (canPostRequest || editingRequest) && <Modal title={editingRequest ? '探しごとを編集' : '探しごとを投稿'} lead={editingRequest ? '直したいところを書き替えて、保存してください。' : '紹介してほしい人を具体的に書きましょう。'} onClose={closeRequestModal}><form className="form" key={editingRequest?.id ?? 'new'} onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue={editingRequest?.category ?? ''}><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" defaultValue={editingRequest?.title ?? ''} /></label><label>詳しい内容 {descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" required maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" defaultValue={editingRequest?.description ?? ''} /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" defaultValue={editingRequest?.budgetLabel ?? ''} /></label><label>希望エリア <small>任意</small><select name="area" defaultValue={editingRequest?.area ?? ''}><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" defaultValue={editingRequest?.deadline ?? ''} /></label>{editingRequest && <label>募集状況<select name="status" defaultValue={editingRequest.status}><option value="open">募集中</option><option value="closed">募集を終了する</option></select></label>}<div className="request-photos"><p><b>写真を付ける <em>任意</em></b><small>{photoLimit(stats.level) > 1 ? `${stats.rank}は${photoLimit(stats.level)}枚まで付けられます` : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></p><div className="request-photo-grid">{requestPhotoPreviews.map((preview, index) => <span key={preview} className="request-photo-item"><img src={preview} alt={`添付する写真 ${index + 1}枚目`} /><button type="button" onClick={() => removeRequestPhoto(index)} aria-label={`${index + 1}枚目を削除`}>×</button></span>)}{requestPhotos.length < photoLimit(stats.level) && <label className="request-photo-add"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" multiple={photoLimit(stats.level) > 1} onChange={chooseRequestPhoto} /><b>＋</b><small>{requestPhotos.length ? 'もう1枚' : '写真を選ぶ'}</small></label>}</div></div>{canPostVideo(stats.level) && <div className="request-video"><p><b>動画を付ける <em>任意</em></b><small>{VIDEO_MAX_SECONDS}秒まで。選ぶと端末の中で自動的に小さくします。</small></p>
         {videoProgress >= 0
           ? <div className="request-video-busy"><span style={{ width: `${Math.round(videoProgress * 100)}%` }} /><b>動画を小さくしています… {Math.round(videoProgress * 100)}%</b></div>
           : requestVideoPreview
             ? <div className="request-video-item"><video src={requestVideoPreview} controls playsInline preload="metadata" /><button type="button" onClick={removeRequestVideo}>動画を外す</button></div>
             : <label className="request-video-add"><input name="videoPick" type="file" accept="video/*" onChange={chooseRequestVideo} /><b>＋</b><small>動画を選ぶ</small></label>}
-      </div>}<button className="submit-button" disabled={busy || !requestIndustries.length || videoProgress >= 0}>{busy ? '投稿しています…' : '投稿する'}</button></form></Modal>}
+      </div>}<button className="submit-button" disabled={busy || !requestIndustries.length || videoProgress >= 0}>{busy ? '保存しています…' : editingRequest ? '保存する' : '投稿する'}</button></form></Modal>}
+
+      {deletingRequest && <Modal title="この探しごとを削除しますか" lead="削除すると元に戻せません。" onClose={() => setDeletingRequest(null)}>
+        <div className="quota-block">
+          <p><b>{deletingRequest.title}</b></p>
+          <p>この探しごとに届いた紹介 {deletingRequest.introCount}件と、やり取り {deletingRequest.commentCount}件も一緒に消えます。写真や動画も消えます。</p>
+          <p>募集を止めたいだけなら、削除ではなく<b>編集から「募集を終了する」</b>を選ぶと、記録とやり取りを残したまま新しい紹介を止められます。</p>
+          <button className="submit-button is-danger" onClick={confirmDeleteRequest} disabled={busy}>{busy ? '削除しています…' : '削除する'}</button>
+          <button className="quota-cancel" onClick={() => setDeletingRequest(null)} disabled={busy}>やめる</button>
+        </div>
+      </Modal>}
 
       {modal === 'intro' && selected && <Modal title="知っている人を紹介" lead={`「${selected.title}」への紹介です。`} onClose={() => setModal(null)}><form className="form" onSubmit={submitIntroduction}><label>お名前<input name="personName" required maxLength={60} /></label><label>会社・屋号<input name="personCompany" required maxLength={80} /></label><label>あなたとの関係<input name="relationship" required maxLength={120} placeholder="例：取引先、友人" /></label><label>紹介したい理由<textarea name="fitReason" required maxLength={400} rows={3} /></label><label className="consent"><input type="checkbox" name="consentConfirmed" required /> ご本人に紹介の了承を得ています</label><button className="submit-button" disabled={busy}>{busy ? '届けています…' : '紹介を届ける'}</button></form></Modal>}
 

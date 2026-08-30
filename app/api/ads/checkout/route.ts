@@ -101,6 +101,17 @@ async function createCheckout(memberId: string, userEmail: string, userName: str
       quantity: 1,
     }],
     locale: 'ja',
+    // 1回きりの支払いでも請求書を作らせる。会員が自分で領収書（PDF）を
+    // 取り出せるようになり、こちらで発行する手間も無くなる。
+    invoice_creation: {
+      enabled: true,
+      invoice_data: {
+        description: `TASUKI ${placementName(placement)}（${startDate} 〜 ${endDate}）`,
+        metadata: { memberId, adSlotId: slotId },
+      },
+    },
+    // Stripeから支払い完了のレシートをそのまま送ってもらう。
+    payment_intent_data: { receipt_email: link.email || userEmail },
     success_url: `${origin}/?ad=done`,
     cancel_url: `${origin}/?ad=cancel`,
     // webhookはこのslotIdだけを見て掲載中にする。
