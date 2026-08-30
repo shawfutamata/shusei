@@ -1161,8 +1161,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       </section>}
 
       <nav className="bottom-nav" aria-label="アプリメニュー">
-        <button className={activeTab === 'home' ? 'active' : ''} onClick={showHome}><span>⌂</span><small>ホーム</small></button>
-        <button className={activeTab === 'search' ? 'active' : ''} onClick={() => showSearch()}><span>⌕</span><small>探す</small></button>
+        <button className={activeTab === 'home' ? 'active' : ''} onClick={showHome}><span><HomeIcon /></span><small>ホーム</small></button>
+        <button className={activeTab === 'search' ? 'active' : ''} onClick={() => showSearch()}><span><SearchIcon /></span><small>探す</small></button>
         <button className="nav-post" onClick={openRequest} aria-label="探しごとを投稿する"><span>＋</span></button>
         <button className={modal === 'ads' ? 'active' : ''} onClick={openAdSettings}><span><BannerIcon /></span><small>広告</small></button>
         <button className={modal !== 'ads' && activeTab !== 'home' && activeTab !== 'search' ? 'active' : ''} onClick={showMyPage}><span><PersonIcon /></span><small>マイページ</small></button>
@@ -1507,6 +1507,24 @@ function AdCalendar({ days, startDate, spanDays, onPick }: {
     </div>
     <p className="ad-calendar-legend"><span className="is-start" />掲載開始日<span className="is-in" />掲載期間<span className="is-full" />満枠</p>
   </div>;
+}
+
+/* 下のメニューの4つは、同じ 24 の枠・同じ線の太さで描く。
+   もとの「ホーム」と「探す」は ⌂ ⌕ という**文字**だった。文字は書体まかせで
+   大きさも太さも決まるので、SVGで描いた他の2つと揃わなかった。 */
+function HomeIcon() {
+  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <path d="M3.2 11 12 3.6 20.8 11" />
+    <path d="M5.6 9.8V20.4h12.8V9.8" />
+    <path d="M9.8 20.4v-5.4h4.4v5.4" />
+  </svg>;
+}
+
+function SearchIcon() {
+  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <circle cx="10.6" cy="10.6" r="6.9" />
+    <path d="m15.7 15.7 4.9 4.9" />
+  </svg>;
 }
 
 function BannerIcon() {
