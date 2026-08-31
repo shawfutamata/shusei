@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     const id = adId
       ? await createAdIntroduction(user, { adId, personName, personCompany, relationship: person, fitReason, kind })
       : await createIntroduction(user, { requestId, personName, personCompany, relationship: person, fitReason, kind });
-    return NextResponse.json({ id, points: 10 }, { status: 201 });
+    return NextResponse.json({ id }, { status: 201 });
   } catch (error) {
     return errorResponse(error, 'オファーを送れませんでした。');
   }

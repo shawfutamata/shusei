@@ -81,7 +81,6 @@ export type MemberStats = {
    */
   inviteCount: number;
   dealCount: number;
-  points: number;
   rank: string;
   level: number;
   nextRankAt: number;
@@ -228,6 +227,8 @@ const statements = [
     avatar_version INTEGER NOT NULL DEFAULT 0,
     intro_count INTEGER NOT NULL DEFAULT 0,
     deal_count INTEGER NOT NULL DEFAULT 0,
+    -- ポイントは廃止。列は残す（消すと既存のDBと食い違い、起動が壊れる）。誰も読み書きしない。
+    -- 溜めても使い道が無く、ランクは招待した人数で決まる（app/rank-perks.ts）。
     points INTEGER NOT NULL DEFAULT 0,
     invite_code TEXT NOT NULL DEFAULT '',
     invited_by TEXT NOT NULL DEFAULT '',
@@ -313,6 +314,7 @@ const statements = [
     -- 'referral'＝知り合いを紹介（無料）／'self'＝自社で請け負う＝受注（有料）
     kind TEXT NOT NULL DEFAULT 'referral',
     status TEXT NOT NULL DEFAULT 'proposed',
+    -- ポイントは廃止。列は残すが、書き込みはしない（既定値のまま入る）。
     points_awarded INTEGER NOT NULL DEFAULT 10,
     created_at TEXT NOT NULL
   )`,
@@ -881,8 +883,8 @@ async function seedDemoData() {
 
   const now = new Date().toISOString();
   await env.DB.batch([
-    env.DB.prepare('INSERT OR IGNORE INTO members (id, email, display_name, venue, company, intro_count, deal_count, points, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind('sample-tanaka', 'tanaka@example.jp', '田中 美咲', 'ひるのめぐろ会場', '株式会社ミナト｜採用支援', 11, 4, 520, now),
-    env.DB.prepare('INSERT OR IGNORE INTO members (id, email, display_name, venue, company, intro_count, deal_count, points, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind('sample-sato', 'sato@example.jp', '佐藤 健一', '渋谷会場', 'SATO HAIR｜美容室経営', 6, 2, 260, now),
+    env.DB.prepare('INSERT OR IGNORE INTO members (id, email, display_name, venue, company, intro_count, deal_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind('sample-tanaka', 'tanaka@example.jp', '田中 美咲', 'ひるのめぐろ会場', '株式会社ミナト｜採用支援', 11, 4, now),
+    env.DB.prepare('INSERT OR IGNORE INTO members (id, email, display_name, venue, company, intro_count, deal_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind('sample-sato', 'sato@example.jp', '佐藤 健一', '渋谷会場', 'SATO HAIR｜美容室経営', 6, 2, now),
   ]);
 
   await env.DB.batch([
@@ -956,7 +958,7 @@ export async function getBoardData(user: SessionUser) {
     primary_industry AS primaryIndustry, notify_industries AS notifyIndustriesJson,
     annual_revenue_band AS annualRevenueBand, facebook_url AS facebookUrl,
     avatar_key AS avatarKey, avatar_version AS avatarVersion,
-    intro_count AS introCount, deal_count AS dealCount, points,
+    intro_count AS introCount, deal_count AS dealCount,
     (SELECT COUNT(*) FROM introductions i JOIN requests r ON r.id = i.request_id
       WHERE r.author_id = members.id) AS receivedIntroCount,
     -- **会員登録が済んだ時点で数える。** invited_by は、その人が
@@ -966,7 +968,7 @@ export async function getBoardData(user: SessionUser) {
     (SELECT COUNT(*) FROM members inv WHERE inv.invited_by = members.id) AS inviteCount
     FROM members WHERE id = ?`).bind(user.userId).first<Omit<MemberStats, 'rank' | 'level' | 'nextRankAt' | 'avatarUrl' | 'notifyIndustries'> & { notifyIndustriesJson: string; avatarKey: string; avatarVersion: number }>();
 
-  const baseMember = member ?? { displayName: user.displayName, nameKana: '', venue: 'ひるのめぐろ会場', company: '', companyKana: '', positionTitle: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', facebookUrl: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, inviteCount: 0, dealCount: 0, points: 0 };
+  const baseMember = member ?? { displayName: user.displayName, nameKana: '', venue: 'ひるのめぐろ会場', company: '', companyKana: '', positionTitle: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', facebookUrl: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, inviteCount: 0, dealCount: 0 };
   const { notifyIndustriesJson, ...memberFields } = baseMember;
   const plan = await getPlanSummary(user.userId);
   const stats = calculateRank({ ...memberFields, memberId: user.userId, notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion),
@@ -1212,8 +1214,8 @@ export async function createIntroduction(user: SessionUser, input: { requestId: 
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   await env.DB.batch([
-    env.DB.prepare('INSERT INTO introductions (id, request_id, introducer_id, person_name, person_company, relationship, fit_reason, consent_confirmed, status, points_awarded, created_at, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, input.requestId, user.userId, input.personName, input.personCompany, input.relationship, input.fitReason, 1, 'proposed', 10, createdAt, kind),
-    env.DB.prepare('UPDATE members SET intro_count = intro_count + 1, points = points + 10 WHERE id = ?').bind(user.userId),
+    env.DB.prepare('INSERT INTO introductions (id, request_id, introducer_id, person_name, person_company, relationship, fit_reason, consent_confirmed, status, created_at, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, input.requestId, user.userId, input.personName, input.personCompany, input.relationship, input.fitReason, 1, 'proposed', createdAt, kind),
+    env.DB.prepare('UPDATE members SET intro_count = intro_count + 1 WHERE id = ?').bind(user.userId),
   ]);
   return id;
 }
@@ -1252,7 +1254,7 @@ export async function createAdIntroduction(user: SessionUser, input: { adId: str
       (id, ad_id, introducer_id, person_name, person_company, relationship, fit_reason, kind, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, input.adId, user.userId, input.personName, input.personCompany, input.relationship, input.fitReason, kind, new Date().toISOString()),
-    env.DB.prepare('UPDATE members SET intro_count = intro_count + 1, points = points + 10 WHERE id = ?').bind(user.userId),
+    env.DB.prepare('UPDATE members SET intro_count = intro_count + 1 WHERE id = ?').bind(user.userId),
   ]);
   return `${AD_OFFER_PREFIX}${id}`;
 }

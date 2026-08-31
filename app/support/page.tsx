@@ -4,7 +4,7 @@ import { LegalNav, LegalStyles } from '../LegalPage';
 
 export const metadata: Metadata = { title: `サポート｜${serviceName}`, description: `${serviceName}の使い方とお問い合わせ窓口` };
 
-const contactEmail = 'shaw_futamata@every-counts.com';
+const contactEmail = 'info@tasuki.club';
 
 const faqs = [
   ['ログインできません', 'ご登録のメールアドレスでログインしてください。「利用権限がありません」と表示される場合は、運営がご利用を停止している可能性があります。下記の窓口へご連絡ください。'],

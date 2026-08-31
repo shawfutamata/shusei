@@ -613,7 +613,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       if (result.paywall) { setUpgradeNote(result.error ?? ''); setModal('upgrade'); return; }
       return showToast(result.error ?? 'オファーを送れませんでした。');
     }
-    setModal(null); setOfferAd(null); form.reset(); await refreshBoard(); showToast('オファーを送りました。10ポイント加算されました。');
+    setModal(null); setOfferAd(null); form.reset(); await refreshBoard(); showToast('オファーを送りました。');
   }
 
   async function saveProfile() {

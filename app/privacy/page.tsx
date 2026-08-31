@@ -27,7 +27,7 @@ export default function PrivacyPage() {
     <section id="delete">
       <LegalSection
         heading="10. お問い合わせ・削除依頼"
-        body="アプリ内で削除できない場合や、個人情報の開示・訂正・削除に関するお問い合わせは shaw_futamata@every-counts.com までご連絡ください。"
+        body="アプリ内で削除できない場合や、個人情報の開示・訂正・削除に関するお問い合わせは info@tasuki.club までご連絡ください。"
       />
     </section>
   </LegalPage>;

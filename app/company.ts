@@ -13,7 +13,7 @@ export const company = {
   /** 連絡が取れる電話番号 */
   phone: '080-4053-2040',
   /** 問い合わせ窓口 */
-  email: 'shaw_futamata@every-counts.com',
+  email: 'info@tasuki.club',
   /** 適格請求書発行事業者の登録番号（T＋13桁）。任意だが、経営者向けなので入れると喜ばれる */
   invoiceNumber: '',
   /** 電話・メールの受付時間 */

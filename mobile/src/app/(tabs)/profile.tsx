@@ -17,7 +17,7 @@ const perkIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
 };
 
 type Invite = { code: string; url: string; invitedCount: number; activeCount: number; waitingCount: number };
-type Stats = { displayName: string; venue: string; company: string; positionTitle: string; businessArea: string; introCount: number; inviteCount: number; points: number; rank: string; nextRankAt: number };
+type Stats = { displayName: string; venue: string; company: string; positionTitle: string; businessArea: string; introCount: number; inviteCount: number; rank: string; nextRankAt: number };
 
 export default function ProfileScreen() {
   const { user, signOut, deleteAccount } = useAuth();
