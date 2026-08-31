@@ -68,7 +68,8 @@
 |---|---|---|
 | 料金 | **1枠1ヶ月 10,000円**（税込・都度払い） | `AD_SLOT_YEN`（`app/plan-catalog.ts`） |
 | 枠数 | **1ヶ月あたり10枠** | `AD_SLOTS_PER_MONTH`（`app/ad-options.ts`） |
-| 買える人 | **RUBY以上**（レベル4以上） | `AD_MIN_RANK_LEVEL`（`app/ad-options.ts`） |
+| 買える人 | **会員なら誰でも**。ランクで変わるのは値段（割引）だけ | `canBuyAdSlot()`（`db/data.ts`） |
+| 割引 | PLATINUM 10%OFF / DIAMOND 30%OFF（重ねない） | `adDiscountRate()`（`app/rank-perks.ts`） |
 | 申込み | **早い者勝ち**。埋まったら翌月へ | `reserveAdSlot()`（`db/data.ts`） |
 | 更新 | なし。掲載したい月ごとに申し込む | Stripeは `mode: 'payment'`（購読ではない） |
 

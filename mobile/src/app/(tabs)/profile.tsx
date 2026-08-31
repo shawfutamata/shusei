@@ -87,8 +87,16 @@ export default function ProfileScreen() {
 
 function Stat({ number, label, color }: { number: number; label: string; color: string }) { return <View style={styles.stat}><Text style={[styles.statNumber, { color }]}>{number}</Text><Text style={[styles.statLabel, { color }]}>{label}</Text></View>; }
 function Info({ label, value }: { label: string; value: string }) { return <View style={styles.info}><Text style={styles.infoLabel}>{label}</Text><Text style={styles.infoValue}>{value}</Text></View>; }
-function rankText(rank: string) { return rank === 'DIAMOND' || rank === 'RUBY' ? '#F8FAFC' : '#62513D'; }
-function rankStyle(rank: string) { if (rank === 'DIAMOND') return { backgroundColor: '#1F2937', borderColor: '#9CA3AF' }; if (rank === 'RUBY') return { backgroundColor: '#741F34', borderColor: '#F59AAE' }; if (rank === 'SAPPHIRE') return { backgroundColor: '#E7EFFB', borderColor: '#6B91C7' }; if (rank === 'EMERALD') return { backgroundColor: '#E8F1EA', borderColor: '#6F9C86' }; return { backgroundColor: '#F5EEDF', borderColor: '#C9B58F' }; }
+// ランクは SILVER / GOLD / PLATINUM / DIAMOND の4つ（app/rank-perks.ts が正）。
+// 色はWeb側の globals.css の rank-* に合わせてある。DIAMONDだけ地が暗いので、
+// 文字色を白に返す。ここを間違えると黒地に黒文字になる。
+function rankText(rank: string) { return rank === 'DIAMOND' ? '#EAF4FB' : rank === 'GOLD' ? '#7A5A12' : rank === 'PLATINUM' ? '#2F4A5E' : '#4E5B6B'; }
+function rankStyle(rank: string) {
+  if (rank === 'DIAMOND') return { backgroundColor: '#16222E', borderColor: '#5C7C94' };
+  if (rank === 'PLATINUM') return { backgroundColor: '#E8EFF5', borderColor: '#8F9DAD' };
+  if (rank === 'GOLD') return { backgroundColor: '#FBF3DC', borderColor: '#D8B451' };
+  return { backgroundColor: '#EEF1F6', borderColor: '#B9C4D2' };
+}
 function InviteStat({ number, label }: { number: number; label: string }) {
   return <View style={styles.inviteStat}><Text style={styles.inviteNumber}>{number}</Text><Text style={styles.inviteLabel}>{label}</Text></View>;
 }

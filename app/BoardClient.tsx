@@ -1368,7 +1368,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             return <li key={name} className={`${level === stats.level ? 'now' : ''}${level < stats.level ? ' done' : ''}`}>
               <span className={`perk-ladder-dot rank-${name.toLowerCase()}`} aria-hidden="true" />
               <b>{name}</b>
-              <small>{rankThresholds[index] === 0 ? 'はじめから' : `オファー${rankThresholds[index]}件`}</small>
+              {/* ランクの物差しは**招待して参加した仲間の人数**。オファーの件数ではない。 */}
+              <small>{rankThresholds[index] === 0 ? 'はじめから' : `招待${rankThresholds[index]}人`}</small>
             </li>;
           })}</ol>
 
