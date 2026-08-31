@@ -757,8 +757,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       if (data.url) { window.location.assign(data.url); return; }
       // 断られた理由の印を、文言のうしろに小さく足す。運営が原因を持ち帰れる
       // ようにするため（鍵や本文は出ない。Stripeが付ける短い識別子だけ）。
+      // 印は**文の先頭**に出す。うしろに付けると、文が長いときに見切れて
+      // いちばん知りたいところだけ読めなくなる。
       const hint = [data.stripeCode, data.stripeParam].filter(Boolean).join(' / ');
-      showToast(`${data.error || 'お支払い画面を開けませんでした。'}${hint ? `（${hint}）` : ''}`);
+      showToast(`${hint ? `[${hint}] ` : ''}${data.error || 'お支払い画面を開けませんでした。'}`);
     } catch {
       showToast('通信に失敗しました。時間をおいてお試しください。');
     }
@@ -819,9 +821,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       const response = await fetch('/api/billing/checkout', {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ plan, cycle: planCycle }),
       });
-      const data = await response.json() as { url?: string; error?: string };
+      const data = await response.json() as { url?: string; error?: string; stripeCode?: string; stripeParam?: string };
       if (data.url) { window.location.assign(data.url); return; }
-      showToast(data.error || 'お支払い画面を開けませんでした。');
+      // 断られた理由の印を**文の先頭**に出す。うしろに付けると、文が長いときに
+      // 見切れて、いちばん知りたいところだけ読めなくなる。
+      // 出るのはStripeが付ける短い識別子だけで、鍵も本文も出ない。
+      const hint = [data.stripeCode, data.stripeParam].filter(Boolean).join(' / ');
+      showToast(`${hint ? `[${hint}] ` : ''}${data.error || 'お支払い画面を開けませんでした。'}`);
     } catch {
       showToast('通信に失敗しました。時間をおいてお試しください。');
     }
