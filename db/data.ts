@@ -7,6 +7,7 @@ import { AD_DESCRIPTION_MAX, AD_RESERVATION_MINUTES, AD_TITLE_MAX, DEFAULT_PLACE
 import { UNLIMITED, bonusPlan, can, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
 import { EXTEND_DAYS, canExtendRequest, canPostVideo, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
 import { matchesIndustry } from '@/app/industry-options';
+import { toBudgetBand } from '@/app/budget-options';
 
 export type BoardRequest = {
   id: string;
@@ -22,6 +23,8 @@ export type BoardRequest = {
   title: string;
   description: string;
   budgetLabel: string;
+  /** 予算の帯。絞り込みに使う。決めていない古い投稿は空。 */
+  budgetBand: string;
   area: string;
   industryTags: string[];
   deadline: string;
@@ -67,6 +70,13 @@ export type MemberStats = {
   avatarUrl: string;
   introCount: number;
   receivedIntroCount: number;
+  /**
+   * 招待して**実際に参加した**仲間の人数。ランクはこの数で上がる。
+   *
+   * 登録しただけの人ではなく、運営が確認して利用中になった人だけを数える。
+   * 登録だけで上がると、自分でいくつも登録してランクを作れてしまうため。
+   */
+  inviteCount: number;
   dealCount: number;
   points: number;
   rank: string;
@@ -228,6 +238,7 @@ const statements = [
     title TEXT NOT NULL,
     description TEXT NOT NULL,
     budget_label TEXT NOT NULL,
+    budget_band TEXT NOT NULL DEFAULT '',
     area TEXT NOT NULL,
     industry_tags TEXT NOT NULL DEFAULT '[]',
     deadline TEXT NOT NULL,
@@ -410,6 +421,8 @@ export async function ensureDatabase() {
     // 業種別プロモーション。この業種の一覧で、この日時まで先頭に出す。
     ['promo_industry', "ALTER TABLE requests ADD COLUMN promo_industry TEXT NOT NULL DEFAULT ''"],
     ['promo_until', "ALTER TABLE requests ADD COLUMN promo_until TEXT NOT NULL DEFAULT ''"],
+    // 予算の帯。絞り込みに使う。空は「決めていない古い投稿」で、帯の絞り込みには出ない。
+    ['budget_band', "ALTER TABLE requests ADD COLUMN budget_band TEXT NOT NULL DEFAULT ''"],
   ] as const) {
     if (!requestColumnNames.has(columnName)) await env.DB.prepare(sql).run();
   }
@@ -839,7 +852,7 @@ const hideSamples = import.meta.env.DEV ? ''
 export async function getBoardData(user: SessionUser) {
   await upsertMember(user);
   const requestsResult = await env.DB.prepare(`SELECT r.id, r.category, r.title, r.description,
-    r.budget_label AS budgetLabel, r.area, r.industry_tags AS industryTagsJson,
+    r.budget_label AS budgetLabel, r.budget_band AS budgetBand, r.area, r.industry_tags AS industryTagsJson,
     r.deadline, r.status, r.image_version AS imageVersion, r.created_at AS createdAt,
     r.pinned_until AS pinnedUntil, r.extended_at AS extendedAt,
     r.image_count AS imageCount, r.video_version AS videoVersion,
@@ -870,10 +883,12 @@ export async function getBoardData(user: SessionUser) {
     avatar_key AS avatarKey, avatar_version AS avatarVersion,
     intro_count AS introCount, deal_count AS dealCount, points,
     (SELECT COUNT(*) FROM introductions i JOIN requests r ON r.id = i.request_id
-      WHERE r.author_id = members.id) AS receivedIntroCount
+      WHERE r.author_id = members.id) AS receivedIntroCount,
+    (SELECT COUNT(*) FROM members inv
+      WHERE inv.invited_by = members.id AND inv.membership_status = 'active') AS inviteCount
     FROM members WHERE id = ?`).bind(user.userId).first<Omit<MemberStats, 'rank' | 'level' | 'nextRankAt' | 'avatarUrl' | 'notifyIndustries'> & { notifyIndustriesJson: string; avatarKey: string; avatarVersion: number }>();
 
-  const baseMember = member ?? { displayName: user.displayName, nameKana: '', venue: 'ひるのめぐろ会場', company: '', companyKana: '', positionTitle: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', facebookUrl: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, dealCount: 0, points: 0 };
+  const baseMember = member ?? { displayName: user.displayName, nameKana: '', venue: 'ひるのめぐろ会場', company: '', companyKana: '', positionTitle: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', facebookUrl: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, inviteCount: 0, dealCount: 0, points: 0 };
   const { notifyIndustriesJson, ...memberFields } = baseMember;
   const plan = await getPlanSummary(user.userId);
   const stats = calculateRank({ ...memberFields, notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion),
@@ -927,7 +942,7 @@ export type RequestImageUpload = { thumb: { bytes: ArrayBuffer; contentType: str
 /** 動画は端末側で圧縮ずみのものを1本だけ受け取る。サーバーでは変換しない。 */
 export type RequestVideoUpload = { bytes: ArrayBuffer; contentType: string };
 
-export async function createRequest(user: SessionUser, input: { category: string; title: string; description: string; budgetLabel: string; area: string; industryTags: string[]; deadline: string; images?: RequestImageUpload[]; video?: RequestVideoUpload | null }) {
+export async function createRequest(user: SessionUser, input: { category: string; title: string; description: string; budgetLabel: string; budgetBand: string; area: string; industryTags: string[]; deadline: string; images?: RequestImageUpload[]; video?: RequestVideoUpload | null }) {
   await upsertMember(user);
   await requireFacePhoto(user.userId);
   const requestPlan = await getPlanState(user.userId);
@@ -966,8 +981,8 @@ export async function createRequest(user: SessionUser, input: { category: string
       customMetadata: { ownerId: user.userId, requestId: id },
     });
   }
-  await env.DB.prepare('INSERT INTO requests (id, author_id, category, title, description, budget_label, area, industry_tags, deadline, status, image_version, image_count, video_version, video_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, user.userId, input.category, input.title, input.description.slice(0, descriptionLimit(level)), input.budgetLabel, input.area, JSON.stringify(input.industryTags), input.deadline, 'open', imageVersion, images.length, videoVersion, videoType, createdAt).run();
+  await env.DB.prepare('INSERT INTO requests (id, author_id, category, title, description, budget_label, budget_band, area, industry_tags, deadline, status, image_version, image_count, video_version, video_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, user.userId, input.category, input.title, input.description.slice(0, descriptionLimit(level)), input.budgetLabel, toBudgetBand(input.budgetBand), input.area, JSON.stringify(input.industryTags), input.deadline, 'open', imageVersion, images.length, videoVersion, videoType, createdAt).run();
   await sendMatchingPushNotifications(user.userId, { id, title: input.title, industryTags: input.industryTags }).catch(() => undefined);
   await sendMatchingMobileNotifications(user.userId, { id, title: input.title, industryTags: input.industryTags }).catch(() => undefined);
   return id;
@@ -982,14 +997,14 @@ export async function createRequest(user: SessionUser, input: { category: string
 export async function listMyRequests(user: SessionUser) {
   await upsertMember(user);
   const rows = await env.DB.prepare(`SELECT r.id, r.category, r.title, r.description,
-    r.budget_label AS budgetLabel, r.area, r.industry_tags AS industryTagsJson,
+    r.budget_label AS budgetLabel, r.budget_band AS budgetBand, r.area, r.industry_tags AS industryTagsJson,
     r.deadline, r.status, r.image_version AS imageVersion, r.image_count AS imageCount,
     r.video_version AS videoVersion, r.created_at AS createdAt, r.extended_at AS extendedAt,
     (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id) AS introCount,
     (SELECT COUNT(*) FROM request_comments c WHERE c.request_id = r.id) AS commentCount
     FROM requests r WHERE r.author_id = ? ORDER BY r.created_at DESC`)
     .bind(user.userId).all<{ id: string; category: string; title: string; description: string;
-      budgetLabel: string; area: string; industryTagsJson: string; deadline: string; status: string;
+      budgetLabel: string; budgetBand: string; area: string; industryTagsJson: string; deadline: string; status: string;
       imageVersion: number; imageCount: number; videoVersion: number; createdAt: string;
       extendedAt: string; introCount: number; commentCount: number }>();
   return rows.results.map(({ industryTagsJson, imageVersion, imageCount, videoVersion, ...rest }) => ({
@@ -1009,7 +1024,7 @@ export async function listMyRequests(user: SessionUser) {
  * 写真は「選び直したときだけ」入れ替える。触らなければそのまま残る。
  */
 export async function updateRequest(user: SessionUser, id: string, input: {
-  category: string; title: string; description: string; budgetLabel: string; area: string;
+  category: string; title: string; description: string; budgetLabel: string; budgetBand: string; area: string;
   industryTags: string[]; deadline: string; status: string; images?: RequestImageUpload[];
 }) {
   await upsertMember(user);
@@ -1047,10 +1062,10 @@ export async function updateRequest(user: SessionUser, id: string, input: {
   }
 
   await env.DB.prepare(`UPDATE requests SET category = ?, title = ?, description = ?,
-    budget_label = ?, area = ?, industry_tags = ?, deadline = ?, status = ?${imageSet}
+    budget_label = ?, budget_band = ?, area = ?, industry_tags = ?, deadline = ?, status = ?${imageSet}
     WHERE id = ? AND author_id = ?`)
     .bind(input.category, input.title, input.description.slice(0, descriptionLimit(level)),
-      input.budgetLabel, input.area, JSON.stringify(input.industryTags), input.deadline,
+      input.budgetLabel, toBudgetBand(input.budgetBand), input.area, JSON.stringify(input.industryTags), input.deadline,
       input.status === 'closed' ? 'closed' : 'open', ...imageBinds, id, user.userId).run();
 }
 
@@ -1495,9 +1510,10 @@ function parseStringArray(value: string) {
   }
 }
 
+/** ランクは**招待して参加した仲間の人数**で決まる。オファーの件数では上がらない。 */
 function calculateRank(member: Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'>): MemberStats {
-  const level = levelFor(member.introCount);
-  return { ...member, rank: rankName(level), level, nextRankAt: rankThresholds[level] ?? member.introCount };
+  const level = levelFor(member.inviteCount);
+  return { ...member, rank: rankName(level), level, nextRankAt: rankThresholds[level] ?? member.inviteCount };
 }
 
 // --- ランクの特典 ここから ----------------------------------------------------
@@ -1822,9 +1838,10 @@ async function countAdEvents(ids: string[], kind: 'views' | 'clicks') {
 /** ランクだけを引く。出稿枠の判定で、掲示板ぜんぶを読まないため。 */
 export async function getMemberRank(memberId: string) {
   await ensureDatabase();
-  const row = await env.DB.prepare('SELECT intro_count AS introCount FROM members WHERE id = ?')
-    .bind(memberId).first<{ introCount: number }>();
-  const level = levelFor(Number(row?.introCount ?? 0));
+  const row = await env.DB.prepare(`SELECT COUNT(*) AS inviteCount FROM members
+    WHERE invited_by = ? AND membership_status = 'active'`)
+    .bind(memberId).first<{ inviteCount: number }>();
+  const level = levelFor(Number(row?.inviteCount ?? 0));
   return { rank: rankName(level), level };
 }
 

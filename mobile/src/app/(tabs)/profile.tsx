@@ -13,11 +13,11 @@ import { levelFor, rankNames, rankPerks, rankThresholds } from '@/constants/rank
 const perkIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   crest: 'shield-checkmark-outline', extend: 'time-outline', longtext: 'document-text-outline',
   industries: 'grid-outline', pin: 'pin-outline', photos: 'images-outline',
-  video: 'videocam-outline', promo: 'megaphone-outline',
+  video: 'videocam-outline', promo: 'megaphone-outline', budget: 'cash-outline',
 };
 
 type Invite = { code: string; url: string; invitedCount: number; activeCount: number; waitingCount: number };
-type Stats = { displayName: string; venue: string; company: string; positionTitle: string; businessArea: string; introCount: number; points: number; rank: string; nextRankAt: number };
+type Stats = { displayName: string; venue: string; company: string; positionTitle: string; businessArea: string; introCount: number; inviteCount: number; points: number; rank: string; nextRankAt: number };
 
 export default function ProfileScreen() {
   const { user, signOut, deleteAccount } = useAuth();
@@ -57,13 +57,13 @@ export default function ProfileScreen() {
     await Share.share({ message: `${serviceName}に招待します。\n${invite.url}` });
   }
   return <AppScreen title="マイページ" eyebrow="MY PAGE">
-    {!stats ? <ActivityIndicator color={AppColors.blue} /> : <View style={[styles.rankCard, rankStyle(stats.rank)]}><View style={styles.rankTop}><View><Text style={[styles.rankBrand, { color: rankText(stats.rank) }]}>MEMBER RANK</Text><Text style={[styles.rankName, { color: rankText(stats.rank) }]}>{stats.rank}</Text></View><Ionicons name="diamond-outline" size={38} color={rankText(stats.rank)} /></View><View style={styles.person}><View style={styles.avatar}><Ionicons name="person" size={34} color="#fff" /></View><View style={{ flex: 1 }}><Text style={[styles.name, { color: rankText(stats.rank) }]}>{stats.displayName}</Text><Text style={[styles.meta, { color: rankText(stats.rank) }]}>{stats.venue || 'プロフィール未設定'}</Text><Text style={[styles.company, { color: rankText(stats.rank) }]}>{[stats.company, stats.positionTitle].filter(Boolean).join('｜')}</Text></View></View><View style={styles.rankStats}><Stat number={stats.introCount} label="紹介した数" color={rankText(stats.rank)} /><Stat number={stats.points} label="ポイント" color={rankText(stats.rank)} /><Stat number={Math.max(0, stats.nextRankAt - stats.introCount)} label="次ランクまで" color={rankText(stats.rank)} /></View></View>}
+    {!stats ? <ActivityIndicator color={AppColors.blue} /> : <View style={[styles.rankCard, rankStyle(stats.rank)]}><View style={styles.rankTop}><View><Text style={[styles.rankBrand, { color: rankText(stats.rank) }]}>MEMBER RANK</Text><Text style={[styles.rankName, { color: rankText(stats.rank) }]}>{stats.rank}</Text></View><Ionicons name="diamond-outline" size={38} color={rankText(stats.rank)} /></View><View style={styles.person}><View style={styles.avatar}><Ionicons name="person" size={34} color="#fff" /></View><View style={{ flex: 1 }}><Text style={[styles.name, { color: rankText(stats.rank) }]}>{stats.displayName}</Text><Text style={[styles.meta, { color: rankText(stats.rank) }]}>{stats.venue || 'プロフィール未設定'}</Text><Text style={[styles.company, { color: rankText(stats.rank) }]}>{[stats.company, stats.positionTitle].filter(Boolean).join('｜')}</Text></View></View><View style={styles.rankStats}><Stat number={stats.inviteCount} label="参加した仲間" color={rankText(stats.rank)} /><Stat number={stats.introCount} label="オファーした数" color={rankText(stats.rank)} /><Stat number={Math.max(0, stats.nextRankAt - stats.inviteCount)} label="次ランクまで" color={rankText(stats.rank)} /></View></View>}
     {!!stats && <View style={commonStyles.card}>
       <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>ランクの特典</Text><Text style={styles.perkNow}>いまは {stats.rank}</Text></View>
-      <Text style={styles.perkLead}>{levelFor(stats.introCount) >= rankNames.length ? '最高ランクです。ありがとうございます。' : `あと${Math.max(0, stats.nextRankAt - stats.introCount)}件の紹介で ${rankNames[levelFor(stats.introCount)]} になります。一度上がったランクは下がりません。`}</Text>
+      <Text style={styles.perkLead}>{levelFor(stats.inviteCount) >= rankNames.length ? '最高ランクです。ありがとうございます。' : `あと${Math.max(0, stats.nextRankAt - stats.inviteCount)}人の仲間をご招待いただくと ${rankNames[levelFor(stats.inviteCount)]} になります。一度上がったランクは下がりません。`}</Text>
       <View style={styles.perkGrid}>{rankPerks.map((perk) => {
-        const unlocked = levelFor(stats.introCount) >= perk.minLevel;
-        return <Pressable key={perk.key} style={styles.perkTile} onPress={() => Alert.alert(perk.label, perk.detail + (perk.soon ? '\n\nこの特典はまだ作っている途中です。' : unlocked ? '' : `\n\nあと${Math.max(0, rankThresholds[perk.minLevel - 1] - stats.introCount)}件の紹介で使えるようになります。`))}>
+        const unlocked = levelFor(stats.inviteCount) >= perk.minLevel;
+        return <Pressable key={perk.key} style={styles.perkTile} onPress={() => Alert.alert(perk.label, perk.detail + (perk.soon ? '\n\nこの特典はまだ作っている途中です。' : unlocked ? '' : `\n\nあと${Math.max(0, rankThresholds[perk.minLevel - 1] - stats.inviteCount)}人の仲間をご招待いただくと使えるようになります。`))}>
           <View style={[styles.perkBadge, !unlocked && styles.perkBadgeLocked]}><Ionicons name={perkIcons[perk.key] ?? 'ribbon-outline'} size={24} color={unlocked ? AppColors.blueDark : '#AAB4C2'} /></View>
           {/* 空の札を出すと灰色の丸が残るので、必要なときだけ出す。高さは揃える。 */}
           {perk.soon || !unlocked

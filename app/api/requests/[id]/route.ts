@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
 import { deleteRequest, updateRequest, type RequestImageUpload } from '@/db/data';
+import { toBudgetBand } from '@/app/budget-options';
 import { isIndustry } from '@/app/industry-options';
 import { descriptionLimit } from '@/app/rank-perks';
 
@@ -29,13 +30,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   // 本文の上限はランクで変わる。ここは天井だけ当てて、切り詰めは db/data.ts。
   const description = clean(field('description'), descriptionLimit(5));
   const budgetLabel = clean(field('budgetLabel'), 60);
+  const budgetBand = toBudgetBand(field('budgetBand'));
   const area = clean(field('area'), 60);
   const industryTags = multipart ? parseIndustries(field('industryTags'), 3) : cleanIndustries(field('industryTags'), 3);
   const deadline = clean(field('deadline'), 10);
   const status = clean(field('status'), 10) === 'closed' ? 'closed' : 'open';
 
   if (!['project', 'collaboration', 'consultation'].includes(category) || !title || !description
-    || !budgetLabel || !industryTags.length || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
+    || !budgetBand || !industryTags.length || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
     return NextResponse.json({ error: '入力内容を確認してください。' }, { status: 400 });
   }
 
@@ -55,7 +57,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 
   try {
-    await updateRequest(gate.user, id, { category, title, description, budgetLabel, area, industryTags, deadline, status, images });
+    await updateRequest(gate.user, id, { category, title, description, budgetLabel, budgetBand, area, industryTags, deadline, status, images });
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : '保存できませんでした。' }, { status: 400 });

@@ -327,16 +327,25 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .rank-card.rank-card-slim { min-height:0; margin:14px 14px 0; padding:14px 18px 19px; aspect-ratio:1.586; display:flex; flex-direction:column; }
 .rank-card.rank-card-slim::before { inset:5px; }
 .rank-slim-top { margin:0; display:flex; align-items:center; gap:7px; }
-/* ランクカードは押すと特典が開く。ボタンにしても見た目は変えない。 */
-.rank-card.rank-card-slim { width:calc(100% - 28px); font:inherit; text-align:left; color:inherit; cursor:pointer; }
+/* ランクカードは押すと特典が開く。ボタンにしても見た目は変えない。
+   色だけは inherit にしないこと。ボタンの既定色を打ち消すつもりで inherit に
+   すると、ランクごとの文字色（--rank-ink）まで消える。DIAMONDは地が黒く
+   文字が白なので、これをやると文字が見えなくなる。 */
+.rank-card.rank-card-slim { width:calc(100% - 28px); font:inherit; text-align:left; color:var(--rank-ink); cursor:pointer; }
 .rank-slim-more { position:absolute; right:15px; top:15px; z-index:2; color:var(--rank-muted); font-size:9px; font-weight:900; letter-spacing:.05em; }
 .rank-crown-mark { width:17px; height:14px; flex:0 0 auto; }
 .rank-slim-top b { font-size:11px; font-weight:900; letter-spacing:.16em; }
-.rank-crest { margin:5px 0 0; display:flex; align-items:center; justify-content:center; gap:3px; }
+/* 紋章のかたまり（紋章・ランク名・MEMBER）は、上の見出しと下の会員欄の
+   **あいだで縦に中央**に置く。カードは aspect-ratio で高さが決まるので、
+   画面が広いほどカードが縦に伸び、上に詰めたままだと紋章だけ上に寄って
+   下に大きな空きが残る。上下に auto を置いて、余った高さを等分させている。 */
+.rank-crest { margin:5px 0 0; margin-top:auto; display:flex; align-items:center; justify-content:center; gap:3px; }
+/* 余りは紋章の上下で分けるので、会員欄は自分で下に張り付かなくてよい。 */
+.rank-card.rank-card-slim .rank-slim-foot { margin-top:0; }
 .rank-laurel { width:30px; height:41px; flex:0 0 auto; opacity:.78; }
 .rank-emblem-mark { width:42px; height:44px; flex:0 0 auto; }
 .rank-slim-title { margin:3px 0 0; font-size:22px; font-weight:900; letter-spacing:.3em; line-height:1.2; text-align:center; text-indent:.3em; }
-.rank-slim-sub { margin:3px 0 0; color:var(--rank-muted); font-size:9px; font-weight:900; letter-spacing:.42em; text-align:center; text-indent:.42em; }
+.rank-slim-sub { margin:3px 0 auto; color:var(--rank-muted); font-size:9px; font-weight:900; letter-spacing:.42em; text-align:center; text-indent:.42em; }
 /* バッヂを消して1行に収めた。2行のときは会場がカード内側の罫線にかかっていた。
    会員名は内容ぶん、会場は残り全部（長い会場名は…で切る）。 */
 .rank-slim-foot { margin-top:auto; padding-top:11px; display:grid; grid-template-columns:auto minmax(0,1fr); align-items:end; gap:14px; border-top:1px solid var(--rank-line); }
@@ -1166,7 +1175,16 @@ body { font-weight:600; }
 /* マイページのメニュー。**それぞれが下層ページの入口**で、マイページ自体
    には中身を並べない。全部を1枚に積むと下の欄が遠くなり、見られなくなる。
    狭い画面でも3列。日本語の見出しは短いので、3列でも読める。 */
+/* 3列。タイルはちょうど6つで、2段にきれいに収まる。増やすときは3の倍数で。 */
 .mypage-grid { margin:14px 14px 0; display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+/* 招待だけはタイルではなく1本の帯。ランクが上がる唯一の道なので目立たせる。 */
+.mypage-invite { width:calc(100% - 28px); margin:10px 14px 0; padding:14px 15px; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:12px; border:1px solid #cfe0f7; border-radius:16px; background:linear-gradient(135deg,#eff6ff,#fff); text-align:left; cursor:pointer; box-shadow:0 5px 16px rgba(28,52,93,.05); }
+.mypage-invite-icon { width:42px; height:42px; display:grid; place-items:center; border-radius:13px; background:#dbeafe; }
+.mypage-invite-icon .mypage-glyph { width:24px; height:24px; }
+.mypage-invite-copy { min-width:0; display:grid; gap:3px; }
+.mypage-invite-copy b { font-size:14px; font-weight:900; color:#0b3f86; }
+.mypage-invite-copy small { font-size:11px; font-weight:800; color:#5b7a9e; }
+.mypage-invite-go { color:#0f5fc4; font-size:20px; font-weight:900; }
 .mypage-tile { min-height:104px; padding:14px 8px; display:grid; align-content:center; justify-items:center; gap:7px; border:1px solid #e0e6ef; border-radius:16px; background:#fff; box-shadow:0 5px 16px rgba(28,52,93,.05); cursor:pointer; }
 /* 業種アイコンと同じ「面で塗る」絵。丸い下地に、少し小さめに置く。 */
 .mypage-tile-icon { width:48px; height:48px; position:relative; display:grid; place-items:center; border-radius:50%; background:#eef5ff; color:var(--blue-dark); }

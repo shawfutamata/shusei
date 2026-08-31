@@ -1,7 +1,9 @@
 // ランクごとの特典。**ここが唯一の定義**で、Webとアプリの両方がこれを読む。
 // 増やすとき・入れ替えるときは、このファイルだけを直す。
 //
-// ランクは紹介した数で上がり、**下がらない**。紹介という善意の行為を
+// ランクは**招待して参加した仲間の人数**で上がり、**下がらない**。
+// 掲示板は人が増えるほど値打ちが出るので、いちばん報いたい行いは
+// 「仲間を連れてくること」。一度上がったランクを下げないのは、
 // 「維持しないと失う」にすると義務感が出て、場が痩せるため。
 //
 // 金額に触れる特典（広告の割引）は webOnly を立てる。アプリ内に価格・割引・
@@ -10,8 +12,13 @@
 /** 1=SILVER 2=GOLD 3=PLATINUM 4=DIAMOND */
 export const rankNames = ['SILVER', 'GOLD', 'PLATINUM', 'DIAMOND'] as const;
 
-/** そのランクになるのに必要な、紹介した人数。 */
-export const rankThresholds = [0, 10, 30, 50];
+/**
+ * そのランクになるのに必要な、招待して参加した仲間の人数。
+ *
+ * 会員数に上限のある閉じた場なので、1人連れてくるのがそもそも重い。
+ * 紹介の件数のように2桁を並べると誰にも届かないため、少ない数で刻む。
+ */
+export const rankThresholds = [0, 1, 3, 5];
 
 export type RankPerk = {
   key: string;
@@ -48,8 +55,8 @@ export const rankPerks: RankPerk[] = [
     detail: '探しごとに短い動画を付けられるようになります。大きい動画は送る前に端末側で自動的に縮めるので、通信量を気にせず選べます。',
   },
   {
-    key: 'revenue', label: '年商での絞り込み', minLevel: 3,
-    detail: '仕事の掲示板を、投稿した会社の年商で絞り込めます。規模の合う相手だけを見たいときに。',
+    key: 'budget', label: '予算での絞り込み', minLevel: 3,
+    detail: '仕事の掲示板を、その案件の予算で絞り込めます。年商が大きくても案件の予算が小さければ意味がないので、物差しは会社の規模ではなく予算にしてあります。',
   },
   {
     key: 'ad-off-10', label: '広告が10%OFF', minLevel: 3, webOnly: true,
@@ -68,10 +75,10 @@ export function rankName(level: number) {
   return rankNames[Math.min(Math.max(level, 1), rankNames.length) - 1];
 }
 
-/** その紹介数でのランク（1〜5）。しきい値を超えた分だけ上がり、下がらない。 */
-export function levelFor(introCount: number) {
+/** 招待して参加した人数でのランク。しきい値を超えた分だけ上がり、下がらない。 */
+export function levelFor(inviteCount: number) {
   let level = 1;
-  rankThresholds.forEach((threshold, index) => { if (introCount >= threshold) level = index + 1; });
+  rankThresholds.forEach((threshold, index) => { if (inviteCount >= threshold) level = index + 1; });
   return level;
 }
 
@@ -106,8 +113,8 @@ export function canPostVideo(level: number) {
   return level >= 3;
 }
 
-/** 年商で絞り込めるか。PLATINUM以上。 */
-export function canFilterByRevenue(level: number) {
+/** 予算で絞り込めるか。PLATINUM以上。 */
+export function canFilterByBudget(level: number) {
   return level >= 3;
 }
 

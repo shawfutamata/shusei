@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
 import { createRequest, getBoardData, type RequestImageUpload, type RequestVideoUpload } from '@/db/data';
+import { toBudgetBand } from '@/app/budget-options';
 // 動画の上限は、圧縮する側（app/compress-video.ts）と同じ値を使う。ずれると片側だけ通る。
 import { VIDEO_MAX_BYTES } from '@/app/compress-video';
 import { isIndustry } from '@/app/industry-options';
@@ -38,11 +39,12 @@ export async function POST(request: Request) {
   // 実際の切り詰めは db/data.ts がランクを見て行う。
   const description = clean(field('description'), descriptionLimit(5));
   const budgetLabel = clean(field('budgetLabel'), 60);
+  const budgetBand = toBudgetBand(field('budgetBand'));
   const area = clean(field('area'), 60);
   const industryTags = multipart ? parseIndustries(field('industryTags'), 3) : cleanIndustries(field('industryTags'), 3);
   const deadline = clean(field('deadline'), 10);
   // 希望エリアは任意。指定しない探しごとがあってよい。
-  if (!['project', 'collaboration', 'consultation'].includes(category) || !title || !description || !budgetLabel || !industryTags.length || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
+  if (!['project', 'collaboration', 'consultation'].includes(category) || !title || !description || !budgetBand || !industryTags.length || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
     return NextResponse.json({ error: '入力内容を確認してください。' }, { status: 400 });
   }
 
@@ -75,7 +77,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const id = await createRequest(user, { category, title, description, budgetLabel, area, industryTags, deadline, images, video });
+    const id = await createRequest(user, { category, title, description, budgetLabel, budgetBand, area, industryTags, deadline, images, video });
     return NextResponse.json({ id }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : '投稿できませんでした。' }, { status: 400 });

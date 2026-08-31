@@ -8,6 +8,7 @@ import RequestComments from './RequestComments';
 import FacebookLink from './FacebookLink';
 import { areaMatchesRegion, getRegion, prefectures, regions, requestAreaOptions, type Prefecture } from './profile-options';
 import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-options';
+import { budgetBandLabel, budgetBands } from './budget-options';
 import { findVenuePrefecture, isListedVenue, OTHER_VENUE, venuePrefectures, venuesByPrefecture } from './venue-options';
 import { UNLIMITED, plans, type BillingCycle, type Plan } from './entitlements';
 import { feedbackCategories } from './feedback-options';
@@ -18,7 +19,7 @@ import { InviteIcon, OfferIcon, PlanIcon, PostsIcon, ProfileIcon, ReceiptIcon, V
 import type { BillingRecord } from './stripe';
 import PerkIcon from './PerkIcon';
 import { AD_MIN_DAYS, AD_ROTATE_MS, DEFAULT_PLACEMENT, adPlacements, placementName, placementSlots } from './ad-options';
-import { EXTEND_DAYS, canExtendRequest, canFilterByRevenue, canPostVideo, descriptionLimit, notifyIndustryLimit, photoLimit, rankNames, rankPerks, rankThresholds } from './rank-perks';
+import { EXTEND_DAYS, canExtendRequest, canFilterByBudget, canPostVideo, descriptionLimit, notifyIndustryLimit, photoLimit, rankNames, rankPerks, rankThresholds } from './rank-perks';
 import { serviceName } from './brand';
 import BrandMark from './BrandMark';
 import { VIDEO_MAX_SECONDS, compressVideo } from './compress-video';
@@ -62,6 +63,16 @@ const categoryGuide = [
     example: '「補助金の申請を通した経験のある方に、進め方を伺いたい」',
   },
 ] as const;
+
+/**
+ * 画面に出す予算。**帯が主で、自由記入は補足。**
+ * 帯を決めていない古い投稿は、自由記入だけを出す。
+ */
+function budgetText(need: { budgetBand: string; budgetLabel: string }) {
+  const band = budgetBandLabel(need.budgetBand);
+  if (band && need.budgetLabel) return `${band}（${need.budgetLabel}）`;
+  return band || need.budgetLabel || '応相談';
+}
 
 const revenueBands: Record<string, string> = {
   revenue_10_30: '1,000万〜3,000万円',
@@ -155,7 +166,7 @@ type MyTab = 'home' | 'search' | 'mypage' | 'profile' | 'posts' | 'offers' | 'pl
 
 /** マイページの「自分の投稿」に出す1件。掲示板の一覧とは別に読む。 */
 type MyRequest = {
-  id: string; category: string; title: string; description: string; budgetLabel: string;
+  id: string; category: string; title: string; description: string; budgetLabel: string; budgetBand: string;
   area: string; industryTags: string[]; deadline: string; status: string; createdAt: string;
   extendedAt: string; introCount: number; commentCount: number;
   thumbUrl: string; imageCount: number; hasVideo: boolean;
@@ -166,7 +177,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [stats, setStats] = useState(initialStats);
   const [ads, setAds] = useState(initialAds);
   const [filter, setFilter] = useState('all');
-  const [revenueFilter, setRevenueFilter] = useState('all');
+  /** 予算の帯での絞り込み。会社の年商ではなく、その案件にいくら出せるかで見る。 */
+  const [budgetFilter, setBudgetFilter] = useState('all');
   const [venueFilter, setVenueFilter] = useState('all');
   const [regionFilter, setRegionFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'open' | 'closed' | 'all'>('open');
@@ -289,7 +301,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const shown = useMemo(() => {
     const matched = statusMatched.filter((item) =>
       (filter === 'all' || item.category === filter) &&
-      (revenueFilter === 'all' || item.authorRevenueBand === revenueFilter) &&
+      (budgetFilter === 'all' || item.budgetBand === budgetFilter) &&
       (venueFilter === 'all' || item.authorVenue === venueFilter) &&
       // 希望エリアが入っていればそれで、無ければ投稿者の所在地で拾う。
       (regionFilter === 'all'
@@ -300,7 +312,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     const now = new Date().toISOString();
     const promoted = (item: BoardRequest) => item.promoUntil > now && matchesIndustry([item.promoIndustry], industryFilter);
     return [...matched].sort((a, b) => Number(promoted(b)) - Number(promoted(a)));
-  }, [filter, industryFilter, regionFilter, revenueFilter, statusMatched, venueFilter]);
+  }, [budgetFilter, filter, industryFilter, regionFilter, statusMatched, venueFilter]);
   // 通知はアプリを出してから。それまでは選んだ業種をホームのおすすめに使う。
   // 自分の投稿は外す。おすすめは「自分が紹介できる相手」を出す場所なので。
   // 判定は名前ではなくIDで行う。同姓同名の会員がいると、名前では他人の投稿まで消える。
@@ -319,8 +331,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const canPostRequest = stats.requestLimit === UNLIMITED || stats.requestsThisMonth < stats.requestLimit;
   const count = (category: string) => category === 'all' ? statusMatched.length : statusMatched.filter((item) => item.category === category).length;
   const rankStart = rankThresholds[Math.max(0, stats.level - 1)] ?? 0;
-  const rankProgress = stats.level >= rankThresholds.length ? 100 : Math.max(0, Math.min(100, ((stats.introCount - rankStart) / Math.max(1, stats.nextRankAt - rankStart)) * 100));
-  const introductionsToNextRank = Math.max(0, stats.nextRankAt - stats.introCount);
+  const rankProgress = stats.level >= rankThresholds.length ? 100 : Math.max(0, Math.min(100, ((stats.inviteCount - rankStart) / Math.max(1, stats.nextRankAt - rankStart)) * 100));
+  /** 次のランクまで、あと何人を招待すればよいか。 */
+  const invitesToNextRank = Math.max(0, stats.nextRankAt - stats.inviteCount);
   useEffect(() => {
     const result = new URLSearchParams(window.location.search).get('billing');
     if (!result) return;
@@ -459,7 +472,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const canExtend = (need: BoardRequest) => canExtendRequest(stats.level) && !need.extendedAt;
 
   function ownerToolsNote(need: BoardRequest) {
-    if (!canExtendRequest(stats.level)) return `募集の延長は GOLD から使えます。あと${Math.max(0, rankThresholds[1] - stats.introCount)}件のオファーで GOLD です。`;
+    if (!canExtendRequest(stats.level)) return `募集の延長は GOLD から使えます。あと${Math.max(0, rankThresholds[1] - stats.inviteCount)}人の仲間をご招待いただくと GOLD です。`;
     if (isPinned(need)) return 'いま一覧のいちばん上に出ています。';
     return '延長は1件につき1回までです。一覧の上位に出すのは、広告メニューからお申し込みいただけます。';
   }
@@ -864,12 +877,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
    * マイページのタイル。**それぞれが下層ページの入口**で、マイページ自体には
    * 中身を並べない。全部を1枚に積むと、下の欄が遠くなって使われなくなる。
    */
+  // **6つちょうど**にしてある。3列なので、7つあると最後の1枚だけが3段目に
+  // ぽつんと残る。「仲間を招待」はこの下の帯に出してあり、ここには入れない。
   const mypageTiles = [
     // 数はタイルの右肩に出す。説明文にすると2行になって、タイルの高さが揃わない。
     { key: 'offers', icon: <OfferIcon className="mypage-glyph" />, label: 'オファー', badge: introCounts.received, note: introCounts.sent ? `出した ${introCounts.sent}件` : '', go: () => goTab('offers') },
     { key: 'posts', icon: <PostsIcon className="mypage-glyph" />, label: '自分の投稿', badge: myRequests.length, note: openPostCount ? `募集中 ${openPostCount}件` : '', go: () => goTab('posts') },
     { key: 'plan', icon: <PlanIcon className="mypage-glyph" />, label: 'プラン', badge: 0, note: planCatalog[stats.plan].name, go: () => goTab('plan') },
-    { key: 'invite', icon: <InviteIcon className="mypage-glyph" />, label: '仲間を招待', badge: referral?.invitedCount ?? 0, note: '', go: () => goTab('invite') },
     { key: 'receipts', icon: <ReceiptIcon className="mypage-glyph" />, label: '支払い履歴', badge: receipts?.length ?? 0, note: '', go: () => goTab('receipts') },
     { key: 'profile', icon: <ProfileIcon className="mypage-glyph" />, label: 'プロフィール', badge: 0, note: '', go: () => goTab('profile') },
     { key: 'feedback', icon: <VoiceIcon className="mypage-glyph" />, label: 'ご意見', badge: 0, note: '', go: () => goTab('feedback') },
@@ -1037,7 +1051,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <label><span>会場</span><select value={venueFilter} onChange={(event) => setVenueFilter(event.target.value)}><option value="all">すべての会場</option>{venueGroups.map(([prefecture, venues]) => <optgroup label={prefecture} key={prefecture}>{venues.map((venue) => <option value={venue} key={venue}>{venue}</option>)}</optgroup>)}</select></label>
           <label><span>エリア</span><select value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)}><option value="all">全国</option>{regions.map((region) => <option value={region.name} key={region.name}>{region.name}</option>)}</select></label>
           <label><span>業種</span><select value={getIndustryGroup(industryFilter)?.name ?? 'all'} onChange={(event) => setIndustryFilter(event.target.value)}><option value="all">すべての業種</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label>
-          <label className={canFilterByRevenue(stats.level) ? '' : 'is-locked'}><span>会社の年商 {!canFilterByRevenue(stats.level) && <em>{rankNames[2]}から</em>}</span><select value={revenueFilter} disabled={!canFilterByRevenue(stats.level)} onChange={(event) => setRevenueFilter(event.target.value)}><option value="all">すべての年商</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+          <label className={canFilterByBudget(stats.level) ? '' : 'is-locked'}><span>案件の予算 {!canFilterByBudget(stats.level) && <em>{rankNames[2]}から</em>}</span><select value={budgetFilter} disabled={!canFilterByBudget(stats.level)} onChange={(event) => setBudgetFilter(event.target.value)}><option value="all">すべての予算</option>{Object.entries(budgetBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         </div>
         <div className="card-list">
           {/* お金をいただいている枠なので、絞り込みに関係なくいちばん上に出す */}
@@ -1053,7 +1067,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               <div className="card-topline"><span className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</span><span className="card-top-actions">{isOpenRequest(need) ? <span className="deadline">あと{daysLeft(need.deadline)}日</span> : <span className="deadline ended">募集終了</span>}<button className={favoriteIds.includes(need.id) ? 'card-heart active' : 'card-heart'} aria-label={favoriteIds.includes(need.id) ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={(event) => { event.stopPropagation(); toggleFavorite(need); }}>♥</button></span></div>
               <h3>{need.title}</h3>{need.thumbUrl && <img className="need-thumb" src={need.thumbUrl} alt="" loading="lazy" decoding="async" />}<p className="need-body">{need.description}</p>
               <div className="industry-tags" aria-label="関連業種">{need.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
-              <dl className="details"><div><dt>予算</dt><dd>{need.budgetLabel}</dd></div><div><dt>エリア</dt><dd>{need.area || '指定なし'}</dd></div></dl>
+              <dl className="details"><div><dt>予算</dt><dd>{budgetText(need)}</dd></div><div><dt>エリア</dt><dd>{need.area || '指定なし'}</dd></div></dl>
               <div className="card-person"><Avatar src={need.authorAvatarUrl} name={need.authorName} className="member-avatar" /><p><b>{need.authorName}</b><small>{need.authorPositionTitle && `${need.authorPositionTitle}｜`}{need.authorCompany || '会社名未設定'}</small></p><span>オファー {need.introCount}件</span></div>
               <div className="member-context">{need.commentCount > 0 && <span className="comment-count">やり取り {need.commentCount}件</span>}<span>会場 {need.authorVenue}</span>{need.authorBusinessArea && <span>エリア {need.authorBusinessArea}</span>}{need.authorRevenueBand && <span>年商 {revenueBands[need.authorRevenueBand]}</span>}</div>
               <button className="intro-button" onClick={(event) => { event.stopPropagation(); openIntroduction(need); }}>この人にオファー <span>→</span></button>
@@ -1074,7 +1088,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <span className="rank-slim-more">特典を見る ›</span>
         </button>
         <button className="rank-next" onClick={() => setModal('perks')}>
-          <div className="rank-next-copy"><b>{stats.level >= rankThresholds.length ? '最高ランクに到達' : `あと${introductionsToNextRank}件でランクアップ`}</b><span>オファー {stats.introCount}件・{stats.points}pt</span></div>
+          <div className="rank-next-copy"><b>{stats.level >= rankThresholds.length ? '最高ランクに到達' : `あと${invitesToNextRank}人の招待でランクアップ`}</b><span>参加した仲間 {stats.inviteCount}人・オファー {stats.introCount}件</span></div>
           <span className="rank-next-track"><i style={{ width: `${rankProgress}%` }} /></span>
         </button>
         <nav className="mypage-grid" aria-label="マイページのメニュー">
@@ -1086,6 +1100,19 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           </button>)}
         </nav>
 
+        {/* 招待だけタイルから外して帯にしてある。7枚だと3列に収まらず最後の
+            1枚が3段目に残るのと、**ランクが上がる唯一の道**なので、ほかの
+            入口と同じ大きさで並べるより、ここで1本立てたほうが目に入る。 */}
+        <button className="mypage-invite" onClick={() => goTab('invite')}>
+          <span className="mypage-invite-icon" aria-hidden="true"><InviteIcon className="mypage-glyph" /></span>
+          <span className="mypage-invite-copy">
+            <b>仲間を招待する</b>
+            <small>{stats.level >= rankThresholds.length
+              ? `参加した仲間 ${stats.inviteCount}人・最高ランクです`
+              : `参加した仲間 ${stats.inviteCount}人・あと${invitesToNextRank}人で ${rankNames[stats.level]}`}</small>
+          </span>
+          <span className="mypage-invite-go" aria-hidden="true">›</span>
+        </button>
 
         <LegalLinks />
       </section> : activeTab === 'offers' ? <section className="profile-page" aria-labelledby="offers-title">
@@ -1258,7 +1285,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {modal === 'request' && !canPostRequest && !editingRequest && <Modal title="今月分の投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showMyPage(); }}>マイページを開く</button></div></Modal>}
 
-      {modal === 'request' && (canPostRequest || editingRequest) && <Modal title={editingRequest ? '探しごとを編集' : '探しごとを投稿'} lead={editingRequest ? '直したいところを書き替えて、保存してください。' : 'どんな人にオファーしてほしいかを具体的に書きましょう。'} onClose={closeRequestModal}><form className="form" key={editingRequest?.id ?? 'new'} onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue={editingRequest?.category ?? ''}><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" defaultValue={editingRequest?.title ?? ''} /></label><label>詳しい内容 {descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" required maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人をオファーしてほしいか" defaultValue={editingRequest?.description ?? ''} /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" defaultValue={editingRequest?.budgetLabel ?? ''} /></label><label>希望エリア <small>任意</small><select name="area" defaultValue={editingRequest?.area ?? ''}><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" defaultValue={editingRequest?.deadline ?? ''} /></label>{editingRequest && <label>募集状況<select name="status" defaultValue={editingRequest.status}><option value="open">募集中</option><option value="closed">募集を終了する</option></select></label>}<div className="request-photos"><p><b>写真を付ける <em>任意</em></b><small>{photoLimit(stats.level) > 1 ? `${stats.rank}は${photoLimit(stats.level)}枚まで付けられます` : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></p><div className="request-photo-grid">{requestPhotoPreviews.map((preview, index) => <span key={preview} className="request-photo-item"><img src={preview} alt={`添付する写真 ${index + 1}枚目`} /><button type="button" onClick={() => removeRequestPhoto(index)} aria-label={`${index + 1}枚目を削除`}>×</button></span>)}{requestPhotos.length < photoLimit(stats.level) && <label className="request-photo-add"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" multiple={photoLimit(stats.level) > 1} onChange={chooseRequestPhoto} /><b>＋</b><small>{requestPhotos.length ? 'もう1枚' : '写真を選ぶ'}</small></label>}</div></div>{canPostVideo(stats.level) && <div className="request-video"><p><b>動画を付ける <em>任意</em></b><small>{VIDEO_MAX_SECONDS}秒まで。選ぶと端末の中で自動的に小さくします。</small></p>
+      {modal === 'request' && (canPostRequest || editingRequest) && <Modal title={editingRequest ? '探しごとを編集' : '探しごとを投稿'} lead={editingRequest ? '直したいところを書き替えて、保存してください。' : 'どんな人にオファーしてほしいかを具体的に書きましょう。'} onClose={closeRequestModal}><form className="form" key={editingRequest?.id ?? 'new'} onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue={editingRequest?.category ?? ''}><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" defaultValue={editingRequest?.title ?? ''} /></label><label>詳しい内容 {descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" required maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人をオファーしてほしいか" defaultValue={editingRequest?.description ?? ''} /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算<select name="budgetBand" required defaultValue={editingRequest?.budgetBand ?? ''}><option value="" disabled>選択してください</option>{Object.entries(budgetBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>予算のくわしい書き方 <small>任意</small><input name="budgetLabel" maxLength={60} placeholder="例：月額20〜40万円／初回は50万円まで" defaultValue={editingRequest?.budgetLabel ?? ''} /></label><label>希望エリア <small>任意</small><select name="area" defaultValue={editingRequest?.area ?? ''}><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" defaultValue={editingRequest?.deadline ?? ''} /></label>{editingRequest && <label>募集状況<select name="status" defaultValue={editingRequest.status}><option value="open">募集中</option><option value="closed">募集を終了する</option></select></label>}<div className="request-photos"><p><b>写真を付ける <em>任意</em></b><small>{photoLimit(stats.level) > 1 ? `${stats.rank}は${photoLimit(stats.level)}枚まで付けられます` : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></p><div className="request-photo-grid">{requestPhotoPreviews.map((preview, index) => <span key={preview} className="request-photo-item"><img src={preview} alt={`添付する写真 ${index + 1}枚目`} /><button type="button" onClick={() => removeRequestPhoto(index)} aria-label={`${index + 1}枚目を削除`}>×</button></span>)}{requestPhotos.length < photoLimit(stats.level) && <label className="request-photo-add"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" multiple={photoLimit(stats.level) > 1} onChange={chooseRequestPhoto} /><b>＋</b><small>{requestPhotos.length ? 'もう1枚' : '写真を選ぶ'}</small></label>}</div></div>{canPostVideo(stats.level) && <div className="request-video"><p><b>動画を付ける <em>任意</em></b><small>{VIDEO_MAX_SECONDS}秒まで。選ぶと端末の中で自動的に小さくします。</small></p>
         {videoProgress >= 0
           ? <div className="request-video-busy"><span style={{ width: `${Math.round(videoProgress * 100)}%` }} /><b>動画を小さくしています… {Math.round(videoProgress * 100)}%</b></div>
           : requestVideoPreview
@@ -1326,7 +1353,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </div>
       </Modal>}
 
-      {modal === 'perks' && <Modal title="ランクの特典" lead="オファーした数でランクが上がり、できることが増えます。一度上がったランクは下がりません。" onClose={() => { setModal(null); setOpenPerk(''); }}>
+      {modal === 'perks' && <Modal title="ランクの特典" lead="招待して参加した仲間の人数でランクが上がり、できることが増えます。一度上がったランクは下がりません。" onClose={() => { setModal(null); setOpenPerk(''); }}>
         <div className="perk-panel">
           <ol className="perk-ladder" aria-label="ランクの段階">{rankNames.map((name, index) => {
             const level = index + 1;
@@ -1339,7 +1366,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
           <p className="perk-now">
             <b><small>会員ランク</small>{stats.rank}</b>
-            <span>{stats.level >= rankNames.length ? '最高ランクです。ありがとうございます。' : `あと${introductionsToNextRank}件のオファーで ${rankNames[stats.level]} になります。`}</span>
+            <span>{stats.level >= rankNames.length ? '最高ランクです。ありがとうございます。' : `あと${invitesToNextRank}人の仲間をご招待いただくと ${rankNames[stats.level]} になります。`}</span>
           </p>
 
           <ul className="perk-grid">{rankPerks.map((perk) => {
@@ -1361,11 +1388,11 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               <p className="perk-detail-head"><b>{perk.label}</b><span>{perk.soon ? '近日公開' : unlocked ? '使えます' : `${rankNames[perk.minLevel - 1]}で解放`}</span></p>
               <p className="perk-detail-body">{perk.detail}</p>
               {perk.soon && <p className="perk-detail-note">この特典はまだ作っている途中です。できあがったら、いまのランクのままお使いいただけます。</p>}
-              {!unlocked && !perk.soon && <p className="perk-detail-note">あと{Math.max(0, rankThresholds[perk.minLevel - 1] - stats.introCount)}件のオファーで使えるようになります。</p>}
+              {!unlocked && !perk.soon && <p className="perk-detail-note">あと{Math.max(0, rankThresholds[perk.minLevel - 1] - stats.inviteCount)}人の仲間をご招待いただくと使えるようになります。</p>}
             </div>;
           })()}
 
-          <p className="perk-terms">特典の内容は、予告なく変更または終了することがあります。ランクはオファーした数の累計で決まり、下がることはありません。</p>
+          <p className="perk-terms">特典の内容は、予告なく変更または終了することがあります。ランクは招待して参加した仲間の人数で決まり、下がることはありません。</p>
         </div>
       </Modal>}
 
@@ -1505,7 +1532,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <p>{selected.description}</p>
         {selected.videoUrl && <video className="need-video" src={selected.videoUrl} controls playsInline preload="metadata" />}
         <div className="industry-tags">{selected.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
-        <dl><div><dt>予算</dt><dd>{selected.budgetLabel}</dd></div><div><dt>希望エリア</dt><dd>{selected.area || '指定なし'}</dd></div><div><dt>募集期限</dt><dd>{selected.deadline}</dd></div></dl>
+        <dl><div><dt>予算</dt><dd>{budgetText(selected)}</dd></div><div><dt>希望エリア</dt><dd>{selected.area || '指定なし'}</dd></div><div><dt>募集期限</dt><dd>{selected.deadline}</dd></div></dl>
         <div className="detail-author"><Avatar src={selected.authorAvatarUrl} name={selected.authorName} className="member-avatar" /><p><b>{selected.authorName}</b><span>{selected.authorPositionTitle && `${selected.authorPositionTitle}｜`}{selected.authorCompany || '会社名未設定'}</span><small>{selected.authorVenue}{selected.authorBusinessArea && `・${selected.authorBusinessArea}`}</small></p><FacebookLink url={selected.authorFacebookUrl} name={selected.authorName} /></div>
         {selected.mine
           ? <div className="owner-tools">
@@ -1742,7 +1769,7 @@ function HomeRequestCard({ need, favorite, onOpen, onFavorite }: { need: BoardRe
     <span className={need.thumbUrl ? 'home-request-cover has-photo' : 'home-request-cover'}>{need.thumbUrl
       ? <img src={need.thumbUrl} alt="" loading="lazy" decoding="async" />
       : <><IndustryIcon group={primaryGroup} /><small>{primaryIndustry}</small></>}</span>
-    <span className="home-request-copy"><small><b className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</b> あと{daysLeft(need.deadline)}日</small><strong>{need.title}</strong><span>{need.budgetLabel}</span><em>{need.authorName}・{need.authorVenue}</em></span>
+    <span className="home-request-copy"><small><b className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</b> あと{daysLeft(need.deadline)}日</small><strong>{need.title}</strong><span>{budgetText(need)}</span><em>{need.authorName}・{need.authorVenue}</em></span>
   </button></article>;
 }
 
