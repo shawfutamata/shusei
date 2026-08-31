@@ -91,8 +91,11 @@ export function descriptionLimit(level: number) {
 }
 
 /** 探しごとに付けられる写真の枚数。PLATINUM以上で複数枚。 */
+/** いちばん上のランクで付けられる写真の枚数。鍵つきの空き枠を出すのに使う。 */
+export const PHOTO_LIMIT_TOP = 5;
+
 export function photoLimit(level: number) {
-  return level >= 3 ? 5 : 1;
+  return level >= 3 ? PHOTO_LIMIT_TOP : 1;
 }
 
 /** おすすめに出したい業種を、いくつまで選べるか。 */

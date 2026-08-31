@@ -1234,3 +1234,18 @@ body { font-weight:600; }
 .upgrade-panel ul { margin:0; padding:13px 15px 13px 31px; border-radius:14px; background:#eff6ff; display:grid; gap:6px; }
 .upgrade-panel li { font-size:12px; font-weight:800; color:#0b3f86; line-height:1.6; }
 .upgrade-panel .upgrade-free { padding:11px 13px; border-radius:12px; background:#f8fafc; font-size:12px; color:#475569; }
+
+/* まだ使えない写真・動画の枠。**消さずに鍵をかけて見せる。**
+   隠すと「そんな機能がある」ことに気づけず、上のランクへ上がる理由が
+   伝わらない。掲示板の絞り込みの鍵（.member-filters .is-locked）と
+   同じ見せ方に揃えてある。 */
+.request-photo-add.is-locked,
+.request-video-add.is-locked { opacity:.62; cursor:default; pointer-events:none; background:#f4f7fb; }
+.request-photo-add.is-locked b,
+.request-video-add.is-locked b { color:#9aa8bc; }
+.request-video-add.is-locked { display:grid; }
+.request-photo-add.is-locked small,
+.request-video-add.is-locked small { padding:1px 6px; border-radius:99px; background:#2f4a5e; color:#fff; font-size:8px; font-weight:900; }
+.request-video.is-locked { background:#f4f7fb; }
+.request-locked-note { margin:9px 0 0; color:#5b6d86; font-size:11px; font-weight:700; line-height:1.7; }
+.request-locked-note em { margin-right:5px; padding:1px 6px; border-radius:99px; background:#2f4a5e; color:#fff; font-size:8px; font-style:normal; font-weight:900; }
