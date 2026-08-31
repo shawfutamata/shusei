@@ -11,6 +11,7 @@ export default function LegalPage({ eyebrow, title, lead, warning, children, upd
   updatedAt: string;
 }) {
   return <main style={styles.page}><article style={styles.card}>
+    <style dangerouslySetInnerHTML={{ __html: legalTableCss }} />
     {warning && <p style={styles.warning}>{warning}</p>}
     <p style={styles.eyebrow}>{eyebrow}</p>
     <h1 style={styles.title}>{title}</h1>
@@ -39,15 +40,34 @@ export function LegalSection({ heading, body }: { heading: string; body: string 
   </section>;
 }
 
-/** 特商法の表記のような「項目名 → 内容」の並び。 */
+/**
+ * 特商法の表記のような「項目名 → 内容」の並び。
+ *
+ * 中身の幅は文字が決めるので、インラインの style では収まらない。
+ * 2列のままだと、スマホでは右の列が160pxほどしか残らず、メールアドレスの
+ * ような切れ目の無い長い文字列が枠からはみ出していた。狭い画面では
+ * 「項目名の下に内容」の1列に畳み、長い文字列はどこでも折り返す。
+ */
 export function LegalTable({ rows }: { rows: [string, React.ReactNode][] }) {
-  return <dl style={styles.table}>
-    {rows.map(([label, value]) => <div key={label} style={styles.row}>
-      <dt style={styles.rowLabel}>{label}</dt>
-      <dd style={styles.rowValue}>{value}</dd>
+  return <dl className="legal-table">
+    {rows.map(([label, value]) => <div key={label} className="legal-row">
+      <dt>{label}</dt>
+      <dd>{value}</dd>
     </div>)}
   </dl>;
 }
+
+const legalTableCss = `
+.legal-table { margin:0; padding:0; border-top:1px solid #e7edf5; }
+.legal-row { display:grid; grid-template-columns:minmax(150px,32%) minmax(0,1fr); gap:16px; padding:18px 0; border-bottom:1px solid #e7edf5; }
+.legal-row dt { margin:0; color:#33445f; font-size:14px; font-weight:800; line-height:1.8; }
+/* minmax(0,1fr) と合わせて、長いメールアドレスやURLを枠の中で折り返す。 */
+.legal-row dd { margin:0; min-width:0; color:#4e6078; font-size:15px; line-height:1.95; overflow-wrap:anywhere; word-break:break-word; }
+@media (max-width:620px) {
+  .legal-row { grid-template-columns:minmax(0,1fr); gap:5px; padding:15px 0; }
+  .legal-row dt { font-size:13px; }
+}
+`;
 
 /** 未記入の項目。公開前に気づけるように、目に見える形で出す。 */
 export function LegalTodo({ label }: { label: string }) {
@@ -65,10 +85,6 @@ export const styles = {
   heading: { margin: '0 0 10px', fontSize: 19, lineHeight: 1.5 },
   body: { margin: 0, color: '#4e6078', fontSize: 15, lineHeight: 2 },
   bodyNext: { margin: '14px 0 0', color: '#4e6078', fontSize: 15, lineHeight: 2 },
-  table: { margin: '0', padding: 0, borderTop: '1px solid #e7edf5' },
-  row: { display: 'grid', gridTemplateColumns: 'minmax(160px, 34%) 1fr', gap: 16, padding: '18px 0', borderBottom: '1px solid #e7edf5' },
-  rowLabel: { margin: 0, color: '#33445f', fontSize: 14, fontWeight: 800, lineHeight: 1.8 },
-  rowValue: { margin: 0, color: '#4e6078', fontSize: 15, lineHeight: 1.95 },
   todo: { color: '#c93d0e', fontWeight: 800 },
   footer: { marginTop: 32, paddingTop: 22, borderTop: '1px solid #e7edf5' },
   updated: { margin: 0, color: '#7a889c', fontSize: 13, fontWeight: 700 },
