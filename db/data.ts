@@ -906,8 +906,11 @@ export async function getBoardData(user: SessionUser) {
     intro_count AS introCount, deal_count AS dealCount, points,
     (SELECT COUNT(*) FROM introductions i JOIN requests r ON r.id = i.request_id
       WHERE r.author_id = members.id) AS receivedIntroCount,
-    (SELECT COUNT(*) FROM members inv
-      WHERE inv.invited_by = members.id AND inv.membership_status = 'active') AS inviteCount
+    -- **会員登録が済んだ時点で数える。** invited_by は、その人が
+    -- 招待リンク（＝招待コード）から登録したときにだけ入る。
+    -- いまの利用状態では絞らない。あとで運営が誰かを止めたときに、
+    -- 招待した人のランクまで下がってしまうため（ランクは下がらない決まり）。
+    (SELECT COUNT(*) FROM members inv WHERE inv.invited_by = members.id) AS inviteCount
     FROM members WHERE id = ?`).bind(user.userId).first<Omit<MemberStats, 'rank' | 'level' | 'nextRankAt' | 'avatarUrl' | 'notifyIndustries'> & { notifyIndustriesJson: string; avatarKey: string; avatarVersion: number }>();
 
   const baseMember = member ?? { displayName: user.displayName, nameKana: '', venue: 'ひるのめぐろ会場', company: '', companyKana: '', positionTitle: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', facebookUrl: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, inviteCount: 0, dealCount: 0, points: 0 };
@@ -1860,8 +1863,8 @@ async function countAdEvents(ids: string[], kind: 'views' | 'clicks') {
 /** ランクだけを引く。出稿枠の判定で、掲示板ぜんぶを読まないため。 */
 export async function getMemberRank(memberId: string) {
   await ensureDatabase();
-  const row = await env.DB.prepare(`SELECT COUNT(*) AS inviteCount FROM members
-    WHERE invited_by = ? AND membership_status = 'active'`)
+  // 数え方は getMemberStats と揃える。登録が済んだ人はそのまま数える。
+  const row = await env.DB.prepare('SELECT COUNT(*) AS inviteCount FROM members WHERE invited_by = ?')
     .bind(memberId).first<{ inviteCount: number }>();
   const level = levelFor(Number(row?.inviteCount ?? 0));
   return { rank: rankName(level), level };

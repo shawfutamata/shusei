@@ -1157,10 +1157,15 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section> : activeTab === 'invite' ? <section className="profile-page" aria-labelledby="invite-title">
-        <header className="profile-page-heading"><p>INVITE</p><h1 id="invite-title">仲間を招待する</h1><span>あなたの招待リンクから入会した方が続くと、会費が無料になります。</span></header>
+        <header className="profile-page-heading"><p>INVITE</p><h1 id="invite-title">仲間を招待する</h1><span>あなたの招待リンク（または招待コード）から入会した方の人数で<b>ランクが上がります</b>。ご利用が続くと、会費も無料になります。</span></header>
         {referral && <section className="invite-card" aria-label="仲間を招待する">
           <div className="invite-heading"><p>INVITE</p><h2>仲間を招待する</h2><span>あなたの招待リンクから入会して{referral.qualifyDays}日続いた方1人につき、{stats.paid ? '会費が1ヶ月無料になります' : 'スタンダードが1ヶ月使えます'}（合計{referral.capTotal}ヶ月まで）。</span></div>
           <button className="invite-link" onClick={copyInviteLink}><span>{referral.url.replace(/^https?:\/\//, '')}</span><i>{inviteCopied ? 'コピーしました' : 'リンクをコピー'}</i></button>
+          {/* リンクを送れない場面のために、コードそのものも出しておく。
+              例会で口頭で伝えたり、名刺に書いて渡したりできる。
+              受け取った人はログイン画面の「招待コードをお持ちの方」から入れる。 */}
+          <p className="invite-code"><small>あなたの招待コード</small><b>{referral.code}</b>
+            <em>リンクを送れないときは、このコードをお伝えください。ログイン画面から入力して参加できます。</em></p>
           <dl className="invite-stats">
             <div><dt>招待した人</dt><dd>{referral.invitedCount}<small>人</small></dd></div>
             <div><dt>利用中</dt><dd>{referral.activeCount}<small>人</small></dd></div>

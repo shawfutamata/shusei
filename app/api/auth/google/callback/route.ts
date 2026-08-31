@@ -29,10 +29,29 @@ export async function GET(request: Request) {
     session = await startMemberSessionByEmail(account.email);
   } catch (error) {
     if (error instanceof Error && error.message.includes('利用権限')) return redirectHome(request, 'denied');
-    // 会員ではない。招待リンクから来ていれば、承認待ちとして登録だけする。
+    // 会員ではない。招待コード（＝招待リンク）から来ていれば、そこで登録する。
+    // 登録できた人はそのまま使えるようにする。`registerInvitedMember()` は
+    // 利用中の会員として書いているので、ここで入口を閉じると「登録は済んで
+    // いるのに入れない」という行き止まりになる。招待した人の人数も、この
+    // 登録の時点で1人ぶん増える。
     if (inviteCode) {
       const registered = await registerInvitedMember(account.email, account.name, inviteCode);
-      if (registered) return redirectHome(request, registered.alreadyMember ? 'denied' : 'pending');
+      if (registered?.alreadyMember) return redirectHome(request, 'denied');
+      if (registered) {
+        // ここは外側の catch の中。セッションを開くのに失敗しても
+        // 登録そのものは済んでいるので、案内を出してもう一度ログイン
+        // してもらう。失敗を外へ投げると、真っ白な画面になる。
+        try {
+          const started = await startMemberSessionByEmail(account.email);
+          const welcome = redirectHome(request, 'invited');
+          welcome.cookies.set(SESSION_COOKIE, started.token, {
+            httpOnly: true, secure: true, sameSite: 'lax', path: '/', expires: new Date(started.expiresAt),
+          });
+          return welcome;
+        } catch {
+          return redirectHome(request, 'pending');
+        }
+      }
     }
     // 先行テストの枠（先着50名）。空いていれば、そのまま会員として入れる。
     // 埋まったらこの経路は閉じ、招待リンク経由だけになる。
