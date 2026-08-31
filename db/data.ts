@@ -2187,9 +2187,15 @@ export async function markReferralCreditsApplied(ids: string[], month: string) {
 
 // --- 会員紹介（招待）ここから -------------------------------------------------
 // ルールは docs/referral-program-ja.md が正。
-// 「紹介した人が入会して30日続いたら、紹介した人の会費が1ヶ月無料。通算6ヶ月まで」
+// 「紹介した人が入会して7日続いたら、紹介した人の会費が1ヶ月無料。通算6ヶ月まで」
 
-export const REFERRAL_QUALIFY_DAYS = 30;
+/**
+ * 招待した人が「続いた」と認める日数。
+ *
+ * 画面の文言もここから作る（`qualifyDays`）ので、数字を直に書いた場所は無い。
+ * ここを変えれば、招待ページもプラン欄も揃って変わる。
+ */
+export const REFERRAL_QUALIFY_DAYS = 7;
 /** 1人が受け取れる無料月の合計。年ごとではなく、通算の上限。 */
 export const REFERRAL_CAP_TOTAL = 6;
 
