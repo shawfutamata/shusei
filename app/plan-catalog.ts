@@ -8,7 +8,7 @@ export const YEARLY_DISCOUNT = 0.2;
 
 export const planCatalog: Record<Plan, { name: string; monthlyYen: number; summary: string }> = {
   free: { name: '無料', monthlyYen: 0, summary: '探しごとは月1件まで' },
-  standard: { name: 'スタンダード', monthlyYen: 1000, summary: '探しごとは何件でも' },
+  standard: { name: 'スタンダード', monthlyYen: 1200, summary: '探しごとは何件でも' },
 };
 
 /** 年払いの総額。月額×12から割引を引く。 */
