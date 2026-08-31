@@ -1208,8 +1208,11 @@ body { font-weight:600; }
    頼らないよう、下段に「無料 / スタンダードから」の一言を必ず添える。 */
 .offer-kind { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:0 0 16px; }
 .offer-kind button { display:grid; gap:3px; padding:11px 9px; border:2px solid #e2e8f0; border-radius:12px; background:#fff; color:#475569; text-align:left; cursor:pointer; }
-.offer-kind button b { font-size:13px; font-weight:900; line-height:1.4; }
-.offer-kind button small { font-size:10px; font-weight:800; color:#94a3b8; }
+.offer-kind button b { display:flex; align-items:center; gap:6px; font-size:13px; font-weight:900; line-height:1.4; }
+/* 無料か有料かは、名前のとなりに札で出す。説明文の中に混ぜると読み飛ばされる。 */
+.offer-kind button b em { padding:1px 6px; border-radius:99px; background:#e2e8f0; color:#475569; font-size:9px; font-style:normal; font-weight:900; }
+.offer-kind button small { font-size:10px; font-weight:700; line-height:1.6; color:#94a3b8; }
+.offer-kind button.selected b em { background:#0f5fc4; color:#fff; }
 .offer-kind button.selected { border-color:#0f5fc4; background:#eff6ff; color:#0b3f86; }
 .offer-kind button.selected small { color:#0f5fc4; }
 

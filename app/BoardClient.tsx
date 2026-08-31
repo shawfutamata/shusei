@@ -1146,9 +1146,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               </li>)}
             </ul>
             <ul className="plan-detail">
-              <li className="only"><b>届いたオファーを受け取る、自社で請け負うオファーを送る</b><span>スタンダードのみ</span></li>
+              <li className="only"><b>届いたオファーを受け取る、オファー（自社で請け負う）を送る</b><span>スタンダードのみ</span></li>
               <li className="only"><b>会員を探す、オファーを書き出す</b><span>スタンダードのみ</span></li>
-              <li className="all"><b>掲示板を見る、知り合いを紹介する、やり取りする</b><span>どのプランでも無制限</span></li>
+              <li className="all"><b>掲示板を見る、リファラル（知り合いの紹介）、やり取りする</b><span>どのプランでも無制限</span></li>
             </ul>
             {referral?.billing?.hasCustomer && <button className="plan-manage" onClick={openBillingPortal} disabled={busy}>お支払い・解約の手続き</button>}
             <p className="plan-note">仲間を1人招待してご利用が{referral?.qualifyDays ?? 30}日続くと、{stats.contractedPlan === 'free' ? <><b>自動でスタンダードが1ヶ月使えるようになります</b>（お手続きは要りません）</> : <><b>次回の請求から1ヶ月分自動で引かれます</b></>}。{referral?.billing?.ready ? '有料プランへのお申し込みは、上のボタンからいつでもどうぞ。解約もいつでもできます。' : ''}</p>
@@ -1317,14 +1317,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       {modal === 'intro' && selected && <Modal title="この探しごとにオファー" lead={`「${selected.title}」へのオファーです。`} onClose={() => setModal(null)}>
         <div className="offer-kind" role="group" aria-label="オファーの種類">
           <button type="button" className={offerKind === 'referral' ? 'selected' : ''} onClick={() => setOfferKind('referral')} aria-pressed={offerKind === 'referral'}>
-            <b>知り合いを紹介する</b><small>どのプランでも無料</small></button>
+            <b>リファラル<em>無料</em></b><small>知り合いを紹介します。人をつなぐだけなので、どのプランでもどうぞ。</small></button>
           <button type="button" className={offerKind === 'self' ? 'selected' : ''} onClick={() => setOfferKind('self')} aria-pressed={offerKind === 'self'}>
-            <b>自社で請け負う</b><small>{stats.plan === 'free' ? 'スタンダードから' : 'ご利用いただけます'}</small></button>
+            <b>オファー<em>有料</em></b><small>自社で請け負います。仕事を受ける話なので、スタンダードから。</small></button>
         </div>
         {offerKind === 'self' && stats.plan === 'free'
           ? <div className="offer-locked">
-            <p><b>自社で請け負うオファーは、スタンダードプランからお送りいただけます。</b></p>
-            <p>知り合いの方をご紹介いただくのは、無料プランのままいつでもどうぞ。</p>
+            <p><b>オファー（自社で請け負う）は、スタンダードプランからお送りいただけます。</b></p>
+            <p>リファラル（知り合いのご紹介）は、無料プランのままいつでもどうぞ。</p>
             <button className="submit-button" onClick={() => { setUpgradeNote(''); setModal('upgrade'); }}>プランを見る</button>
           </div>
           : <form className="form" onSubmit={submitIntroduction} key={offerKind}>
@@ -1351,10 +1351,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <ul>
             <li>届いたオファーの中身を読む</li>
             <li>オファーをくれた方とやり取りする</li>
-            <li>自社で請け負うオファーを送る</li>
+            <li>オファー（自社で請け負う）を送る</li>
             <li>会員を業種・エリアで探す</li>
           </ul>
-          <p className="upgrade-free">知り合いの方をご紹介いただくのは、これまでどおり無料プランのままどうぞ。</p>
+          <p className="upgrade-free">リファラル（知り合いのご紹介）は、これまでどおり無料プランのままどうぞ。</p>
           <button className="submit-button" onClick={() => { setModal(null); goTab('plan'); }}>プランを見る</button>
           <button className="quota-cancel" onClick={() => setModal(null)}>あとで</button>
         </div>

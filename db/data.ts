@@ -1149,7 +1149,7 @@ export async function createIntroduction(user: SessionUser, input: { requestId: 
   await requireFacePhoto(user.userId);
   const kind: OfferKind = input.kind === 'self' ? 'self' : 'referral';
   if (kind === 'self' && !can(await getPlanState(user.userId), 'self_offer')) {
-    throw new Error(`${PAYWALL}自社で請け負うオファーは、スタンダードプランでお送りいただけます。知り合いの方をご紹介いただくのは、無料プランのままお使いいただけます。`);
+    throw new Error(`${PAYWALL}オファー（自社で請け負う）は、スタンダードプランでお送りいただけます。リファラル（知り合いのご紹介）は、無料プランのままお使いいただけます。`);
   }
   const request = await env.DB.prepare('SELECT id FROM requests WHERE id = ? AND status = ?').bind(input.requestId, 'open').first();
   if (!request) throw new Error('募集が終了しているか、見つかりません。');

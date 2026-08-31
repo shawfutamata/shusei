@@ -8,7 +8,7 @@ import IntroductionChat from './IntroductionChat';
 
 const categoryLabels = { project: '案件', collaboration: '協業先', consultation: '相談・情報' };
 /** 紹介なのか、自分の会社で請け負うのか。受け取る側にはここが真っ先に要る。 */
-const kindLabels = { referral: '知り合いの紹介', self: '自社で請け負います' };
+const kindLabels = { referral: 'リファラル（知り合いの紹介）', self: 'オファー（自社で請け負う）' };
 
 /**
  * オファーの受け箱。**届いた／出した**の両方を出す。
