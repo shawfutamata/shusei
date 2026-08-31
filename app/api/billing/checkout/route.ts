@@ -28,8 +28,25 @@ export async function POST(request: Request) {
   } catch (error) {
     // 鍵の設定ミスやStripe側の不調で、画面が真っ白にならないようにする。
     console.error('stripe checkout failed', error);
-    return NextResponse.json({ error: 'お支払い画面を開けませんでした。時間をおいてお試しいただくか、運営窓口へお問い合わせください。' }, { status: 502 });
+    // **何が悪いのかを持ち帰れるようにする。** 文言だけだと、鍵の取り違えなのか
+    // 価格IDの間違いなのか外からは分からず、毎回ログを見に行くことになる。
+    // 返すのはStripeが付ける短い識別子（code / param）だけで、鍵も本文も出さない。
+    return NextResponse.json({
+      error: 'お支払い画面を開けませんでした。時間をおいてお試しいただくか、運営窓口へお問い合わせください。',
+      ...stripeHint(error),
+    }, { status: 502 });
   }
+}
+
+/** Stripeのエラーから、原因あてに使える短い印だけを取り出す。 */
+function stripeHint(error: unknown) {
+  const e = error as { type?: string; code?: string; param?: string };
+  if (!e || typeof e !== 'object') return {};
+  const hint: Record<string, string> = {};
+  if (typeof e.type === 'string') hint.stripeType = e.type;
+  if (typeof e.code === 'string') hint.stripeCode = e.code;
+  if (typeof e.param === 'string') hint.stripeParam = e.param;
+  return hint;
 }
 
 async function createCheckout(memberId: string, userEmail: string, userName: string, plan: Plan, cycle: BillingCycle, price: string, origin: string) {
@@ -37,21 +54,34 @@ async function createCheckout(memberId: string, userEmail: string, userName: str
   const link = await getStripeLink(memberId);
 
   // 顧客は1人1つ。作り直すと過去の請求とつながらなくなる。
-  let customerId = link.customerId;
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: link.email || userEmail,
-      name: link.displayName || userName,
-      metadata: { memberId },
-    });
-    customerId = customer.id;
-    await saveStripeCustomer(memberId, customerId);
-  }
+  let customerId = link.customerId || await newCustomer(stripe, memberId, link.email || userEmail, link.displayName || userName);
 
   // 無料のうちにためた無料月があれば、契約と同時に残高へ入れる。
   // 継続課金になってからのぶんは、確定した時点で入る（app/billing-credits.ts）。
   await applyReferralCreditsToStripe(memberId).catch(() => 0);
 
+  try {
+    return await openCheckout(stripe, customerId, price, plan, cycle, memberId, origin);
+  } catch (error) {
+    // **保存してある顧客が、いまの鍵のStripeに無いことがある。** テスト用と
+    // 本番用の鍵を入れ替えたときや、Stripeのアカウントを作り直したときで、
+    // D1に残ったIDだけが古いまま。作り直して1回だけやり直す。
+    // 顧客を作り直すのは、こうなったときは過去の請求とつなぎようがないため。
+    if (!isMissingCustomer(error)) throw error;
+    console.warn('stripe customer missing, creating a new one', { memberId });
+    customerId = await newCustomer(stripe, memberId, link.email || userEmail, link.displayName || userName);
+    return await openCheckout(stripe, customerId, price, plan, cycle, memberId, origin);
+  }
+}
+
+async function newCustomer(stripe: ReturnType<typeof stripeClient>, memberId: string, email: string, name: string) {
+  const customer = await stripe.customers.create({ email, name, metadata: { memberId } });
+  await saveStripeCustomer(memberId, customer.id);
+  return customer.id;
+}
+
+async function openCheckout(stripe: ReturnType<typeof stripeClient>, customerId: string, price: string,
+  plan: Plan, cycle: BillingCycle, memberId: string, origin: string) {
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     customer: customerId,
@@ -64,4 +94,10 @@ async function createCheckout(memberId: string, userEmail: string, userName: str
   });
 
   return NextResponse.json({ url: session.url });
+}
+
+/** 「その顧客はいません」かどうか。価格IDの間違いなど、他の resource_missing と混ぜない。 */
+function isMissingCustomer(error: unknown) {
+  const e = error as { code?: string; param?: string };
+  return Boolean(e && typeof e === 'object' && e.code === 'resource_missing' && e.param === 'customer');
 }

@@ -753,9 +753,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       // 縮小は出す人の端末でやる。Workersでは変換しない。
       if (adDraft.image) body.set('image', await detailImage(adDraft.image));
       const response = await fetch('/api/ads/checkout', { method: 'POST', body });
-      const data = await response.json() as { url?: string; error?: string };
+      const data = await response.json() as { url?: string; error?: string; stripeCode?: string; stripeParam?: string };
       if (data.url) { window.location.assign(data.url); return; }
-      showToast(data.error || 'お支払い画面を開けませんでした。');
+      // 断られた理由の印を、文言のうしろに小さく足す。運営が原因を持ち帰れる
+      // ようにするため（鍵や本文は出ない。Stripeが付ける短い識別子だけ）。
+      const hint = [data.stripeCode, data.stripeParam].filter(Boolean).join(' / ');
+      showToast(`${data.error || 'お支払い画面を開けませんでした。'}${hint ? `（${hint}）` : ''}`);
     } catch {
       showToast('通信に失敗しました。時間をおいてお試しください。');
     }
