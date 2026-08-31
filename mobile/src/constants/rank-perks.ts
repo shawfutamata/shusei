@@ -5,7 +5,7 @@
 export type RankPerk = { key: string; label: string; detail: string; minLevel: number; soon?: boolean };
 
 export const rankNames = ['SILVER', 'GOLD', 'PLATINUM', 'DIAMOND'];
-export const rankThresholds = [0, 1, 3, 5];
+export const rankThresholds = [0, 10, 30, 50];
 
 export const rankPerks: RankPerk[] = [
   { key: 'extend', label: '募集の延長', minLevel: 2, detail: '期限が来た探しごとを、1件につき1回だけ2週間延ばせます。もう少し待てば見つかりそうなときに。' },

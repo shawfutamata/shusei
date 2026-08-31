@@ -15,10 +15,11 @@ export const rankNames = ['SILVER', 'GOLD', 'PLATINUM', 'DIAMOND'] as const;
 /**
  * そのランクになるのに必要な、招待して参加した仲間の人数。
  *
- * 会員数に上限のある閉じた場なので、1人連れてくるのがそもそも重い。
- * 紹介の件数のように2桁を並べると誰にも届かないため、少ない数で刻む。
+ * 上のランクほど、場そのものを大きくした人にしか届かないようにしてある。
+ * 1人や2人で最上位まで行けると、ランクが「早く始めた人の印」になって、
+ * あとから入った人の目標にならない。
  */
-export const rankThresholds = [0, 1, 3, 5];
+export const rankThresholds = [0, 10, 30, 50];
 
 export type RankPerk = {
   key: string;
