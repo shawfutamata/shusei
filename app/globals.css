@@ -1333,22 +1333,27 @@ body { font-weight:600; }
 /* プラン別にできることの表。3列（できること／無料／スタンダード）。
    狭い画面でも横スクロールさせずに収めたいので、できること列を可変、
    プラン列を固定幅にしてある。 */
-.plan-table-wrap { margin-top:13px; border:1px solid #e2e8f2; border-radius:14px; background:#fff; overflow:hidden; }
-.plan-table { width:100%; border-collapse:collapse; table-layout:fixed; }
+/* 狭い端末では、できること列を潰さずに**表ごと横に流す**。
+   320pxの画面で3列を詰めると見出しが70pxほどになり、どの行も3〜4段に
+   折り返して読めなくなる。 */
+.plan-table-wrap { margin-top:13px; border:1px solid #e2e8f2; border-radius:14px; background:#fff; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; }
+.plan-table { width:100%; min-width:300px; border-collapse:collapse; table-layout:fixed; }
 .plan-table caption { padding:11px 13px; text-align:left; color:#31425c; font-size:12px; font-weight:900; background:#f7f9fd; border-bottom:1px solid #e8eef6; }
 .plan-table th, .plan-table td { padding:10px 8px; border-bottom:1px solid #eef2f8; font-size:11px; line-height:1.5; }
 .plan-table tr:last-child th, .plan-table tr:last-child td { border-bottom:0; }
-.plan-table thead th { padding-top:11px; padding-bottom:11px; color:#5b6d86; font-size:10.5px; font-weight:900; text-align:center; background:#fbfcfe; }
+/* プラン名は折り返さない。「スタンダード」が2段になると見出しだけ背が高くなり、
+   表全体のバランスが崩れる。列幅はこの文字が1行で収まる値にしてある。 */
+.plan-table thead th { padding-top:11px; padding-bottom:11px; color:#5b6d86; font-size:10px; font-weight:900; text-align:center; background:#fbfcfe; white-space:nowrap; }
 /* table-layout:fixed は**1行目で列幅が決まる**。見出し行に幅を書かないと
    3列が等分され、できること列が潰れて折り返しだらけになる。 */
-.plan-table thead th + th { width:68px; }
+.plan-table thead th + th { width:78px; }
 .plan-table thead th:first-child { width:auto; text-align:left; padding-left:13px; }
 .plan-table tbody th { width:auto; padding-left:13px; text-align:left; color:#31425c; font-weight:800; }
 .plan-table tbody th b { display:block; font-size:11.5px; font-weight:900; line-height:1.45; }
 .plan-table tbody th small { display:block; margin-top:2px; color:#8494a8; font-size:9.5px; font-weight:700; line-height:1.4; }
 /* プラン列は固定幅。狭いほうに合わせておかないと、できること列が
    3行に折り返して表がむやみに縦へ伸びる。 */
-.plan-table td { width:68px; text-align:center; color:#0f5fc4; font-size:14px; font-weight:900; }
+.plan-table td { width:78px; text-align:center; color:#0f5fc4; font-size:14px; font-weight:900; }
 /* 件数などの文字は○×と同じ大きさだと目立ちすぎる。1段落とす。 */
 .plan-table td em { font-size:10.5px; font-style:normal; font-weight:900; line-height:1.4; }
 /* ×は赤に寄せる。○と同じ色だと、ぱっと見でどちらか分からない。 */
@@ -1356,5 +1361,5 @@ body { font-weight:600; }
 /* いま使っているプランの列に薄く色を敷く。自分がどこにいるか一目で分かる。 */
 .plan-table th.is-current, .plan-table td.is-current { background:#eff6ff; }
 .plan-table thead th.is-current { color:#0b3f86; }
-.plan-table thead th em { display:block; margin-top:2px; color:#0f5fc4; font-size:9px; font-style:normal; font-weight:900; }
+.plan-table thead th em { display:block; margin-top:2px; white-space:nowrap; color:#0f5fc4; font-size:9px; font-style:normal; font-weight:900; }
 .plan-table-soon { display:inline-block; margin-left:5px; padding:1px 5px; white-space:nowrap; border-radius:99px; background:#eef2f8; color:#7b8a9e; font-size:8px; font-style:normal; font-weight:900; vertical-align:middle; }

@@ -1675,7 +1675,7 @@ const planRows: { label: string; note?: string; soon?: boolean; value: (plan: Pl
   { label: 'リファラルを送る', note: '知り合いの紹介', value: (plan) => allows(plan, 'introduce') },
   { label: '探しごとでやり取り', note: 'コメント', value: (plan) => allows(plan, 'comment') },
   { label: '探しごとの投稿', value: (plan) => planPostLimit(plan) },
-  { label: 'オファーを受け取る', note: '届いた中身を読む・返事する', value: (plan) => allows(plan, 'receive_introductions') },
+  { label: 'オファーを受け取る', note: '中身を読む・返事する', value: (plan) => allows(plan, 'receive_introductions') },
   { label: 'オファーを送る', note: '自社で請け負う', value: (plan) => allows(plan, 'self_offer') },
 ];
 
