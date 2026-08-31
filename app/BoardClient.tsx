@@ -177,10 +177,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [editingRequest, setEditingRequest] = useState<MyRequest | null>(null);
   const [deletingRequest, setDeletingRequest] = useState<MyRequest | null>(null);
   const [receipts, setReceipts] = useState<BillingRecord[] | null>(null);
+  const [introCounts, setIntroCounts] = useState({ received: 0, sent: 0 });
   /** 自分の投稿ページの絞り込み。件数が増えたときに探せるように。 */
   const [postFilter, setPostFilter] = useState<'all' | 'open' | 'closed'>('all');
   /** きょうの日付。期限を過ぎた投稿に印を付けるのに使う。 */
   const today = new Date().toISOString().slice(0, 10);
+  const introBoxNote = introCounts.received || introCounts.sent
+    ? `届いた ${introCounts.received}件・出した ${introCounts.sent}件`
+    : 'まだ紹介のやり取りはありません';
   /** 募集中＝終了しておらず、期限も過ぎていないもの。 */
   const isPostOpen = useCallback((item: MyRequest) => item.status !== 'closed' && item.deadline >= today, [today]);
   const openPostCount = useMemo(() => myRequests.filter(isPostOpen).length, [myRequests, isPostOpen]);
@@ -356,6 +360,20 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     let alive = true;
     fetch('/api/my-requests').then((response) => response.ok ? response.json() : null)
       .then((data) => { if (alive && data) setMyRequests((data as { requests: MyRequest[] }).requests ?? []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [activeTab]);
+
+  // 紹介の受け箱の件数。中身はモーダルを開いたときに読むので、ここは数だけ。
+  useEffect(() => {
+    if (activeTab !== 'mypage') return;
+    let alive = true;
+    fetch('/api/introductions').then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!alive || !data) return;
+        const payload = data as { introductions: unknown[]; sent: unknown[] };
+        setIntroCounts({ received: payload.introductions?.length ?? 0, sent: payload.sent?.length ?? 0 });
+      })
       .catch(() => {});
     return () => { alive = false; };
   }, [activeTab]);
@@ -1062,6 +1080,15 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <p className="invite-terms">この特典は、予告なく内容の変更または終了をすることがあります。すでに確定した分は、そのままご利用いただけます。</p>
         </section>}
 
+        <button className="dashboard-link" onClick={() => setModal('responses')}>
+          <span className="dashboard-link-copy">
+            <small>INTRODUCTIONS</small>
+            <b>紹介のやり取り</b>
+            <em>{introBoxNote}</em>
+          </span>
+          <i aria-hidden="true">›</i>
+        </button>
+
         <button className="dashboard-link" onClick={showMyPosts}>
           <span className="dashboard-link-copy">
             <small>MY POSTS</small>
@@ -1363,7 +1390,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <p className="category-guide-note">あとから選び直せます。近いものを選んでいただければ大丈夫です。</p>
       </Modal>}
 
-      {modal === 'responses' && <Modal title="届いた紹介" lead="あなたが投稿した探しごとへの紹介です。" onClose={() => setModal(null)}><ReceivedIntroductions /></Modal>}
+      {modal === 'responses' && <Modal title="紹介のやり取り" lead="届いた紹介と、あなたが出した紹介です。相手とそのままやり取りできます。" onClose={() => setModal(null)}><ReceivedIntroductions /></Modal>}
 
       {modal === 'detail' && selected && <Modal title="探しごとの詳細" lead={`${selected.authorName}さんの探しごとです。`} onClose={() => setModal(null)}><article className="need-detail">
         <div className="card-topline"><span className={`kind ${categories[selected.category].className}`}>{categories[selected.category].label}</span><button className={favoriteIds.includes(selected.id) ? 'detail-heart active' : 'detail-heart'} onClick={() => toggleFavorite(selected)}>♥ {favoriteIds.includes(selected.id) ? '保存済み' : 'お気に入り'}</button></div>

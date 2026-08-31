@@ -1110,3 +1110,34 @@ body { font-weight:600; }
 .viz-caption em { margin-left:4px; color:#93a0b3; font-size:10px; font-style:normal; }
 .viz-caption small { display:block; margin-top:5px; color:#a4b0c1; font-size:10px; }
 .viz-caption-values { margin-left:10px; }
+
+/* 紹介の受け箱。届いた／出したを切り替える。 */
+.received-tabs { display:flex; gap:8px; margin-bottom:14px; }
+.received-tabs button { flex:1; min-height:46px; border:1px solid var(--line); border-radius:12px; background:#fff; color:#66758c; font-size:13px; font-weight:900; cursor:pointer; }
+.received-tabs button span { margin-left:6px; color:#a1acbc; }
+.received-tabs button.selected { border-color:var(--blue); background:var(--blue); color:#fff; }
+.received-tabs button.selected span { color:#dbeafe; }
+
+/* 紹介1件ごとのやり取り。**投稿者と紹介者の2人だけ**が読める場所なので、
+   掲示板のコメント欄とは見た目を分け、チャットの形にする。 */
+.intro-chat { margin-top:14px; padding-top:14px; border-top:1px solid #e4e9f1; }
+.intro-chat-head { margin:0 0 10px; }
+.intro-chat-head b { display:block; color:#34445d; font-size:12px; }
+.intro-chat-head small { display:block; margin-top:3px; color:#8794a7; font-size:10px; line-height:1.6; }
+.intro-chat-loading { margin:0; padding:14px; border-radius:10px; background:#f6f8fb; color:#8794a7; font-size:11px; text-align:center; }
+.intro-chat-list { margin:0; padding:0; list-style:none; max-height:280px; overflow-y:auto; display:grid; gap:10px; }
+.intro-chat-empty { padding:14px; border-radius:10px; background:#f6f8fb; color:#8794a7; font-size:11px; line-height:1.7; text-align:center; }
+.intro-chat-list li { display:flex; align-items:flex-start; gap:8px; }
+.intro-chat-list li.is-mine { flex-direction:row-reverse; }
+.intro-chat-face { width:28px; height:28px; flex:0 0 auto; display:grid; place-items:center; overflow:hidden; border-radius:50%; background:#dbeafe; color:#1478d6; font-size:12px; font-weight:900; object-fit:cover; }
+.intro-chat-list li > div { min-width:0; max-width:78%; }
+.intro-chat-bubble { margin:0; padding:10px 12px; border-radius:13px 13px 13px 4px; background:#f1f4f9; color:#33425a; font-size:13px; line-height:1.75; white-space:pre-wrap; overflow-wrap:anywhere; }
+.intro-chat-list li.is-mine .intro-chat-bubble { border-radius:13px 13px 4px; background:var(--blue); color:#fff; }
+.intro-chat-list li small { display:block; margin-top:4px; color:#a4b0c1; font-size:9px; font-weight:700; }
+.intro-chat-list li.is-mine small { text-align:right; }
+.intro-chat-form { margin-top:11px; display:grid; grid-template-columns:1fr auto; align-items:end; gap:8px; }
+.intro-chat-form textarea { width:100%; padding:10px 11px; border:1px solid #d7deea; border-radius:11px; background:#fff; color:var(--ink); font-size:13px; line-height:1.7; outline:none; resize:vertical; }
+.intro-chat-form textarea:focus { border-color:#54b8ee; box-shadow:0 0 0 3px #dbeafe; }
+.intro-chat-form button { min-height:46px; padding:0 18px; border:0; border-radius:11px; background:var(--blue); color:#fff; font-size:13px; font-weight:800; cursor:pointer; }
+.intro-chat-form button:disabled { opacity:.5; cursor:not-allowed; }
+.intro-chat-error { margin:8px 0 0; color:#b4380f; font-size:11px; font-weight:700; }

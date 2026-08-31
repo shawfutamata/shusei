@@ -102,6 +102,35 @@ export type ReceivedIntroduction = {
   introducerFacebookUrl: string;
 };
 
+export type IntroductionMessage = {
+  id: string;
+  body: string;
+  createdAt: string;
+  senderName: string;
+  senderAvatarUrl: string;
+  /** 自分が書いたものか。吹き出しを左右に分けるのに使う。 */
+  mine: boolean;
+};
+
+/** 自分が出した紹介。相手（投稿者）とやり取りするために返す。 */
+export type SentIntroduction = {
+  id: string;
+  requestId: string;
+  requestTitle: string;
+  requestCategory: 'project' | 'collaboration' | 'consultation';
+  personName: string;
+  personCompany: string;
+  relationship: string;
+  fitReason: string;
+  createdAt: string;
+  authorName: string;
+  authorCompany: string;
+  authorVenue: string;
+  authorAvatarUrl: string;
+  authorFacebookUrl: string;
+  messageCount: number;
+};
+
 export type AttendancePerson = {
   id: string;
   eventId: string;
@@ -235,6 +264,16 @@ const statements = [
     points_awarded INTEGER NOT NULL DEFAULT 10,
     created_at TEXT NOT NULL
   )`,
+  // 紹介1件ごとの、投稿者と紹介者だけのやり取り。
+  // 探しごとのコメント欄（request_comments）は会員みんなが読めるが、
+  // こちらは**2人しか読めない**。紹介の中身は他の会員に見せないため。
+  `CREATE TABLE IF NOT EXISTS introduction_messages (
+    id TEXT PRIMARY KEY,
+    introduction_id TEXT NOT NULL REFERENCES introductions(id),
+    sender_id TEXT NOT NULL REFERENCES members(id),
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS push_subscriptions (
     endpoint TEXT PRIMARY KEY,
     member_id TEXT NOT NULL REFERENCES members(id),
@@ -290,6 +329,7 @@ const statements = [
   'CREATE INDEX IF NOT EXISTS idx_requests_category ON requests(category)',
   'CREATE INDEX IF NOT EXISTS idx_introductions_introducer_id ON introductions(introducer_id)',
   'CREATE INDEX IF NOT EXISTS idx_introductions_request_id ON introductions(request_id)',
+  'CREATE INDEX IF NOT EXISTS idx_introduction_messages_introduction_id ON introduction_messages(introduction_id)',
   'CREATE INDEX IF NOT EXISTS idx_push_subscriptions_member_id ON push_subscriptions(member_id)',
   'CREATE INDEX IF NOT EXISTS idx_mobile_sessions_member_id ON mobile_sessions(member_id)',
   'CREATE INDEX IF NOT EXISTS idx_mobile_sessions_expires_at ON mobile_sessions(expires_at)',
@@ -536,22 +576,34 @@ export async function startMemberSessionByEmail(rawEmail: string) {
  * Sitesから切り離したので、同じ会員を自前で用意する。IDを変えると手元のD1に
  * 溜めた投稿や紹介の実績が迷子になるため、`local_seedy` のまま引き継ぐ。
  */
-export async function startLocalDevSession() {
+export async function startLocalDevSession(asMemberId = '') {
   await ensureDatabase();
+  const now = new Date().toISOString();
+  // 手元で「別の会員として」動きを見たいときのため。紹介のやり取りのように
+  // 2人いないと確かめられない画面があるので、既にいる会員に成り代われる。
+  // **開発サーバー専用**（呼び出し側が import.meta.env.DEV とlocalhostで閉じている）。
+  if (asMemberId) {
+    const other = await env.DB.prepare('SELECT id FROM members WHERE id = ?').bind(asMemberId).first<{ id: string }>();
+    if (!other) throw new Error('その会員はいません。');
+    return startSessionFor(other.id, now);
+  }
   const id = 'local_seedy';
   const email = 'seedy@sites.test';
-  const now = new Date().toISOString();
   await env.DB.prepare(`INSERT INTO members (id, email, display_name, membership_status, activated_at, created_at)
     VALUES (?, ?, ?, 'active', ?, ?)
     ON CONFLICT(id) DO UPDATE SET membership_status = 'active'`).bind(id, email, 'Seedy', now, now).run();
 
+  return startSessionFor(id, now);
+}
+
+async function startSessionFor(memberId: string, now: string) {
   const token = randomMobileToken();
   const tokenHash = await hashMobileSecret(token);
   const expiresAt = new Date(Date.now() + 30 * 86400_000).toISOString();
   await env.DB.batch([
     env.DB.prepare('DELETE FROM mobile_sessions WHERE expires_at < ?').bind(now),
     env.DB.prepare(`INSERT INTO mobile_sessions (token_hash, member_id, expires_at, created_at, last_seen_at)
-      VALUES (?, ?, ?, ?, ?)`).bind(tokenHash, id, expiresAt, now, now),
+      VALUES (?, ?, ?, ?, ?)`).bind(tokenHash, memberId, expiresAt, now, now),
   ]);
   return { token, expiresAt };
 }
@@ -637,6 +689,11 @@ export async function deleteMobileAccount(user: SessionUser) {
   const adIds = await env.DB.prepare('SELECT id FROM ad_slots WHERE member_id = ?')
     .bind(user.userId).all<{ id: string }>();
   const statementsToDelete = [
+    // 紹介のやり取りは、紹介より先に消す（外部キーで止まるため）。
+    // 自分が出した紹介ぶんと、自分の探しごとに届いた紹介ぶんの両方。
+    env.DB.prepare('DELETE FROM introduction_messages WHERE sender_id = ?').bind(user.userId),
+    ...requestIds.results.map(({ id }) => env.DB.prepare('DELETE FROM introduction_messages WHERE introduction_id IN (SELECT id FROM introductions WHERE request_id = ?)').bind(id)),
+    env.DB.prepare('DELETE FROM introduction_messages WHERE introduction_id IN (SELECT id FROM introductions WHERE introducer_id = ?)').bind(user.userId),
     ...requestIds.results.map(({ id }) => env.DB.prepare('DELETE FROM introductions WHERE request_id = ?').bind(id)),
     ...eventIds.results.map(({ id }) => env.DB.prepare('DELETE FROM attendance_people WHERE event_id = ?').bind(id)),
     env.DB.prepare('DELETE FROM introductions WHERE introducer_id = ?').bind(user.userId),
@@ -992,6 +1049,8 @@ export async function deleteRequest(user: SessionUser, id: string) {
 
   await env.DB.batch([
     env.DB.prepare('DELETE FROM request_comments WHERE request_id = ?').bind(id),
+    // やり取りは紹介にぶら下がっている。**紹介より先に消す。**
+    env.DB.prepare('DELETE FROM introduction_messages WHERE introduction_id IN (SELECT id FROM introductions WHERE request_id = ?)').bind(id),
     env.DB.prepare('DELETE FROM introductions WHERE request_id = ?').bind(id),
     env.DB.prepare('DELETE FROM requests WHERE id = ? AND author_id = ?').bind(id, user.userId),
   ]);
@@ -1049,6 +1108,84 @@ export async function getReceivedIntroductions(user: SessionUser) {
   return result.results.map(({ introducerId, introducerAvatarKey, introducerAvatarVersion, ...introduction }) => ({
     ...introduction,
     introducerAvatarUrl: avatarUrl(introducerId, introducerAvatarKey, introducerAvatarVersion),
+  }));
+}
+
+/**
+ * その紹介を読み書きしてよい2人かどうかを確かめ、相手が誰かを返す。
+ *
+ * **読むときも書くときも、必ずここを通す。** 画面を出し分けるだけでは、
+ * URLを直接叩かれたときに他人の紹介のやり取りが読めてしまう。
+ * 紹介の中身は、投稿者と紹介者しか見てはいけない決まりになっている。
+ */
+async function introductionPartner(userId: string, introductionId: string) {
+  const row = await env.DB.prepare(`SELECT i.introducer_id AS introducerId, r.author_id AS authorId,
+      r.title AS requestTitle
+    FROM introductions i JOIN requests r ON r.id = i.request_id WHERE i.id = ?`)
+    .bind(introductionId).first<{ introducerId: string; authorId: string; requestTitle: string }>();
+  if (!row) return null;
+  if (userId !== row.introducerId && userId !== row.authorId) return null;
+  return {
+    ...row,
+    partnerId: userId === row.introducerId ? row.authorId : row.introducerId,
+    /** 自分が投稿者の側か。文言を出し分けるのに使う。 */
+    isAuthor: userId === row.authorId,
+  };
+}
+
+/** 紹介1件ぶんのやり取りを、古い順に返す。関係のない人には空ではなく例外。 */
+export async function listIntroductionMessages(user: SessionUser, introductionId: string): Promise<IntroductionMessage[]> {
+  await upsertMember(user);
+  const access = await introductionPartner(user.userId, introductionId);
+  if (!access) throw new Error('このやり取りは表示できません。');
+  const rows = await env.DB.prepare(`SELECT n.id, n.body, n.created_at AS createdAt, n.sender_id AS senderId,
+      m.display_name AS senderName, m.avatar_key AS senderAvatarKey, m.avatar_version AS senderAvatarVersion
+    FROM introduction_messages n JOIN members m ON m.id = n.sender_id
+    WHERE n.introduction_id = ? ORDER BY n.created_at ASC`)
+    .bind(introductionId).all<{ id: string; body: string; createdAt: string; senderId: string;
+      senderName: string; senderAvatarKey: string; senderAvatarVersion: number }>();
+  return rows.results.map(({ senderId, senderAvatarKey, senderAvatarVersion, ...row }) => ({
+    ...row,
+    senderAvatarUrl: avatarUrl(senderId, senderAvatarKey, senderAvatarVersion),
+    mine: senderId === user.userId,
+  }));
+}
+
+export const INTRODUCTION_MESSAGE_MAX = 1000;
+
+/** やり取りを1つ送る。送れるのは投稿者と紹介者の2人だけ。 */
+export async function addIntroductionMessage(user: SessionUser, introductionId: string, body: string) {
+  await upsertMember(user);
+  const access = await introductionPartner(user.userId, introductionId);
+  if (!access) throw new Error('このやり取りには書き込めません。');
+  const text = body.trim().slice(0, INTRODUCTION_MESSAGE_MAX);
+  if (!text) throw new Error('メッセージを入力してください。');
+  await env.DB.prepare('INSERT INTO introduction_messages (id, introduction_id, sender_id, body, created_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(crypto.randomUUID(), introductionId, user.userId, text, new Date().toISOString()).run();
+  // 相手に知らせる。届かなくてもやり取りは残るので、失敗は握りつぶす。
+  await sendIntroductionMessageNotice(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
+  return listIntroductionMessages(user, introductionId);
+}
+
+/** 自分が出した紹介の一覧。相手（投稿者）とやり取りするための入口。 */
+export async function getSentIntroductions(user: SessionUser): Promise<SentIntroduction[]> {
+  await upsertMember(user);
+  const rows = await env.DB.prepare(`SELECT i.id, i.request_id AS requestId, r.title AS requestTitle,
+      r.category AS requestCategory, i.person_name AS personName, i.person_company AS personCompany,
+      i.relationship, i.fit_reason AS fitReason, i.created_at AS createdAt,
+      m.display_name AS authorName, m.company AS authorCompany, m.venue AS authorVenue,
+      m.facebook_url AS authorFacebookUrl, m.id AS authorId,
+      m.avatar_key AS authorAvatarKey, m.avatar_version AS authorAvatarVersion,
+      (SELECT COUNT(*) FROM introduction_messages n WHERE n.introduction_id = i.id) AS messageCount
+    FROM introductions i
+    JOIN requests r ON r.id = i.request_id
+    JOIN members m ON m.id = r.author_id
+    WHERE i.introducer_id = ?
+    ORDER BY i.created_at DESC`)
+    .bind(user.userId).all<Omit<SentIntroduction, 'authorAvatarUrl'> & { authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
+  return rows.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, ...row }) => ({
+    ...row,
+    authorAvatarUrl: avatarUrl(authorId, authorAvatarKey, authorAvatarVersion),
   }));
 }
 
@@ -1166,6 +1303,35 @@ function requestImageUrl(id: string, version: number, size: 'thumb' | 'full', in
   if (!version) return '';
   const at = index > 0 ? `&n=${index}` : '';
   return `/api/request-image/${encodeURIComponent(id)}?v=${version}&size=${size}${at}`;
+}
+
+/**
+ * 紹介のやり取りが届いたことを、相手1人にだけ知らせる。
+ * 中身は本文に入れない（通知は端末の画面に出るため、他人に見えうる）。
+ */
+async function sendIntroductionMessageNotice(partnerId: string, senderName: string, requestTitle: string) {
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return;
+  const rows = await env.DB.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE member_id = ?')
+    .bind(partnerId).all<{ endpoint: string; p256dh: string; auth: string }>();
+  await Promise.allSettled(rows.results.map(async (row) => {
+    const subscription: PushSubscription = {
+      endpoint: row.endpoint, expirationTime: null, keys: { p256dh: row.p256dh, auth: row.auth },
+    };
+    const payload = await buildPushPayload({
+      data: {
+        title: `${senderName}さんからメッセージが届きました`,
+        body: `「${requestTitle}」の紹介について`,
+        url: '/?intro=1',
+        tag: 'introduction-message',
+      },
+      options: { ttl: 86400, urgency: 'normal' },
+    }, subscription, {
+      subject: env.VAPID_SUBJECT || 'mailto:info@give-hub.jp',
+      publicKey: env.VAPID_PUBLIC_KEY,
+      privateKey: env.VAPID_PRIVATE_KEY,
+    });
+    await fetch(subscription.endpoint, { ...payload, body: new Uint8Array(payload.body) });
+  }));
 }
 
 async function sendMatchingPushNotifications(authorId: string, request: { id: string; title: string; industryTags: string[] }) {

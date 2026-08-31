@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
-import { createIntroduction, getReceivedIntroductions } from '@/db/data';
+import { createIntroduction, getReceivedIntroductions, getSentIntroductions } from '@/db/data';
 
+// 届いた紹介と、出した紹介の両方を返す。やり取りは2人でするものなので、
+// 紹介者の側にも入口が要る。
 export async function GET() {
   const gate = await requireActiveMember();
   if (gate.response) return gate.response;
   const user = gate.user;
-  return NextResponse.json({ introductions: await getReceivedIntroductions(user) });
+  const [introductions, sent] = await Promise.all([
+    getReceivedIntroductions(user), getSentIntroductions(user),
+  ]);
+  return NextResponse.json({ introductions, sent });
 }
 
 export async function POST(request: Request) {

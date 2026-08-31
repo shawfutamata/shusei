@@ -15,7 +15,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'この経路は開発中のみ使えます。' }, { status: 404 });
   }
 
-  const session = await startLocalDevSession();
+  // ?as=<会員ID> で別の会員として入れる。2人いないと確かめられない画面
+  // （紹介のやり取りなど）を手元で見るため。
+  const session = await startLocalDevSession(url.searchParams.get('as') ?? '');
   const response = NextResponse.redirect(new URL(returnTo(url), request.url));
   response.cookies.set(SESSION_COOKIE, session.token, {
     // 手元はhttpなので secure は付けない。付けるとCookieが保存されない。

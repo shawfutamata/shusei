@@ -129,6 +129,8 @@ export async function adminDeleteRequest(requestId: string) {
   if (!row) throw new Error('その探しごとは見つかりませんでした。');
   await env.DB.batch([
     env.DB.prepare('DELETE FROM request_comments WHERE request_id = ?').bind(requestId),
+    // やり取りは紹介にぶら下がっている。**紹介より先に消す。**
+    env.DB.prepare('DELETE FROM introduction_messages WHERE introduction_id IN (SELECT id FROM introductions WHERE request_id = ?)').bind(requestId),
     env.DB.prepare('DELETE FROM introductions WHERE request_id = ?').bind(requestId),
     env.DB.prepare('DELETE FROM requests WHERE id = ?').bind(requestId),
   ]);
