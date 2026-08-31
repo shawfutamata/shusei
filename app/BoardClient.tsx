@@ -1347,7 +1347,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           いるので、ここは「開けます」の一言に絞る。 */}
       {modal === 'upgrade' && <Modal title="オファーが届いています" lead={upgradeNote || (lockedIntros ? `あなたの探しごとに ${lockedIntros}件のオファーが届いています。` : '')} onClose={() => setModal(null)}>
         <div className="upgrade-panel">
-          <p>スタンダードプランにすると、<b>どなたが、どんな理由でオファーしてくださったのか</b>を読んで、そのまま相手とやり取りできます。</p>
+          <p>スタンダードプランにすると、<b>オファーを受け取ることができます</b>。</p>
           <ul>
             <li>届いたオファーの中身を読む</li>
             <li>オファーをくれた方とやり取りする</li>

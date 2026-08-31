@@ -69,7 +69,7 @@ export default function ReceivedIntroductions({ onUpgrade }: { onUpgrade?: () =>
         <div className={`received-summary${lockedCount ? ' is-locked' : ''}`}>
           <span><b>{received.length}</b><small>届いたオファー</small></span>
           {lockedCount
-            ? <p>スタンダードプランにすると、<b>どなたからどんなオファーが届いたのか</b>を読んで、そのままやり取りできます。</p>
+            ? <p>スタンダードプランにすると、<b>オファーを受け取ることができます</b>。</p>
             : <p>オファーされた人と、送ってくれた方からのメッセージを確認できます。そのままやり取りもできます。</p>}
           {lockedCount ? <button className="received-upgrade" onClick={onUpgrade}>プランを見る</button> : null}
         </div>
