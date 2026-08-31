@@ -19,6 +19,22 @@ export default function IntroductionChat({ introductionId, partnerName }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const endRef = useRef<HTMLDivElement | null>(null);
+  const boxRef = useRef<HTMLTextAreaElement | null>(null);
+
+  /**
+   * 書いた分だけ入力欄を伸ばす。
+   *
+   * 高さを固定にすると、少し長い文章を書いた時点で上が見えなくなる。
+   * 送る前に読み返せないのは困るので、中身に合わせて伸ばす。
+   * 伸ばしっぱなしだと画面を埋めてしまうので、上限を決めてそこからは中で送る。
+   */
+  function grow(el: HTMLTextAreaElement | null) {
+    if (!el) return;
+    el.style.height = 'auto';
+    // box-sizing:border-box なので、枠線の分を足さないと2pxぶん足りずに縦スクロールが残る。
+    const frame = el.offsetHeight - el.clientHeight;
+    el.style.height = `${Math.min(el.scrollHeight + frame, 260)}px`;
+  }
 
   useEffect(() => {
     let alive = true;
@@ -45,6 +61,7 @@ export default function IntroductionChat({ introductionId, partnerName }: {
     if (!response.ok) return setError(result.error ?? '送れませんでした。');
     setMessages(result.messages ?? []);
     setText('');
+    if (boxRef.current) { boxRef.current.style.height = 'auto'; grow(boxRef.current); }
   }
 
   return <section className="intro-chat" aria-label={`${partnerName}さんとのやり取り`}>
@@ -71,9 +88,15 @@ export default function IntroductionChat({ introductionId, partnerName }: {
       </ol>}
 
     <form className="intro-chat-form" onSubmit={send}>
-      <textarea value={text} onChange={(event) => setText(event.target.value)} rows={2} maxLength={1000}
+      {/* 入力欄は横いっぱいに取り、ボタンは下に置く。横に並べると入力欄が
+          狭くなって、書いている途中の文章が見えなくなる。 */}
+      <textarea ref={(el) => { boxRef.current = el; grow(el); }} value={text}
+        onChange={(event) => { setText(event.target.value); grow(event.target); }} rows={4} maxLength={1000}
         placeholder={`${partnerName}さんへのメッセージ`} aria-label="メッセージ" />
-      <button disabled={busy || !text.trim()}>{busy ? '送っています…' : '送る'}</button>
+      <div className="intro-chat-send">
+        <small>{text.length}/1000</small>
+        <button disabled={busy || !text.trim()}>{busy ? '送っています…' : '送る'}</button>
+      </div>
     </form>
     {!!error && <p className="intro-chat-error" role="alert">{error}</p>}
   </section>;

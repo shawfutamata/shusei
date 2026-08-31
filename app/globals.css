@@ -754,7 +754,9 @@ body { font-weight:600; }
 .crop-controls p { margin:11px 0 0; color:#627087; font-size:12px; font-weight:700; line-height:1.55; text-align:center; }
 
 /* My Page is a full application screen, not a temporary modal. */
-.profile-page { padding:24px 14px 30px; }
+/* 下のメニューは画面に固定なので、そのぶんの余白を最後に足す。
+   足さないと、いちばん下のボタンがメニューの裏に入って押せない。 */
+.profile-page { padding:24px 14px calc(var(--nav-h) + 26px + env(safe-area-inset-bottom)); }
 .profile-page-heading { padding:2px 3px 0; }
 .profile-page-heading p { margin:0 0 4px; color:#1478d6; font-size:11px; font-weight:900; letter-spacing:.13em; }
 .profile-page-heading h1 { margin:0; color:#172a4d; font-size:27px; font-weight:900; }
@@ -1135,9 +1137,31 @@ body { font-weight:600; }
 .intro-chat-list li.is-mine .intro-chat-bubble { border-radius:13px 13px 4px; background:var(--blue); color:#fff; }
 .intro-chat-list li small { display:block; margin-top:4px; color:#a4b0c1; font-size:9px; font-weight:700; }
 .intro-chat-list li.is-mine small { text-align:right; }
-.intro-chat-form { margin-top:11px; display:grid; grid-template-columns:1fr auto; align-items:end; gap:8px; }
-.intro-chat-form textarea { width:100%; padding:10px 11px; border:1px solid #d7deea; border-radius:11px; background:#fff; color:var(--ink); font-size:13px; line-height:1.7; outline:none; resize:vertical; }
+.intro-chat-form { margin-top:11px; display:grid; gap:9px; }
+.intro-chat-form textarea { width:100%; min-height:96px; padding:12px 13px; border:1px solid #d7deea; border-radius:11px; background:#fff; color:var(--ink); font-size:15px; line-height:1.75; outline:none; resize:none; overflow-y:auto; }
 .intro-chat-form textarea:focus { border-color:#54b8ee; box-shadow:0 0 0 3px #dbeafe; }
-.intro-chat-form button { min-height:46px; padding:0 18px; border:0; border-radius:11px; background:var(--blue); color:#fff; font-size:13px; font-weight:800; cursor:pointer; }
+.intro-chat-send { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.intro-chat-send small { color:#a4b0c1; font-size:10px; font-weight:700; }
+.intro-chat-form button { min-height:48px; padding:0 24px; border:0; border-radius:11px; background:var(--blue); color:#fff; font-size:14px; font-weight:800; cursor:pointer; }
 .intro-chat-form button:disabled { opacity:.5; cursor:not-allowed; }
 .intro-chat-error { margin:8px 0 0; color:#b4380f; font-size:11px; font-weight:700; }
+
+/* マイページのメニュー。**それぞれが下層ページの入口**で、マイページ自体
+   には中身を並べない。全部を1枚に積むと下の欄が遠くなり、見られなくなる。
+   狭い画面でも3列。日本語の見出しは短いので、3列でも読める。 */
+.mypage-grid { margin:14px 14px 0; display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.mypage-tile { min-height:104px; padding:14px 8px; display:grid; align-content:center; justify-items:center; gap:7px; border:1px solid #e0e6ef; border-radius:16px; background:#fff; box-shadow:0 5px 16px rgba(28,52,93,.05); cursor:pointer; }
+.mypage-tile-icon { width:44px; height:44px; position:relative; display:grid; place-items:center; border-radius:50%; background:#eef5ff; color:var(--blue); font-size:19px; line-height:1; }
+/* 件数は右肩に。説明文にすると行が増えて、タイルの高さが揃わなくなる。 */
+.mypage-tile-icon i { position:absolute; top:-4px; right:-6px; min-width:19px; height:19px; padding:0 5px; display:grid; place-items:center; border-radius:99px; background:var(--accent); color:#fff; font-size:10px; font-style:normal; font-weight:900; line-height:1; }
+/* 見出しは1行のものと2行のものが混ざる。同じ高さの箱に入れて、
+   タイルの高さを揃える（バラバラだと並びががたつく）。 */
+.mypage-tile b { min-height:2.7em; display:flex; align-items:center; color:var(--navy); font-size:12px; font-weight:900; line-height:1.35; text-align:center; }
+.mypage-tile small { min-height:13px; color:#93a0b3; font-size:9px; font-weight:700; line-height:1.4; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+.mypage-tile:active { background:#f7f9fc; }
+
+@media(min-width:481px) {
+  .mypage-grid { grid-template-columns:repeat(4,1fr); }
+  .mypage-tile b { font-size:13px; }
+  .mypage-tile small { font-size:10px; }
+}

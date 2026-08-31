@@ -149,6 +149,9 @@ function weekdayOf(date: string) {
   return new Date(`${date}T00:00:00Z`).getUTCDay();
 }
 
+/** 下のメニューの「マイページ」の中で行き来する画面。 */
+type MyTab = 'home' | 'search' | 'mypage' | 'profile' | 'posts' | 'offers' | 'plan' | 'invite' | 'receipts' | 'feedback';
+
 /** マイページの「自分の投稿」に出す1件。掲示板の一覧とは別に読む。 */
 type MyRequest = {
   id: string; category: string; title: string; description: string; budgetLabel: string;
@@ -170,7 +173,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // 'mypage' はランク・プラン・招待・広告。'profile' は入力するプロフィール設定。
   // 顔写真がまだの人は先にプロフィール設定へ。出稿枠を買って戻ってきた人は、
   // 入稿できるマイページから始める。
-  const [activeTab, setActiveTab] = useState<'home' | 'search' | 'mypage' | 'profile' | 'posts'>(
+  const [activeTab, setActiveTab] = useState<MyTab>(
     !initialStats.avatarUrl ? 'profile' : adReturn === 'done' ? 'mypage' : 'home');
   const [myRequests, setMyRequests] = useState<MyRequest[]>([]);
   /** 編集中の投稿。null なら新規投稿。投稿のモーダルを両方で使い回す。 */
@@ -810,12 +813,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  /** 自分の投稿の一覧。件数が増えるので、マイページの中ではなく別ページにする。 */
-  function showMyPosts() {
+  /** マイページの中の画面へ移る。どのタイルからも同じ道を通す。 */
+  function goTab(tab: MyTab) {
     setModal(null);
-    setActiveTab('posts');
+    setActiveTab(tab);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+
+  function showMyPosts() { goTab('posts'); }
 
   /** プロフィールを入力するページ。入口は右上の顔写真だけ。 */
   function showProfileSettings() {
@@ -828,6 +833,21 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const bannerAds = useMemo(() => ads.filter((ad) => (ad.placement || DEFAULT_PLACEMENT) === 'banner'), [ads]);
   // 掲示板の上位。業種を狙った広告は、その大分類を見ているときだけ出す。
   // 狙っていない広告（industry が空）は、どの一覧でも先頭に出る。
+  /**
+   * マイページのタイル。**それぞれが下層ページの入口**で、マイページ自体には
+   * 中身を並べない。全部を1枚に積むと、下の欄が遠くなって使われなくなる。
+   */
+  const mypageTiles = [
+    // 数はタイルの右肩に出す。説明文にすると2行になって、タイルの高さが揃わない。
+    { key: 'offers', icon: '✉', label: 'オファー', badge: introCounts.received, note: introCounts.sent ? `出した ${introCounts.sent}件` : '', go: () => goTab('offers') },
+    { key: 'posts', icon: '▤', label: '自分の投稿', badge: myRequests.length, note: openPostCount ? `募集中 ${openPostCount}件` : '', go: () => goTab('posts') },
+    { key: 'plan', icon: '◈', label: 'プラン', badge: 0, note: planCatalog[stats.plan].name, go: () => goTab('plan') },
+    { key: 'invite', icon: '＋', label: '仲間を招待', badge: referral?.invitedCount ?? 0, note: '', go: () => goTab('invite') },
+    { key: 'receipts', icon: '¥', label: '支払い履歴', badge: receipts?.length ?? 0, note: '', go: () => goTab('receipts') },
+    { key: 'profile', icon: '☺', label: 'プロフィール', badge: 0, note: '', go: () => goTab('profile') },
+    { key: 'feedback', icon: '✎', label: 'ご意見', badge: 0, note: '', go: () => goTab('feedback') },
+  ];
+
   // 出しすぎない歯止め。枠を押さえるときは日ごとに3件までしか通さないので
   // 普通はここに4件以上来ない。ただし**業種を狙った広告と全業種の広告が
   // 混ざる**ので、数え方が変わったときに一覧の先頭がPRだらけになりうる。
@@ -1014,7 +1034,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           ))}
         </div>
       </section> : activeTab === 'mypage' ? <section className="profile-page" aria-labelledby="profile-page-title">
-        <header className="profile-page-heading"><p>MY PAGE</p><h1 id="profile-page-title">マイページ</h1><span>ランク・プラン・招待・広告をここで見られます。プロフィールは右上の顔写真から。</span></header>
+        <header className="profile-page-heading"><p>MY PAGE</p><h1 id="profile-page-title">マイページ</h1><span>ランクカードを押すと特典が見られます。それぞれの中身は、下のボタンから開いてください。</span></header>
         <button className={`rank-card rank-${stats.rank.toLowerCase()} rank-card-slim`} onClick={() => setModal('perks')} aria-label={`${stats.rank}会員ランクカード。特典を見る`}>
           <p className="rank-slim-top"><CrownMark /><b>{serviceName}</b></p>
           <RankCrest rank={stats.rank} />
@@ -1030,6 +1050,23 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div className="rank-next-copy"><b>{stats.level >= rankThresholds.length ? '最高ランクに到達' : `あと${introductionsToNextRank}件でランクアップ`}</b><span>オファー {stats.introCount}件・{stats.points}pt</span></div>
           <span className="rank-next-track"><i style={{ width: `${rankProgress}%` }} /></span>
         </button>
+        <nav className="mypage-grid" aria-label="マイページのメニュー">
+          {mypageTiles.map((tile) => <button key={tile.key} className="mypage-tile" onClick={tile.go}>
+            <span className="mypage-tile-icon" aria-hidden="true">{tile.icon}
+              {tile.badge > 0 && <i>{tile.badge > 99 ? '99+' : tile.badge}</i>}</span>
+            <b>{tile.label}</b>
+            <small>{tile.note}</small>
+          </button>)}
+        </nav>
+
+
+        <LegalLinks />
+      </section> : activeTab === 'offers' ? <section className="profile-page" aria-labelledby="offers-title">
+        <header className="profile-page-heading"><p>OFFERS</p><h1 id="offers-title">オファーのやり取り</h1><span>届いたオファーと、あなたが出したオファーです。相手とそのままやり取りできます。</span></header>
+        <ReceivedIntroductions />
+        <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
+      </section> : activeTab === 'plan' ? <section className="profile-page" aria-labelledby="plan-title">
+        <header className="profile-page-heading"><p>PLAN</p><h1 id="plan-title">プラン</h1><span>今のプランと、切り替え・お支払いの手続きです。</span></header>
         <details className={`plan-card is-${stats.plan}`}>
           <summary>
             <span className="plan-now"><small>プラン</small><b>{planCatalog[stats.plan].name}</b></span>
@@ -1063,6 +1100,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           </div>
         </details>
 
+        <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
+      </section> : activeTab === 'invite' ? <section className="profile-page" aria-labelledby="invite-title">
+        <header className="profile-page-heading"><p>INVITE</p><h1 id="invite-title">仲間を招待する</h1><span>あなたの招待リンクから入会した方が続くと、会費が無料になります。</span></header>
         {referral && <section className="invite-card" aria-label="仲間を招待する">
           <div className="invite-heading"><p>INVITE</p><h2>仲間を招待する</h2><span>あなたの招待リンクから入会して{referral.qualifyDays}日続いた方1人につき、{stats.paid ? '会費が1ヶ月無料になります' : 'スタンダードが1ヶ月使えます'}（合計{referral.capTotal}ヶ月まで）。</span></div>
           <button className="invite-link" onClick={copyInviteLink}><span>{referral.url.replace(/^https?:\/\//, '')}</span><i>{inviteCopied ? 'コピーしました' : 'リンクをコピー'}</i></button>
@@ -1080,24 +1120,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <p className="invite-terms">この特典は、予告なく内容の変更または終了をすることがあります。すでに確定した分は、そのままご利用いただけます。</p>
         </section>}
 
-        <button className="dashboard-link" onClick={() => setModal('responses')}>
-          <span className="dashboard-link-copy">
-            <small>OFFERS</small>
-            <b>オファーのやり取り</b>
-            <em>{introBoxNote}</em>
-          </span>
-          <i aria-hidden="true">›</i>
-        </button>
-
-        <button className="dashboard-link" onClick={showMyPosts}>
-          <span className="dashboard-link-copy">
-            <small>MY POSTS</small>
-            <b>自分の投稿</b>
-            <em>{myRequests.length ? `${myRequests.length}件（募集中 ${openPostCount}件）` : 'まだ投稿がありません'}</em>
-          </span>
-          <i aria-hidden="true">›</i>
-        </button>
-
+        <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
+      </section> : activeTab === 'receipts' ? <section className="profile-page" aria-labelledby="receipts-title">
+        <header className="profile-page-heading"><p>RECEIPTS</p><h1 id="receipts-title">支払い履歴</h1><span>お支払いのたびに領収書が作られます。ここからいつでも開いて、印刷や保存ができます。</span></header>
         <section className="receipt-card" aria-label="支払い履歴">
           <div className="receipt-heading"><p>RECEIPTS</p><h2>支払い履歴</h2><span>お支払いのたびに領収書が作られます。ここからいつでも開いて、印刷や保存ができます。</span></div>
           {receipts === null ? <p className="receipt-empty">読み込んでいます…</p>
@@ -1112,6 +1137,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             </li>)}</ul>}
         </section>
 
+        <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
+      </section> : activeTab === 'feedback' ? <section className="profile-page" aria-labelledby="feedback-title">
+        <header className="profile-page-heading"><p>YOUR VOICE</p><h1 id="feedback-title">こうしてほしい、を聞かせてください</h1><span>{serviceName}は作っている途中です。足りないところ、使いにくいところを教えてください。</span></header>
         <section className="feedback-card" aria-label="機能改善のご意見">
           <div className="feedback-heading"><p>YOUR VOICE</p><h2>こうしてほしい、を聞かせてください</h2><span>{serviceName}は作っている途中です。使ってみて足りないところ、使いにくいところを教えてください。いただいたご意見は運営が必ず読みます。</span></div>
           {feedbackSent ? <div className="feedback-done"><b>お送りいただきました</b><span>ありがとうございます。続けてお気づきの点があれば、また送ってください。</span><button onClick={() => setFeedbackSent(false)}>もう1件送る</button></div> : <form className="feedback-form" onSubmit={submitFeedback}>
@@ -1122,7 +1150,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </section>
 
 
-        <LegalLinks />
+        <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section> : activeTab === 'posts' ? <section className="profile-page" aria-labelledby="my-posts-title">
         {/* 自分の投稿。件数が増えるので、マイページの中ではなく1ページ取る。 */}
         <header className="profile-page-heading"><p>MY POSTS</p><h1 id="my-posts-title">自分の投稿</h1><span>これまでに出した探しごとです。募集が終わったものも残ります。内容はあとから直せます。</span></header>
