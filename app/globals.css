@@ -1184,3 +1184,35 @@ body { font-weight:600; }
   .mypage-tile b { font-size:13px; }
   .mypage-tile small { font-size:10px; }
 }
+
+/* オファーの種類えらび（紹介 or 自社で請け負う）。
+   選んだほうがはっきり分かるよう、枠と背景の両方を変える。色だけに
+   頼らないよう、下段に「無料 / スタンダードから」の一言を必ず添える。 */
+.offer-kind { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:0 0 16px; }
+.offer-kind button { display:grid; gap:3px; padding:11px 9px; border:2px solid #e2e8f0; border-radius:12px; background:#fff; color:#475569; text-align:left; cursor:pointer; }
+.offer-kind button b { font-size:13px; font-weight:900; line-height:1.4; }
+.offer-kind button small { font-size:10px; font-weight:800; color:#94a3b8; }
+.offer-kind button.selected { border-color:#0f5fc4; background:#eff6ff; color:#0b3f86; }
+.offer-kind button.selected small { color:#0f5fc4; }
+
+.offer-locked { padding:15px; border-radius:14px; background:#fff7ed; border:1px solid #fed7aa; display:grid; gap:9px; }
+.offer-locked p { margin:0; font-size:12px; font-weight:700; line-height:1.7; color:#7c2d12; }
+
+/* 中身を渡していない、届いたオファー。開いても読めないことが
+   ひと目で分かるよう、印を鍵にして帯を薄くする。 */
+.received-card.is-locked .received-person-mark { background:#f1f5f9; color:#94a3b8; }
+.received-card.is-locked .received-card-head h4 { color:#64748b; }
+.received-locked { display:grid; gap:9px; }
+.received-locked p { margin:0; font-size:12px; font-weight:700; line-height:1.7; color:#334155; }
+.received-upgrade { justify-self:start; padding:9px 15px; border:0; border-radius:999px; background:#0f5fc4; color:#fff; font-size:12px; font-weight:900; cursor:pointer; }
+.received-summary.is-locked { background:linear-gradient(135deg,#0b3f86,#1f7ae0); grid-template-columns:auto 1fr; }
+/* 帯の b は件数の数字用に27pxで組んである。説明文の中で強めた b まで
+   その大きさになってしまうので、文中のぶんだけ元の字に戻す。 */
+.received-summary p b { display:inline; font-size:inherit; }
+.received-summary.is-locked .received-upgrade { grid-column:1 / -1; background:#fff; color:#0b3f86; }
+
+.upgrade-panel { display:grid; gap:11px; }
+.upgrade-panel p { margin:0; font-size:13px; font-weight:700; line-height:1.8; color:#334155; }
+.upgrade-panel ul { margin:0; padding:13px 15px 13px 31px; border-radius:14px; background:#eff6ff; display:grid; gap:6px; }
+.upgrade-panel li { font-size:12px; font-weight:800; color:#0b3f86; line-height:1.6; }
+.upgrade-panel .upgrade-free { padding:11px 13px; border-radius:12px; background:#f8fafc; font-size:12px; color:#475569; }

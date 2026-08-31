@@ -47,6 +47,7 @@ export const features = [
   'post_request',         // 探しごとを投稿する（無料は月1件）
   'member_search',        // 会員を業種・エリアで探す
   'export_introductions', // 届いたオファーの書き出し
+  'self_offer',           // 自社で請け負うオファー（＝受注）を送る
 ] as const;
 export type Feature = (typeof features)[number];
 
@@ -54,6 +55,11 @@ export type Feature = (typeof features)[number];
 const requiredPlan: Partial<Record<Feature, Plan>> = {
   member_search: 'standard',
   export_introductions: 'standard',
+  // 届いたオファーの中身を読むのは有料。**送るのは無料のまま**。
+  // 「まずGive」を止めたくないので、出すほうには関所を置かない。
+  receive_introductions: 'standard',
+  // 「知り合いを紹介する」は無料。「自社で請け負う」は受注そのものなので有料。
+  self_offer: 'standard',
 };
 
 export function toPlan(value: unknown): Plan {

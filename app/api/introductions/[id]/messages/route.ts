@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
 import { INTRODUCTION_MESSAGE_MAX, addIntroductionMessage, listIntroductionMessages } from '@/db/data';
+import { errorResponse } from '@/app/paywall-response';
 
 // 紹介1件ごとの、投稿者と紹介者だけのやり取り。
 //
@@ -14,7 +15,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   try {
     return NextResponse.json({ messages: await listIntroductionMessages(gate.user, id), max: INTRODUCTION_MESSAGE_MAX });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : '表示できませんでした。' }, { status: 400 });
+    return errorResponse(error, '表示できませんでした。');
   }
 }
 
@@ -26,6 +27,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { body } = await request.json() as { body?: string };
     return NextResponse.json({ messages: await addIntroductionMessage(gate.user, id, body ?? '') }, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : '送れませんでした。' }, { status: 400 });
+    return errorResponse(error, '送れませんでした。');
   }
 }

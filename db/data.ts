@@ -4,7 +4,7 @@ import type { SessionUser } from '@/app/session-user';
 import { cleanFacebookUrl } from '@/app/social-links';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
 import { AD_DESCRIPTION_MAX, AD_RESERVATION_MINUTES, AD_TITLE_MAX, DEFAULT_PLACEMENT, placementSlots } from '@/app/ad-options';
-import { UNLIMITED, bonusPlan, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
+import { UNLIMITED, bonusPlan, can, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
 import { EXTEND_DAYS, canExtendRequest, canPostVideo, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
 import { matchesIndustry } from '@/app/industry-options';
 
@@ -84,11 +84,20 @@ export type MemberStats = {
   requestLimit: number;
 };
 
+export type OfferKind = 'referral' | 'self';
+
 export type ReceivedIntroduction = {
   id: string;
   requestId: string;
   requestTitle: string;
   requestCategory: 'project' | 'collaboration' | 'consultation';
+  /** 知り合いの紹介か、自社で請け負う（受注）か。 */
+  kind: OfferKind;
+  /**
+   * 中身を見せていないかどうか。無料プランの人には true で返し、
+   * **名前や理由は空にして送る**。画面で隠すだけだと、通信を覗けば読めてしまう。
+   */
+  locked: boolean;
   personName: string;
   personCompany: string;
   relationship: string;
@@ -118,6 +127,7 @@ export type SentIntroduction = {
   requestId: string;
   requestTitle: string;
   requestCategory: 'project' | 'collaboration' | 'consultation';
+  kind: OfferKind;
   personName: string;
   personCompany: string;
   relationship: string;
@@ -260,6 +270,8 @@ const statements = [
     relationship TEXT NOT NULL,
     fit_reason TEXT NOT NULL,
     consent_confirmed INTEGER NOT NULL,
+    -- 'referral'＝知り合いを紹介（無料）／'self'＝自社で請け負う＝受注（有料）
+    kind TEXT NOT NULL DEFAULT 'referral',
     status TEXT NOT NULL DEFAULT 'proposed',
     points_awarded INTEGER NOT NULL DEFAULT 10,
     created_at TEXT NOT NULL
@@ -400,6 +412,13 @@ export async function ensureDatabase() {
     ['promo_until', "ALTER TABLE requests ADD COLUMN promo_until TEXT NOT NULL DEFAULT ''"],
   ] as const) {
     if (!requestColumnNames.has(columnName)) await env.DB.prepare(sql).run();
+  }
+  const introColumns = await env.DB.prepare('PRAGMA table_info(introductions)').all<{ name: string }>();
+  const introColumnNames = new Set(introColumns.results.map((column) => column.name));
+  // オファーの種類。'referral'＝知り合いを紹介、'self'＝自社で請け負う（受注）。
+  // 既にある行は全部「紹介」として扱う（受注は後からできた区別なので）。
+  if (!introColumnNames.has('kind')) {
+    await env.DB.prepare("ALTER TABLE introductions ADD COLUMN kind TEXT NOT NULL DEFAULT 'referral'").run();
   }
   const adColumns = await env.DB.prepare('PRAGMA table_info(ad_slots)').all<{ name: string }>();
   const adColumnNames = new Set(adColumns.results.map((column) => column.name));
@@ -1078,24 +1097,53 @@ export async function deletePushSubscription(user: SessionUser, endpoint: string
   await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND member_id = ?').bind(endpoint, user.userId).run();
 }
 
-export async function createIntroduction(user: SessionUser, input: { requestId: string; personName: string; personCompany: string; relationship: string; fitReason: string; }) {
+/**
+ * オファーを送る。
+ *
+ * 種類が2つある。**知り合いを紹介するのは無料、自社で請け負う（受注）は有料。**
+ * 前者は場に人を差し出すギブなので止めない。後者は自分の商売そのものなので、
+ * その入口をプランの値打ちにしている。
+ *
+ * **止めているのはここ。** 画面でボタンを出し分けるだけでは、APIを直接
+ * 叩かれたときに守れない。
+ */
+export async function createIntroduction(user: SessionUser, input: { requestId: string; personName: string; personCompany: string; relationship: string; fitReason: string; kind?: OfferKind }) {
   await upsertMember(user);
   await requireFacePhoto(user.userId);
+  const kind: OfferKind = input.kind === 'self' ? 'self' : 'referral';
+  if (kind === 'self' && !can(await getPlanState(user.userId), 'self_offer')) {
+    throw new Error(`${PAYWALL}自社で請け負うオファーは、スタンダードプランでお送りいただけます。知り合いの方をご紹介いただくのは、無料プランのままお使いいただけます。`);
+  }
   const request = await env.DB.prepare('SELECT id FROM requests WHERE id = ? AND status = ?').bind(input.requestId, 'open').first();
   if (!request) throw new Error('募集が終了しているか、見つかりません。');
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   await env.DB.batch([
-    env.DB.prepare('INSERT INTO introductions (id, request_id, introducer_id, person_name, person_company, relationship, fit_reason, consent_confirmed, status, points_awarded, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, input.requestId, user.userId, input.personName, input.personCompany, input.relationship, input.fitReason, 1, 'proposed', 10, createdAt),
+    env.DB.prepare('INSERT INTO introductions (id, request_id, introducer_id, person_name, person_company, relationship, fit_reason, consent_confirmed, status, points_awarded, created_at, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, input.requestId, user.userId, input.personName, input.personCompany, input.relationship, input.fitReason, 1, 'proposed', 10, createdAt, kind),
     env.DB.prepare('UPDATE members SET intro_count = intro_count + 1, points = points + 10 WHERE id = ?').bind(user.userId),
   ]);
   return id;
 }
 
-export async function getReceivedIntroductions(user: SessionUser) {
+/**
+ * プランが足りないときのエラーの印。
+ *
+ * 画面はこの印を見て「プランを上げませんか」の案内を出す。文言そのもので
+ * 判定すると、言葉を直したとたんに案内が出なくなるため。
+ */
+export const PAYWALL = '[plan]';
+
+/**
+ * 自分の募集に届いたオファーの一覧。
+ *
+ * **無料プランには中身を渡さない。** 届いた件数と、どの募集に届いたかまでは
+ * 見せる（そこが「上げようかな」の入口になる）が、誰を紹介されたのか・
+ * 誰から届いたのかは空にして返す。画面で隠すだけだと、通信を覗けば読めてしまう。
+ */
+export async function getReceivedIntroductions(user: SessionUser): Promise<ReceivedIntroduction[]> {
   await upsertMember(user);
   const result = await env.DB.prepare(`SELECT i.id, i.request_id AS requestId, r.title AS requestTitle,
-    r.category AS requestCategory, i.person_name AS personName, i.person_company AS personCompany,
+    r.category AS requestCategory, i.kind, i.person_name AS personName, i.person_company AS personCompany,
     i.relationship, i.fit_reason AS fitReason, i.status, i.created_at AS createdAt,
     m.display_name AS introducerName, m.company AS introducerCompany, m.venue AS introducerVenue, m.facebook_url AS introducerFacebookUrl,
     m.id AS introducerId, m.avatar_key AS introducerAvatarKey, m.avatar_version AS introducerAvatarVersion
@@ -1104,11 +1152,30 @@ export async function getReceivedIntroductions(user: SessionUser) {
     JOIN members m ON m.id = i.introducer_id
     WHERE r.author_id = ?
     ORDER BY i.created_at DESC`)
-    .bind(user.userId).all<Omit<ReceivedIntroduction, 'introducerAvatarUrl'> & { introducerId: string; introducerAvatarKey: string; introducerAvatarVersion: number }>();
-  return result.results.map(({ introducerId, introducerAvatarKey, introducerAvatarVersion, ...introduction }) => ({
-    ...introduction,
-    introducerAvatarUrl: avatarUrl(introducerId, introducerAvatarKey, introducerAvatarVersion),
-  }));
+    .bind(user.userId).all<Omit<ReceivedIntroduction, 'introducerAvatarUrl' | 'locked'> & { introducerId: string; introducerAvatarKey: string; introducerAvatarVersion: number }>();
+  const locked = !can(await getPlanState(user.userId), 'receive_introductions');
+  return result.results.map(({ introducerId, introducerAvatarKey, introducerAvatarVersion, ...introduction }) => {
+    if (locked) {
+      return {
+        ...introduction,
+        locked: true,
+        personName: '',
+        personCompany: '',
+        relationship: '',
+        fitReason: '',
+        introducerName: '',
+        introducerCompany: '',
+        introducerVenue: '',
+        introducerAvatarUrl: '',
+        introducerFacebookUrl: '',
+      };
+    }
+    return {
+      ...introduction,
+      locked: false,
+      introducerAvatarUrl: avatarUrl(introducerId, introducerAvatarKey, introducerAvatarVersion),
+    };
+  });
 }
 
 /**
@@ -1133,11 +1200,25 @@ async function introductionPartner(userId: string, introductionId: string) {
   };
 }
 
+/**
+ * 受け取った側がやり取りに入れるかどうか。
+ *
+ * オファーを**受け取る**のがスタンダードの値打ちなので、無料プランのまま
+ * 中身を読んだり返事をしたりはできない。**送った側は無料でもずっと使える**。
+ * 自分が出したオファーの続きが読めなくなるのは、さすがに筋が通らないため。
+ */
+async function requireOfferChatAccess(userId: string, isAuthor: boolean) {
+  if (!isAuthor) return;
+  if (can(await getPlanState(userId), 'receive_introductions')) return;
+  throw new Error(`${PAYWALL}届いたオファーのやり取りは、スタンダードプランでご覧いただけます。`);
+}
+
 /** 紹介1件ぶんのやり取りを、古い順に返す。関係のない人には空ではなく例外。 */
 export async function listIntroductionMessages(user: SessionUser, introductionId: string): Promise<IntroductionMessage[]> {
   await upsertMember(user);
   const access = await introductionPartner(user.userId, introductionId);
   if (!access) throw new Error('このやり取りは表示できません。');
+  await requireOfferChatAccess(user.userId, access.isAuthor);
   const rows = await env.DB.prepare(`SELECT n.id, n.body, n.created_at AS createdAt, n.sender_id AS senderId,
       m.display_name AS senderName, m.avatar_key AS senderAvatarKey, m.avatar_version AS senderAvatarVersion
     FROM introduction_messages n JOIN members m ON m.id = n.sender_id
@@ -1158,6 +1239,7 @@ export async function addIntroductionMessage(user: SessionUser, introductionId: 
   await upsertMember(user);
   const access = await introductionPartner(user.userId, introductionId);
   if (!access) throw new Error('このやり取りには書き込めません。');
+  await requireOfferChatAccess(user.userId, access.isAuthor);
   const text = body.trim().slice(0, INTRODUCTION_MESSAGE_MAX);
   if (!text) throw new Error('メッセージを入力してください。');
   await env.DB.prepare('INSERT INTO introduction_messages (id, introduction_id, sender_id, body, created_at) VALUES (?, ?, ?, ?, ?)')
@@ -1171,7 +1253,7 @@ export async function addIntroductionMessage(user: SessionUser, introductionId: 
 export async function getSentIntroductions(user: SessionUser): Promise<SentIntroduction[]> {
   await upsertMember(user);
   const rows = await env.DB.prepare(`SELECT i.id, i.request_id AS requestId, r.title AS requestTitle,
-      r.category AS requestCategory, i.person_name AS personName, i.person_company AS personCompany,
+      r.category AS requestCategory, i.kind, i.person_name AS personName, i.person_company AS personCompany,
       i.relationship, i.fit_reason AS fitReason, i.created_at AS createdAt,
       m.display_name AS authorName, m.company AS authorCompany, m.venue AS authorVenue,
       m.facebook_url AS authorFacebookUrl, m.id AS authorId,

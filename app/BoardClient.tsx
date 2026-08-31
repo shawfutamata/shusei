@@ -1,6 +1,6 @@
 'use client';
 
-import { ChangeEvent, CSSProperties, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, CSSProperties, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import type { AdSlot, BoardRequest, MemberStats, ReferralSummary } from '@/db/data';
 import ReceivedIntroductions from './ReceivedIntroductions';
@@ -182,6 +182,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [deletingRequest, setDeletingRequest] = useState<MyRequest | null>(null);
   const [receipts, setReceipts] = useState<BillingRecord[] | null>(null);
   const [introCounts, setIntroCounts] = useState({ received: 0, sent: 0 });
+  /** 中身を見せていない（＝プランが足りない）届いたオファーの数。 */
+  const [lockedIntros, setLockedIntros] = useState(0);
+  /** プランの案内は1回で足りる。開くたびに出すと、ただの邪魔になる。 */
+  const upgradeShown = useRef(false);
   /** 自分の投稿ページの絞り込み。件数が増えたときに探せるように。 */
   const [postFilter, setPostFilter] = useState<'all' | 'open' | 'closed'>('all');
   /** きょうの日付。期限を過ぎた投稿に印を付けるのに使う。 */
@@ -232,7 +236,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [zoom, setZoom] = useState(1);
   const [croppedArea, setCroppedArea] = useState<Area | null>(null);
   const [cropping, setCropping] = useState(false);
-  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'responses' | 'ads' | 'perks' | 'categories' | null>(null);
+  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'responses' | 'ads' | 'perks' | 'categories' | 'upgrade' | null>(null);
+  /**
+   * オファーの種類。**知り合いの紹介は無料、自社で請け負う（受注）は有料。**
+   * 画面はここで出し分けるだけで、実際に止めているのは `createIntroduction()`。
+   */
+  const [offerKind, setOfferKind] = useState<'referral' | 'self'>('referral');
+  /** プラン案内に出す一言。断られた理由をそのまま見せるため、空なら既定の文。 */
+  const [upgradeNote, setUpgradeNote] = useState('');
   const [selected, setSelected] = useState<BoardRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
@@ -369,14 +380,25 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   }, [activeTab]);
 
   // 紹介の受け箱の件数。中身はモーダルを開いたときに読むので、ここは数だけ。
+  //
+  // ホームでも読むのは、**届いたオファーがあることを気づかせるため**。
+  // マイページを開いた人にしか知らせないと、いちばん肝心な「あなたに届いて
+  // います」が届かないまま終わってしまう。
   useEffect(() => {
-    if (activeTab !== 'mypage') return;
+    if (activeTab !== 'mypage' && activeTab !== 'home') return;
     let alive = true;
     fetch('/api/introductions').then((response) => response.ok ? response.json() : null)
       .then((data) => {
         if (!alive || !data) return;
-        const payload = data as { introductions: unknown[]; sent: unknown[] };
+        const payload = data as { introductions: { locked?: boolean }[]; sent: unknown[] };
         setIntroCounts({ received: payload.introductions?.length ?? 0, sent: payload.sent?.length ?? 0 });
+        const locked = payload.introductions?.filter((item) => item.locked).length ?? 0;
+        setLockedIntros(locked);
+        if (locked && !upgradeShown.current) {
+          upgradeShown.current = true;
+          setUpgradeNote('');
+          setModal('upgrade');
+        }
       })
       .catch(() => {});
     return () => { alive = false; };
@@ -540,9 +562,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     event.preventDefault(); if (!selected) return; setBusy(true);
     const form = event.currentTarget;
     const raw = Object.fromEntries(new FormData(form));
-    const response = await fetch('/api/introductions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...raw, requestId: selected.id, consentConfirmed: raw.consentConfirmed === 'on' }) });
-    const result = await response.json() as { error?: string }; setBusy(false);
-    if (!response.ok) return showToast(result.error ?? 'オファーを送れませんでした。');
+    const response = await fetch('/api/introductions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...raw, requestId: selected.id, kind: offerKind, consentConfirmed: raw.consentConfirmed === 'on' }) });
+    const result = await response.json() as { error?: string; paywall?: boolean }; setBusy(false);
+    if (!response.ok) {
+      // プランが足りないときは、赤い一言で終わらせずに案内まで出す。
+      if (result.paywall) { setUpgradeNote(result.error ?? ''); setModal('upgrade'); return; }
+      return showToast(result.error ?? 'オファーを送れませんでした。');
+    }
     setModal(null); form.reset(); await refreshBoard(); showToast('オファーを送りました。10ポイント加算されました。');
   }
 
@@ -1064,7 +1090,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <LegalLinks />
       </section> : activeTab === 'offers' ? <section className="profile-page" aria-labelledby="offers-title">
         <header className="profile-page-heading"><p>OFFERS</p><h1 id="offers-title">オファーのやり取り</h1><span>届いたオファーと、あなたが出したオファーです。相手とそのままやり取りできます。</span></header>
-        <ReceivedIntroductions />
+        <ReceivedIntroductions onUpgrade={() => goTab('plan')} />
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section> : activeTab === 'plan' ? <section className="profile-page" aria-labelledby="plan-title">
         <header className="profile-page-heading"><p>PLAN</p><h1 id="plan-title">プラン</h1><span>今のプランと、切り替え・お支払いの手続きです。</span></header>
@@ -1093,8 +1119,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               </li>)}
             </ul>
             <ul className="plan-detail">
+              <li className="only"><b>届いたオファーを受け取る、自社で請け負うオファーを送る</b><span>スタンダードのみ</span></li>
               <li className="only"><b>会員を探す、オファーを書き出す</b><span>スタンダードのみ</span></li>
-              <li className="all"><b>掲示板を見る、オファーする、やり取りする</b><span>どのプランでも無制限</span></li>
+              <li className="all"><b>掲示板を見る、知り合いを紹介する、やり取りする</b><span>どのプランでも無制限</span></li>
             </ul>
             {referral?.billing?.hasCustomer && <button className="plan-manage" onClick={openBillingPortal} disabled={busy}>お支払い・解約の手続き</button>}
             <p className="plan-note">仲間を1人招待してご利用が{referral?.qualifyDays ?? 30}日続くと、{stats.contractedPlan === 'free' ? <><b>自動でスタンダードが1ヶ月使えるようになります</b>（お手続きは要りません）</> : <><b>次回の請求から1ヶ月分自動で引かれます</b></>}。{referral?.billing?.ready ? '有料プランへのお申し込みは、上のボタンからいつでもどうぞ。解約もいつでもできます。' : ''}</p>
@@ -1249,7 +1276,55 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </div>
       </Modal>}
 
-      {modal === 'intro' && selected && <Modal title="知っている人をオファー" lead={`「${selected.title}」へのオファーです。`} onClose={() => setModal(null)}><form className="form" onSubmit={submitIntroduction}><label>お名前<input name="personName" required maxLength={60} /></label><label>会社・屋号<input name="personCompany" required maxLength={80} /></label><label>あなたとの関係<input name="relationship" required maxLength={120} placeholder="例：取引先、友人" /></label><label>オファーしたい理由<textarea name="fitReason" required maxLength={400} rows={3} /></label><label className="consent"><input type="checkbox" name="consentConfirmed" required /> ご本人にオファーの了承を得ています</label><button className="submit-button" disabled={busy}>{busy ? '送っています…' : 'オファーを送る'}</button></form></Modal>}
+      {/* オファーには2つある。**人を紹介する**のはギブなので無料のまま、
+          **自社で請け負う**のは受注そのものなのでスタンダードから。
+          切り替えで入力そのものが変わるのは、自社の場合「あなたとの関係」に
+          書きようがないため。 */}
+      {modal === 'intro' && selected && <Modal title="この探しごとにオファー" lead={`「${selected.title}」へのオファーです。`} onClose={() => setModal(null)}>
+        <div className="offer-kind" role="group" aria-label="オファーの種類">
+          <button type="button" className={offerKind === 'referral' ? 'selected' : ''} onClick={() => setOfferKind('referral')} aria-pressed={offerKind === 'referral'}>
+            <b>知り合いを紹介する</b><small>どのプランでも無料</small></button>
+          <button type="button" className={offerKind === 'self' ? 'selected' : ''} onClick={() => setOfferKind('self')} aria-pressed={offerKind === 'self'}>
+            <b>自社で請け負う</b><small>{stats.plan === 'free' ? 'スタンダードから' : 'ご利用いただけます'}</small></button>
+        </div>
+        {offerKind === 'self' && stats.plan === 'free'
+          ? <div className="offer-locked">
+            <p><b>自社で請け負うオファーは、スタンダードプランからお送りいただけます。</b></p>
+            <p>知り合いの方をご紹介いただくのは、無料プランのままいつでもどうぞ。</p>
+            <button className="submit-button" onClick={() => { setUpgradeNote(''); setModal('upgrade'); }}>プランを見る</button>
+          </div>
+          : <form className="form" onSubmit={submitIntroduction} key={offerKind}>
+            {offerKind === 'self' ? <>
+              <label>ご担当者名<input name="personName" required maxLength={60} defaultValue={stats.displayName} /></label>
+              <label>会社・屋号<input name="personCompany" required maxLength={80} defaultValue={stats.company} /></label>
+              <label>お請けできること・実績<textarea name="fitReason" required maxLength={400} rows={3} placeholder="例：同じ規模の内装を年10件。着工まで2週間でお請けできます。" /></label>
+            </> : <>
+              <label>お名前<input name="personName" required maxLength={60} /></label>
+              <label>会社・屋号<input name="personCompany" required maxLength={80} /></label>
+              <label>あなたとの関係<input name="relationship" required maxLength={120} placeholder="例：取引先、友人" /></label>
+              <label>オファーしたい理由<textarea name="fitReason" required maxLength={400} rows={3} /></label>
+              <label className="consent"><input type="checkbox" name="consentConfirmed" required /> ご本人にオファーの了承を得ています</label>
+            </>}
+            <button className="submit-button" disabled={busy}>{busy ? '送っています…' : 'オファーを送る'}</button>
+          </form>}
+      </Modal>}
+
+      {/* 無料のままオファーが届いた人への案内。数と日付までは受け箱で見えて
+          いるので、ここは「開けます」の一言に絞る。 */}
+      {modal === 'upgrade' && <Modal title="オファーが届いています" lead={upgradeNote || (lockedIntros ? `あなたの探しごとに ${lockedIntros}件のオファーが届いています。` : '')} onClose={() => setModal(null)}>
+        <div className="upgrade-panel">
+          <p>スタンダードプランにすると、<b>どなたが、どんな理由でオファーしてくださったのか</b>を読んで、そのまま相手とやり取りできます。</p>
+          <ul>
+            <li>届いたオファーの中身を読む</li>
+            <li>オファーをくれた方とやり取りする</li>
+            <li>自社で請け負うオファーを送る</li>
+            <li>会員を業種・エリアで探す</li>
+          </ul>
+          <p className="upgrade-free">知り合いの方をご紹介いただくのは、これまでどおり無料プランのままどうぞ。</p>
+          <button className="submit-button" onClick={() => { setModal(null); goTab('plan'); }}>プランを見る</button>
+          <button className="quota-cancel" onClick={() => setModal(null)}>あとで</button>
+        </div>
+      </Modal>}
 
       {modal === 'perks' && <Modal title="ランクの特典" lead="オファーした数でランクが上がり、できることが増えます。一度上がったランクは下がりません。" onClose={() => { setModal(null); setOpenPerk(''); }}>
         <div className="perk-panel">
@@ -1419,7 +1494,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <p className="category-guide-note">あとから選び直せます。近いものを選んでいただければ大丈夫です。</p>
       </Modal>}
 
-      {modal === 'responses' && <Modal title="オファーのやり取り" lead="届いたオファーと、あなたが出したオファーです。相手とそのままやり取りできます。" onClose={() => setModal(null)}><ReceivedIntroductions /></Modal>}
+      {modal === 'responses' && <Modal title="オファーのやり取り" lead="届いたオファーと、あなたが出したオファーです。相手とそのままやり取りできます。" onClose={() => setModal(null)}><ReceivedIntroductions onUpgrade={() => { setModal(null); goTab('plan'); }} /></Modal>}
 
       {modal === 'detail' && selected && <Modal title="探しごとの詳細" lead={`${selected.authorName}さんの探しごとです。`} onClose={() => setModal(null)}><article className="need-detail">
         <div className="card-topline"><span className={`kind ${categories[selected.category].className}`}>{categories[selected.category].label}</span><button className={favoriteIds.includes(selected.id) ? 'detail-heart active' : 'detail-heart'} onClick={() => toggleFavorite(selected)}>♥ {favoriteIds.includes(selected.id) ? '保存済み' : 'お気に入り'}</button></div>

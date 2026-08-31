@@ -7,6 +7,8 @@ import FacebookLink from './FacebookLink';
 import IntroductionChat from './IntroductionChat';
 
 const categoryLabels = { project: '案件', collaboration: '協業先', consultation: '相談・情報' };
+/** 紹介なのか、自分の会社で請け負うのか。受け取る側にはここが真っ先に要る。 */
+const kindLabels = { referral: '知り合いの紹介', self: '自社で請け負います' };
 
 /**
  * オファーの受け箱。**届いた／出した**の両方を出す。
@@ -14,7 +16,7 @@ const categoryLabels = { project: '案件', collaboration: '協業先', consulta
  * やり取りは2人でするものなので、オファーした側にも入口が要る。届いたぶんだけ
  * だと、送った人は自分が出したオファーを見返すことも、返事を読むこともできない。
  */
-export default function ReceivedIntroductions() {
+export default function ReceivedIntroductions({ onUpgrade }: { onUpgrade?: () => void } = {}) {
   const [received, setReceived] = useState<ReceivedIntroduction[]>([]);
   const [sent, setSent] = useState<SentIntroduction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +43,8 @@ export default function ReceivedIntroductions() {
     group.items.push(item); result[item.requestId] = group; return result;
   }, {})), [received]);
 
+  const lockedCount = received.filter((item) => item.locked).length;
+
   if (loading) return <div className="received-loading">オファーを読み込んでいます…</div>;
   if (!received.length && !sent.length) {
     return <div className="received-empty"><span>✉</span><b>オファーはまだありません</b>
@@ -62,22 +66,35 @@ export default function ReceivedIntroductions() {
       ? <div className="received-empty"><span>✉</span><b>届いたオファーはまだありません</b>
         <p>あなたの探しごとにオファーが届くと、ここに並びます。</p></div>
       : <>
-        <div className="received-summary">
+        <div className={`received-summary${lockedCount ? ' is-locked' : ''}`}>
           <span><b>{received.length}</b><small>届いたオファー</small></span>
-          <p>オファーされた人と、送ってくれた方からのメッセージを確認できます。そのままやり取りもできます。</p>
+          {lockedCount
+            ? <p>スタンダードプランにすると、<b>どなたからどんなオファーが届いたのか</b>を読んで、そのままやり取りできます。</p>
+            : <p>オファーされた人と、送ってくれた方からのメッセージを確認できます。そのままやり取りもできます。</p>}
+          {lockedCount ? <button className="received-upgrade" onClick={onUpgrade}>プランを見る</button> : null}
         </div>
         {groups.map((group) => <section className="received-group" key={group.requestId}>
           <header><span>{categoryLabels[group.category]}</span>
             <div><small>あなたの探しごと</small><h3>{group.title}</h3></div>
             <b>{group.items.length}件</b></header>
-          <div className="received-list">{group.items.map((item) => <article className="received-card" key={item.id}>
+          <div className="received-list">{group.items.map((item) => <article className={`received-card${item.locked ? ' is-locked' : ''}`} key={item.id}>
+            {/* 中身を渡していないぶんは、名前の代わりに種類と日付だけ出す。
+                「何件、いつ、どんな種類で届いたか」までは見せて、そこから先を
+                プランの値打ちにしている。名前と理由はサーバーが空にして送る。 */}
             <button className="received-card-head" onClick={() => setExpanded((current) => current === item.id ? '' : item.id)}>
-              <div className="received-person-mark">人</div>
-              <div><small>{formatDate(item.createdAt)}に届きました</small><h4>{item.personName}</h4><p>{item.personCompany}</p></div>
+              <div className="received-person-mark">{item.locked ? '鍵' : item.kind === 'self' ? '社' : '人'}</div>
+              <div><small>{formatDate(item.createdAt)}に届きました</small>
+                <h4>{item.locked ? 'オファーが届いています' : item.personName}</h4>
+                <p>{item.locked ? kindLabels[item.kind] : item.personCompany}</p></div>
               <i>{expanded === item.id ? '−' : '＋'}</i>
             </button>
-            {expanded === item.id && <div className="received-detail">
+            {expanded === item.id && (item.locked ? <div className="received-detail received-locked">
+              <p><b>このオファーの中身は、スタンダードプランで開きます。</b></p>
+              <p>どなたが、どんな理由でオファーしてくださったのかを読んで、そのまま返事ができます。</p>
+              <button className="received-upgrade" onClick={onUpgrade}>プランを見る</button>
+            </div> : <div className="received-detail">
               <dl>
+                <div><dt>オファーの種類</dt><dd>{kindLabels[item.kind]}</dd></div>
                 <div><dt>オファーした方との関係</dt><dd>{item.relationship}</dd></div>
                 <div><dt>オファーしたい理由</dt><dd>{item.fitReason}</dd></div>
               </dl>
@@ -90,7 +107,7 @@ export default function ReceivedIntroductions() {
                   <FacebookLink url={item.introducerFacebookUrl} name={item.introducerName} /></p>
               </div>
               <IntroductionChat introductionId={item.id} partnerName={item.introducerName} />
-            </div>}
+            </div>)}
           </article>)}</div>
         </section>)}
       </>
@@ -104,13 +121,14 @@ export default function ReceivedIntroductions() {
         </div>
         <div className="received-list">{sent.map((item) => <article className="received-card" key={item.id}>
           <button className="received-card-head" onClick={() => setExpanded((current) => current === item.id ? '' : item.id)}>
-            <div className="received-person-mark">人</div>
+            <div className="received-person-mark">{item.kind === 'self' ? '社' : '人'}</div>
             <div><small>{formatDate(item.createdAt)}にオファーしました</small><h4>{item.personName}</h4>
               <p>{item.requestTitle}</p></div>
             <i>{expanded === item.id ? '−' : `＋${item.messageCount ? ` ${item.messageCount}` : ''}`}</i>
           </button>
           {expanded === item.id && <div className="received-detail">
             <dl>
+              <div><dt>オファーの種類</dt><dd>{kindLabels[item.kind]}</dd></div>
               <div><dt>あなたとの関係</dt><dd>{item.relationship}</dd></div>
               <div><dt>オファーした理由</dt><dd>{item.fitReason}</dd></div>
             </dl>
