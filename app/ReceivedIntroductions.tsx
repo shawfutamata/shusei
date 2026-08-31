@@ -6,7 +6,7 @@ import type { ReceivedIntroduction, SentIntroduction } from '@/db/data';
 import FacebookLink from './FacebookLink';
 import IntroductionChat from './IntroductionChat';
 
-const categoryLabels = { project: '案件', collaboration: '協業先', consultation: '相談・情報' };
+const categoryLabels = { project: '案件', collaboration: '協業先', consultation: '相談・情報', ad: '広告' };
 /** 紹介なのか、自分の会社で請け負うのか。受け取る側にはここが真っ先に要る。 */
 const kindLabels = { referral: 'リファラル（知り合いの紹介）', self: 'オファー（自社で請け負う）' };
 
@@ -38,8 +38,8 @@ export default function ReceivedIntroductions({ onUpgrade }: { onUpgrade?: () =>
     return () => { active = false; };
   }, []);
 
-  const groups = useMemo(() => Object.values(received.reduce<Record<string, { requestId: string; title: string; category: ReceivedIntroduction['requestCategory']; items: ReceivedIntroduction[] }>>((result, item) => {
-    const group = result[item.requestId] ?? { requestId: item.requestId, title: item.requestTitle, category: item.requestCategory, items: [] };
+  const groups = useMemo(() => Object.values(received.reduce<Record<string, { requestId: string; title: string; category: ReceivedIntroduction['requestCategory']; source: ReceivedIntroduction['source']; items: ReceivedIntroduction[] }>>((result, item) => {
+    const group = result[item.requestId] ?? { requestId: item.requestId, title: item.requestTitle, category: item.requestCategory, source: item.source, items: [] };
     group.items.push(item); result[item.requestId] = group; return result;
   }, {})), [received]);
 
@@ -75,7 +75,7 @@ export default function ReceivedIntroductions({ onUpgrade }: { onUpgrade?: () =>
         </div>
         {groups.map((group) => <section className="received-group" key={group.requestId}>
           <header><span>{categoryLabels[group.category]}</span>
-            <div><small>あなたの探しごと</small><h3>{group.title}</h3></div>
+            <div><small>{group.source === 'ad' ? 'あなたの広告' : 'あなたの探しごと'}</small><h3>{group.title}</h3></div>
             <b>{group.items.length}件</b></header>
           <div className="received-list">{group.items.map((item) => <article className={`received-card${item.locked ? ' is-locked' : ''}`} key={item.id}>
             {/* 中身を渡していないぶんは、名前の代わりに種類と日付だけ出す。

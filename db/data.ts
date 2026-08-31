@@ -98,11 +98,30 @@ export type MemberStats = {
 
 export type OfferKind = 'referral' | 'self';
 
+/**
+ * オファーの宛先。探しごとか、広告か。
+ *
+ * 表は分けてある（`ad_introductions`）が、**画面と型は同じもの**として扱う。
+ * 受け取る人にとっては、どちらも「自分あてに届いたオファー」でしかない。
+ */
+export type OfferSource = 'request' | 'ad';
+export type OfferTargetCategory = 'project' | 'collaboration' | 'consultation' | 'ad';
+
+/**
+ * 広告へのオファーのIDに付ける印。
+ *
+ * 表が分かれているので、やり取りのAPIはどちらのIDか見分けられないといけない。
+ * 印を付けておけば、**画面もAPIも1本のまま**で両方を扱える。
+ */
+export const AD_OFFER_PREFIX = 'ad:';
+
 export type ReceivedIntroduction = {
   id: string;
   requestId: string;
   requestTitle: string;
-  requestCategory: 'project' | 'collaboration' | 'consultation';
+  requestCategory: OfferTargetCategory;
+  /** 探しごとに届いたのか、広告に届いたのか。画面の言い回しを変えるのに使う。 */
+  source: OfferSource;
   /** 知り合いの紹介か、自社で請け負う（受注）か。 */
   kind: OfferKind;
   /**
@@ -138,7 +157,8 @@ export type SentIntroduction = {
   id: string;
   requestId: string;
   requestTitle: string;
-  requestCategory: 'project' | 'collaboration' | 'consultation';
+  requestCategory: OfferTargetCategory;
+  source: OfferSource;
   kind: OfferKind;
   personName: string;
   personCompany: string;
@@ -298,6 +318,29 @@ const statements = [
   // 紹介1件ごとの、投稿者と紹介者だけのやり取り。
   // 探しごとのコメント欄（request_comments）は会員みんなが読めるが、
   // こちらは**2人しか読めない**。紹介の中身は他の会員に見せないため。
+  // 広告へのオファー。**探しごとへのオファーと別の表にしてある。**
+  // introductions.request_id は requests への外部キーで、D1はこれを実際に
+  // 強制する（広告のIDを入れると FOREIGN KEY constraint failed になる）。
+  // 既存の表を作り替えると、いま入っているオファーを失う危険があるので、
+  // 足すほうを選んだ。画面と型は探しごとと共通のまま扱う。
+  `CREATE TABLE IF NOT EXISTS ad_introductions (
+    id TEXT PRIMARY KEY,
+    ad_id TEXT NOT NULL REFERENCES ad_slots(id),
+    introducer_id TEXT NOT NULL REFERENCES members(id),
+    person_name TEXT NOT NULL,
+    person_company TEXT NOT NULL,
+    relationship TEXT NOT NULL,
+    fit_reason TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'referral',
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS ad_introduction_messages (
+    id TEXT PRIMARY KEY,
+    ad_introduction_id TEXT NOT NULL REFERENCES ad_introductions(id),
+    sender_id TEXT NOT NULL REFERENCES members(id),
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS introduction_messages (
     id TEXT PRIMARY KEY,
     introduction_id TEXT NOT NULL REFERENCES introductions(id),
@@ -749,6 +792,13 @@ export async function deleteMobileAccount(user: SessionUser) {
     ...requestIds.results.map(({ id }) => env.DB.prepare('DELETE FROM introductions WHERE request_id = ?').bind(id)),
     ...eventIds.results.map(({ id }) => env.DB.prepare('DELETE FROM attendance_people WHERE event_id = ?').bind(id)),
     env.DB.prepare('DELETE FROM introductions WHERE introducer_id = ?').bind(user.userId),
+    // 広告へのオファーも同じ順で消す。やり取り→オファー→枠、の順でないと
+    // 外部キーで止まる（D1に ON DELETE CASCADE は無い）。
+    env.DB.prepare('DELETE FROM ad_introduction_messages WHERE sender_id = ?').bind(user.userId),
+    env.DB.prepare('DELETE FROM ad_introduction_messages WHERE ad_introduction_id IN (SELECT id FROM ad_introductions WHERE introducer_id = ?)').bind(user.userId),
+    ...adIds.results.map(({ id }) => env.DB.prepare('DELETE FROM ad_introduction_messages WHERE ad_introduction_id IN (SELECT id FROM ad_introductions WHERE ad_id = ?)').bind(id)),
+    ...adIds.results.map(({ id }) => env.DB.prepare('DELETE FROM ad_introductions WHERE ad_id = ?').bind(id)),
+    env.DB.prepare('DELETE FROM ad_introductions WHERE introducer_id = ?').bind(user.userId),
     env.DB.prepare('DELETE FROM push_subscriptions WHERE member_id = ?').bind(user.userId),
     env.DB.prepare('DELETE FROM mobile_push_tokens WHERE member_id = ?').bind(user.userId),
     env.DB.prepare('DELETE FROM mobile_sessions WHERE member_id = ?').bind(user.userId),
@@ -1174,12 +1224,46 @@ export async function createIntroduction(user: SessionUser, input: { requestId: 
 export const PAYWALL = '[plan]';
 
 /**
+ * 広告へオファーを送る。
+ *
+ * 線引きは探しごとと同じ。**知り合いの紹介は無料、自社で請け負うのは有料。**
+ * 宛先が広告になっただけで、送る人にとっての意味は変わらないため。
+ */
+export async function createAdIntroduction(user: SessionUser, input: { adId: string; personName: string; personCompany: string; relationship: string; fitReason: string; kind?: OfferKind }) {
+  await upsertMember(user);
+  await requireFacePhoto(user.userId);
+  const kind: OfferKind = input.kind === 'self' ? 'self' : 'referral';
+  if (kind === 'self' && !can(await getPlanState(user.userId), 'self_offer')) {
+    throw new Error(`${PAYWALL}オファー（自社で請け負う）は、スタンダードプランでお送りいただけます。リファラル（知り合いのご紹介）は、無料プランのままお使いいただけます。`);
+  }
+  // いま出ている枠にだけ送れる。終わった広告に送っても相手は気づかない。
+  const ad = await env.DB.prepare(`SELECT id, member_id AS memberId FROM ad_slots
+    WHERE id = ? AND status = 'active' AND start_date <= ? AND end_date >= ?`)
+    .bind(input.adId, today(), today()).first<{ id: string; memberId: string }>();
+  if (!ad) throw new Error('この広告は掲載が終わっているか、見つかりません。');
+  if (ad.memberId === user.userId) throw new Error('ご自身の広告にはオファーできません。');
+
+  const id = crypto.randomUUID();
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO ad_introductions
+      (id, ad_id, introducer_id, person_name, person_company, relationship, fit_reason, kind, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(id, input.adId, user.userId, input.personName, input.personCompany, input.relationship, input.fitReason, kind, new Date().toISOString()),
+    env.DB.prepare('UPDATE members SET intro_count = intro_count + 1, points = points + 10 WHERE id = ?').bind(user.userId),
+  ]);
+  return `${AD_OFFER_PREFIX}${id}`;
+}
+
+/**
  * 自分の募集に届いたオファーの一覧。
  *
  * **無料プランには中身を渡さない。** 届いた件数と、どの募集に届いたかまでは
  * 見せる（そこが「上げようかな」の入口になる）が、誰を紹介されたのか・
  * 誰から届いたのかは空にして返す。画面で隠すだけだと、通信を覗けば読めてしまう。
  */
+type ReceivedRow = Omit<ReceivedIntroduction, 'introducerAvatarUrl' | 'locked' | 'source'>
+  & { introducerId: string; introducerAvatarKey: string; introducerAvatarVersion: number };
+
 export async function getReceivedIntroductions(user: SessionUser): Promise<ReceivedIntroduction[]> {
   await upsertMember(user);
   const result = await env.DB.prepare(`SELECT i.id, i.request_id AS requestId, r.title AS requestTitle,
@@ -1192,9 +1276,28 @@ export async function getReceivedIntroductions(user: SessionUser): Promise<Recei
     JOIN members m ON m.id = i.introducer_id
     WHERE r.author_id = ?
     ORDER BY i.created_at DESC`)
-    .bind(user.userId).all<Omit<ReceivedIntroduction, 'introducerAvatarUrl' | 'locked'> & { introducerId: string; introducerAvatarKey: string; introducerAvatarVersion: number }>();
+    .bind(user.userId).all<ReceivedRow>();
+  // 自分の広告に届いたぶん。表は別だが、受け取る人にとっては同じ「届いたオファー」。
+  const adResult = await env.DB.prepare(`SELECT '${AD_OFFER_PREFIX}' || i.id AS id, i.ad_id AS requestId,
+    a.title AS requestTitle, 'ad' AS requestCategory, i.kind, i.person_name AS personName,
+    i.person_company AS personCompany, i.relationship, i.fit_reason AS fitReason,
+    'proposed' AS status, i.created_at AS createdAt,
+    m.display_name AS introducerName, m.company AS introducerCompany, m.venue AS introducerVenue, m.facebook_url AS introducerFacebookUrl,
+    m.id AS introducerId, m.avatar_key AS introducerAvatarKey, m.avatar_version AS introducerAvatarVersion
+    FROM ad_introductions i
+    JOIN ad_slots a ON a.id = i.ad_id
+    JOIN members m ON m.id = i.introducer_id
+    WHERE a.member_id = ?
+    ORDER BY i.created_at DESC`)
+    .bind(user.userId).all<ReceivedRow>();
+
   const locked = !can(await getPlanState(user.userId), 'receive_introductions');
-  return result.results.map(({ introducerId, introducerAvatarKey, introducerAvatarVersion, ...introduction }) => {
+  const rows = [
+    ...result.results.map((row) => ({ ...row, source: 'request' as const })),
+    ...adResult.results.map((row) => ({ ...row, source: 'ad' as const })),
+  ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  return rows.map(({ introducerId, introducerAvatarKey, introducerAvatarVersion, ...introduction }) => {
     if (locked) {
       return {
         ...introduction,
@@ -1253,9 +1356,31 @@ async function requireOfferChatAccess(userId: string, isAuthor: boolean) {
   throw new Error(`${PAYWALL}届いたオファーのやり取りは、スタンダードプランでご覧いただけます。`);
 }
 
+/**
+ * 広告へのオファーで、読み書きしてよい2人かを確かめる。
+ *
+ * 探しごとの `introductionPartner()` と同じ役目。**表が分かれているだけで、
+ * 守るものは同じ。** 広告を出した人とオファーした人しか読めない。
+ */
+async function adIntroductionPartner(userId: string, adIntroductionId: string) {
+  const row = await env.DB.prepare(`SELECT i.introducer_id AS introducerId, a.member_id AS authorId,
+      a.title AS requestTitle
+    FROM ad_introductions i JOIN ad_slots a ON a.id = i.ad_id WHERE i.id = ?`)
+    .bind(adIntroductionId).first<{ introducerId: string; authorId: string; requestTitle: string }>();
+  if (!row) return null;
+  if (userId !== row.introducerId && userId !== row.authorId) return null;
+  return {
+    ...row,
+    partnerId: userId === row.introducerId ? row.authorId : row.introducerId,
+    /** 自分が広告を出した側か。受け取る側なので、プランの関所はこちらに掛かる。 */
+    isAuthor: userId === row.authorId,
+  };
+}
+
 /** 紹介1件ぶんのやり取りを、古い順に返す。関係のない人には空ではなく例外。 */
 export async function listIntroductionMessages(user: SessionUser, introductionId: string): Promise<IntroductionMessage[]> {
   await upsertMember(user);
+  if (introductionId.startsWith(AD_OFFER_PREFIX)) return listAdIntroductionMessages(user, introductionId.slice(AD_OFFER_PREFIX.length));
   const access = await introductionPartner(user.userId, introductionId);
   if (!access) throw new Error('このやり取りは表示できません。');
   await requireOfferChatAccess(user.userId, access.isAuthor);
@@ -1277,6 +1402,7 @@ export const INTRODUCTION_MESSAGE_MAX = 1000;
 /** やり取りを1つ送る。送れるのは投稿者と紹介者の2人だけ。 */
 export async function addIntroductionMessage(user: SessionUser, introductionId: string, body: string) {
   await upsertMember(user);
+  if (introductionId.startsWith(AD_OFFER_PREFIX)) return addAdIntroductionMessage(user, introductionId.slice(AD_OFFER_PREFIX.length), body);
   const access = await introductionPartner(user.userId, introductionId);
   if (!access) throw new Error('このやり取りには書き込めません。');
   await requireOfferChatAccess(user.userId, access.isAuthor);
@@ -1289,7 +1415,42 @@ export async function addIntroductionMessage(user: SessionUser, introductionId: 
   return listIntroductionMessages(user, introductionId);
 }
 
+/** 広告へのオファー1件ぶんのやり取り。読めるのは広告主とオファーした人だけ。 */
+async function listAdIntroductionMessages(user: SessionUser, id: string): Promise<IntroductionMessage[]> {
+  const access = await adIntroductionPartner(user.userId, id);
+  if (!access) throw new Error('このやり取りは表示できません。');
+  await requireOfferChatAccess(user.userId, access.isAuthor);
+  const rows = await env.DB.prepare(`SELECT n.id, n.body, n.created_at AS createdAt, n.sender_id AS senderId,
+      m.display_name AS senderName, m.avatar_key AS senderAvatarKey, m.avatar_version AS senderAvatarVersion
+    FROM ad_introduction_messages n JOIN members m ON m.id = n.sender_id
+    WHERE n.ad_introduction_id = ? ORDER BY n.created_at ASC`)
+    .bind(id).all<{ id: string; body: string; createdAt: string; senderId: string;
+      senderName: string; senderAvatarKey: string; senderAvatarVersion: number }>();
+  return rows.results.map(({ senderId, senderAvatarKey, senderAvatarVersion, ...row }) => ({
+    ...row,
+    senderAvatarUrl: avatarUrl(senderId, senderAvatarKey, senderAvatarVersion),
+    mine: senderId === user.userId,
+  }));
+}
+
+/** 広告へのオファーに1つ書く。書けるのは広告主とオファーした人だけ。 */
+async function addAdIntroductionMessage(user: SessionUser, id: string, body: string) {
+  const access = await adIntroductionPartner(user.userId, id);
+  if (!access) throw new Error('このやり取りには書き込めません。');
+  await requireOfferChatAccess(user.userId, access.isAuthor);
+  const text = body.trim().slice(0, INTRODUCTION_MESSAGE_MAX);
+  if (!text) throw new Error('メッセージを入力してください。');
+  await env.DB.prepare('INSERT INTO ad_introduction_messages (id, ad_introduction_id, sender_id, body, created_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(crypto.randomUUID(), id, user.userId, text, new Date().toISOString()).run();
+  // 相手に知らせる。届かなくてもやり取りは残るので、失敗は握りつぶす。
+  await sendIntroductionMessageNotice(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
+  return listAdIntroductionMessages(user, id);
+}
+
 /** 自分が出した紹介の一覧。相手（投稿者）とやり取りするための入口。 */
+type SentRow = Omit<SentIntroduction, 'authorAvatarUrl' | 'source'>
+  & { authorId: string; authorAvatarKey: string; authorAvatarVersion: number };
+
 export async function getSentIntroductions(user: SessionUser): Promise<SentIntroduction[]> {
   await upsertMember(user);
   const rows = await env.DB.prepare(`SELECT i.id, i.request_id AS requestId, r.title AS requestTitle,
@@ -1304,11 +1465,31 @@ export async function getSentIntroductions(user: SessionUser): Promise<SentIntro
     JOIN members m ON m.id = r.author_id
     WHERE i.introducer_id = ?
     ORDER BY i.created_at DESC`)
-    .bind(user.userId).all<Omit<SentIntroduction, 'authorAvatarUrl'> & { authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
-  return rows.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, ...row }) => ({
-    ...row,
-    authorAvatarUrl: avatarUrl(authorId, authorAvatarKey, authorAvatarVersion),
-  }));
+    .bind(user.userId).all<SentRow>();
+  // 広告へ出したぶん。出した人にとっては、宛先が違うだけの同じオファー。
+  const adRows = await env.DB.prepare(`SELECT '${AD_OFFER_PREFIX}' || i.id AS id, i.ad_id AS requestId,
+      a.title AS requestTitle, 'ad' AS requestCategory, i.kind, i.person_name AS personName,
+      i.person_company AS personCompany, i.relationship, i.fit_reason AS fitReason, i.created_at AS createdAt,
+      m.display_name AS authorName, m.company AS authorCompany, m.venue AS authorVenue,
+      m.facebook_url AS authorFacebookUrl, m.id AS authorId,
+      m.avatar_key AS authorAvatarKey, m.avatar_version AS authorAvatarVersion,
+      (SELECT COUNT(*) FROM ad_introduction_messages n WHERE n.ad_introduction_id = i.id) AS messageCount
+    FROM ad_introductions i
+    JOIN ad_slots a ON a.id = i.ad_id
+    JOIN members m ON m.id = a.member_id
+    WHERE i.introducer_id = ?
+    ORDER BY i.created_at DESC`)
+    .bind(user.userId).all<SentRow>();
+
+  return [
+    ...rows.results.map((row) => ({ ...row, source: 'request' as const })),
+    ...adRows.results.map((row) => ({ ...row, source: 'ad' as const })),
+  ]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map(({ authorId, authorAvatarKey, authorAvatarVersion, ...row }) => ({
+      ...row,
+      authorAvatarUrl: avatarUrl(authorId, authorAvatarKey, authorAvatarVersion),
+    }));
 }
 
 export async function getMemberAvatar(memberId: string) {

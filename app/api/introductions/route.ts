@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
-import { createIntroduction, getReceivedIntroductions, getSentIntroductions, type OfferKind } from '@/db/data';
+import { createAdIntroduction, createIntroduction, getReceivedIntroductions, getSentIntroductions, type OfferKind } from '@/db/data';
 import { errorResponse } from '@/app/paywall-response';
 
 // 届いた紹介と、出した紹介の両方を返す。やり取りは2人でするものなので、
@@ -21,6 +21,8 @@ export async function POST(request: Request) {
   const user = gate.user;
   const body = await request.json() as Record<string, unknown>;
   const requestId = clean(body.requestId, 80);
+  // 宛先は探しごとか広告のどちらか。広告のときは adId が来る。
+  const adId = clean(body.adId, 80);
   const personName = clean(body.personName, 60);
   const personCompany = clean(body.personCompany, 80);
   const relationship = clean(body.relationship, 120);
@@ -32,11 +34,13 @@ export async function POST(request: Request) {
   // 他人を差し出すときだけ、本人の了承を確かめる。自分の会社を出すのに
   // 自分の了承を取らせるのは、意味のない一手間になる。
   const consented = kind === 'self' || body.consentConfirmed === true;
-  if (!requestId || !personName || !personCompany || !person || !fitReason || !consented) {
+  if ((!requestId && !adId) || !personName || !personCompany || !person || !fitReason || !consented) {
     return NextResponse.json({ error: 'オファーする方の了承を確認し、必須項目を入力してください。' }, { status: 400 });
   }
   try {
-    const id = await createIntroduction(user, { requestId, personName, personCompany, relationship: person, fitReason, kind });
+    const id = adId
+      ? await createAdIntroduction(user, { adId, personName, personCompany, relationship: person, fitReason, kind })
+      : await createIntroduction(user, { requestId, personName, personCompany, relationship: person, fitReason, kind });
     return NextResponse.json({ id, points: 10 }, { status: 201 });
   } catch (error) {
     return errorResponse(error, 'オファーを送れませんでした。');

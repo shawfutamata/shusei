@@ -256,6 +256,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
    * 画面はここで出し分けるだけで、実際に止めているのは `createIntroduction()`。
    */
   const [offerKind, setOfferKind] = useState<'referral' | 'self'>('referral');
+  /** オファーの宛先が広告のとき、その広告。探しごと宛のときは null。 */
+  const [offerAd, setOfferAd] = useState<AdSlot | null>(null);
   /** プラン案内に出す一言。断られた理由をそのまま見せるため、空なら既定の文。 */
   const [upgradeNote, setUpgradeNote] = useState('');
   const [selected, setSelected] = useState<BoardRequest | null>(null);
@@ -590,17 +592,21 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   }
 
   async function submitIntroduction(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!selected) return; setBusy(true);
+    event.preventDefault();
+    // 宛先は探しごとか広告のどちらか。どちらも無ければ送らない。
+    if (!selected && !offerAd) return;
+    setBusy(true);
     const form = event.currentTarget;
     const raw = Object.fromEntries(new FormData(form));
-    const response = await fetch('/api/introductions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...raw, requestId: selected.id, kind: offerKind, consentConfirmed: raw.consentConfirmed === 'on' }) });
+    const target = offerAd ? { adId: offerAd.id } : { requestId: selected?.id };
+    const response = await fetch('/api/introductions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...raw, ...target, kind: offerKind, consentConfirmed: raw.consentConfirmed === 'on' }) });
     const result = await response.json() as { error?: string; paywall?: boolean }; setBusy(false);
     if (!response.ok) {
       // プランが足りないときは、赤い一言で終わらせずに案内まで出す。
       if (result.paywall) { setUpgradeNote(result.error ?? ''); setModal('upgrade'); return; }
       return showToast(result.error ?? 'オファーを送れませんでした。');
     }
-    setModal(null); form.reset(); await refreshBoard(); showToast('オファーを送りました。10ポイント加算されました。');
+    setModal(null); setOfferAd(null); form.reset(); await refreshBoard(); showToast('オファーを送りました。10ポイント加算されました。');
   }
 
   async function saveProfile() {
@@ -677,8 +683,15 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     showToast('探しごとを削除しました。');
   }
 
+  /** 広告あてにオファーする。入力も線引きも探しごとと同じで、宛先が違うだけ。 */
+  function openAdIntroduction(ad: AdSlot) {
+    if (!stats.avatarUrl) { showProfileSettings(); return showToast('オファーの前に顔写真を登録してください。'); }
+    setOfferAd(ad); setSelected(null); setOfferKind('referral'); setModal('intro');
+  }
+
   function openIntroduction(need: BoardRequest) {
     if (!stats.avatarUrl) { showProfileSettings(); return showToast('オファーの前に顔写真を登録してください。'); }
+    setOfferAd(null); setOfferKind('referral');
     setSelected(need); setModal('intro');
   }
 
@@ -1040,6 +1053,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <button key={carouselIndex} className={`hero-image-slide${slide?.ad ? ' is-ad' : ''}`} onClick={openCurrentBanner} aria-label={`${slide?.alt ?? ''}を開く`}>{slide?.ad
             ? <AdBanner ad={{ title: slide.ad.title, description: slide.ad.description, imageUrl: slide.ad.imageUrl, by: slide.ad.memberCompany || slide.ad.memberName }} />
             : <img src={slide?.src} alt={slide?.alt ?? ''} />}</button>
+          {/* バナー全体が1つのボタンなので、オファーの入口は入れ子にできない。
+              重ねて置く。押す先が違う（バナー＝広告主のページ、こちら＝オファー）
+              ので、見た目でも分かれているほうがよい。 */}
+          {slide?.ad && <button className="hero-ad-offer" onClick={() => openAdIntroduction(slide.ad!)}>この広告にオファー</button>}
           <div className="carousel-dots" aria-label="バナーを切り替える">{slides.map((entry, index) => <button key={index} aria-label={`${index + 1}枚目${entry.ad ? '（広告）' : ''}`} className={`${carouselIndex === index ? 'active' : ''}${entry.ad ? ' is-ad' : ''}`} onClick={() => { setCarouselPaused(true); setCarouselIndex(index); }} />)}</div>
         </section>
 
@@ -1088,6 +1105,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             {ad.imageUrl && <img className="need-thumb" src={ad.imageUrl} alt="" loading="lazy" decoding="async" />}
             {ad.description && <p className="need-body">{ad.description}</p>}
             {ad.linkUrl && <p className="ad-card-link">{ad.linkUrl.replace(/^https?:\/\//, '')}</p>}
+            {/* カードを押すと広告主のページへ飛ぶ（出した人が買ったのはそこ）ので、
+                オファーは別のボタンにして、押し間違いで飛ばないよう伝播を止める。 */}
+            <button className="intro-button" onClick={(event) => { event.stopPropagation(); openAdIntroduction(ad); }}>この広告にオファー <span>→</span></button>
           </article>)}
           {shown.length === 0 ? <div className="empty"><b>条件に合う投稿がありません</b><span>絞り込みを変えて探してみましょう。</span></div> : shown.map((need) => (
             <article className={isOpenRequest(need) ? 'need-card' : 'need-card closed'} key={need.id} onClick={() => openNeed(need)}>
@@ -1349,7 +1369,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           **自社で請け負う**のは受注そのものなのでスタンダードから。
           切り替えで入力そのものが変わるのは、自社の場合「あなたとの関係」に
           書きようがないため。 */}
-      {modal === 'intro' && selected && <Modal title="この探しごとにオファー" lead={`「${selected.title}」へのオファーです。`} onClose={() => setModal(null)}>
+      {modal === 'intro' && (selected || offerAd) && <Modal
+        title={offerAd ? 'この広告にオファー' : 'この探しごとにオファー'}
+        lead={offerAd ? `「${offerAd.title}」（${offerAd.memberCompany || offerAd.memberName}さま）へのオファーです。` : `「${selected?.title}」へのオファーです。`}
+        onClose={() => { setModal(null); setOfferAd(null); }}>
         <div className="offer-kind" role="group" aria-label="オファーの種類">
           <button type="button" className={offerKind === 'referral' ? 'selected' : ''} onClick={() => setOfferKind('referral')} aria-pressed={offerKind === 'referral'}>
             <b>リファラル<em>無料</em></b><small>知り合いを紹介します。人をつなぐだけなので、どのプランでもどうぞ。</small></button>
