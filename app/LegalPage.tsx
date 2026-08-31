@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { serviceName } from './brand';
 
 // 規約・ポリシー類の共通の器。中身だけ各ページが渡す。
@@ -11,24 +10,42 @@ export default function LegalPage({ eyebrow, title, lead, warning, children, upd
   updatedAt: string;
 }) {
   return <main style={styles.page}><article style={styles.card}>
-    <style dangerouslySetInnerHTML={{ __html: legalTableCss }} />
+    <LegalStyles />
     {warning && <p style={styles.warning}>{warning}</p>}
     <p style={styles.eyebrow}>{eyebrow}</p>
     <h1 style={styles.title}>{title}</h1>
     <p style={styles.lead}>{lead}</p>
+    {/* 規約類は長い。ほかの書面への行き来は、最後まで読み切らないと
+        できない場所にあってはいけない。頭にも足にも同じ並びを置く。 */}
+    <LegalNav />
     {children}
     <footer style={styles.footer}>
       <p style={styles.updated}>制定日：{updatedAt}</p>
-      <nav style={styles.nav}>
-        <Link href="/terms" style={styles.link}>利用規約</Link>
-        <Link href="/refund" style={styles.link}>返金・キャンセル</Link>
-        <Link href="/tokushoho" style={styles.link}>特定商取引法に基づく表記</Link>
-        <Link href="/privacy" style={styles.link}>プライバシーポリシー</Link>
-        <Link href="/support" style={styles.link}>サポート</Link>
-        <Link href="/" style={styles.link}>{serviceName}へ戻る</Link>
-      </nav>
+      <LegalNav />
     </footer>
   </article></main>;
+}
+
+/**
+ * ほかの規約・ポリシーへの行き来。
+ *
+ * もとは13pxの文字だけで、指で押す的が20pxしかなかった（Appleの目安は44px）。
+ * 押しても反応しない・そもそも在ることに気づかない、という状態だったので、
+ * 押せる四角として出す。next/link ではなく素の <a> にしてあるのは、
+ * ルーターが取りこぼしたときに「押しても何も起きない」になるのを避けるため。
+ */
+export function LegalNav() {
+  const links: [string, string][] = [
+    ['/terms', '利用規約'],
+    ['/refund', '返金・キャンセル'],
+    ['/tokushoho', '特定商取引法に基づく表記'],
+    ['/privacy', 'プライバシーポリシー'],
+    ['/support', 'サポート'],
+    ['/', `${serviceName}へ戻る`],
+  ];
+  return <nav className="legal-nav" aria-label="規約とポリシー">
+    {links.map(([href, label]) => <a key={href} href={href}>{label}</a>)}
+  </nav>;
 }
 
 /** 見出しと本文が並ぶ節。本文は配列で複数段落にできる。 */
@@ -57,7 +74,16 @@ export function LegalTable({ rows }: { rows: [string, React.ReactNode][] }) {
   </dl>;
 }
 
-const legalTableCss = `
+/**
+ * 規約類の見た目のうち、幅や指で押す的の大きさに関わるところ。
+ * インラインの style ではメディアクエリが書けないので、ここだけCSSにしている。
+ * LegalPage を使わないページ（サポート）でも、これを置けば同じ見た目になる。
+ */
+export function LegalStyles() {
+  return <style dangerouslySetInnerHTML={{ __html: legalCss }} />;
+}
+
+const legalCss = `
 .legal-table { margin:0; padding:0; border-top:1px solid #e7edf5; }
 .legal-row { display:grid; grid-template-columns:minmax(150px,32%) minmax(0,1fr); gap:16px; padding:18px 0; border-bottom:1px solid #e7edf5; }
 .legal-row dt { margin:0; color:#33445f; font-size:14px; font-weight:800; line-height:1.8; }
@@ -67,6 +93,10 @@ const legalTableCss = `
   .legal-row { grid-template-columns:minmax(0,1fr); gap:5px; padding:15px 0; }
   .legal-row dt { font-size:13px; }
 }
+.legal-nav { margin:0 0 30px; display:flex; flex-wrap:wrap; gap:8px; }
+.legal-nav a { min-height:44px; padding:0 14px; display:inline-flex; align-items:center; border:1px solid #cfe0f5; border-radius:11px; background:#f2f7fe; color:#1478d6; font-size:13px; font-weight:800; text-decoration:none; }
+.legal-nav a:active { background:#e2edfc; }
+footer .legal-nav { margin:14px 0 0; }
 `;
 
 /** 未記入の項目。公開前に気づけるように、目に見える形で出す。 */
@@ -88,6 +118,4 @@ export const styles = {
   todo: { color: '#c93d0e', fontWeight: 800 },
   footer: { marginTop: 32, paddingTop: 22, borderTop: '1px solid #e7edf5' },
   updated: { margin: 0, color: '#7a889c', fontSize: 13, fontWeight: 700 },
-  nav: { marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: '10px 18px' },
-  link: { color: '#1478d6', fontSize: 13, fontWeight: 800 },
 } satisfies Record<string, React.CSSProperties>;

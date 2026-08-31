@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { serviceName } from '../brand';
+import { LegalNav, LegalStyles } from '../LegalPage';
 
 export const metadata: Metadata = { title: `サポート｜${serviceName}`, description: `${serviceName}の使い方とお問い合わせ窓口` };
 
@@ -17,7 +18,7 @@ const faqs = [
 ];
 
 export default function SupportPage() {
-  return <main style={styles.page}><article style={styles.card}><p style={styles.eyebrow}>SUPPORT</p><h1 style={styles.title}>サポート</h1><p style={styles.lead}>{serviceName}（守成クラブ会員向けのオファー・探しごとアプリ）のお問い合わせ窓口とよくあるご質問です。</p><section style={styles.contact}><h2 style={styles.contactHeading}>お問い合わせ</h2><p style={styles.body}>ご質問・不具合のご連絡は <a href={`mailto:${contactEmail}`} style={styles.link}>{contactEmail}</a> までお願いします。3営業日以内にご返信します。</p><p style={styles.body}>不具合のご連絡には、お使いの端末（iPhone / Android）とアプリのバージョン、操作の手順を添えていただけると解決が早くなります。</p></section>{faqs.map(([question, answer]) => <section key={question} style={styles.section}><h2 style={styles.heading}>{question}</h2><p style={styles.body}>{answer}</p></section>)}<section style={styles.section}><h2 style={styles.heading}>アカウントの削除</h2><p style={styles.body}>アプリの「マイページ」下部から、プロフィール、投稿、オファー、登録した画像、通知端末、ログインセッションを削除できます。削除後は元に戻せません。アプリから削除できない場合は <a href={`mailto:${contactEmail}`} style={styles.link}>{contactEmail}</a> へご連絡ください。詳しくは<a href="/privacy#delete" style={styles.link}>プライバシーポリシー</a>をご覧ください。</p></section><section style={styles.section}><h2 style={styles.heading}>規約とポリシー</h2><p style={styles.body}><a href="/terms" style={styles.link}>利用規約</a>／<a href="/refund" style={styles.link}>返金・キャンセルポリシー</a>／<a href="/tokushoho" style={styles.link}>特定商取引法に基づく表記</a>／<a href="/privacy" style={styles.link}>プライバシーポリシー</a></p></section></article></main>;
+  return <main style={styles.page}><article style={styles.card}><LegalStyles /><p style={styles.eyebrow}>SUPPORT</p><h1 style={styles.title}>サポート</h1><p style={styles.lead}>{serviceName}（守成クラブ会員向けのオファー・探しごとアプリ）のお問い合わせ窓口とよくあるご質問です。</p><section style={styles.contact}><h2 style={styles.contactHeading}>お問い合わせ</h2><p style={styles.body}>ご質問・不具合のご連絡は <a href={`mailto:${contactEmail}`} style={styles.link}>{contactEmail}</a> までお願いします。3営業日以内にご返信します。</p><p style={styles.body}>不具合のご連絡には、お使いの端末（iPhone / Android）とアプリのバージョン、操作の手順を添えていただけると解決が早くなります。</p></section>{faqs.map(([question, answer]) => <section key={question} style={styles.section}><h2 style={styles.heading}>{question}</h2><p style={styles.body}>{answer}</p></section>)}<section style={styles.section}><h2 style={styles.heading}>アカウントの削除</h2><p style={styles.body}>アプリの「マイページ」下部から、プロフィール、投稿、オファー、登録した画像、通知端末、ログインセッションを削除できます。削除後は元に戻せません。アプリから削除できない場合は <a href={`mailto:${contactEmail}`} style={styles.link}>{contactEmail}</a> へご連絡ください。詳しくは<a href="/privacy#delete" style={styles.link}>プライバシーポリシー</a>をご覧ください。</p></section><section style={styles.section}><h2 style={styles.heading}>規約とポリシー</h2><LegalNav /></section></article></main>;
 }
 
 const styles = {
