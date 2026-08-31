@@ -1559,7 +1559,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           {selected.mine && <button type="button" onClick={() => { setSelected(null); setModal('responses'); }}>届いたオファーを見る</button>}
         </div>}
 
-        <RequestComments requestId={selected.id} onCountChange={(count) => setRequests((current) => current.map((item) => item.id === selected.id ? { ...item, commentCount: count } : item))} />
+        <RequestComments requestId={selected.id} viewerId={stats.memberId} isRequestAuthor={selected.mine} onCountChange={(count) => setRequests((current) => current.map((item) => item.id === selected.id ? { ...item, commentCount: count } : item))} />
       </article></Modal>}
 
       {cropSource && <div className="crop-backdrop"><section className="crop-dialog" role="dialog" aria-modal="true" aria-labelledby="crop-title"><header><button onClick={() => setCropSource('')}>キャンセル</button><div><h2 id="crop-title">顔写真を調整</h2><p>指で動かして、顔が中央に来るようにします</p></div><button className="crop-confirm" onClick={confirmCrop} disabled={cropping || !croppedArea}>{cropping ? '処理中' : '決定'}</button></header><div className="crop-stage"><Cropper image={cropSource} crop={crop} zoom={zoom} aspect={1} cropShape="round" showGrid={false} minZoom={1} maxZoom={4} zoomSpeed={0.35} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_, pixels) => setCroppedArea(pixels)} disableAutomaticStylesInjection /></div><div className="crop-controls"><label><span>顔の大きさ</span><input type="range" min="1" max="4" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} aria-label="顔写真の拡大率" /><b>{Math.round(zoom * 100)}%</b></label><p>写真を指で動かせます。丸の中がプロフィール写真に表示されます。</p></div></section></div>}
@@ -1582,7 +1582,11 @@ function AdFields({ offer, draft, onChange, onImage, imageName, keepImage }: {
       <input value={draft.linkUrl} onChange={(event) => onChange({ ...draft, linkUrl: event.target.value })} maxLength={200} inputMode="url" placeholder="https://example.com" /></label>
     <label className="ad-file"><span>画像 <small>任意・横長（3:2）を推奨</small></span>
       <input type="file" accept="image/jpeg,image/png,image/webp" onChange={onImage} />
-      <i>{imageName || (keepImage ? '現在の画像を使用' : '画像を選択')}</i></label>
+      {/* これは押すと写真を選ぶボタン。いま何が載っているかの説明ではなく、
+          **押したら何が起きるか**を書く。「現在の画像を使用」だと、押しても
+          何も変わらない札に見えてしまう。 */}
+      <i>{imageName || (keepImage ? '画像を変更する' : '画像を選択')}</i>
+      {keepImage && !imageName && <em className="ad-file-now">いまの画像のままにする場合は、そのまま保存してください</em>}</label>
   </>;
 }
 

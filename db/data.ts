@@ -54,6 +54,8 @@ export type BoardRequest = {
 };
 
 export type MemberStats = {
+  /** 自分の会員ID。「これは自分あてのやり取りか」を画面で見分けるのに使う。 */
+  memberId: string;
   displayName: string;
   /** お名前のふりがな。会員が自分で入れる。 */
   nameKana: string;
@@ -215,10 +217,16 @@ const statements = [
     facebook_url TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
   )`,
+  // 探しごとへのコメント。**最初のひとことだけ会員みんなに見える。**
+  // 2通目からは投稿者とその人だけの1本になる（thread_with で束ねる）。
+  // 込み入った話や金額の話が公開の場に出てしまうのを避けつつ、掲示板が
+  // にぎわって見える入口は残すため。
   `CREATE TABLE IF NOT EXISTS request_comments (
     id TEXT PRIMARY KEY,
     request_id TEXT NOT NULL REFERENCES requests(id),
     member_id TEXT NOT NULL REFERENCES members(id),
+    thread_with TEXT NOT NULL DEFAULT '',
+    visibility TEXT NOT NULL DEFAULT 'public',
     body TEXT NOT NULL,
     created_at TEXT NOT NULL
   )`,
@@ -425,6 +433,18 @@ export async function ensureDatabase() {
     ['budget_band', "ALTER TABLE requests ADD COLUMN budget_band TEXT NOT NULL DEFAULT ''"],
   ] as const) {
     if (!requestColumnNames.has(columnName)) await env.DB.prepare(sql).run();
+  }
+  const commentColumns = await env.DB.prepare('PRAGMA table_info(request_comments)').all<{ name: string }>();
+  const commentColumnNames = new Set(commentColumns.results.map((column) => column.name));
+  for (const [columnName, sql] of [
+    // だれとのやり取りか。投稿者ではないほうの会員のID。空のままの古い行は、
+    // 読むときに「書いた本人との1本」として扱うので、書き換えは要らない。
+    ['thread_with', "ALTER TABLE request_comments ADD COLUMN thread_with TEXT NOT NULL DEFAULT ''"],
+    // 'public'＝会員みんなに見える／'private'＝投稿者とその人だけ。
+    // これまでのコメントは全部みんなに見えていたので、既定は public のまま。
+    ['visibility', "ALTER TABLE request_comments ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public'"],
+  ] as const) {
+    if (!commentColumnNames.has(columnName)) await env.DB.prepare(sql).run();
   }
   const introColumns = await env.DB.prepare('PRAGMA table_info(introductions)').all<{ name: string }>();
   const introColumnNames = new Set(introColumns.results.map((column) => column.name));
@@ -867,7 +887,9 @@ export async function getBoardData(user: SessionUser) {
     -- 自分が出したオファーの数。オファーは本人と投稿者にしか見えないので、
     -- やり取り欄では「出した／届いている」という事実だけを出す。
     (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id AND i.introducer_id = ?) AS myIntroCount,
-    (SELECT COUNT(*) FROM request_comments c WHERE c.request_id = r.id) AS commentCount
+    -- 掲示板に出す数は**みんなに見えるぶんだけ**。非公開のやり取りまで数えると、
+    -- 開いても出てこない数が札に出て、だれと話しているかの気配まで漏れる。
+    (SELECT COUNT(*) FROM request_comments c WHERE c.request_id = r.id AND c.visibility != 'private') AS commentCount
     FROM requests r
     JOIN members m ON m.id = r.author_id
     ${hideSamples}
@@ -891,7 +913,7 @@ export async function getBoardData(user: SessionUser) {
   const baseMember = member ?? { displayName: user.displayName, nameKana: '', venue: 'ひるのめぐろ会場', company: '', companyKana: '', positionTitle: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', facebookUrl: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, inviteCount: 0, dealCount: 0, points: 0 };
   const { notifyIndustriesJson, ...memberFields } = baseMember;
   const plan = await getPlanSummary(user.userId);
-  const stats = calculateRank({ ...memberFields, notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion),
+  const stats = calculateRank({ ...memberFields, memberId: user.userId, notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion),
     plan: plan.activePlan, paid: plan.paid, planPeriodEnd: plan.planPeriodEnd,
     contractedPlan: plan.contracted, bonusPlan: plan.bonus, bonusPeriodEnd: plan.bonusPeriodEnd ?? '',
     requestsThisMonth: plan.requestsThisMonth, requestLimit: plan.requestLimit,
@@ -1911,41 +1933,105 @@ export type RequestComment = {
   authorAvatarUrl: string;
   authorFacebookUrl: string;
   isAuthorOfRequest: boolean;
+  /** 会員みんなに見えるひとことか。false なら投稿者とその人だけのやり取り。 */
+  isPublic: boolean;
+  /**
+   * どのやり取りに属するか。投稿者ではないほうの会員のID。
+   * 探しごとの投稿者が全体に向けて書いたひとことだけ空になる。
+   */
+  threadWith: string;
+  /** 同じやり取りの相手の名前。非公開のぶんに「◯◯さんとのやり取り」と出す。 */
+  threadWithName: string;
 };
 
 export const COMMENT_MAX_LENGTH = 600;
 
-export async function getRequestComments(requestId: string) {
+/**
+ * 探しごとのやり取りを読む。
+ *
+ * **最初のひとことだけ会員みんなに見える。2通目からは投稿者とその人だけ。**
+ * 込み入った話や金額の話が公開の場に出てしまうのを避けつつ、掲示板が
+ * にぎわって見える入口は残すため。
+ *
+ * **絞っているのはここ。** 画面で隠すだけだと、通信を覗けば読めてしまう。
+ * 見せる相手は「みんなに見えるぶん」＋「探しごとの投稿者」＋「その本人」だけ。
+ */
+export async function getRequestComments(requestId: string, viewerId = ''): Promise<RequestComment[]> {
   await ensureDatabase();
   const rows = await env.DB.prepare(`SELECT c.id, c.request_id AS requestId, c.body, c.created_at AS createdAt,
-    m.id AS authorId, m.display_name AS authorName, m.company AS authorCompany, m.venue AS authorVenue,
+    c.visibility, m.id AS authorId, m.display_name AS authorName, m.company AS authorCompany, m.venue AS authorVenue,
     m.avatar_key AS authorAvatarKey, m.avatar_version AS authorAvatarVersion, m.facebook_url AS authorFacebookUrl,
-    r.author_id AS requestAuthorId
+    r.author_id AS requestAuthorId,
+    -- 古い行は thread_with が空。書いたのが投稿者以外なら、その人自身との1本として扱う。
+    CASE WHEN c.thread_with != '' THEN c.thread_with
+         WHEN c.member_id != r.author_id THEN c.member_id
+         ELSE '' END AS threadWith
     FROM request_comments c
     JOIN members m ON m.id = c.member_id
     JOIN requests r ON r.id = c.request_id
     WHERE c.request_id = ?
-    ORDER BY c.created_at`).bind(requestId).all<Omit<RequestComment, 'authorAvatarUrl' | 'isAuthorOfRequest'> & { authorAvatarKey: string; authorAvatarVersion: number; requestAuthorId: string }>();
+    ORDER BY c.created_at`).bind(requestId)
+    .all<Omit<RequestComment, 'authorAvatarUrl' | 'isAuthorOfRequest' | 'isPublic' | 'threadWithName'>
+      & { authorAvatarKey: string; authorAvatarVersion: number; requestAuthorId: string; visibility: string }>();
 
-  return rows.results.map(({ authorAvatarKey, authorAvatarVersion, requestAuthorId, ...comment }) => ({
-    ...comment,
-    authorAvatarUrl: avatarUrl(comment.authorId, authorAvatarKey, authorAvatarVersion),
-    isAuthorOfRequest: comment.authorId === requestAuthorId,
-  }));
+  const requestAuthorId = rows.results[0]?.requestAuthorId ?? '';
+  const isRequestAuthor = Boolean(viewerId) && viewerId === requestAuthorId;
+  // やり取りの相手の名前。非公開のぶんに「◯◯さんとのやり取り」と添えるのに使う。
+  const names = new Map<string, string>();
+  for (const row of rows.results) if (row.threadWith === row.authorId) names.set(row.authorId, row.authorName);
+
+  return rows.results
+    .filter((row) => row.visibility !== 'private' || isRequestAuthor || row.threadWith === viewerId)
+    .map(({ authorAvatarKey, authorAvatarVersion, requestAuthorId: author, visibility, ...comment }) => ({
+      ...comment,
+      authorAvatarUrl: avatarUrl(comment.authorId, authorAvatarKey, authorAvatarVersion),
+      isAuthorOfRequest: comment.authorId === author,
+      isPublic: visibility !== 'private',
+      threadWithName: names.get(comment.threadWith) ?? '',
+    }));
 }
 
-export async function addRequestComment(user: SessionUser, requestId: string, rawBody: string) {
+/**
+ * やり取りを1つ書く。
+ *
+ * **公開になるのは、その人の最初のひとことだけ。** 2通目からは投稿者との
+ * 1本に入る。投稿者の返事は、必ずどの相手への返事かを決めて非公開で入る
+ * （`threadWith`）。相手を決めずに書いた投稿者のひとことだけ、全体向けの
+ * 公開として残る。
+ */
+export async function addRequestComment(user: SessionUser, requestId: string, rawBody: string, threadWith = '') {
   await upsertMember(user);
   const body = rawBody.trim().slice(0, COMMENT_MAX_LENGTH);
   if (!body) throw new Error('コメントを入力してください。');
 
-  const request = await env.DB.prepare('SELECT id FROM requests WHERE id = ?').bind(requestId).first<{ id: string }>();
+  const request = await env.DB.prepare('SELECT id, author_id AS authorId FROM requests WHERE id = ?')
+    .bind(requestId).first<{ id: string; authorId: string }>();
   if (!request) throw new Error('この探しごとは見つかりませんでした。');
 
+  const isRequestAuthor = user.userId === request.authorId;
+  // 投稿者以外は、自分のやり取りにしか書けない。ほかの人の相手先を指定して
+  // 割り込めないよう、相手は必ず自分自身に上書きする。
+  const thread = isRequestAuthor ? threadWith : user.userId;
+  if (isRequestAuthor && thread) {
+    // 返事の相手は、実際にその探しごとへ書いた人だけ。
+    const known = await env.DB.prepare(`SELECT 1 AS ok FROM request_comments
+      WHERE request_id = ? AND member_id = ? LIMIT 1`).bind(requestId, thread).first();
+    if (!known) throw new Error('この方とのやり取りはまだありません。');
+  }
+
+  // 公開になるのは、そのやり取りの1通目だけ。すでに何か書いていれば非公開。
+  const existing = thread
+    ? await env.DB.prepare(`SELECT 1 AS ok FROM request_comments
+        WHERE request_id = ? AND (thread_with = ? OR (thread_with = '' AND member_id = ?)) LIMIT 1`)
+      .bind(requestId, thread, thread).first()
+    : null;
+  const visibility = thread && existing ? 'private' : 'public';
+
   const now = new Date().toISOString();
-  await env.DB.prepare('INSERT INTO request_comments (id, request_id, member_id, body, created_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(crypto.randomUUID(), requestId, user.userId, body, now).run();
-  return getRequestComments(requestId);
+  await env.DB.prepare(`INSERT INTO request_comments
+    (id, request_id, member_id, thread_with, visibility, body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    .bind(crypto.randomUUID(), requestId, user.userId, thread, visibility, body, now).run();
+  return getRequestComments(requestId, user.userId);
 }
 
 export async function deleteRequestComment(user: SessionUser, commentId: string) {
