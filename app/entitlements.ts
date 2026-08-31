@@ -53,7 +53,8 @@ export type Feature = (typeof features)[number];
 
 // どのプランから使えるか。ここに無いものは全プランで使える。
 const requiredPlan: Partial<Record<Feature, Plan>> = {
-  member_search: 'standard',
+  // member_search（会員を業種・エリアで探す）は**全プラン**。
+  // 相手が見つからないと掲示板そのものが動かないので、ここは入口として開ける。
   export_introductions: 'standard',
   // 届いたオファーの中身を読むのは有料。**送るのは無料のまま**。
   // 「まずGive」を止めたくないので、出すほうには関所を置かない。
