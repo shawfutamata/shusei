@@ -72,6 +72,9 @@ export const rankPerks: RankPerk[] = [
 /** アプリに出してよい特典だけ。金額に触れるものは外す。 */
 export const appRankPerks = rankPerks.filter((perk) => !perk.webOnly);
 
+/** いちばん上のランクの level。マスターアカウントに与える値。 */
+export const MAX_LEVEL = rankNames.length;
+
 export function rankName(level: number) {
   return rankNames[Math.min(Math.max(level, 1), rankNames.length) - 1];
 }

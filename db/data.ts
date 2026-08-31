@@ -5,7 +5,8 @@ import { cleanFacebookUrl } from '@/app/social-links';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
 import { AD_DESCRIPTION_MAX, AD_RESERVATION_MINUTES, AD_TITLE_MAX, DEFAULT_PLACEMENT, placementSlots } from '@/app/ad-options';
 import { UNLIMITED, bonusPlan, can, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
-import { EXTEND_DAYS, canExtendRequest, canPostVideo, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
+import { EXTEND_DAYS, MAX_LEVEL, canExtendRequest, canPostVideo, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
+import { isMasterEmail } from '@/app/master-accounts';
 import { matchesIndustry } from '@/app/industry-options';
 import { toBudgetBand } from '@/app/budget-options';
 
@@ -647,7 +648,9 @@ export async function startMemberSessionByEmail(rawEmail: string) {
     FROM members WHERE email = ?`)
     .bind(email).first<{ id: string; displayName: string; membershipStatus: MembershipStatus; membershipPeriodEnd: string }>();
   if (!member) throw new Error('登録済みの会員メールアドレスでログインしてください。');
-  if (!canUseMembership(member.membershipStatus, member.membershipPeriodEnd)) {
+  // マスターアカウントは利用状態で止めない。確認用の口が、設定の行き違いで
+  // 閉じてしまうと直せなくなるため（app/master-accounts.ts）。
+  if (!isMasterEmail(email) && !canUseMembership(member.membershipStatus, member.membershipPeriodEnd)) {
     throw new Error('このアカウントには現在利用権限がありません。運営窓口へお問い合わせください。');
   }
 
@@ -724,7 +727,7 @@ export async function getMobileSessionAccess(token: string): Promise<{ user: Ses
       source: row.membershipSource === 'organization_contract' ? 'organization_contract' : 'direct_contract',
       currentPeriodEnd: row.membershipPeriodEnd,
       organizationId: row.organizationId,
-      canUseApp: canUseMembership(status, row.membershipPeriodEnd),
+      canUseApp: isMasterEmail(row.email) || canUseMembership(status, row.membershipPeriodEnd),
     },
   };
 }
@@ -739,8 +742,8 @@ export async function revokeMobileSession(token: string) {
 export async function getMembershipAccess(userId: string): Promise<MembershipAccess> {
   await ensureDatabase();
   const row = await env.DB.prepare(`SELECT membership_status AS status, membership_source AS source,
-    membership_period_end AS currentPeriodEnd, organization_id AS organizationId
-    FROM members WHERE id = ?`).bind(userId).first<Omit<MembershipAccess, 'canUseApp'>>();
+    membership_period_end AS currentPeriodEnd, organization_id AS organizationId, email
+    FROM members WHERE id = ?`).bind(userId).first<Omit<MembershipAccess, 'canUseApp'> & { email: string }>();
   const status = normalizeMembershipStatus(row?.status);
   const currentPeriodEnd = row?.currentPeriodEnd ?? '';
   return {
@@ -748,7 +751,7 @@ export async function getMembershipAccess(userId: string): Promise<MembershipAcc
     source: row?.source === 'organization_contract' ? 'organization_contract' : 'direct_contract',
     currentPeriodEnd,
     organizationId: row?.organizationId ?? '',
-    canUseApp: canUseMembership(status, currentPeriodEnd),
+    canUseApp: isMasterEmail(row?.email ?? '') || canUseMembership(status, currentPeriodEnd),
   };
 }
 
@@ -970,7 +973,7 @@ export async function getBoardData(user: SessionUser) {
     plan: plan.activePlan, paid: plan.paid, planPeriodEnd: plan.planPeriodEnd,
     contractedPlan: plan.contracted, bonusPlan: plan.bonus, bonusPeriodEnd: plan.bonusPeriodEnd ?? '',
     requestsThisMonth: plan.requestsThisMonth, requestLimit: plan.requestLimit,
-  });
+  }, isMasterEmail(user.email));
   const requests = requestsResult.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, industryTagsJson, imageVersion, imageCount, videoVersion, ...request }) => ({
     ...request,
     mine: authorId === user.userId,
@@ -1717,8 +1720,10 @@ function parseStringArray(value: string) {
 }
 
 /** ランクは**招待して参加した仲間の人数**で決まる。オファーの件数では上がらない。 */
-function calculateRank(member: Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'>): MemberStats {
-  const level = levelFor(member.inviteCount);
+function calculateRank(member: Omit<MemberStats, 'rank' | 'level' | 'nextRankAt'>, master = false): MemberStats {
+  // マスターアカウントは招待人数に関係なく最上位。特典の判定はすべて level を
+  // 見ているので、ここを差し替えるだけで写真の枚数も予算の絞り込みも開く。
+  const level = master ? MAX_LEVEL : levelFor(member.inviteCount);
   return { ...member, rank: rankName(level), level, nextRankAt: rankThresholds[level] ?? member.inviteCount };
 }
 
@@ -2045,9 +2050,12 @@ async function countAdEvents(ids: string[], kind: 'views' | 'clicks') {
 export async function getMemberRank(memberId: string) {
   await ensureDatabase();
   // 数え方は getMemberStats と揃える。登録が済んだ人はそのまま数える。
-  const row = await env.DB.prepare('SELECT COUNT(*) AS inviteCount FROM members WHERE invited_by = ?')
-    .bind(memberId).first<{ inviteCount: number }>();
-  const level = levelFor(Number(row?.inviteCount ?? 0));
+  const row = await env.DB.prepare(`SELECT m.email,
+    (SELECT COUNT(*) FROM members inv WHERE inv.invited_by = m.id) AS inviteCount
+    FROM members m WHERE m.id = ?`)
+    .bind(memberId).first<{ email: string; inviteCount: number }>();
+  // マスターアカウントは最上位で固定（app/master-accounts.ts）。
+  const level = isMasterEmail(row?.email ?? '') ? MAX_LEVEL : levelFor(Number(row?.inviteCount ?? 0));
   return { rank: rankName(level), level };
 }
 
@@ -2241,9 +2249,12 @@ export type PlanSummary = PlanState & { activePlan: Plan; paid: boolean; source:
 
 export async function getPlanState(memberId: string): Promise<PlanState> {
   await ensureDatabase();
-  const row = await env.DB.prepare(`SELECT plan, plan_period_end AS planPeriodEnd,
+  const row = await env.DB.prepare(`SELECT email, plan, plan_period_end AS planPeriodEnd,
       bonus_plan AS bonusPlan, bonus_period_end AS bonusPeriodEnd FROM members WHERE id = ?`)
-    .bind(memberId).first<{ plan: string; planPeriodEnd: string; bonusPlan: string; bonusPeriodEnd: string }>();
+    .bind(memberId).first<{ email: string; plan: string; planPeriodEnd: string; bonusPlan: string; bonusPeriodEnd: string }>();
+  // マスターアカウントは支払いに関係なく、いちばん上のプランとして扱う。
+  // 期限は空＝無期限。can() も limits() もここを通るので、これだけで全部開く。
+  if (isMasterEmail(row?.email ?? '')) return { plan: 'standard', planPeriodEnd: '', bonusPlan: 'free', bonusPeriodEnd: '' };
   return {
     plan: toPlan(row?.plan), planPeriodEnd: row?.planPeriodEnd ?? '',
     bonusPlan: toPlan(row?.bonusPlan), bonusPeriodEnd: row?.bonusPeriodEnd ?? '',

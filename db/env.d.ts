@@ -23,6 +23,9 @@ declare namespace Cloudflare {
     // 管理画面に入れる人のメールアドレス（カンマ区切り）。
     // **空なら誰も入れない。** 設定を忘れたときに素通りさせないため。
     ADMIN_EMAILS: string;
+    // 動作確認用のマスターアカウント（カンマ区切り）。ランク最上位・プラン最上位
+    // として扱う。管理画面の権限（ADMIN_EMAILS）とは別物。app/master-accounts.ts。
+    MASTER_EMAILS: string;
   }
 }
 
