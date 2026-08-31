@@ -1221,12 +1221,39 @@ body { font-weight:600; }
 
 /* 中身を渡していない、届いたオファー。開いても読めないことが
    ひと目で分かるよう、印を鍵にして帯を薄くする。 */
-.received-card.is-locked .received-person-mark { background:#f1f5f9; color:#94a3b8; }
-.received-card.is-locked .received-card-head h4 { color:#64748b; }
+/* まだ開けないオファー。**青のままだと「読める内容」に見えてしまう**ので、
+   赤に寄せて「ここは止まっている」と分かるようにする。アプリの中で青＝届く、
+   橙＝自分が出す、なので、どちらとも別の色にしてある。 */
+.received-card.is-locked { border-color:#f6cdcd; }
+.received-card.is-locked .received-person-mark { background:#fdeaea; color:#c0344a; }
+.received-card.is-locked .received-card-head h4 { color:#8a3444; }
+.lock-mark { width:15px; height:15px; flex:0 0 auto; display:block; }
+.locked-tag { margin-left:6px; padding:1px 7px; border-radius:99px; background:#c0344a; color:#fff; font-size:9px; font-style:normal; font-weight:900; letter-spacing:.04em; }
 .received-locked { display:grid; gap:9px; }
 .received-locked p { margin:0; font-size:12px; font-weight:700; line-height:1.7; color:#334155; }
+.locked-lead { display:flex; align-items:center; gap:6px; color:#a32e42 !important; }
+
+/* 中身が「ありそうに見える」ぼかし。**本物の文字は入っていない**（サーバーが
+   送っていないので、ぼかす対象そのものが無い）。それらしい形の棒を並べて
+   ぼかしただけ。読めそうで読めない状態にすることで、届いていることが
+   伝わって、開きたくなる。 */
+.locked-peek { padding:14px; border-radius:13px; background:#fff; border:1px solid #e8eef6; display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; user-select:none; pointer-events:none;
+  /* ぼかしは弱め。強くかけるとただの灰色の箱になって、文字が並んでいるように
+     見えなくなる。行のリズムが残るぎりぎりまで戻してある。 */
+  filter:blur(3.2px);
+  /* 下ほど薄れさせて「続きが切れている」感じを出す。読ませないための処理では
+     ない（読ませない仕事はサーバーがしている）。 */
+  -webkit-mask-image:linear-gradient(#000 62%,rgba(0,0,0,.25)); mask-image:linear-gradient(#000 62%,rgba(0,0,0,.25)); }
+.locked-peek-avatar { width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg,#93a8c2,#6d84a2); }
+.locked-peek>div { display:grid; gap:8px; padding-top:3px; }
+.locked-peek i { display:block; height:9px; border-radius:99px; background:#9db0c8; }
+.locked-peek i:first-child { height:13px; margin-bottom:4px; background:#5c748f; }
+.locked-peek i:nth-child(2) { background:#b5c4d7; }
+
 .received-upgrade { justify-self:start; padding:9px 15px; border:0; border-radius:999px; background:#0f5fc4; color:#fff; font-size:12px; font-weight:900; cursor:pointer; }
-.received-summary.is-locked { background:linear-gradient(135deg,#0b3f86,#1f7ae0); grid-template-columns:auto 1fr; }
+.received-locked .received-upgrade { background:#c0344a; }
+.received-summary.is-locked { background:linear-gradient(135deg,#8f2233,#d24257); grid-template-columns:auto 1fr; }
+.received-summary.is-locked small { color:#ffdbe0; }
 /* 帯の b は件数の数字用に27pxで組んである。説明文の中で強めた b まで
    その大きさになってしまうので、文中のぶんだけ元の字に戻す。 */
 .received-summary p b { display:inline; font-size:inherit; }

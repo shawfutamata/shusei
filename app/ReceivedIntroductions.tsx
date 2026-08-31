@@ -82,15 +82,22 @@ export default function ReceivedIntroductions({ onUpgrade }: { onUpgrade?: () =>
                 「何件、いつ、どんな種類で届いたか」までは見せて、そこから先を
                 プランの値打ちにしている。名前と理由はサーバーが空にして送る。 */}
             <button className="received-card-head" onClick={() => setExpanded((current) => current === item.id ? '' : item.id)}>
-              <div className="received-person-mark">{item.locked ? '鍵' : item.kind === 'self' ? '社' : '人'}</div>
-              <div><small>{formatDate(item.createdAt)}に届きました</small>
+              <div className="received-person-mark">{item.locked ? <LockMark /> : item.kind === 'self' ? '社' : '人'}</div>
+              <div><small>{formatDate(item.createdAt)}に届きました{item.locked && <em className="locked-tag">ロック中</em>}</small>
                 <h4>{item.locked ? 'オファーが届いています' : item.personName}</h4>
                 <p>{item.locked ? kindLabels[item.kind] : item.personCompany}</p></div>
               <i>{expanded === item.id ? '−' : '＋'}</i>
             </button>
             {expanded === item.id && (item.locked ? <div className="received-detail received-locked">
-              <p><b>このオファーの中身は、スタンダードプランで開きます。</b></p>
-              <p>どなたが、どんな理由でオファーしてくださったのかを読んで、そのまま返事ができます。</p>
+              {/* ぼかしているのは**中身ではなく形だけ**。サーバーは名前も理由も
+                  送っていないので、ここには本物の文字は無い。オファー1件ごとに
+                  同じ形になるよう、IDから行の長さを決めている。 */}
+              <div className="locked-peek" aria-hidden="true">
+                <span className="locked-peek-avatar" />
+                <div>{peekRows(item.id).map((row, index) => <i key={index} style={{ width: `${row}%` }} />)}</div>
+              </div>
+              <p className="locked-lead"><LockMark /><b>いまのプランでは、この中身を開けません。</b></p>
+              <p>どなたが、どんな理由でオファーしてくださったのか。スタンダードプランにすると読めて、そのまま返事もできます。</p>
               <button className="received-upgrade" onClick={onUpgrade}>プランを見る</button>
             </div> : <div className="received-detail">
               <dl>
@@ -146,6 +153,33 @@ export default function ReceivedIntroductions({ onUpgrade }: { onUpgrade?: () =>
       </>
     )}
   </div>;
+}
+
+/**
+ * ぼかして見せる行の長さ（%）。
+ *
+ * **本物の文字はここに無い。** サーバーは中身を送っていないので、
+ * ぼかす対象そのものが存在しない。それらしく見せるためだけの棒を、
+ * オファーのIDから決めている。同じオファーなら毎回同じ形になるので、
+ * 開くたびに形が変わって「作り物」だと分かってしまうことがない。
+ */
+function peekRows(id: string) {
+  let seed = 0;
+  for (const char of id) seed = (seed * 31 + char.charCodeAt(0)) % 100000;
+  return [0, 1, 2, 3, 4].map((index) => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    // 1行目（名前）は短く、あとは本文らしい長さに。最後の行は短く切る。
+    if (index === 0) return 38 + (seed % 22);
+    if (index === 4) return 30 + (seed % 30);
+    return 74 + (seed % 26);
+  });
+}
+
+function LockMark() {
+  return <svg className="lock-mark" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M7 10V7.5a5 5 0 0 1 10 0V10" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    <rect x="4.5" y="10" width="15" height="10.5" rx="2.6" fill="currentColor" />
+  </svg>;
 }
 
 function formatDate(value: string) {
