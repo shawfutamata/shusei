@@ -16,8 +16,8 @@
 
 | | 無料 | スタンダード |
 |---|---|---|
-| **月額** | 0円 | **1,000円** |
-| **年額（20%OFF）** | — | **9,600円**（月あたり800円） |
+| **月額** | 0円 | **1,200円** |
+| **年額（20%OFF）** | — | **11,520円**（月あたり960円） |
 | 探しごとの投稿 | **月1件** | **何件でも** |
 | 掲示板を見る | ○ | ○ |
 | 会員を探す（業種・エリア・会場） | ○ | ○ ※未実装 |
@@ -53,7 +53,7 @@
 
 止めているのは `createIntroduction()` / `getReceivedIntroductions()` / `requireOfferChatAccess()`（すべて `db/data.ts`）。画面（`app/BoardClient.tsx`・`app/ReceivedIntroductions.tsx`）は案内を出すだけで、APIを直接叩かれても通らない。プランが足りないときのエラーには `PAYWALL` の印を付け、`app/paywall-response.ts` が `paywall: true` に変えて返す。画面はその印を見て案内を出すので、文言を直しても案内は消えない。
 
-投稿を月1件だけ残すのが要。ゼロにすると掲示板が空になるが、1件試せると「紹介が本当に来る」体験ができ、2件目を出したくなる。**その2件目が1,000円**という設計。
+投稿を月1件だけ残すのが要。ゼロにすると掲示板が空になるが、1件試せると「紹介が本当に来る」体験ができ、2件目を出したくなる。**その2件目が1,200円**という設計。
 
 年払いは1年ぶんを前払いしてもらうかわりに20%引く。割引率は `YEARLY_DISCOUNT`（`app/plan-catalog.ts`）1箇所にある。
 
@@ -161,7 +161,7 @@ plan_source     TEXT  -- direct | organization | referral
 ## 有料にする・戻す
 
 ```bash
-# スタンダード（1,000円）にする。期限なし
+# スタンダード（1,200円）にする。期限なし
 npx wrangler d1 execute <D1_DATABASE> --remote \
   --command "UPDATE members SET plan='standard', plan_period_end='', plan_source='direct' WHERE email='member@example.jp'"
 
