@@ -1114,11 +1114,28 @@ body { font-weight:600; }
 .viz-caption-values { margin-left:10px; }
 
 /* 紹介の受け箱。届いた／出したを切り替える。 */
+/* 受け取る側は青、自分から出す側は橙で分ける。同じ色だと、いまどちら側を
+   見ているのか一目で分からない。アプリの中で「自分が出す」はずっと橙
+   （下の＋ボタン）なので、それに合わせた。
+   **色だけに頼らない**。矢印（↓届く／↑出す）と件数の色も一緒に変える。 */
 .received-tabs { display:flex; gap:8px; margin-bottom:14px; }
-.received-tabs button { flex:1; min-height:46px; border:1px solid var(--line); border-radius:12px; background:#fff; color:#66758c; font-size:13px; font-weight:900; cursor:pointer; }
-.received-tabs button span { margin-left:6px; color:#a1acbc; }
-.received-tabs button.selected { border-color:var(--blue); background:var(--blue); color:#fff; }
-.received-tabs button.selected span { color:#dbeafe; }
+.received-tabs button { flex:1; min-height:50px; padding:0 8px; display:flex; align-items:center; justify-content:center; gap:5px; border:1px solid var(--line); border-radius:12px; background:#fff; color:#66758c; font-size:13px; font-weight:900; cursor:pointer; }
+.received-tabs button i { font-size:14px; font-style:normal; font-weight:900; }
+.received-tabs button span { min-width:20px; padding:1px 6px; border-radius:99px; font-size:11px; }
+.received-tabs .is-in i { color:var(--blue); }
+.received-tabs .is-in span { color:var(--blue); background:#eaf3ff; }
+.received-tabs .is-out i { color:var(--accent-ink); }
+.received-tabs .is-out span { color:var(--accent-ink); background:var(--accent-soft); }
+.received-tabs .is-in.selected { border-color:var(--blue); background:var(--blue); color:#fff; }
+.received-tabs .is-in.selected i { color:#fff; }
+.received-tabs .is-in.selected span { color:#fff; background:rgba(255,255,255,.24); }
+.received-tabs .is-out.selected { border-color:var(--accent); background:var(--accent); color:#fff; }
+.received-tabs .is-out.selected i { color:#fff; }
+.received-tabs .is-out.selected span { color:#fff; background:rgba(255,255,255,.26); }
+/* まとめの帯も、いま見ている側の色にする。 */
+.received-summary.is-out { background:linear-gradient(135deg,#c93d0e,#fb7a3c); }
+.received-summary.is-out small { color:#ffe2d6; }
+.received-summary.is-out p { color:#fff1ea; }
 
 /* 紹介1件ごとのやり取り。**投稿者と紹介者の2人だけ**が読める場所なので、
    掲示板のコメント欄とは見た目を分け、チャットの形にする。 */

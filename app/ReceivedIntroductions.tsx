@@ -48,11 +48,14 @@ export default function ReceivedIntroductions() {
   }
 
   return <div className="received-inbox">
+    {/* 受け取る側は青、自分から出す側は橙。アプリの中で「自分が出す」は
+        ずっと橙（下の＋ボタン）なので、それに合わせている。
+        色だけに頼らないよう、矢印（↓届く／↑出す）も添える。 */}
     <div className="received-tabs" role="group" aria-label="オファーの向き">
-      <button className={side === 'received' ? 'selected' : ''} onClick={() => setSide('received')}
-        aria-pressed={side === 'received'}>届いたオファー <span>{received.length}</span></button>
-      <button className={side === 'sent' ? 'selected' : ''} onClick={() => setSide('sent')}
-        aria-pressed={side === 'sent'}>出したオファー <span>{sent.length}</span></button>
+      <button className={`is-in${side === 'received' ? ' selected' : ''}`} onClick={() => setSide('received')}
+        aria-pressed={side === 'received'}><i aria-hidden="true">↓</i>届いたオファー <span>{received.length}</span></button>
+      <button className={`is-out${side === 'sent' ? ' selected' : ''}`} onClick={() => setSide('sent')}
+        aria-pressed={side === 'sent'}><i aria-hidden="true">↑</i>出したオファー <span>{sent.length}</span></button>
     </div>
 
     {side === 'received' ? (!received.length
@@ -95,7 +98,7 @@ export default function ReceivedIntroductions() {
       ? <div className="received-empty"><span>✉</span><b>出したオファーはまだありません</b>
         <p>掲示板で探しごとを見つけてオファーすると、ここに残ります。</p></div>
       : <>
-        <div className="received-summary">
+        <div className="received-summary is-out">
           <span><b>{sent.length}</b><small>出したオファー</small></span>
           <p>あなたがオファーした内容と、相手からの返事です。</p>
         </div>
