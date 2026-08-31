@@ -984,7 +984,7 @@ export async function getBoardData(user: SessionUser) {
     imageUrl: requestImageUrl(request.id, imageVersion, 'full'),
     authorAvatarUrl: avatarUrl(authorId, authorAvatarKey, authorAvatarVersion),
   }));
-  return { requests, stats, ads: await listActiveAds() };
+  return { requests, stats, ads: await listActiveAds(user.userId) };
 }
 
 export async function updateMemberProfile(user: SessionUser, input: { displayName: string; nameKana: string; company: string; companyKana: string; venue: string; positionTitle: string; businessArea: string; primaryIndustry: string; notifyIndustries: string[]; annualRevenueBand: string; facebookUrl: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {
@@ -1785,6 +1785,8 @@ export type AdSlot = {
   industry: string;
   memberName: string;
   memberCompany: string;
+  /** 見ている本人が出した広告かどうか。自分の広告にはオファーできない。 */
+  mine: boolean;
   /** 見た人の合計。同じ会員は1日1回までしか数えない。 */
   viewCount: number;
   clickCount: number;
@@ -1912,17 +1914,19 @@ export async function activateAdSlot(id: string) {
 const adSelect = `SELECT a.id, a.start_date AS startDate, a.end_date AS endDate, a.title, a.description,
     a.link_url AS linkUrl, a.image_version AS imageVersion,
     a.status, a.placement, a.industry, a.view_count AS viewCount, a.click_count AS clickCount,
-    m.display_name AS memberName, m.company AS memberCompany
+    m.display_name AS memberName, m.company AS memberCompany, a.member_id AS memberId
   FROM ad_slots a JOIN members m ON m.id = a.member_id`;
 
-type AdRow = Omit<AdSlot, 'imageUrl'> & { imageVersion: number };
-const toAdSlot = ({ imageVersion, ...ad }: AdRow): AdSlot => ({ ...ad, imageUrl: adImageUrl(ad.id, imageVersion) });
+type AdRow = Omit<AdSlot, 'imageUrl' | 'mine'> & { imageVersion: number; memberId: string };
+// 出した人のIDは画面に渡さない。渡すのは「自分のか、そうでないか」だけ。
+const toAdSlot = (viewerId: string) => ({ imageVersion, memberId, ...ad }: AdRow): AdSlot =>
+  ({ ...ad, mine: memberId === viewerId, imageUrl: adImageUrl(ad.id, imageVersion) });
 
 /**
  * いま出ている広告。ホームのバナーに出す。
  * 運営が止めた枠（status='stopped'）はここから外れる。docs/ad-slots-ja.md 参照。
  */
-export async function listActiveAds(placement?: string): Promise<AdSlot[]> {
+export async function listActiveAds(viewerId: string, placement?: string): Promise<AdSlot[]> {
   await ensureDatabase();
   const now = today();
   const rows = placement
@@ -1932,7 +1936,7 @@ export async function listActiveAds(placement?: string): Promise<AdSlot[]> {
     : await env.DB.prepare(`${adSelect}
         WHERE a.start_date <= ? AND a.end_date >= ? AND a.status = 'active' AND a.title <> ''
         ORDER BY a.created_at`).bind(now, now).all<AdRow>();
-  return rows.results.map(toAdSlot);
+  return rows.results.map(toAdSlot(viewerId));
 }
 
 /**
@@ -1944,7 +1948,7 @@ export async function listMemberAds(memberId: string): Promise<AdSlot[]> {
   const rows = await env.DB.prepare(`${adSelect}
     WHERE a.member_id = ? AND a.end_date >= ? AND a.status IN ('active', 'stopped')
     ORDER BY a.start_date DESC`).bind(memberId, shiftDate(today(), -90)).all<AdRow>();
-  return rows.results.map(toAdSlot);
+  return rows.results.map(toAdSlot(memberId));
 }
 
 /**
@@ -1955,7 +1959,7 @@ export async function adDailyStats(memberId: string, adId: string): Promise<{ sl
   await ensureDatabase();
   const row = await env.DB.prepare(`${adSelect} WHERE a.id = ? AND a.member_id = ?`).bind(adId, memberId).first<AdRow>();
   if (!row) return null;
-  const slot = toAdSlot(row);
+  const slot = toAdSlot(memberId)(row);
 
   const stored = await env.DB.prepare('SELECT date, views, clicks FROM ad_daily WHERE ad_id = ? ORDER BY date')
     .bind(adId).all<AdDay>();

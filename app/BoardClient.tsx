@@ -692,6 +692,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
   /** 広告あてにオファーする。入力も線引きも探しごとと同じで、宛先が違うだけ。 */
   function openAdIntroduction(ad: AdSlot) {
+    // 自分の広告に自分でオファーはできない。送ってから断られるより、
+    // 押した時点で「どこで見られるか」まで伝えるほうが早い。
+    if (ad.mine) return showToast('ご自身の広告です。届いたオファーは「広告」タブから見られます。');
     if (!stats.avatarUrl) { showProfileSettings(); return showToast('オファーの前に顔写真を登録してください。'); }
     setOfferAd(ad); setSelected(null); setOfferKind('referral'); setModal('intro');
   }
@@ -987,7 +990,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   function openListAd(ad: AdSlot) {
     trackAd({ clicks: [ad.id] });
     if (ad.linkUrl) window.open(ad.linkUrl, '_blank', 'noopener,noreferrer');
-    else showToast(`${ad.memberCompany || ad.memberName}さまの広告です。詳しくは会場やメッセージで直接おたずねください。`);
+    // リンクを入れていない広告は、押しても行き先が無かった。オファーの入口にする。
+    else openAdIntroduction(ad);
   }
 
   // 掲示板を開いているあいだ、上位の広告も見られた数を数える。
@@ -1009,7 +1013,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     if (ad) {
       trackAd({ clicks: [ad.id] });
       if (ad.linkUrl) window.open(ad.linkUrl, '_blank', 'noopener,noreferrer');
-      else showToast(`${ad.memberCompany || ad.memberName}さまの広告です。詳しくは会場やメッセージで直接おたずねください。`);
+      // リンクの無い広告は、バナーのどこを押してもオファーへ。
+      // 「この広告にオファー」を押したつもりで少し外すと、下のバナーに当たって
+      // 行き止まりの案内が出ていた。押し外しても同じ所へ行くようにする。
+      else openAdIntroduction(ad);
       return;
     }
     const fixedIndex = carouselIndex - (slides.length - topBanners.length);
@@ -1063,7 +1070,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           {/* バナー全体が1つのボタンなので、オファーの入口は入れ子にできない。
               重ねて置く。押す先が違う（バナー＝広告主のページ、こちら＝オファー）
               ので、見た目でも分かれているほうがよい。 */}
-          {slide?.ad && <button className="hero-ad-offer" onClick={() => openAdIntroduction(slide.ad!)}>この広告にオファー</button>}
+          {slide?.ad && !slide.ad.mine && <button className="hero-ad-offer" onClick={() => openAdIntroduction(slide.ad!)}>この広告にオファー</button>}
           <div className="carousel-dots" aria-label="バナーを切り替える">{slides.map((entry, index) => <button key={index} aria-label={`${index + 1}枚目${entry.ad ? '（広告）' : ''}`} className={`${carouselIndex === index ? 'active' : ''}${entry.ad ? ' is-ad' : ''}`} onClick={() => { setCarouselPaused(true); setCarouselIndex(index); }} />)}</div>
         </section>
 
@@ -1116,7 +1123,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             {ad.linkUrl && <p className="ad-card-link">{ad.linkUrl.replace(/^https?:\/\//, '')}</p>}
             {/* カードを押すと広告主のページへ飛ぶ（出した人が買ったのはそこ）ので、
                 オファーは別のボタンにして、押し間違いで飛ばないよう伝播を止める。 */}
-            <button className="intro-button" onClick={(event) => { event.stopPropagation(); openAdIntroduction(ad); }}>この広告にオファー <span>→</span></button>
+            {!ad.mine && <button className="intro-button" onClick={(event) => { event.stopPropagation(); openAdIntroduction(ad); }}>この広告にオファー <span>→</span></button>}
           </article>)}
           {shown.length === 0 ? <div className="empty"><b>条件に合う投稿がありません</b><span>絞り込みを変えて探してみましょう。</span></div> : shown.map((need) => (
             <article className={isOpenRequest(need) ? 'need-card' : 'need-card closed'} key={need.id} onClick={() => openNeed(need)}>
