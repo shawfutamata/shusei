@@ -320,14 +320,21 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // 通知はアプリを出してから。それまでは選んだ業種をホームのおすすめに使う。
   // 自分の投稿は外す。おすすめは「自分が紹介できる相手」を出す場所なので。
   // 判定は名前ではなくIDで行う。同姓同名の会員がいると、名前では他人の投稿まで消える。
-  const { recommended, ownMatching } = useMemo(() => {
-    const matches = (item: BoardRequest) => isOpenRequest(item)
-      && stats.notifyIndustries.some((industry) => matchesIndustry(item.industryTags, getIndustryGroup(industry)?.name ?? industry));
+  const { recommended, ownMatching, recommendFallback } = useMemo(() => {
+    const inGroup = (item: BoardRequest) => stats.notifyIndustries.some((industry) =>
+      matchesIndustry(item.industryTags, getIndustryGroup(industry)?.name ?? industry));
+    // オファーを出せる相手＝自分以外の、まだ募集中の投稿。
+    const offerable = requests.filter((item) => !item.mine && isOpenRequest(item));
+    const matched = offerable.filter(inGroup);
     return {
-      recommended: requests.filter((item) => !item.mine && matches(item)).slice(0, 12),
+      // 業種が合う投稿がまだ無くても、棚は空にしない。
+      // 掲示板に投稿があるのに棚だけ空だと「投稿されているのに出てこない」と見える。
+      // その場合は募集中のものを並べ、理由を見出しの下に書く。
+      recommended: (matched.length ? matched : offerable).slice(0, 12),
+      recommendFallback: matched.length === 0 && offerable.length > 0,
       // 業種は合っているのに自分の投稿しか無い、という状態を見分けるため。
       // 「選んだのに何も出ない」と見えるのは、たいていこれ。
-      ownMatching: requests.filter((item) => item.mine && matches(item)).length,
+      ownMatching: requests.filter((item) => item.mine && isOpenRequest(item) && inGroup(item)).length,
     };
   }, [requests, stats.notifyIndustries]);
   const viewedRequests = useMemo(() => viewedIds.map((id) => requests.find((item) => item.id === id)).filter((item): item is BoardRequest => Boolean(item)), [requests, viewedIds]);
@@ -1060,12 +1067,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div className="carousel-dots" aria-label="バナーを切り替える">{slides.map((entry, index) => <button key={index} aria-label={`${index + 1}枚目${entry.ad ? '（広告）' : ''}`} className={`${carouselIndex === index ? 'active' : ''}${entry.ad ? ' is-ad' : ''}`} onClick={() => { setCarouselPaused(true); setCarouselIndex(index); }} />)}</div>
         </section>
 
-        <HomeShelf title="あなたにおすすめの探しごと" count={recommended.length}
-          emptyTitle={!stats.notifyIndustries.length ? 'おすすめに出したい業種を選びましょう'
-            : ownMatching > 0 ? 'いまは、ご自身の投稿だけです' : '今はおすすめできる探しごとがありません'}
-          emptyText={!stats.notifyIndustries.length ? 'マイページで業種を選ぶと、関係のありそうな探しごとがここに並びます。'
-            : ownMatching > 0 ? `選んだ業種に合う探しごとは${ownMatching}件ありますが、すべてご自身の投稿です。ここにはオファーできる相手だけを並べるため、ご自身の分は出しません。ほかの会員が投稿すると並びます。`
-            : '選んだ業種の探しごとが投稿されると、ここに並びます。'}
+        <HomeShelf title={recommendFallback ? '募集中の探しごと' : 'あなたにおすすめの探しごと'} count={recommended.length}
+          note={!recommendFallback ? ''
+            : !stats.notifyIndustries.length ? 'マイページで「おすすめに出したい業種」を選ぶと、関係のありそうな探しごとが先に並びます。'
+            : ownMatching > 0 ? `選んだ業種（${stats.notifyIndustries.join('・')}）に合う探しごとは、いまはご自身の投稿だけです。ここにはオファーできる相手を並べるため、かわりに募集中のものを出しています。`
+            : `選んだ業種（${stats.notifyIndustries.join('・')}）の探しごとは、いまほかの会員から出ていません。かわりに募集中のものを並べています。`}
+          emptyTitle={ownMatching > 0 ? 'いまは、ご自身の投稿だけです' : 'まだ募集中の探しごとがありません'}
+          emptyText={ownMatching > 0 ? `選んだ業種に合う探しごとは${ownMatching}件ありますが、すべてご自身の投稿です。ここにはオファーできる相手だけを並べるため、ご自身の分は出しません。ほかの会員が投稿すると並びます。`
+            : 'ほかの会員が探しごとを投稿すると、ここに並びます。'}
           onMore={() => stats.notifyIndustries.length ? showSearch() : showProfileSettings()}>
           {recommended.map((need) => <HomeRequestCard key={need.id} need={need} favorite={favoriteIds.includes(need.id)} onOpen={() => openNeed(need)} onFavorite={() => toggleFavorite(need)} />)}
         </HomeShelf>
@@ -1840,8 +1849,8 @@ function IndustryIcon({ group }: { group: string }) {
   return <i className="industry-icon" style={{ '--icon': `url(${source})` } as CSSProperties} aria-hidden="true" />;
 }
 
-function HomeShelf({ title, count, emptyTitle, emptyText, onMore, children }: { title: string; count: number; emptyTitle: string; emptyText: string; onMore: () => void; children: React.ReactNode }) {
-  return <section className="home-shelf"><div className="home-section-heading"><div><h2>{title}</h2><p>{count ? `${count}件` : 'まだありません'}</p></div><button onClick={onMore}>もっと見る</button></div>{count ? <div className="home-card-row">{children}</div> : <div className="home-empty"><span>♡</span><div><b>{emptyTitle}</b><p>{emptyText}</p></div><button onClick={onMore}>探してみる</button></div>}</section>;
+function HomeShelf({ title, count, note = '', emptyTitle, emptyText, onMore, children }: { title: string; count: number; note?: string; emptyTitle: string; emptyText: string; onMore: () => void; children: React.ReactNode }) {
+  return <section className="home-shelf"><div className="home-section-heading"><div><h2>{title}</h2><p>{count ? `${count}件` : 'まだありません'}</p></div><button onClick={onMore}>もっと見る</button></div>{note && <p className="home-shelf-note">{note}</p>}{count ? <div className="home-card-row">{children}</div> : <div className="home-empty"><span>♡</span><div><b>{emptyTitle}</b><p>{emptyText}</p></div><button onClick={onMore}>探してみる</button></div>}</section>;
 }
 
 /**
