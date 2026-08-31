@@ -194,6 +194,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [deletingRequest, setDeletingRequest] = useState<MyRequest | null>(null);
   const [receipts, setReceipts] = useState<BillingRecord[] | null>(null);
   const [introCounts, setIntroCounts] = useState({ received: 0, sent: 0 });
+  /** お支払いの情報を読み込めなかったか。「準備中」と混ぜないための印。 */
+  const [referralFailed, setReferralFailed] = useState(false);
   /** 中身を見せていない（＝プランが足りない）届いたオファーの数。 */
   const [lockedIntros, setLockedIntros] = useState(0);
   /** プランの案内は1回で足りる。開くたびに出すと、ただの邪魔になる。 */
@@ -427,14 +429,30 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     return () => { alive = false; };
   }, [activeTab, receipts]);
 
+  // 招待とお支払いの状態。**タブに関係なく、1回だけ読む。**
+  //
+  // 以前はマイページを開いている間だけ読んでいた。だが招待の数字は招待ページ、
+  // 申し込みボタンはプランページで要る。しかもタブを移ると、飛んでいる途中の
+  // 応答を捨てたうえで読み直しもしなかったので、**マイページを開いてすぐ
+  // プランを押すと、読み込みが終わる前にタブが変わって referral が永久に
+  // 空のまま**になっていた。そうなるとStripeが正しく設定されていても
+  // 「準備中です」と出て、申し込みボタンが消える。
+  //
+  // この応答は資格の判定（DBの書き込み）とStripeへの問い合わせを含むので
+  // 遅い。だから ref で押さえて、1回だけにしている。
+  const referralLoading = useRef(false);
   useEffect(() => {
-    if (activeTab !== 'mypage' || referral) return;
-    let alive = true;
+    if (referralLoading.current) return;
+    referralLoading.current = true;
     fetch('/api/referral').then((response) => response.ok ? response.json() : null)
-      .then((data) => { if (alive && data) setReferral(data as ReferralSummary & { url: string }); })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [activeTab, referral]);
+      .then((data) => {
+        // 「まだ読んでいない」と「読めなかった」を区別する。どちらも referral が
+        // 空なので、区別しないと申し込みボタンが消えた理由が誰にも分からない。
+        if (data) setReferral(data as ReferralSummary & { url: string });
+        else setReferralFailed(true);
+      })
+      .catch(() => setReferralFailed(true));
+  }, []);
 
   // 出稿枠はWebだけの機能。下のメニューからいつでも開けるので、タブに関係なく読む。
   // 設定を開いた時点でも読み直して、他の人に取られた枠が残って見えないようにする。
@@ -1140,9 +1158,16 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 <p className="plan-list-head"><b>{planCatalog[plan].name}</b>{plan === stats.contractedPlan && <em>契約中</em>}{plan !== stats.contractedPlan && plan === stats.bonusPlan && <em className="bonus">招待特典</em>}<span>{planPrice(plan, planCycle)}</span></p>
                 {planCycle === 'year' && plan !== 'free' && <p className="plan-list-per-month">{planPerMonthNote(plan)}</p>}
                 <p className="plan-list-what"><span>探しごと {planPostLimit(plan)}</span></p>
+                {/* 3つに分ける。読み込めなかっただけの人に「準備中です」と
+                    言ってしまうと、こちらの設定漏れだと思われるうえ、
+                    直し方（開き直す）も伝わらない。 */}
                 {plan !== 'free' && plan !== stats.contractedPlan && (referral?.billing?.ready
                   ? <button className="plan-pick" onClick={() => startBilling(plan)} disabled={busy}>このプランにする</button>
-                  : <p className="plan-not-ready">オンラインでのお申し込みは準備中です。ご希望の方は運営窓口までお知らせください。</p>)}
+                  : referralFailed
+                    ? <p className="plan-not-ready">お支払いの情報を読み込めませんでした。画面を開き直してもう一度お試しください。</p>
+                    : referral
+                      ? <p className="plan-not-ready">オンラインでのお申し込みは準備中です。ご希望の方は運営窓口までお知らせください。</p>
+                      : <p className="plan-not-ready">読み込んでいます…</p>)}
               </li>)}
             </ul>
             <PlanTable current={stats.plan} />
