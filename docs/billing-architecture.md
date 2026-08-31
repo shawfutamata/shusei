@@ -55,6 +55,18 @@ Sitesのプロジェクト設定（またはCloudflareのシークレット）�
 | `STRIPE_PRICE_AD_SLOT` | トップバナー出稿枠 1ヶ月（10,000円）の価格ID（`price_...`）。**都度払い** |
 | `STRIPE_PRICE_STANDARD_YEAR` | スタンダード 年払い（11,520円）の価格ID。任意 |
 
+### 価格IDでつまずくところ
+
+`resource_missing / line_items[0][price]` が出たら、**その価格IDがいまの鍵のStripeから見えていない**。原因は3つのどれか。
+
+| 症状 | 原因 | 直しかた |
+|---|---|---|
+| `prod_…` を入れている | Stripeの画面では商品が目立ち、価格はその中にある | 商品を開いて、料金表の価格ID（`price_…`）を使う |
+| テストと本番の取り違え | `sk_live_…` の鍵に、テストモードで作った価格を入れている（逆も） | Stripe画面右上のテスト／本番の切り替えを、鍵と揃えてから価格IDを取り直す |
+| 別アカウントの価格 | 複数のStripeアカウントを行き来している | 鍵と価格を同じアカウントから取り直す |
+
+`prod_…` を入れた場合は、Stripeへ問い合わせる前に画面がそう伝える（`app/api/billing/checkout/route.ts`）。
+
 `STRIPE_PRICE_STANDARD_YEAR` は無くても動く。入れたときだけ、プラン欄に「月払い／年払い」の切り替えが出る。`STRIPE_PRICE_AD_SLOT` が無ければ、出稿枠の申込みだけが出ない。
 
 `STRIPE_SECRET_KEY`・`STRIPE_WEBHOOK_SECRET`・`STRIPE_PRICE_STANDARD` の3つがそろうまで、画面に申し込みボタンは出ない（`stripeConfigured()` が false のため）。

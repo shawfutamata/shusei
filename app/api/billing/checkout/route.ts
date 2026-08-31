@@ -22,6 +22,19 @@ export async function POST(request: Request) {
   }
   const price = priceIdFor(plan, cycle);
   if (!price) return NextResponse.json({ error: 'このプランはまだお申し込みいただけません。' }, { status: 503 });
+  // **商品IDと価格IDの取り違えは、いちばん起きやすい設定ミス。**
+  // Stripeの画面では商品（prod_…）が目立つところにあり、価格（price_…）は
+  // その中にある。prod_ を入れてもStripeは「そんな価格は無い」としか言わない
+  // ので、ここで先に見て、何を直せばよいかまで伝える。
+  if (!price.startsWith('price_')) {
+    console.error('stripe price id looks wrong', { plan, cycle, prefix: price.slice(0, 6) });
+    return NextResponse.json({
+      error: price.startsWith('prod_')
+        ? 'お支払いの設定に商品IDが入っています。価格ID（price_ で始まるもの）に入れ替えてください。'
+        : 'お支払いの設定にある価格IDの形が正しくありません。price_ で始まるIDを入れてください。',
+      stripeCode: 'price_id_looks_wrong',
+    }, { status: 503 });
+  }
 
   try {
     return await createCheckout(gate.user.userId, gate.user.email, gate.user.displayName, plan, cycle, price, new URL(request.url).origin);
