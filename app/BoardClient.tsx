@@ -10,7 +10,7 @@ import { areaMatchesRegion, getRegion, prefectures, regions, requestAreaOptions,
 import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-options';
 import { budgetBandLabel, budgetBands } from './budget-options';
 import { findVenuePrefecture, isListedVenue, OTHER_VENUE, venuePrefectures, venuesByPrefecture } from './venue-options';
-import { UNLIMITED, plans, type BillingCycle, type Plan } from './entitlements';
+import { UNLIMITED, can, plans, type BillingCycle, type Feature, type Plan } from './entitlements';
 import { feedbackCategories } from './feedback-options';
 import { adDailyPrice, adTotalPrice, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
@@ -1145,11 +1145,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                   : <p className="plan-not-ready">オンラインでのお申し込みは準備中です。ご希望の方は運営窓口までお知らせください。</p>)}
               </li>)}
             </ul>
-            <ul className="plan-detail">
-              <li className="only"><b>届いたオファーを受け取る、オファー（自社で請け負う）を送る</b><span>スタンダードのみ</span></li>
-              <li className="only"><b>届いたオファーを書き出す</b><span>スタンダードのみ</span></li>
-              <li className="all"><b>掲示板を見る、会員を探す、リファラル（知り合いの紹介）、やり取りする</b><span>どのプランでも無制限</span></li>
-            </ul>
+            <PlanTable current={stats.plan} />
             {referral?.billing?.hasCustomer && <button className="plan-manage" onClick={openBillingPortal} disabled={busy}>お支払い・解約の手続き</button>}
             <p className="plan-note">仲間を1人招待してご利用が{referral?.qualifyDays ?? 30}日続くと、{stats.contractedPlan === 'free' ? <><b>自動でスタンダードが1ヶ月使えるようになります</b>（お手続きは要りません）</> : <><b>次回の請求から1ヶ月分自動で引かれます</b></>}。{referral?.billing?.ready ? '有料プランへのお申し込みは、上のボタンからいつでもどうぞ。解約もいつでもできます。' : ''}</p>
           </div>
@@ -1593,6 +1589,65 @@ function AdFields({ offer, draft, onChange, onImage, imageName, keepImage }: {
       <i>{imageName || (keepImage ? '画像を変更する' : '画像を選択')}</i>
       {keepImage && !imageName && <em className="ad-file-now">いまの画像のままにする場合は、そのまま保存してください</em>}</label>
   </>;
+}
+
+/**
+ * プラン別にできることの表。
+ *
+ * **○×は `can()` から作る。** ここに手で書くと、線引きを直したときに
+ * 表だけ古いまま残る。実際に止めている判断と同じものを見せることで、
+ * 「表ではできると書いてあるのに使えない」を起こさない。
+ *
+ * 「探しごとの投稿」だけは○×では足りない（月1件と無制限の差）ので、
+ * 件数を出す行にしてある。
+ */
+function PlanTable({ current }: { current: Plan }) {
+  return <div className="plan-table-wrap">
+    <table className="plan-table">
+      <caption>プランでできること</caption>
+      <thead>
+        <tr>
+          <th scope="col">できること</th>
+          {plans.map((plan) => <th scope="col" key={plan} className={plan === current ? 'is-current' : ''}>
+            {planCatalog[plan].name}{plan === current && <em>いま</em>}
+          </th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {planRows.map((row) => <tr key={row.label}>
+          <th scope="row">
+            <b>{row.label}{row.soon && <em className="plan-table-soon">準備中</em>}</b>
+            {row.note && <small>{row.note}</small>}
+          </th>
+          {plans.map((plan) => {
+            const value = row.value(plan);
+            return <td key={plan} className={`${plan === current ? 'is-current' : ''}${value === false ? ' is-no' : ''}`}>
+              {value === true ? <span aria-label="使えます">○</span>
+                : value === false ? <span aria-label="使えません">×</span>
+                : <em>{value}</em>}
+            </td>;
+          })}
+        </tr>)}
+      </tbody>
+    </table>
+  </div>;
+}
+
+/** 表に出す行。○×は entitlements の `can()` に聞く（ここで判断を持たない）。 */
+const planRows: { label: string; note?: string; soon?: boolean; value: (plan: Plan) => boolean | string }[] = [
+  { label: '掲示板を見る', value: (plan) => allows(plan, 'view_board') },
+  { label: '会員を探す', note: '業種・エリア・会場', soon: true, value: (plan) => allows(plan, 'member_search') },
+  { label: 'リファラルを送る', note: '知り合いの紹介', value: (plan) => allows(plan, 'introduce') },
+  { label: '探しごとでやり取り', note: 'コメント', value: (plan) => allows(plan, 'comment') },
+  { label: '探しごとの投稿', value: (plan) => planPostLimit(plan) },
+  { label: 'オファーを受け取る', note: '届いた中身を読む・返事する', value: (plan) => allows(plan, 'receive_introductions') },
+  { label: 'オファーを送る', note: '自社で請け負う', value: (plan) => allows(plan, 'self_offer') },
+  { label: 'オファーの書き出し', soon: true, value: (plan) => allows(plan, 'export_introductions') },
+];
+
+/** そのプラン単体で使えるか。期限や招待特典は絡めず、プランの素の力を見る。 */
+function allows(plan: Plan, feature: Feature) {
+  return can({ plan, planPeriodEnd: '' }, feature);
 }
 
 /** 入れた内容が、ホームでどう出るか。掲載と同じ部品で描くので、見えたままが載る。 */
