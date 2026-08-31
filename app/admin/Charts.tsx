@@ -15,7 +15,7 @@ export type Point = { date: string; members: number; requests: number; introduct
 const series = [
   { key: 'members', label: '新しい会員', color: 'var(--viz-1)' },
   { key: 'requests', label: '探しごと', color: 'var(--viz-2)' },
-  { key: 'introductions', label: '紹介', color: 'var(--viz-3)' },
+  { key: 'introductions', label: 'オファー', color: 'var(--viz-3)' },
 ] as const;
 
 /** 日ごとの動きの折れ線。点にさわると、その日の数が出る。 */
@@ -53,7 +53,7 @@ export function TrendChart({ points }: { points: Point[] }) {
           4px しかなくなり、指では押せない。足りないぶんは横スクロールにする。 */}
       <svg viewBox={`0 0 ${width} ${height}`} className="viz-svg"
         style={{ minWidth: `${Math.max(380, points.length * 8)}px` }} role="img"
-        aria-label={`期間中の推移。新しい会員 ${totals[0].total}件、探しごと ${totals[1].total}件、紹介 ${totals[2].total}件。`}
+        aria-label={`期間中の推移。新しい会員 ${totals[0].total}件、探しごと ${totals[1].total}件、オファー ${totals[2].total}件。`}
         onPointerLeave={() => setHover(null)}>
         <defs><clipPath id={clip}><rect x={pad.left} y={pad.top} width={innerW} height={innerH} /></clipPath></defs>
         {ticks.map((value) => <g key={value}>
@@ -84,7 +84,7 @@ export function TrendChart({ points }: { points: Point[] }) {
     </div>
     <figcaption className="viz-caption">
       <b>{active.date.replace(/-/g, '/')}</b>{hover === null && <em>（いちばん新しい日）</em>}
-      <span className="viz-caption-values">新しい会員 {active.members}／探しごと {active.requests}／紹介 {active.introductions}</span>
+      <span className="viz-caption-values">新しい会員 {active.members}／探しごと {active.requests}／オファー {active.introductions}</span>
       <small>グラフをなぞると、その日の数に変わります。</small>
     </figcaption>
   </figure>;

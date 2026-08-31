@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
   const { level } = await getMemberRank(gate.user.userId);
   if (!canBuyAdSlot()) {
-    return NextResponse.json({ error: '出稿枠は上位ランクの方の特典です。紹介を重ねてランクが上がるとお申し込みいただけます。' }, { status: 403 });
+    return NextResponse.json({ error: '出稿枠は上位ランクの方の特典です。オファーを重ねてランクが上がるとお申し込みいただけます。' }, { status: 403 });
   }
 
   // タイトル・説明文・リンク・画像・期間を1回で受け取る。買ってから

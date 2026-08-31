@@ -3,9 +3,9 @@ import { serviceName } from './brand';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: `${serviceName}｜守成クラブ紹介掲示板`,
+    name: `${serviceName}｜守成クラブ オファー掲示板`,
     short_name: serviceName,
-    description: '守成クラブの仲間同士で、探しごとと信頼できる紹介をつなぐ会員向けアプリ。',
+    description: '守成クラブの仲間同士で、探しごとと信頼できるオファーをつなぐ会員向けアプリ。',
     start_url: '/',
     scope: '/',
     display: 'standalone',

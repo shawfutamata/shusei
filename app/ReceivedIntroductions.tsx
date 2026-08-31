@@ -9,10 +9,10 @@ import IntroductionChat from './IntroductionChat';
 const categoryLabels = { project: '案件', collaboration: '協業先', consultation: '相談・情報' };
 
 /**
- * 紹介の受け箱。**届いた／出した**の両方を出す。
+ * オファーの受け箱。**届いた／出した**の両方を出す。
  *
- * やり取りは2人でするものなので、紹介した側にも入口が要る。届いたぶんだけ
- * だと、紹介者は自分が出した紹介を見返すことも、返事を読むこともできない。
+ * やり取りは2人でするものなので、オファーした側にも入口が要る。届いたぶんだけ
+ * だと、送った人は自分が出したオファーを見返すことも、返事を読むこともできない。
  */
 export default function ReceivedIntroductions() {
   const [received, setReceived] = useState<ReceivedIntroduction[]>([]);
@@ -41,27 +41,27 @@ export default function ReceivedIntroductions() {
     group.items.push(item); result[item.requestId] = group; return result;
   }, {})), [received]);
 
-  if (loading) return <div className="received-loading">紹介を読み込んでいます…</div>;
+  if (loading) return <div className="received-loading">オファーを読み込んでいます…</div>;
   if (!received.length && !sent.length) {
-    return <div className="received-empty"><span>✉</span><b>紹介はまだありません</b>
-      <p>あなたの探しごとに紹介が届くと、ここで内容を確認して、紹介してくれた方とやり取りできます。</p></div>;
+    return <div className="received-empty"><span>✉</span><b>オファーはまだありません</b>
+      <p>あなたの探しごとにオファーが届くと、ここで内容を確認して、送ってくれた方とやり取りできます。</p></div>;
   }
 
   return <div className="received-inbox">
-    <div className="received-tabs" role="group" aria-label="紹介の向き">
+    <div className="received-tabs" role="group" aria-label="オファーの向き">
       <button className={side === 'received' ? 'selected' : ''} onClick={() => setSide('received')}
-        aria-pressed={side === 'received'}>届いた紹介 <span>{received.length}</span></button>
+        aria-pressed={side === 'received'}>届いたオファー <span>{received.length}</span></button>
       <button className={side === 'sent' ? 'selected' : ''} onClick={() => setSide('sent')}
-        aria-pressed={side === 'sent'}>出した紹介 <span>{sent.length}</span></button>
+        aria-pressed={side === 'sent'}>出したオファー <span>{sent.length}</span></button>
     </div>
 
     {side === 'received' ? (!received.length
-      ? <div className="received-empty"><span>✉</span><b>届いた紹介はまだありません</b>
-        <p>あなたの探しごとに紹介が届くと、ここに並びます。</p></div>
+      ? <div className="received-empty"><span>✉</span><b>届いたオファーはまだありません</b>
+        <p>あなたの探しごとにオファーが届くと、ここに並びます。</p></div>
       : <>
         <div className="received-summary">
-          <span><b>{received.length}</b><small>届いた紹介</small></span>
-          <p>紹介された人と、紹介者からのメッセージを確認できます。そのままやり取りもできます。</p>
+          <span><b>{received.length}</b><small>届いたオファー</small></span>
+          <p>オファーされた人と、送ってくれた方からのメッセージを確認できます。そのままやり取りもできます。</p>
         </div>
         {groups.map((group) => <section className="received-group" key={group.requestId}>
           <header><span>{categoryLabels[group.category]}</span>
@@ -75,14 +75,14 @@ export default function ReceivedIntroductions() {
             </button>
             {expanded === item.id && <div className="received-detail">
               <dl>
-                <div><dt>紹介者との関係</dt><dd>{item.relationship}</dd></div>
-                <div><dt>紹介したい理由</dt><dd>{item.fitReason}</dd></div>
+                <div><dt>オファーした方との関係</dt><dd>{item.relationship}</dd></div>
+                <div><dt>オファーしたい理由</dt><dd>{item.fitReason}</dd></div>
               </dl>
               <div className="received-from">
                 {item.introducerAvatarUrl
                   ? <img src={item.introducerAvatarUrl} alt={`${item.introducerName}さんの顔写真`} />
                   : <span>{item.introducerName.slice(0, 1)}</span>}
-                <p><small>紹介してくれた会員</small><b>{item.introducerName}</b>
+                <p><small>オファーをくれた会員</small><b>{item.introducerName}</b>
                   <em>{item.introducerCompany || '会社名未設定'} · {item.introducerVenue}</em>
                   <FacebookLink url={item.introducerFacebookUrl} name={item.introducerName} /></p>
               </div>
@@ -92,24 +92,24 @@ export default function ReceivedIntroductions() {
         </section>)}
       </>
     ) : (!sent.length
-      ? <div className="received-empty"><span>✉</span><b>出した紹介はまだありません</b>
-        <p>掲示板で探しごとを見つけて紹介すると、ここに残ります。</p></div>
+      ? <div className="received-empty"><span>✉</span><b>出したオファーはまだありません</b>
+        <p>掲示板で探しごとを見つけてオファーすると、ここに残ります。</p></div>
       : <>
         <div className="received-summary">
-          <span><b>{sent.length}</b><small>出した紹介</small></span>
-          <p>あなたが紹介した内容と、相手からの返事です。</p>
+          <span><b>{sent.length}</b><small>出したオファー</small></span>
+          <p>あなたがオファーした内容と、相手からの返事です。</p>
         </div>
         <div className="received-list">{sent.map((item) => <article className="received-card" key={item.id}>
           <button className="received-card-head" onClick={() => setExpanded((current) => current === item.id ? '' : item.id)}>
             <div className="received-person-mark">人</div>
-            <div><small>{formatDate(item.createdAt)}に紹介しました</small><h4>{item.personName}</h4>
+            <div><small>{formatDate(item.createdAt)}にオファーしました</small><h4>{item.personName}</h4>
               <p>{item.requestTitle}</p></div>
             <i>{expanded === item.id ? '−' : `＋${item.messageCount ? ` ${item.messageCount}` : ''}`}</i>
           </button>
           {expanded === item.id && <div className="received-detail">
             <dl>
               <div><dt>あなたとの関係</dt><dd>{item.relationship}</dd></div>
-              <div><dt>紹介した理由</dt><dd>{item.fitReason}</dd></div>
+              <div><dt>オファーした理由</dt><dd>{item.fitReason}</dd></div>
             </dl>
             <div className="received-from">
               {item.authorAvatarUrl

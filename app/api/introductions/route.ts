@@ -25,13 +25,13 @@ export async function POST(request: Request) {
   const relationship = clean(body.relationship, 120);
   const fitReason = clean(body.fitReason, 400);
   if (!requestId || !personName || !personCompany || !relationship || !fitReason || body.consentConfirmed !== true) {
-    return NextResponse.json({ error: '紹介先の了承を確認し、必須項目を入力してください。' }, { status: 400 });
+    return NextResponse.json({ error: 'オファーする方の了承を確認し、必須項目を入力してください。' }, { status: 400 });
   }
   try {
     const id = await createIntroduction(user, { requestId, personName, personCompany, relationship, fitReason });
     return NextResponse.json({ id, points: 10 }, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : '紹介を登録できませんでした。' }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'オファーを送れませんでした。' }, { status: 400 });
   }
 }
 

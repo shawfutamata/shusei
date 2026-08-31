@@ -5,21 +5,21 @@ import { serviceName, serviceTagline, serviceUrl } from './brand';
 export const metadata: Metadata = {
   metadataBase: new URL(serviceUrl),
   title: `${serviceName}｜${serviceTagline}`,
-  description: '守成クラブの仲間同士で、案件・協業先・相談相手を探し、信頼ある紹介を生み出す会員向け掲示板。',
+  description: '守成クラブの仲間同士で、案件・協業先・相談相手を探し、信頼あるオファーを生み出す会員向け掲示板。',
   manifest: '/manifest.webmanifest',
   applicationName: serviceName,
   appleWebApp: { capable: true, statusBarStyle: 'default', title: serviceName },
   icons: { icon: '/favicon.svg', apple: '/apple-touch-icon.png' },
   openGraph: {
     title: `${serviceName}｜${serviceTagline}`,
-    description: '案件・協業先・相談相手を探し、仲間のつながりから信頼ある紹介を届ける会員向け掲示板。',
+    description: '案件・協業先・相談相手を探し、仲間のつながりから信頼あるオファーを届ける会員向け掲示板。',
     type: 'website',
     images: [{ url: '/og.png', width: 1672, height: 941, alt: `${serviceName} ${serviceTagline}` }],
   },
   twitter: {
     card: 'summary_large_image',
     title: `${serviceName}｜${serviceTagline}`,
-    description: '仲間のつながりから信頼ある紹介を届ける会員向け掲示板。',
+    description: '仲間のつながりから信頼あるオファーを届ける会員向け掲示板。',
     images: ['/og.png'],
   },
 };

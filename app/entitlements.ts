@@ -41,12 +41,12 @@ export const planLimits: Record<Plan, { requestsPerMonth: number }> = {
 
 export const features = [
   'view_board',           // 掲示板を見る
-  'introduce',            // 人を紹介する（ギブ）
+  'introduce',            // 人をオファーする（ギブ）
   'comment',              // 探しごとでやり取りする
-  'receive_introductions',// 届いた紹介を見る
+  'receive_introductions',// 届いたオファーを見る
   'post_request',         // 探しごとを投稿する（無料は月1件）
   'member_search',        // 会員を業種・エリアで探す
-  'export_introductions', // 届いた紹介の書き出し
+  'export_introductions', // 届いたオファーの書き出し
 ] as const;
 export type Feature = (typeof features)[number];
 

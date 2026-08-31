@@ -71,8 +71,8 @@ const revenueBands: Record<string, string> = {
 
 const topBanners = [
   { src: '/banners/top-request.webp', alt: 'こんな人、探しています。探しごとを投稿する案内' },
-  { src: '/banners/top-introductions.webp', alt: '届いた紹介をまとめて確認する案内' },
-  { src: '/banners/top-rank.webp', alt: '紹介するほど会員ランクが上がる仕組みの案内' },
+  { src: '/banners/top-introductions.webp', alt: '届いたオファーをまとめて確認する案内' },
+  { src: '/banners/top-rank.webp', alt: 'オファーするほど会員ランクが上がる仕組みの案内' },
 ] as const;
 const industryIcons: Record<string, string> = {
   'IT・システム': '/icons/industries/it-system.png', 'Web・広告': '/icons/industries/web-ad.png',
@@ -184,7 +184,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const today = new Date().toISOString().slice(0, 10);
   const introBoxNote = introCounts.received || introCounts.sent
     ? `届いた ${introCounts.received}件・出した ${introCounts.sent}件`
-    : 'まだ紹介のやり取りはありません';
+    : 'まだオファーのやり取りはありません';
   /** 募集中＝終了しておらず、期限も過ぎていないもの。 */
   const isPostOpen = useCallback((item: MyRequest) => item.status !== 'closed' && item.deadline >= today, [today]);
   const openPostCount = useMemo(() => myRequests.filter(isPostOpen).length, [myRequests, isPostOpen]);
@@ -433,7 +433,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const canExtend = (need: BoardRequest) => canExtendRequest(stats.level) && !need.extendedAt;
 
   function ownerToolsNote(need: BoardRequest) {
-    if (!canExtendRequest(stats.level)) return `募集の延長は GOLD から使えます。あと${Math.max(0, rankThresholds[1] - stats.introCount)}件の紹介で GOLD です。`;
+    if (!canExtendRequest(stats.level)) return `募集の延長は GOLD から使えます。あと${Math.max(0, rankThresholds[1] - stats.introCount)}件のオファーで GOLD です。`;
     if (isPinned(need)) return 'いま一覧のいちばん上に出ています。';
     return '延長は1件につき1回までです。一覧の上位に出すのは、広告メニューからお申し込みいただけます。';
   }
@@ -538,8 +538,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     const raw = Object.fromEntries(new FormData(form));
     const response = await fetch('/api/introductions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...raw, requestId: selected.id, consentConfirmed: raw.consentConfirmed === 'on' }) });
     const result = await response.json() as { error?: string }; setBusy(false);
-    if (!response.ok) return showToast(result.error ?? '紹介を登録できませんでした。');
-    setModal(null); form.reset(); await refreshBoard(); showToast('紹介を届けました。10ポイント加算されました。');
+    if (!response.ok) return showToast(result.error ?? 'オファーを送れませんでした。');
+    setModal(null); form.reset(); await refreshBoard(); showToast('オファーを送りました。10ポイント加算されました。');
   }
 
   async function saveProfile() {
@@ -617,7 +617,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   }
 
   function openIntroduction(need: BoardRequest) {
-    if (!stats.avatarUrl) { showProfileSettings(); return showToast('紹介の前に顔写真を登録してください。'); }
+    if (!stats.avatarUrl) { showProfileSettings(); return showToast('オファーの前に顔写真を登録してください。'); }
     setSelected(need); setModal('intro');
   }
 
@@ -959,7 +959,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           emptyTitle={!stats.notifyIndustries.length ? 'おすすめに出したい業種を選びましょう'
             : ownMatching > 0 ? 'いまは、ご自身の投稿だけです' : '今はおすすめできる探しごとがありません'}
           emptyText={!stats.notifyIndustries.length ? 'マイページで業種を選ぶと、関係のありそうな探しごとがここに並びます。'
-            : ownMatching > 0 ? `選んだ業種に合う探しごとは${ownMatching}件ありますが、すべてご自身の投稿です。ここには紹介できる相手だけを並べるため、ご自身の分は出しません。ほかの会員が投稿すると並びます。`
+            : ownMatching > 0 ? `選んだ業種に合う探しごとは${ownMatching}件ありますが、すべてご自身の投稿です。ここにはオファーできる相手だけを並べるため、ご自身の分は出しません。ほかの会員が投稿すると並びます。`
             : '選んだ業種の探しごとが投稿されると、ここに並びます。'}
           onMore={() => stats.notifyIndustries.length ? showSearch() : showProfileSettings()}>
           {recommended.map((need) => <HomeRequestCard key={need.id} need={need} favorite={favoriteIds.includes(need.id)} onOpen={() => openNeed(need)} onFavorite={() => toggleFavorite(need)} />)}
@@ -978,7 +978,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div className="industry-grid">{industryGroups.map((group) => <button key={group.name} onClick={() => showSearch(group.name)}><span><IndustryIcon group={group.name} /></span><b>{group.name}</b><small>{requests.filter((item) => matchesIndustry(item.industryTags, group.name)).length}件</small></button>)}</div>
         </section>
 
-        {!stats.avatarUrl && <button className="photo-required-banner" onClick={showProfileSettings}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・紹介ができます。</b><i>登録する →</i></button>}
+        {!stats.avatarUrl && <button className="photo-required-banner" onClick={showProfileSettings}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・オファーができます。</b><i>登録する →</i></button>}
       </div> : activeTab === 'search' ? <section className="mobile-board search-page" id="board">
         <div className="section-title"><div><p>REQUESTS</p><h2>{industryFilter === 'all' ? '仕事の掲示板' : industryFilter}<button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="案件・協業先・相談の違いを見る">i</button></h2></div><span>{shown.length}件</span></div>
         {industryFilter !== 'all' && <button className="clear-industry" onClick={() => setIndustryFilter('all')}><IndustryIcon group={getIndustryGroup(industryFilter)?.name ?? 'その他'} />{industryFilter}で絞り込み中 <i>×</i></button>}
@@ -1007,9 +1007,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               <h3>{need.title}</h3>{need.thumbUrl && <img className="need-thumb" src={need.thumbUrl} alt="" loading="lazy" decoding="async" />}<p className="need-body">{need.description}</p>
               <div className="industry-tags" aria-label="関連業種">{need.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
               <dl className="details"><div><dt>予算</dt><dd>{need.budgetLabel}</dd></div><div><dt>エリア</dt><dd>{need.area || '指定なし'}</dd></div></dl>
-              <div className="card-person"><Avatar src={need.authorAvatarUrl} name={need.authorName} className="member-avatar" /><p><b>{need.authorName}</b><small>{need.authorPositionTitle && `${need.authorPositionTitle}｜`}{need.authorCompany || '会社名未設定'}</small></p><span>紹介 {need.introCount}件</span></div>
+              <div className="card-person"><Avatar src={need.authorAvatarUrl} name={need.authorName} className="member-avatar" /><p><b>{need.authorName}</b><small>{need.authorPositionTitle && `${need.authorPositionTitle}｜`}{need.authorCompany || '会社名未設定'}</small></p><span>オファー {need.introCount}件</span></div>
               <div className="member-context">{need.commentCount > 0 && <span className="comment-count">やり取り {need.commentCount}件</span>}<span>会場 {need.authorVenue}</span>{need.authorBusinessArea && <span>エリア {need.authorBusinessArea}</span>}{need.authorRevenueBand && <span>年商 {revenueBands[need.authorRevenueBand]}</span>}</div>
-              <button className="intro-button" onClick={(event) => { event.stopPropagation(); openIntroduction(need); }}>この人を紹介できる <span>→</span></button>
+              <button className="intro-button" onClick={(event) => { event.stopPropagation(); openIntroduction(need); }}>この人にオファー <span>→</span></button>
             </article>
           ))}
         </div>
@@ -1027,7 +1027,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <span className="rank-slim-more">特典を見る ›</span>
         </button>
         <button className="rank-next" onClick={() => setModal('perks')}>
-          <div className="rank-next-copy"><b>{stats.level >= rankThresholds.length ? '最高ランクに到達' : `あと${introductionsToNextRank}件でランクアップ`}</b><span>紹介 {stats.introCount}件・{stats.points}pt</span></div>
+          <div className="rank-next-copy"><b>{stats.level >= rankThresholds.length ? '最高ランクに到達' : `あと${introductionsToNextRank}件でランクアップ`}</b><span>オファー {stats.introCount}件・{stats.points}pt</span></div>
           <span className="rank-next-track"><i style={{ width: `${rankProgress}%` }} /></span>
         </button>
         <details className={`plan-card is-${stats.plan}`}>
@@ -1055,8 +1055,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               </li>)}
             </ul>
             <ul className="plan-detail">
-              <li className="only"><b>会員を探す、紹介を書き出す</b><span>スタンダードのみ</span></li>
-              <li className="all"><b>掲示板を見る、紹介する、やり取りする</b><span>どのプランでも無制限</span></li>
+              <li className="only"><b>会員を探す、オファーを書き出す</b><span>スタンダードのみ</span></li>
+              <li className="all"><b>掲示板を見る、オファーする、やり取りする</b><span>どのプランでも無制限</span></li>
             </ul>
             {referral?.billing?.hasCustomer && <button className="plan-manage" onClick={openBillingPortal} disabled={busy}>お支払い・解約の手続き</button>}
             <p className="plan-note">仲間を1人招待してご利用が{referral?.qualifyDays ?? 30}日続くと、{stats.contractedPlan === 'free' ? <><b>自動でスタンダードが1ヶ月使えるようになります</b>（お手続きは要りません）</> : <><b>次回の請求から1ヶ月分自動で引かれます</b></>}。{referral?.billing?.ready ? '有料プランへのお申し込みは、上のボタンからいつでもどうぞ。解約もいつでもできます。' : ''}</p>
@@ -1082,8 +1082,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
         <button className="dashboard-link" onClick={() => setModal('responses')}>
           <span className="dashboard-link-copy">
-            <small>INTRODUCTIONS</small>
-            <b>紹介のやり取り</b>
+            <small>OFFERS</small>
+            <b>オファーのやり取り</b>
             <em>{introBoxNote}</em>
           </span>
           <i aria-hidden="true">›</i>
@@ -1130,7 +1130,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <dl className="post-totals">
           <div><dt>投稿</dt><dd>{myRequests.length}<small>件</small></dd></div>
           <div><dt>募集中</dt><dd>{openPostCount}<small>件</small></dd></div>
-          <div><dt>届いた紹介</dt><dd>{postTotals.intro}<small>件</small></dd></div>
+          <div><dt>届いたオファー</dt><dd>{postTotals.intro}<small>件</small></dd></div>
           <div><dt>やり取り</dt><dd>{postTotals.comment}<small>件</small></dd></div>
         </dl>
 
@@ -1153,7 +1153,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               <b className="my-request-title">{item.title}</b>
               <p className="my-request-meta">
                 <span>期限 {item.deadline.replace(/-/g, '/')}</span>
-                <span>紹介 {item.introCount}件</span>
+                <span>オファー {item.introCount}件</span>
                 <span>やり取り {item.commentCount}件</span>
                 {item.imageCount > 0 && <span>写真 {item.imageCount}枚</span>}
                 {item.hasVideo && <span>動画あり</span>}
@@ -1168,7 +1168,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section> : <section className="profile-page" aria-labelledby="profile-settings-title">
         {/* プロフィール設定。入口は右上の顔写真と、マイページの「プロフィールを編集する」。 */}
-        <header className="profile-page-heading"><p>PROFILE</p><h1 id="profile-settings-title">プロフィール設定</h1><span>ここで登録した内容が、探しごとや紹介のときに相手に見えます。</span></header>
+        <header className="profile-page-heading"><p>PROFILE</p><h1 id="profile-settings-title">プロフィール設定</h1><span>ここで登録した内容が、探しごとやオファーのときに相手に見えます。</span></header>
         <div className="profile-form profile-page-form">
           <label className="photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />JPEG・PNG・WebP／5MBまで</small></span><i>{stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
           <label>お名前 <small className="req">必須</small><input value={profileName} onChange={(event) => setProfileName(event.target.value)} maxLength={40} placeholder="二俣 将" required /></label>
@@ -1186,7 +1186,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div className="profile-industry-select"><p>自分の業種 <small>おすすめの設定に使われます</small></p><label>大分類<select value={profileIndustryGroup} onChange={(event) => { setProfileIndustryGroup(event.target.value); setProfileIndustry(''); }}><option value="">選択してください</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label><label>詳細業種<select value={profileIndustry} onChange={(event) => { const value = event.target.value; setProfileIndustry(value); if (value && !profileNotifyIndustries.includes(value)) setProfileNotifyIndustries((current) => [...current, value].slice(0, notifyIndustryLimit(stats.level))); }} disabled={!profileIndustryGroup}><option value="">詳細業種を選択</option>{profileIndustry === profileIndustryGroup && <option value={profileIndustryGroup}>大分類のみ（旧設定）</option>}{industryGroups.find((group) => group.name === profileIndustryGroup)?.children.map((industry) => <option value={industry} key={industry}>{industry}</option>)}</select></label></div>
           <IndustryPicker legend="おすすめに出したい業種" note={`${notifyIndustryLimit(stats.level)}個まで`} description="選んだ詳細業種の探しごとが、ホームの「あなたにおすすめ」に出ます。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, notifyIndustryLimit(stats.level))} className="profile-tag-field" />
           <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-          <label>Facebook <small>任意・紹介のあとに直接やり取りできます</small><input value={profileFacebook} onChange={(event) => setProfileFacebook(event.target.value)} maxLength={200} placeholder="https://www.facebook.com/your.name" inputMode="url" /></label>
+          <label>Facebook <small>任意・オファーのあとに直接やり取りできます</small><input value={profileFacebook} onChange={(event) => setProfileFacebook(event.target.value)} maxLength={200} placeholder="https://www.facebook.com/your.name" inputMode="url" /></label>
           <button className="profile-save-button" onClick={saveProfile} disabled={busy || !profileName.trim() || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
         </div>
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
@@ -1202,7 +1202,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {modal === 'request' && !canPostRequest && !editingRequest && <Modal title="今月分の投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showMyPage(); }}>マイページを開く</button></div></Modal>}
 
-      {modal === 'request' && (canPostRequest || editingRequest) && <Modal title={editingRequest ? '探しごとを編集' : '探しごとを投稿'} lead={editingRequest ? '直したいところを書き替えて、保存してください。' : '紹介してほしい人を具体的に書きましょう。'} onClose={closeRequestModal}><form className="form" key={editingRequest?.id ?? 'new'} onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue={editingRequest?.category ?? ''}><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" defaultValue={editingRequest?.title ?? ''} /></label><label>詳しい内容 {descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" required maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人を紹介してほしいか" defaultValue={editingRequest?.description ?? ''} /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" defaultValue={editingRequest?.budgetLabel ?? ''} /></label><label>希望エリア <small>任意</small><select name="area" defaultValue={editingRequest?.area ?? ''}><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" defaultValue={editingRequest?.deadline ?? ''} /></label>{editingRequest && <label>募集状況<select name="status" defaultValue={editingRequest.status}><option value="open">募集中</option><option value="closed">募集を終了する</option></select></label>}<div className="request-photos"><p><b>写真を付ける <em>任意</em></b><small>{photoLimit(stats.level) > 1 ? `${stats.rank}は${photoLimit(stats.level)}枚まで付けられます` : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></p><div className="request-photo-grid">{requestPhotoPreviews.map((preview, index) => <span key={preview} className="request-photo-item"><img src={preview} alt={`添付する写真 ${index + 1}枚目`} /><button type="button" onClick={() => removeRequestPhoto(index)} aria-label={`${index + 1}枚目を削除`}>×</button></span>)}{requestPhotos.length < photoLimit(stats.level) && <label className="request-photo-add"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" multiple={photoLimit(stats.level) > 1} onChange={chooseRequestPhoto} /><b>＋</b><small>{requestPhotos.length ? 'もう1枚' : '写真を選ぶ'}</small></label>}</div></div>{canPostVideo(stats.level) && <div className="request-video"><p><b>動画を付ける <em>任意</em></b><small>{VIDEO_MAX_SECONDS}秒まで。選ぶと端末の中で自動的に小さくします。</small></p>
+      {modal === 'request' && (canPostRequest || editingRequest) && <Modal title={editingRequest ? '探しごとを編集' : '探しごとを投稿'} lead={editingRequest ? '直したいところを書き替えて、保存してください。' : 'どんな人にオファーしてほしいかを具体的に書きましょう。'} onClose={closeRequestModal}><form className="form" key={editingRequest?.id ?? 'new'} onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue={editingRequest?.category ?? ''}><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" defaultValue={editingRequest?.title ?? ''} /></label><label>詳しい内容 {descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" required maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人をオファーしてほしいか" defaultValue={editingRequest?.description ?? ''} /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算感<input name="budgetLabel" required maxLength={60} placeholder="例：20〜40万円／応相談" defaultValue={editingRequest?.budgetLabel ?? ''} /></label><label>希望エリア <small>任意</small><select name="area" defaultValue={editingRequest?.area ?? ''}><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" defaultValue={editingRequest?.deadline ?? ''} /></label>{editingRequest && <label>募集状況<select name="status" defaultValue={editingRequest.status}><option value="open">募集中</option><option value="closed">募集を終了する</option></select></label>}<div className="request-photos"><p><b>写真を付ける <em>任意</em></b><small>{photoLimit(stats.level) > 1 ? `${stats.rank}は${photoLimit(stats.level)}枚まで付けられます` : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></p><div className="request-photo-grid">{requestPhotoPreviews.map((preview, index) => <span key={preview} className="request-photo-item"><img src={preview} alt={`添付する写真 ${index + 1}枚目`} /><button type="button" onClick={() => removeRequestPhoto(index)} aria-label={`${index + 1}枚目を削除`}>×</button></span>)}{requestPhotos.length < photoLimit(stats.level) && <label className="request-photo-add"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" multiple={photoLimit(stats.level) > 1} onChange={chooseRequestPhoto} /><b>＋</b><small>{requestPhotos.length ? 'もう1枚' : '写真を選ぶ'}</small></label>}</div></div>{canPostVideo(stats.level) && <div className="request-video"><p><b>動画を付ける <em>任意</em></b><small>{VIDEO_MAX_SECONDS}秒まで。選ぶと端末の中で自動的に小さくします。</small></p>
         {videoProgress >= 0
           ? <div className="request-video-busy"><span style={{ width: `${Math.round(videoProgress * 100)}%` }} /><b>動画を小さくしています… {Math.round(videoProgress * 100)}%</b></div>
           : requestVideoPreview
@@ -1213,29 +1213,29 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       {deletingRequest && <Modal title="この探しごとを削除しますか" lead="削除すると元に戻せません。" onClose={() => setDeletingRequest(null)}>
         <div className="quota-block">
           <p><b>{deletingRequest.title}</b></p>
-          <p>この探しごとに届いた紹介 {deletingRequest.introCount}件と、やり取り {deletingRequest.commentCount}件も一緒に消えます。写真や動画も消えます。</p>
-          <p>募集を止めたいだけなら、削除ではなく<b>編集から「募集を終了する」</b>を選ぶと、記録とやり取りを残したまま新しい紹介を止められます。</p>
+          <p>この探しごとに届いたオファー {deletingRequest.introCount}件と、やり取り {deletingRequest.commentCount}件も一緒に消えます。写真や動画も消えます。</p>
+          <p>募集を止めたいだけなら、削除ではなく<b>編集から「募集を終了する」</b>を選ぶと、記録とやり取りを残したまま新しいオファーを止められます。</p>
           <button className="submit-button is-danger" onClick={confirmDeleteRequest} disabled={busy}>{busy ? '削除しています…' : '削除する'}</button>
           <button className="quota-cancel" onClick={() => setDeletingRequest(null)} disabled={busy}>やめる</button>
         </div>
       </Modal>}
 
-      {modal === 'intro' && selected && <Modal title="知っている人を紹介" lead={`「${selected.title}」への紹介です。`} onClose={() => setModal(null)}><form className="form" onSubmit={submitIntroduction}><label>お名前<input name="personName" required maxLength={60} /></label><label>会社・屋号<input name="personCompany" required maxLength={80} /></label><label>あなたとの関係<input name="relationship" required maxLength={120} placeholder="例：取引先、友人" /></label><label>紹介したい理由<textarea name="fitReason" required maxLength={400} rows={3} /></label><label className="consent"><input type="checkbox" name="consentConfirmed" required /> ご本人に紹介の了承を得ています</label><button className="submit-button" disabled={busy}>{busy ? '届けています…' : '紹介を届ける'}</button></form></Modal>}
+      {modal === 'intro' && selected && <Modal title="知っている人をオファー" lead={`「${selected.title}」へのオファーです。`} onClose={() => setModal(null)}><form className="form" onSubmit={submitIntroduction}><label>お名前<input name="personName" required maxLength={60} /></label><label>会社・屋号<input name="personCompany" required maxLength={80} /></label><label>あなたとの関係<input name="relationship" required maxLength={120} placeholder="例：取引先、友人" /></label><label>オファーしたい理由<textarea name="fitReason" required maxLength={400} rows={3} /></label><label className="consent"><input type="checkbox" name="consentConfirmed" required /> ご本人にオファーの了承を得ています</label><button className="submit-button" disabled={busy}>{busy ? '送っています…' : 'オファーを送る'}</button></form></Modal>}
 
-      {modal === 'perks' && <Modal title="ランクの特典" lead="紹介した数でランクが上がり、できることが増えます。一度上がったランクは下がりません。" onClose={() => { setModal(null); setOpenPerk(''); }}>
+      {modal === 'perks' && <Modal title="ランクの特典" lead="オファーした数でランクが上がり、できることが増えます。一度上がったランクは下がりません。" onClose={() => { setModal(null); setOpenPerk(''); }}>
         <div className="perk-panel">
           <ol className="perk-ladder" aria-label="ランクの段階">{rankNames.map((name, index) => {
             const level = index + 1;
             return <li key={name} className={`${level === stats.level ? 'now' : ''}${level < stats.level ? ' done' : ''}`}>
               <span className={`perk-ladder-dot rank-${name.toLowerCase()}`} aria-hidden="true" />
               <b>{name}</b>
-              <small>{rankThresholds[index] === 0 ? 'はじめから' : `紹介${rankThresholds[index]}件`}</small>
+              <small>{rankThresholds[index] === 0 ? 'はじめから' : `オファー${rankThresholds[index]}件`}</small>
             </li>;
           })}</ol>
 
           <p className="perk-now">
             <b><small>会員ランク</small>{stats.rank}</b>
-            <span>{stats.level >= rankNames.length ? '最高ランクです。ありがとうございます。' : `あと${introductionsToNextRank}件の紹介で ${rankNames[stats.level]} になります。`}</span>
+            <span>{stats.level >= rankNames.length ? '最高ランクです。ありがとうございます。' : `あと${introductionsToNextRank}件のオファーで ${rankNames[stats.level]} になります。`}</span>
           </p>
 
           <ul className="perk-grid">{rankPerks.map((perk) => {
@@ -1257,11 +1257,11 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               <p className="perk-detail-head"><b>{perk.label}</b><span>{perk.soon ? '近日公開' : unlocked ? '使えます' : `${rankNames[perk.minLevel - 1]}で解放`}</span></p>
               <p className="perk-detail-body">{perk.detail}</p>
               {perk.soon && <p className="perk-detail-note">この特典はまだ作っている途中です。できあがったら、いまのランクのままお使いいただけます。</p>}
-              {!unlocked && !perk.soon && <p className="perk-detail-note">あと{Math.max(0, rankThresholds[perk.minLevel - 1] - stats.introCount)}件の紹介で使えるようになります。</p>}
+              {!unlocked && !perk.soon && <p className="perk-detail-note">あと{Math.max(0, rankThresholds[perk.minLevel - 1] - stats.introCount)}件のオファーで使えるようになります。</p>}
             </div>;
           })()}
 
-          <p className="perk-terms">特典の内容は、予告なく変更または終了することがあります。ランクは紹介した数の累計で決まり、下がることはありません。</p>
+          <p className="perk-terms">特典の内容は、予告なく変更または終了することがあります。ランクはオファーした数の累計で決まり、下がることはありません。</p>
         </div>
       </Modal>}
 
@@ -1390,7 +1390,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <p className="category-guide-note">あとから選び直せます。近いものを選んでいただければ大丈夫です。</p>
       </Modal>}
 
-      {modal === 'responses' && <Modal title="紹介のやり取り" lead="届いた紹介と、あなたが出した紹介です。相手とそのままやり取りできます。" onClose={() => setModal(null)}><ReceivedIntroductions /></Modal>}
+      {modal === 'responses' && <Modal title="オファーのやり取り" lead="届いたオファーと、あなたが出したオファーです。相手とそのままやり取りできます。" onClose={() => setModal(null)}><ReceivedIntroductions /></Modal>}
 
       {modal === 'detail' && selected && <Modal title="探しごとの詳細" lead={`${selected.authorName}さんの探しごとです。`} onClose={() => setModal(null)}><article className="need-detail">
         <div className="card-topline"><span className={`kind ${categories[selected.category].className}`}>{categories[selected.category].label}</span><button className={favoriteIds.includes(selected.id) ? 'detail-heart active' : 'detail-heart'} onClick={() => toggleFavorite(selected)}>♥ {favoriteIds.includes(selected.id) ? '保存済み' : 'お気に入り'}</button></div>
@@ -1412,13 +1412,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               </div>
               <p className="owner-tools-note">{ownerToolsNote(selected)}</p>
             </div>
-          : <button className="submit-button" onClick={() => openIntroduction(selected)}>この人を紹介できる</button>}
+          : <button className="submit-button" onClick={() => openIntroduction(selected)}>この人にオファーする</button>}
         {(selected.myIntroCount > 0 || (selected.mine && selected.introCount > 0)) && <div className="intro-notice">
           <span aria-hidden="true">✓</span>
           {selected.mine
-            ? <p><b>紹介が{selected.introCount}件届いています</b><small>紹介の中身は「届いた紹介」で読めます</small></p>
-            : <p><b>あなたはこの探しごとに紹介を{selected.myIntroCount}件送りました</b><small>中身は投稿者だけが読めます。ここには出ません</small></p>}
-          {selected.mine && <button type="button" onClick={() => { setSelected(null); setModal('responses'); }}>届いた紹介を見る</button>}
+            ? <p><b>オファーが{selected.introCount}件届いています</b><small>オファーの中身は「届いたオファー」で読めます</small></p>
+            : <p><b>あなたはこの探しごとにオファーを{selected.myIntroCount}件送りました</b><small>中身は投稿者だけが読めます。ここには出ません</small></p>}
+          {selected.mine && <button type="button" onClick={() => { setSelected(null); setModal('responses'); }}>届いたオファーを見る</button>}
         </div>}
 
         <RequestComments requestId={selected.id} onCountChange={(count) => setRequests((current) => current.map((item) => item.id === selected.id ? { ...item, commentCount: count } : item))} />

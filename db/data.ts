@@ -832,7 +832,7 @@ export async function getBoardData(user: SessionUser) {
     m.id AS authorId, m.avatar_key AS authorAvatarKey, m.avatar_version AS authorAvatarVersion,
     m.facebook_url AS authorFacebookUrl,
     (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id) AS introCount,
-    -- 自分が出した紹介の数。紹介は本人と投稿者にしか見えないので、
+    -- 自分が出したオファーの数。オファーは本人と投稿者にしか見えないので、
     -- やり取り欄では「出した／届いている」という事実だけを出す。
     (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id AND i.introducer_id = ?) AS myIntroCount,
     (SELECT COUNT(*) FROM request_comments c WHERE c.request_id = r.id) AS commentCount
@@ -1256,7 +1256,7 @@ export async function updateAttendancePerson(user: SessionUser, input: {
 async function requireFacePhoto(memberId: string) {
   const member = await env.DB.prepare('SELECT avatar_key AS avatarKey FROM members WHERE id = ?')
     .bind(memberId).first<{ avatarKey: string }>();
-  if (!member?.avatarKey) throw new Error('投稿・紹介の前に、プロフィールへ顔写真を登録してください。');
+  if (!member?.avatarKey) throw new Error('投稿・オファーの前に、プロフィールへ顔写真を登録してください。');
 }
 
 function avatarUrl(memberId: string, avatarKey: string, avatarVersion: number) {
@@ -1320,7 +1320,7 @@ async function sendIntroductionMessageNotice(partnerId: string, senderName: stri
     const payload = await buildPushPayload({
       data: {
         title: `${senderName}さんからメッセージが届きました`,
-        body: `「${requestTitle}」の紹介について`,
+        body: `「${requestTitle}」のオファーについて`,
         url: '/?intro=1',
         tag: 'introduction-message',
       },

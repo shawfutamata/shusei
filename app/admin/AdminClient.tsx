@@ -84,7 +84,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
     <dl className="admin-summary">
       <div><dt>会員</dt><dd>{summary.members}</dd><small>利用中 {summary.activeMembers}／停止 {summary.suspendedMembers}</small></div>
       <div><dt>探しごと</dt><dd>{summary.requests}</dd><small>募集中 {summary.openRequests}</small></div>
-      <div><dt>紹介</dt><dd>{summary.introductions}</dd><small>やり取り {summary.comments}</small></div>
+      <div><dt>オファー</dt><dd>{summary.introductions}</dd><small>やり取り {summary.comments}</small></div>
       <div><dt>掲載中の広告</dt><dd>{summary.liveAds}</dd><small>未読のご意見 {summary.newFeedback}</small></div>
     </dl>
 
@@ -107,19 +107,19 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       {!analytics ? <p className="viz-empty">集計しています…</p> : <>
         <section className="viz-card">
           <h2>動きの推移</h2>
-          <p className="viz-lead">この{analytics.days}日間で、会員・探しごと・紹介がどれだけ増えたか。</p>
+          <p className="viz-lead">この{analytics.days}日間で、会員・探しごと・オファーがどれだけ増えたか。</p>
           <TrendChart points={analytics.timeline} />
         </section>
 
         <section className="viz-card">
-          <h2>紹介が生まれているか</h2>
-          <p className="viz-lead">投稿が紹介につながった割合。<b>この数字がこのサービスの成否そのものです。</b></p>
+          <h2>オファーが生まれているか</h2>
+          <p className="viz-lead">投稿がオファーにつながった割合。<b>この数字がこのサービスの成否そのものです。</b></p>
           <dl className="viz-kpis">
-            <div><dt>紹介がついた投稿</dt><dd>{analytics.matching.hitRate}<small>%</small></dd>
+            <div><dt>オファーがついた投稿</dt><dd>{analytics.matching.hitRate}<small>%</small></dd>
               <small>{analytics.matching.requests}件中 {analytics.matching.withIntro}件</small></div>
-            <div><dt>届いた紹介</dt><dd>{analytics.matching.introductions}<small>件</small></dd>
+            <div><dt>届いたオファー</dt><dd>{analytics.matching.introductions}<small>件</small></dd>
               <small>1投稿あたり {analytics.matching.requests ? (analytics.matching.introductions / analytics.matching.requests).toFixed(1) : '0.0'}件</small></div>
-            <div><dt>最初の紹介まで</dt><dd>{analytics.matching.medianDaysToFirstIntro ?? '—'}<small>日</small></dd>
+            <div><dt>最初のオファーまで</dt><dd>{analytics.matching.medianDaysToFirstIntro ?? '—'}<small>日</small></dd>
               <small>まん中の人の日数</small></div>
             <div><dt>有料の会員</dt><dd>{analytics.paidMembers}<small>人</small></dd>
               <small>広告 {analytics.revenue.reduce((sum, row) => sum + row.adCount, 0)}件</small></div>
@@ -141,7 +141,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
             <p className="viz-lead">会員が多くても、探しごとが出ていない会場があります。顔を出す先を決めるのに使えます。</p>
             <BarList unit="人" rows={analytics.venues.slice(0, 8).map((row) => ({
               label: row.venue, value: row.members,
-              note: `探しごと ${row.requests}件 ／ 紹介 ${row.introductions}件`,
+              note: `探しごと ${row.requests}件 ／ オファー ${row.introductions}件`,
             }))} />
           </section>
         </div>
@@ -156,7 +156,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
 
         <section className="viz-card">
           <h2>動きが止まっている会員<span className="viz-count">{analytics.dormant.length}人</span></h2>
-          <p className="viz-lead">30日以上、投稿も紹介もやり取りもしていない方です。<b>この一覧が、次に声をかける相手です。</b></p>
+          <p className="viz-lead">30日以上、投稿もオファーもやり取りもしていない方です。<b>この一覧が、次に声をかける相手です。</b></p>
           <div className="viz-range">
             <a className="viz-export" href={`/api/admin/export?type=dormant&days=${range}`}>この一覧をCSVで書き出す</a>
           </div>
@@ -194,7 +194,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
         </p>
         <p className="admin-meta">
           <span>プラン {member.plan === 'standard' ? 'スタンダード' : '無料'}</span>
-          <span>紹介 {member.introCount}件</span>
+          <span>オファー {member.introCount}件</span>
           <span>投稿 {member.requestCount}件</span>
           <span>{member.createdAt.slice(0, 10).replace(/-/g, '/')} 登録</span>
         </p>
@@ -225,7 +225,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
         <p className="admin-meta">
           <span>{item.status === 'closed' ? '募集終了' : '募集中'}</span>
           <span>期限 {item.deadline.replace(/-/g, '/')}</span>
-          <span>紹介 {item.introCount}件</span>
+          <span>オファー {item.introCount}件</span>
           <span>やり取り {item.commentCount}件</span>
           <span>{item.createdAt.slice(0, 10).replace(/-/g, '/')} 投稿</span>
         </p>
@@ -290,7 +290,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       <div className="admin-confirm" role="dialog" aria-modal="true">
         <h2>この投稿を削除しますか</h2>
         <p><b>{confirming.title}</b></p>
-        <p>{confirming.authorName}さんの投稿です。届いた紹介 {confirming.introCount}件と、やり取り {confirming.commentCount}件も一緒に消えます。<b>元に戻せません。</b></p>
+        <p>{confirming.authorName}さんの投稿です。届いたオファー {confirming.introCount}件と、やり取り {confirming.commentCount}件も一緒に消えます。<b>元に戻せません。</b></p>
         <button className="is-danger" disabled={busy === confirming.id}
           onClick={() => { const target = confirming; setConfirming(null); act(target.id, `/api/admin/requests/${target.id}`, null, 'DELETE', '投稿を削除しました。'); }}>削除する</button>
         <button onClick={() => setConfirming(null)}>やめる</button>

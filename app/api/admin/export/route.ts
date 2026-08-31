@@ -18,13 +18,13 @@ export async function GET(request: Request) {
   } else if (type === 'requests') {
     const list = await adminRequests('', 1000);
     name = '探しごと';
-    rows = [['見出し', '種類', '状況', '期限', '投稿者', 'メール', '紹介', 'やり取り', '投稿日'],
+    rows = [['見出し', '種類', '状況', '期限', '投稿者', 'メール', 'オファー', 'やり取り', '投稿日'],
       ...list.map((row) => [row.title, row.category, row.status, row.deadline, row.authorName, row.authorEmail,
         row.introCount, row.commentCount, row.createdAt.slice(0, 10)])];
   } else {
     const list = await adminMembers('', 1000);
     name = '会員';
-    rows = [['名前', '会社', '会場', 'メール', '状態', 'プラン', '紹介', '投稿', '登録日'],
+    rows = [['名前', '会社', '会場', 'メール', '状態', 'プラン', 'オファー', '投稿', '登録日'],
       ...list.map((row) => [row.displayName, row.company, row.venue, row.email,
         row.canUse ? '利用中' : '停止中', row.plan, row.introCount, row.requestCount, row.createdAt.slice(0, 10)])];
   }
