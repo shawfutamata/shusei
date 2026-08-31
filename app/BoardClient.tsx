@@ -1643,7 +1643,6 @@ const planRows: { label: string; note?: string; soon?: boolean; value: (plan: Pl
   { label: '探しごとの投稿', value: (plan) => planPostLimit(plan) },
   { label: 'オファーを受け取る', note: '届いた中身を読む・返事する', value: (plan) => allows(plan, 'receive_introductions') },
   { label: 'オファーを送る', note: '自社で請け負う', value: (plan) => allows(plan, 'self_offer') },
-  { label: 'オファーの書き出し', soon: true, value: (plan) => allows(plan, 'export_introductions') },
 ];
 
 /** そのプラン単体で使えるか。期限や招待特典は絡めず、プランの素の力を見る。 */

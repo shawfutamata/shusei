@@ -45,17 +45,15 @@ export const features = [
   'comment',              // 探しごとでやり取りする
   'receive_introductions',// 届いたオファーを見る
   'post_request',         // 探しごとを投稿する（無料は月1件）
-  'member_search',        // 会員を業種・エリアで探す
-  'export_introductions', // 届いたオファーの書き出し
+  // 会員を業種・エリアで探す。**全プラン**（ここに無い＝どのプランでも使える）。
+  // 相手が見つからないと掲示板そのものが動かないので、入口として開けてある。
+  'member_search',
   'self_offer',           // 自社で請け負うオファー（＝受注）を送る
 ] as const;
 export type Feature = (typeof features)[number];
 
 // どのプランから使えるか。ここに無いものは全プランで使える。
 const requiredPlan: Partial<Record<Feature, Plan>> = {
-  // member_search（会員を業種・エリアで探す）は**全プラン**。
-  // 相手が見つからないと掲示板そのものが動かないので、ここは入口として開ける。
-  export_introductions: 'standard',
   // 届いたオファーの中身を読むのは有料。**送るのは無料のまま**。
   // 「まずGive」を止めたくないので、出すほうには関所を置かない。
   receive_introductions: 'standard',
