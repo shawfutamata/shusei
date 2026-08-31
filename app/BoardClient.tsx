@@ -1075,7 +1075,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           ))}
         </div>
       </section> : activeTab === 'mypage' ? <section className="profile-page" aria-labelledby="profile-page-title">
-        <header className="profile-page-heading"><p>MY PAGE</p><h1 id="profile-page-title">マイページ</h1><span>ランクカードを押すと特典が見られます。それぞれの中身は、下のボタンから開いてください。</span></header>
+        <header className="profile-page-heading"><p>MY PAGE</p><h1 id="profile-page-title">マイページ</h1></header>
         <button className={`rank-card rank-${stats.rank.toLowerCase()} rank-card-slim`} onClick={() => setModal('perks')} aria-label={`${stats.rank}会員ランクカード。特典を見る`}>
           <p className="rank-slim-top"><CrownMark /><b>{serviceName}</b></p>
           <RankCrest rank={stats.rank} />
