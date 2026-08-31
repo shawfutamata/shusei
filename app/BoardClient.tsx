@@ -1055,7 +1055,11 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     setSelected([...selected, value]);
   }
 
-  return (
+  // 画面に貼りつくもの（下のメニュー・モーダル・トースト）は app-shell の**外**に置く。
+  // app-shell は角を丸めるために overflow を持っていて、**iOS Safari では
+  // overflow を持つ親が position:fixed の子まで巻き込んで切り取る。** 中に入れると、
+  // メニューがページの下端に取り残されて、画面の底から浮いて見えていた。
+  return (<>
     <main className="app-shell" id="home">
       <header className="mobile-header">
         <button className="mobile-brand" onClick={showHome}><BrandMark /><b>{serviceName}</b></button>
@@ -1345,6 +1349,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </div>
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section>}
+    </main>
 
       <nav className="bottom-nav" aria-label="アプリメニュー">
         <button className={activeTab === 'home' ? 'active' : ''} onClick={showHome}><span><HomeIcon /></span><small>ホーム</small></button>
@@ -1639,8 +1644,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {cropSource && <div className="crop-backdrop"><section className="crop-dialog" role="dialog" aria-modal="true" aria-labelledby="crop-title"><header><button onClick={() => setCropSource('')}>キャンセル</button><div><h2 id="crop-title">顔写真を調整</h2><p>指で動かして、顔が中央に来るようにします</p></div><button className="crop-confirm" onClick={confirmCrop} disabled={cropping || !croppedArea}>{cropping ? '処理中' : '決定'}</button></header><div className="crop-stage"><Cropper image={cropSource} crop={crop} zoom={zoom} aspect={1} cropShape="round" showGrid={false} minZoom={1} maxZoom={4} zoomSpeed={0.35} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_, pixels) => setCroppedArea(pixels)} disableAutomaticStylesInjection /></div><div className="crop-controls"><label><span>顔の大きさ</span><input type="range" min="1" max="4" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} aria-label="顔写真の拡大率" /><b>{Math.round(zoom * 100)}%</b></label><p>写真を指で動かせます。丸の中がプロフィール写真に表示されます。</p></div></section></div>}
       {toast && <div className="toast" role="status">{toast}</div>}
-    </main>
-  );
+  </>);
 }
 
 /** 出稿する人に入れてもらう5つのうち、内容の4つ。期間はカレンダーで選ぶ。 */
