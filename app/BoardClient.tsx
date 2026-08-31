@@ -14,6 +14,7 @@ import { feedbackCategories } from './feedback-options';
 import { adDailyPrice, adTotalPrice, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
 import LegalLinks from './LegalLinks';
+import { InviteIcon, OfferIcon, PlanIcon, PostsIcon, ProfileIcon, ReceiptIcon, VoiceIcon } from './MyPageIcons';
 import type { BillingRecord } from './stripe';
 import PerkIcon from './PerkIcon';
 import { AD_MIN_DAYS, AD_ROTATE_MS, DEFAULT_PLACEMENT, adPlacements, placementName, placementSlots } from './ad-options';
@@ -839,13 +840,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
    */
   const mypageTiles = [
     // 数はタイルの右肩に出す。説明文にすると2行になって、タイルの高さが揃わない。
-    { key: 'offers', icon: '✉', label: 'オファー', badge: introCounts.received, note: introCounts.sent ? `出した ${introCounts.sent}件` : '', go: () => goTab('offers') },
-    { key: 'posts', icon: '▤', label: '自分の投稿', badge: myRequests.length, note: openPostCount ? `募集中 ${openPostCount}件` : '', go: () => goTab('posts') },
-    { key: 'plan', icon: '◈', label: 'プラン', badge: 0, note: planCatalog[stats.plan].name, go: () => goTab('plan') },
-    { key: 'invite', icon: '＋', label: '仲間を招待', badge: referral?.invitedCount ?? 0, note: '', go: () => goTab('invite') },
-    { key: 'receipts', icon: '¥', label: '支払い履歴', badge: receipts?.length ?? 0, note: '', go: () => goTab('receipts') },
-    { key: 'profile', icon: '☺', label: 'プロフィール', badge: 0, note: '', go: () => goTab('profile') },
-    { key: 'feedback', icon: '✎', label: 'ご意見', badge: 0, note: '', go: () => goTab('feedback') },
+    { key: 'offers', icon: <OfferIcon className="mypage-glyph" />, label: 'オファー', badge: introCounts.received, note: introCounts.sent ? `出した ${introCounts.sent}件` : '', go: () => goTab('offers') },
+    { key: 'posts', icon: <PostsIcon className="mypage-glyph" />, label: '自分の投稿', badge: myRequests.length, note: openPostCount ? `募集中 ${openPostCount}件` : '', go: () => goTab('posts') },
+    { key: 'plan', icon: <PlanIcon className="mypage-glyph" />, label: 'プラン', badge: 0, note: planCatalog[stats.plan].name, go: () => goTab('plan') },
+    { key: 'invite', icon: <InviteIcon className="mypage-glyph" />, label: '仲間を招待', badge: referral?.invitedCount ?? 0, note: '', go: () => goTab('invite') },
+    { key: 'receipts', icon: <ReceiptIcon className="mypage-glyph" />, label: '支払い履歴', badge: receipts?.length ?? 0, note: '', go: () => goTab('receipts') },
+    { key: 'profile', icon: <ProfileIcon className="mypage-glyph" />, label: 'プロフィール', badge: 0, note: '', go: () => goTab('profile') },
+    { key: 'feedback', icon: <VoiceIcon className="mypage-glyph" />, label: 'ご意見', badge: 0, note: '', go: () => goTab('feedback') },
   ];
 
   // 出しすぎない歯止め。枠を押さえるときは日ごとに3件までしか通さないので

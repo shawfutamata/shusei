@@ -1168,7 +1168,9 @@ body { font-weight:600; }
    狭い画面でも3列。日本語の見出しは短いので、3列でも読める。 */
 .mypage-grid { margin:14px 14px 0; display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
 .mypage-tile { min-height:104px; padding:14px 8px; display:grid; align-content:center; justify-items:center; gap:7px; border:1px solid #e0e6ef; border-radius:16px; background:#fff; box-shadow:0 5px 16px rgba(28,52,93,.05); cursor:pointer; }
-.mypage-tile-icon { width:44px; height:44px; position:relative; display:grid; place-items:center; border-radius:50%; background:#eef5ff; color:var(--blue); font-size:19px; line-height:1; }
+/* 業種アイコンと同じ「面で塗る」絵。丸い下地に、少し小さめに置く。 */
+.mypage-tile-icon { width:48px; height:48px; position:relative; display:grid; place-items:center; border-radius:50%; background:#eef5ff; color:var(--blue-dark); }
+.mypage-glyph { width:24px; height:24px; display:block; }
 /* 件数は右肩に。説明文にすると行が増えて、タイルの高さが揃わなくなる。 */
 .mypage-tile-icon i { position:absolute; top:-4px; right:-6px; min-width:19px; height:19px; padding:0 5px; display:grid; place-items:center; border-radius:99px; background:var(--accent); color:#fff; font-size:10px; font-style:normal; font-weight:900; line-height:1; }
 /* 見出しは1行のものと2行のものが混ざる。同じ高さの箱に入れて、
