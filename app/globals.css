@@ -1036,18 +1036,27 @@ body { font-weight:600; }
 .admin-side-foot div { min-width:0; }
 .admin-side-foot b { display:block; color:#e6ebf5; font-size:12px; font-weight:900; }
 .admin-side-foot small { display:block; overflow:hidden; color:#77819a; font-size:10px; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
-.admin { max-width:1180px; margin:0 auto; padding:26px 24px 60px; }
+/* 幅は決め打ちにしない。管理画面はPCの大きい画面で開くものなので、
+   真ん中に細く出すと、右も左も余ったまま一覧だけが縦に伸びる。 */
+.admin { min-width:0; padding:26px 28px 60px; }
 .admin-open-site { flex:0 0 auto; min-height:42px; padding:0 16px; border:0; border-radius:11px; background:#14161c; color:#fff; font-size:12px; font-weight:800; cursor:pointer; }
 @media(max-width:900px){
   .admin-shell { grid-template-columns:minmax(0,1fr); }
   .admin-side { position:static; height:auto; padding:12px; flex-direction:row; align-items:center; gap:12px; overflow-x:auto; }
-  .admin-brand { flex:0 0 auto; }
+  /* 帯を横に畳んだら、名前は要らない。同じ画面にいるのは分かっているので、
+     その幅はメニューに回す。印だけ残す。 */
+  .admin-brand { flex:0 0 auto; padding:0; }
+  .admin-brand b { display:none; }
   .admin-side-nav { flex:1; display:flex; gap:6px; }
   .admin-side-nav button { flex:0 0 auto; min-height:42px; }
   .admin-side-nav button span { display:none; }
   .admin-side-nav button.selected span { display:inline; }
   .admin-side-foot { display:none; }
   .admin { padding:18px 14px 60px; }
+  .admin-header { align-items:flex-start; }
+  .admin-header h1 { font-size:22px; }
+  .admin-header p { font-size:11px; }
+  .admin-open-site { min-height:38px; padding:0 12px; font-size:11px; }
 }
 .admin-header { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; }
 .admin-header { align-items:center; }
@@ -1068,16 +1077,16 @@ body { font-weight:600; }
 .admin-tabs button.selected { border-color:var(--navy); background:var(--navy); color:#fff; }
 .admin-tabs button.selected span { color:#c7d4e8; }
 
-.admin-search { margin-top:14px; display:flex; gap:8px; }
+.admin-search { max-width:620px; margin-top:14px; display:flex; gap:8px; }
 .admin-search input { flex:1; min-width:0; min-height:48px; padding:0 13px; border:1px solid #d7deea; border-radius:11px; background:#fff; color:var(--ink); font-size:14px; outline:none; }
 .admin-search input:focus { border-color:#54b8ee; box-shadow:0 0 0 3px #dbeafe; }
 .admin-search button { min-height:48px; padding:0 17px; flex:0 0 auto; border:0; border-radius:11px; background:var(--navy); color:#fff; font-size:13px; font-weight:800; cursor:pointer; }
 .admin-search .admin-clear { border:1px solid var(--line); background:#fff; color:#5b6b80; }
 
-.admin-list { margin:14px 0 0; padding:0; list-style:none; display:grid; gap:10px; }
+.admin-list { margin:14px 0 0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr)); gap:10px; align-items:start; }
 .admin-list li { padding:15px; display:grid; gap:8px; border:1px solid #e2e8f1; border-radius:14px; background:#fff; }
 .admin-list li.is-off { background:#fafbfd; }
-.admin-empty { color:#7b8ca4; font-size:13px; text-align:center; }
+.admin-empty { grid-column:1/-1; color:#7b8ca4; font-size:13px; text-align:center; }
 .admin-row-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
 .admin-row-top b { min-width:0; color:var(--navy); font-size:15px; line-height:1.5; }
 .admin-state { flex:0 0 auto; padding:3px 10px; border-radius:99px; background:#eef1f5; color:#71809a; font-size:10px; font-weight:900; white-space:nowrap; }
@@ -1130,13 +1139,23 @@ body { font-weight:600; }
 .viz-range button.selected { border-color:var(--navy); background:var(--navy); color:#fff; }
 .viz-export { margin-left:auto; flex:0 0 auto; padding:11px 15px; border:1px solid #cfdcee; border-radius:10px; background:#fff; color:#0f5fc4; font-size:12px; font-weight:800; text-decoration:none; }
 
-.admin-kpis { margin:0; padding:0; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.admin-kpis { margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fit,minmax(min(210px,100%),1fr)); gap:12px; }
 .admin-kpis div { padding:16px 18px; border:1px solid #e6eaf2; border-radius:15px; background:#fff; }
 .admin-kpis dt { color:#7b8ca4; font-size:12px; font-weight:800; }
 .admin-kpis dd { margin:8px 0 0; color:#14161c; font-size:29px; font-weight:900; line-height:1; letter-spacing:-.02em; }
 .admin-kpis dd small { margin-left:3px; color:#93a0b3; font-size:13px; font-weight:800; }
 .admin-kpis > div > small { display:block; margin-top:8px; color:#93a0b3; font-size:11px; font-weight:700; }
-@media(max-width:780px){ .admin-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+/* スマホでは2枚ずつ。1枚ずつ縦に積むと、グラフに着くまでが遠い。
+   この上書きは **.admin-kpis の本体より後ろ**に置くこと。CSSは後勝ちなので、
+   前に置くと効かない（一度それで直っていなかった）。 */
+@media(max-width:620px){
+  .admin-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+  .admin-kpis div { padding:13px 14px; }
+  .admin-kpis dt { font-size:11px; }
+  .admin-kpis dd { margin-top:6px; font-size:24px; }
+  .admin-kpis dd small { font-size:11px; }
+  .admin-kpis > div > small { margin-top:6px; font-size:10px; }
+}
 
 .admin-columns { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:12px; align-items:start; }
 .admin-aside { display:grid; gap:12px; }
