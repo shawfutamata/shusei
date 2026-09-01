@@ -155,22 +155,39 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .post-as-ad-picks button.selected { border-color:var(--accent); background:#fff; }
 .post-as-ad-picks button.selected b { color:var(--accent-ink); }
 
-/* 初めての人への案内。5画面ぶん。 */
-.tutorial-backdrop { position:fixed; inset:0; z-index:130; display:grid; place-items:end center; padding:16px; background:rgba(15,32,69,.55); }
-.tutorial { width:min(100%,440px); padding:22px 20px calc(22px + env(safe-area-inset-bottom)); border-radius:22px; background:#fff; animation:hero-in .25s ease; }
-.tutorial-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-.tutorial-count { color:#93a0b3; font-size:11px; font-weight:900; }
-.tutorial-skip { min-height:40px; padding:0 12px; border:0; border-radius:10px; background:transparent; color:#7b8ca4; font-size:12px; font-weight:800; cursor:pointer; }
-.tutorial-eyebrow { margin:12px 0 0; color:var(--blue); font-size:11px; font-weight:900; letter-spacing:.14em; }
-.tutorial h2 { margin:7px 0 0; color:var(--ink); font-size:21px; line-height:1.45; letter-spacing:-.02em; }
-.tutorial-body { margin:11px 0 0; color:#4c5c73; font-size:13px; font-weight:600; line-height:1.9; }
-.tutorial-note { margin:11px 0 0; padding:10px 12px; border-radius:11px; background:#f2f7fe; color:#3f5673; font-size:12px; font-weight:800; line-height:1.7; }
-.tutorial-dots { margin:18px 0 0; display:flex; justify-content:center; gap:6px; }
-.tutorial-dots i { width:7px; height:7px; border-radius:99px; background:#d7dfea; }
-.tutorial-dots i.on { width:20px; background:var(--blue); }
-.tutorial-actions { margin-top:18px; display:flex; gap:9px; }
-.tutorial-back { min-height:52px; padding:0 18px; flex:0 0 auto; border:1px solid var(--line); border-radius:13px; background:#fff; color:#5b6b80; font-size:14px; font-weight:800; cursor:pointer; }
-.tutorial-next { flex:1; min-height:52px; border:0; border-radius:13px; background:var(--blue); color:#fff; font-size:15px; font-weight:900; cursor:pointer; }
+/* 初めての人への案内。**押す場所そのものを指す。**
+   まわりを暗くするのは、穴あきの箱に大きな影を広げて作る。
+   要素を切り抜くより素直で、どの端末でも同じに出る。 */
+.tut-layer { position:fixed; inset:0; z-index:130; }
+.tut-dim { position:absolute; inset:0; background:rgba(12,24,48,.62); }
+.tut-hole { position:fixed; border-radius:14px; box-shadow:0 0 0 9999px rgba(12,24,48,.62), 0 0 0 3px #fff inset; animation:tut-pulse 1.6s ease-in-out infinite; }
+@keyframes tut-pulse { 0%,100% { box-shadow:0 0 0 9999px rgba(12,24,48,.62), 0 0 0 3px #fff inset; } 50% { box-shadow:0 0 0 9999px rgba(12,24,48,.62), 0 0 0 6px rgba(255,255,255,.65) inset; } }
+/* 「ここをタップ」。案内の中に、目印へ向く矢印と一緒に出す。
+   目印の外に置くと、案内の反対側が画面の端になって隠れることがある。 */
+.tut-hint { margin:12px 0 0; padding:9px 12px; display:flex; align-items:center; gap:8px; border-radius:11px; background:#eaf3ff; color:var(--blue); font-size:12px; font-weight:900; }
+.tut-hint i { font-size:15px; font-style:normal; line-height:1; }
+
+.tut-card { position:fixed; left:50%; width:min(calc(100% - 32px),420px); margin-left:max(calc(-50vw + 16px),-210px);
+  padding:18px 18px 20px; display:flex; flex-direction:column; overflow:auto; border-radius:18px; background:#fff; animation:hero-in .22s ease; }
+.tut-card .tut-body { overflow:auto; }
+.tut-actions { flex:0 0 auto; }
+.tut-card.is-center { margin-left:0; transform:translate(-50%,-50%); }
+/* 案内から目印へ向く矢印。 */
+.tut-card::before { content:''; position:absolute; left:var(--arrow-x,50%); margin-left:-8px; border:8px solid transparent; }
+.tut-card.points-up::before { bottom:100%; border-bottom-color:#fff; }
+.tut-card.points-down::before { top:100%; border-top-color:#fff; }
+.tut-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.tut-count { color:#93a0b3; font-size:11px; font-weight:900; }
+.tut-skip { min-height:40px; padding:0 12px; border:0; border-radius:10px; background:transparent; color:#7b8ca4; font-size:12px; font-weight:800; cursor:pointer; }
+.tut-eyebrow { margin:8px 0 0; color:var(--blue); font-size:11px; font-weight:900; letter-spacing:.14em; }
+.tut-card h2 { margin:6px 0 0; color:var(--ink); font-size:19px; line-height:1.45; letter-spacing:-.02em; }
+.tut-body { margin:9px 0 0; color:#4c5c73; font-size:12px; font-weight:600; line-height:1.85; }
+.tut-dots { margin:15px 0 0; display:flex; justify-content:center; gap:6px; }
+.tut-dots i { width:7px; height:7px; border-radius:99px; background:#d7dfea; }
+.tut-dots i.on { width:20px; background:var(--blue); }
+.tut-actions { margin-top:14px; display:flex; gap:9px; }
+.tut-back { min-height:48px; padding:0 18px; flex:0 0 auto; border:1px solid var(--line); border-radius:12px; background:#fff; color:#5b6b80; font-size:14px; font-weight:800; cursor:pointer; }
+.tut-next { flex:1; min-height:48px; border:0; border-radius:12px; background:var(--blue); color:#fff; font-size:15px; font-weight:900; cursor:pointer; }
 .mypage-howto { width:100%; min-height:48px; margin-top:18px; border:1px solid #cfdcee; border-radius:12px; background:#f2f7fe; color:var(--blue); font-size:13px; font-weight:800; cursor:pointer; }
 .mypage-howto + .mypage-signout { margin-top:9px; }
 .mypage-signout { width:100%; min-height:48px; margin-top:18px; border:1px solid var(--line); border-radius:12px; background:#fff; color:#6b7a90; font-size:13px; font-weight:800; cursor:pointer; }

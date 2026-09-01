@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 /**
- * 初めて来た人への案内。**5画面で、押す場所まで見せる。**
+ * 初めて来た人への案内。**実際の画面の、押す場所そのものを指す。**
  *
- * 掲示板は「見に来ただけ」だと何も起きない。誰かが探しごとを出し、
- * 誰かがオファーを返して、はじめて回る。順番に触ってもらうために、
- * 何をすればよいかを最初に一度だけ出す。
+ * 文章だけの案内にすると、読み終わってから「で、どこ？」になる。
+ * まわりを暗くして、押してほしいところだけを明るく残し、矢印で指す。
+ *
+ * 押す場所は「見つかったものを使う」。画面の作りが変わって目印が
+ * 消えても、案内が壊れて出せなくなるより、真ん中に出すほうがよい。
  *
  * 出したかどうかは端末側（localStorage）に持つ。会員の情報ではないし、
  * 保存できない設定の端末でも、毎回出るだけで壊れないため。
@@ -22,60 +24,131 @@ export function markTutorialSeen() {
   try { window.localStorage.setItem(TUTORIAL_KEY, 'done'); } catch { /* 保存できなくても案内は出せる */ }
 }
 
-type Step = { eyebrow: string; title: string; body: string; note?: string };
+type Step = {
+  eyebrow: string;
+  title: string;
+  body: string;
+  /** 指したい場所。**先に見つかったものを使う。** 上から順に試す。 */
+  targets: string[];
+  /** 明るく残した場所に添える一言。 */
+  click: string;
+};
 
 const steps: Step[] = [
   {
     eyebrow: 'STEP 1', title: 'プロフィールを登録する',
-    body: '顔写真とお仕事の内容を登録します。誰からのオファーなのかが分かることが、安心してやり取りできる前提なので、顔写真は必須にしています。',
-    note: '登録しないと、投稿とオファーができません。',
+    body: '顔写真とお仕事の内容を登録します。誰からのオファーなのかが分かることが、安心してやり取りできる前提なので、顔写真は必須です。登録しないと投稿とオファーができません。',
+    targets: ['.header-profile'], click: 'ここをタップ',
   },
   {
     eyebrow: 'STEP 2', title: '仕事の掲示板を見る',
     body: '仲間が出している「こんな人を探しています」が並びます。業種・エリア・予算・会場で絞り込めるので、自分に関係のあるものだけを見られます。',
+    targets: ['.bottom-nav button:nth-child(2)'], click: 'ここをタップ',
   },
   {
     eyebrow: 'STEP 3', title: 'オファーを送る',
-    body: '気になる探しごとには2通りの返し方があります。自社で請け負うなら「オファー」、知り合いをつなぐなら「リファラル」。どちらでも構いません。',
-    note: 'リファラル（人をつなぐだけ）は、どのプランでも無料です。',
+    body: '気になる探しごとを開くと、2通りの返し方があります。自社で請け負うなら「オファー」、知り合いをつなぐなら「リファラル」。リファラルはどのプランでも無料です。',
+    targets: ['.home-shelf .home-request-card', '.home-shelf', '.bottom-nav button:nth-child(2)'],
+    click: 'カードを開くと選べます',
   },
   {
     eyebrow: 'STEP 4', title: '自分の探しごとを投稿する',
-    body: '抱えている案件や、困っていることを投稿します。画面の下、まん中の「＋」から。仲間から直接オファーが届きます。',
+    body: '抱えている案件や、困っていることを投稿します。関連する業種の仲間に届き、そのままオファーが返ってきます。',
+    targets: ['.bottom-nav .nav-post'], click: 'ここをタップ',
   },
   {
     eyebrow: 'STEP 5', title: '広告で見てもらう数を増やす',
-    body: '画面上部のバナーや、掲示板の上位に広告を出せます。日数分のお支払いが1回だけで、自動更新はありません。もっと多くの仲間に届けたいときに。',
+    body: '画面上部のバナーや、掲示板の上位に広告を出せます。掲載日数分のお支払いが1回だけで、自動更新はありません。もっと多くの仲間に届けたいときに。',
+    targets: ['.bottom-nav button:nth-child(4)'], click: 'ここをタップ',
   },
 ];
 
+type Spot = { top: number; left: number; width: number; height: number };
+
+const PAD = 8;
+
 export default function Tutorial({ onClose, onFinish }: { onClose: () => void; onFinish: () => void }) {
   const [index, setIndex] = useState(0);
+  const [spot, setSpot] = useState<Spot | null>(null);
   const step = steps[index];
   const last = index === steps.length - 1;
 
+  const locate = useCallback(() => {
+    for (const selector of steps[index].targets) {
+      const el = document.querySelector(selector);
+      if (!el) continue;
+      const box = el.getBoundingClientRect();
+      if (box.width < 1 || box.height < 1) continue;
+      setSpot({ top: box.top - PAD, left: box.left - PAD, width: box.width + PAD * 2, height: box.height + PAD * 2 });
+      return;
+    }
+    // 見つからなければ指さない。案内そのものは出す。
+    setSpot(null);
+  }, [index]);
+
+  useEffect(() => {
+    // 画面の外にあるものは、先に見えるところへ寄せてから測る。
+    for (const selector of steps[index].targets) {
+      const el = document.querySelector(selector);
+      if (!el) continue;
+      const box = el.getBoundingClientRect();
+      if (box.top < 0 || box.bottom > window.innerHeight) el.scrollIntoView({ block: 'center' });
+      break;
+    }
+    const timer = window.setTimeout(locate, 260);
+    window.addEventListener('resize', locate);
+    window.addEventListener('scroll', locate, true);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('resize', locate);
+      window.removeEventListener('scroll', locate, true);
+    };
+  }, [index, locate]);
+
   function close() { markTutorialSeen(); onClose(); }
 
-  return <div className="tutorial-backdrop" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
-    <section className="tutorial">
-      <div className="tutorial-top">
-        <span className="tutorial-count">{index + 1} / {steps.length}</span>
+  // 案内は、目印の**空いているほう**に置く。半分より上か下かで決めると、
+  // 目印が大きいときに置き場所が足りず、ボタンが画面の外へ出てしまう。
+  // 置ける高さも渡して、あふれる分は案内の中でスクロールさせる。
+  const view = typeof window === 'undefined' ? 0 : window.innerHeight;
+  const spaceBelow = spot ? view - (spot.top + spot.height) : 0;
+  const spaceAbove = spot ? spot.top : 0;
+  const below = Boolean(spot) && spaceBelow >= spaceAbove;
+  const room = Math.max(spaceBelow, spaceAbove) - 26;
+  // 矢印は目印の真ん中を指す。案内は画面の中央に出るので、そのままだと
+  // 端にある目印（右上のプロフィールなど）に対して見当違いの所を指す。
+  const wide = typeof window === 'undefined' ? 0 : window.innerWidth;
+  const cardWidth = Math.min(wide - 32, 420);
+  const cardLeft = (wide - cardWidth) / 2;
+  const arrowX = spot ? Math.min(Math.max(spot.left + spot.width / 2 - cardLeft, 22), cardWidth - 22) : cardWidth / 2;
+  const cardStyle: React.CSSProperties = spot
+    ? below
+      ? { top: spot.top + spot.height + 14, maxHeight: room, ['--arrow-x' as string]: `${arrowX}px` }
+      : { bottom: view - spot.top + 14, maxHeight: room, ['--arrow-x' as string]: `${arrowX}px` }
+    : { top: '50%', transform: 'translateY(-50%)', maxHeight: view - 32 };
+
+  return <div className="tut-layer" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
+    {spot
+      ? <div className="tut-hole" style={{ top: spot.top, left: spot.left, width: spot.width, height: spot.height }} />
+      : <div className="tut-dim" />}
+
+    <section className={`tut-card${spot ? (below ? ' points-up' : ' points-down') : ' is-center'}`} style={cardStyle}>
+      <div className="tut-top">
+        <span className="tut-count">{index + 1} / {steps.length}</span>
         {/* いつでも閉じられるようにする。読ませきる作りにはしない。 */}
-        <button className="tutorial-skip" onClick={close}>閉じる</button>
+        <button className="tut-skip" onClick={close}>閉じる</button>
       </div>
-
-      <p className="tutorial-eyebrow">{step.eyebrow}</p>
+      <p className="tut-eyebrow">{step.eyebrow}</p>
       <h2 id="tutorial-title">{step.title}</h2>
-      <p className="tutorial-body">{step.body}</p>
-      {step.note && <p className="tutorial-note">{step.note}</p>}
-
-      <div className="tutorial-dots" aria-hidden="true">
+      <p className="tut-body">{step.body}</p>
+      {/* 明るく残したところを指す。矢印は、案内から目印へ向く向きに合わせる。 */}
+      {spot && <p className="tut-hint"><i aria-hidden="true">{below ? '↑' : '↓'}</i>{step.click}</p>}
+      <div className="tut-dots" aria-hidden="true">
         {steps.map((entry, position) => <i key={entry.title} className={position === index ? 'on' : ''} />)}
       </div>
-
-      <div className="tutorial-actions">
-        {index > 0 && <button className="tutorial-back" onClick={() => setIndex(index - 1)}>戻る</button>}
-        <button className="tutorial-next" onClick={() => last ? (markTutorialSeen(), onFinish()) : setIndex(index + 1)}>
+      <div className="tut-actions">
+        {index > 0 && <button className="tut-back" onClick={() => setIndex(index - 1)}>戻る</button>}
+        <button className="tut-next" onClick={() => last ? (markTutorialSeen(), onFinish()) : setIndex(index + 1)}>
           {last ? 'プロフィールを登録する' : '次へ'}
         </button>
       </div>
