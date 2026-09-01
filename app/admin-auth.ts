@@ -1,5 +1,9 @@
-import { env } from 'cloudflare:workers';
 import { getAppAccess } from './app-auth';
+import { isAdminEmail } from './admin-emails';
+
+// 誰が運営かの判定は app/admin-emails.ts が持つ。**唯一の情報源。**
+// ここから import が輪にならないよう、判定だけを外に出してある。
+export { adminEmails, isAdminEmail } from './admin-emails';
 
 /**
  * 管理画面に入れる人かどうか。
@@ -9,22 +13,6 @@ import { getAppAccess } from './app-auth';
  *
  * 入口は会員と同じGoogleログイン。管理用のパスワードは作らない。
  * 増やせば、それだけ漏れる口が増えるため。
- */
-export function adminEmails() {
-  return String(env.ADMIN_EMAILS || '')
-    .split(',')
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-export function isAdminEmail(email: string) {
-  const allowed = adminEmails();
-  return allowed.length > 0 && allowed.includes(email.trim().toLowerCase());
-}
-
-/**
- * 管理画面とその操作の入口。**すべての管理APIの先頭で必ず呼ぶ。**
- * 画面を出し分けるだけでは、URLを直接叩かれたときに守れない。
  */
 export async function getAdmin() {
   const access = await getAppAccess();

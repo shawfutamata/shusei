@@ -933,7 +933,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     // 数はタイルの右肩に出す。説明文にすると2行になって、タイルの高さが揃わない。
     { key: 'offers', icon: <OfferIcon className="mypage-glyph" />, label: 'オファー', badge: introCounts.received, note: introCounts.sent ? `出した ${introCounts.sent}件` : '', go: () => goTab('offers') },
     { key: 'posts', icon: <PostsIcon className="mypage-glyph" />, label: '自分の投稿', badge: myRequests.length, note: openPostCount ? `募集中 ${openPostCount}件` : '', go: () => goTab('posts') },
-    { key: 'plan', icon: <PlanIcon className="mypage-glyph" />, label: 'プラン', badge: 0, note: planCatalog[stats.plan].name, go: () => goTab('plan') },
+    { key: 'plan', icon: <PlanIcon className="mypage-glyph" />, label: 'プラン', badge: 0, note: planName(stats), go: () => goTab('plan') },
     { key: 'receipts', icon: <ReceiptIcon className="mypage-glyph" />, label: '支払い履歴', badge: receipts?.length ?? 0, note: '', go: () => goTab('receipts') },
     { key: 'profile', icon: <ProfileIcon className="mypage-glyph" />, label: 'プロフィール', badge: 0, note: '', go: () => goTab('profile') },
     { key: 'feedback', icon: <VoiceIcon className="mypage-glyph" />, label: 'ご意見', badge: 0, note: '', go: () => goTab('feedback') },
@@ -1190,7 +1190,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <header className="profile-page-heading"><p>PLAN</p><h1 id="plan-title">プラン</h1><span>今のプランと、切り替え・お支払いの手続きです。</span></header>
         <details className={`plan-card is-${stats.plan}`}>
           <summary>
-            <span className="plan-now"><small>プラン</small><b>{planCatalog[stats.plan].name}</b></span>
+            <span className="plan-now"><small>プラン</small><b>{planName(stats)}</b></span>
             <span className="plan-usage">今月の投稿 {stats.requestsThisMonth}{stats.requestLimit === UNLIMITED ? '' : ` / ${stats.requestLimit}`}件</span>
             <i aria-hidden="true">▾</i>
           </summary>
@@ -1210,7 +1210,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 {/* 3つに分ける。読み込めなかっただけの人に「準備中です」と
                     言ってしまうと、こちらの設定漏れだと思われるうえ、
                     直し方（開き直す）も伝わらない。 */}
-                {plan !== 'free' && plan !== stats.contractedPlan && (referral?.billing?.ready
+                {/* 運営の特典で開いている人には、購入のボタンを出さない。
+                    押しても買うものが無いうえ、特典が効いていないように見える。 */}
+                {plan !== 'free' && plan !== stats.contractedPlan && !stats.adminPlan && (referral?.billing?.ready
                   ? <button className="plan-pick" onClick={() => startBilling(plan)} disabled={busy}>このプランにする</button>
                   : referralFailed
                     ? <p className="plan-not-ready">お支払いの情報を読み込めませんでした。画面を開き直してもう一度お試しください。</p>
@@ -1220,7 +1222,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               </li>)}
             </ul>
             <PlanTable current={stats.plan} />
-            {referral?.billing?.hasCustomer && <button className="plan-manage" onClick={openBillingPortal} disabled={busy}>お支払い・解約の手続き</button>}
+            {stats.adminPlan && <p className="plan-until">運営のアカウントとして、お支払いなしでスタンダードの機能をお使いいただけます。設定は Cloudflare の ADMIN_EMAILS です。</p>}
+            {referral?.billing?.hasCustomer && !stats.adminPlan && <button className="plan-manage" onClick={openBillingPortal} disabled={busy}>お支払い・解約の手続き</button>}
             <p className="plan-note">仲間を1人招待してご利用が{referral?.qualifyDays ?? 30}日続くと、{stats.contractedPlan === 'free' ? <><b>自動でスタンダードが1ヶ月使えるようになります</b>（お手続きは要りません）</> : <><b>次回の請求から1ヶ月分自動で引かれます</b></>}。{referral?.billing?.ready ? '有料プランへのお申し込みは、上のボタンからいつでもどうぞ。解約もいつでもできます。' : ''}</p>
           </div>
         </details>
@@ -1923,6 +1926,14 @@ function HomeRequestCard({ need, favorite, onOpen, onFavorite }: { need: BoardRe
 
 function Modal({ title, lead, onClose, children }: { title: string; lead: string; onClose: () => void; children: React.ReactNode }) { return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div className="modal-top"><span className="sheet-handle" /><button className="modal-close" onClick={onClose} aria-label="閉じる">×</button></div><h2 id="modal-title">{title}</h2><p className="modal-lead">{lead}</p>{children}</section></div>; }
 function Avatar({ src, name, className }: { src: string; name: string; className: string }) { return <span className={className}>{src ? <img src={src} alt={`${name}さんの顔写真`} /> : <span>{name.slice(0, 1)}</span>}</span>; }
+/**
+ * 画面に出すプラン名。**管理画面の一覧と同じ言い方にそろえる。**
+ * 別々に書くと、また片方だけ直して食い違う。
+ */
+function planName(stats: { plan: Plan; adminPlan: boolean }) {
+  return stats.adminPlan ? `${planCatalog[stats.plan].name}（管理者特典）` : planCatalog[stats.plan].name;
+}
+
 function isOpenRequest(need: BoardRequest) {
   return need.status === 'open' && new Date(`${need.deadline}T23:59:59+09:00`).getTime() >= Date.now();
 }

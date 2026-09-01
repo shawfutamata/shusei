@@ -254,7 +254,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
           <span>{member.company || '会社名なし'}</span><span>{member.venue}</span><span>{member.email}</span>
         </p>
         <p className="admin-meta">
-          <span>プラン {member.plan === 'standard' ? 'スタンダード' : '無料'}</span>
+          <span>プラン {member.plan === 'standard' ? 'スタンダード' : '無料'}{member.adminPlan && '（管理者特典）'}</span>
           <span>オファー {member.introCount}件</span>
           <span>投稿 {member.requestCount}件</span>
           <span>{member.createdAt.slice(0, 10).replace(/-/g, '/')} 登録</span>

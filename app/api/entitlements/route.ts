@@ -14,6 +14,9 @@ export async function GET() {
   return NextResponse.json({
     plan: plan.activePlan,
     paid: plan.paid,
+    // 契約ではなく運営の特典で開いているか。アプリ側も「（管理者特典）」と
+    // 書けるように返す。金額には触れないので、審査の線は越えない。
+    adminPlan: plan.adminPlan,
     requestsThisMonth: plan.requestsThisMonth,
     requestLimit: plan.requestLimit,
     requestsLeft: plan.requestsLeft,

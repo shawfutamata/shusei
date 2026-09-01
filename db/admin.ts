@@ -4,6 +4,7 @@
 // 管理者かどうかを見ていない。API側で一度だけ確かめる作りにしてある。
 import { env } from 'cloudflare:workers';
 import { ensureDatabase } from './data';
+import { effectivePlan, isPlanOverridden } from '../app/effective-plan';
 
 export type AdminSummary = {
   members: number; activeMembers: number; suspendedMembers: number;
@@ -14,7 +15,17 @@ export type AdminSummary = {
 
 export type AdminMember = {
   id: string; email: string; displayName: string; company: string; venue: string;
-  status: string; plan: string; introCount: number; requestCount: number;
+  status: string;
+  /**
+   * **実効プラン。** `members.plan` の列をそのまま出さない。
+   * 列は「契約したもの」でしかなく、期限切れ・招待特典・運営の特典が
+   * 乗っていない。列を出していたせいで、同じ人が管理画面では「無料」、
+   * マイページでは「スタンダード」と食い違っていた（app/effective-plan.ts）。
+   */
+  plan: string;
+  /** 契約ではなく運営の特典で開いているか。一覧に理由を出すために使う。 */
+  adminPlan: boolean;
+  introCount: number; requestCount: number;
   createdAt: string; canUse: boolean;
 };
 
@@ -70,11 +81,24 @@ export async function adminMembers(keyword = '', limit = 200): Promise<AdminMemb
         OR m.email LIKE ?1 ESCAPE '\\' OR m.venue LIKE ?1 ESCAPE '\\')`
     : '';
   const statement = env.DB.prepare(`SELECT m.id, m.email, m.display_name AS displayName, m.company, m.venue,
-    m.membership_status AS status, m.plan, m.intro_count AS introCount, m.created_at AS createdAt,
+    m.membership_status AS status, m.intro_count AS introCount, m.created_at AS createdAt,
+    m.plan AS storedPlan, m.plan_period_end AS planPeriodEnd,
+    m.bonus_plan AS bonusPlan, m.bonus_period_end AS bonusPeriodEnd,
     (SELECT COUNT(*) FROM requests r WHERE r.author_id = m.id) AS requestCount
     FROM members m ${where} ORDER BY m.created_at DESC LIMIT ${Number(limit)}`);
-  const rows = await (term ? statement.bind(like) : statement).all<Omit<AdminMember, 'canUse'>>();
-  return rows.results.map((row) => ({ ...row, canUse: row.status === 'active' || row.status === 'past_due' }));
+  const rows = await (term ? statement.bind(like) : statement)
+    .all<Omit<AdminMember, 'canUse' | 'plan' | 'adminPlan'> & { storedPlan: string; planPeriodEnd: string; bonusPlan: string; bonusPeriodEnd: string }>();
+  const now = new Date();
+  return rows.results.map(({ storedPlan, planPeriodEnd, bonusPlan, bonusPeriodEnd, ...row }) => ({
+    ...row,
+    // マイページとまったく同じ関数で出す。ここを別々に書くと、また食い違う。
+    plan: effectivePlan(row.email, {
+      plan: storedPlan === 'standard' ? 'standard' : 'free', planPeriodEnd: planPeriodEnd ?? '',
+      bonusPlan: bonusPlan === 'standard' ? 'standard' : 'free', bonusPeriodEnd: bonusPeriodEnd ?? '',
+    }, now),
+    adminPlan: isPlanOverridden(row.email),
+    canUse: row.status === 'active' || row.status === 'past_due',
+  }));
 }
 
 /**

@@ -20,12 +20,11 @@ declare namespace Cloudflare {
     STRIPE_PRICE_STANDARD_YEAR: string;
     // トップバナーの出稿枠（1回きりの支払い）。未設定なら出稿の申し込みが出ない。
     STRIPE_PRICE_AD_SLOT: string;
-    // 管理画面に入れる人のメールアドレス（カンマ区切り）。
-    // **空なら誰も入れない。** 設定を忘れたときに素通りさせないため。
+    // 運営のメールアドレス（カンマ区切り）。**これが唯一の情報源。**
+    // 管理画面に入れる人であり、課金なしでスタンダード相当を使える人であり、
+    // ランクが最上位で固定される人でもある（app/admin-emails.ts）。
+    // **空なら誰も当てはまらない。** 設定を忘れたときに素通りさせないため。
     ADMIN_EMAILS: string;
-    // 動作確認用のマスターアカウント（カンマ区切り）。ランク最上位・プラン最上位
-    // として扱う。管理画面の権限（ADMIN_EMAILS）とは別物。app/master-accounts.ts。
-    MASTER_EMAILS: string;
   }
 }
 
