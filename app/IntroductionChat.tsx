@@ -11,8 +11,13 @@ import type { IntroductionMessage } from '@/db/data';
  * 名前や連絡の段取りが出るところなので、外に見せない。守っているのはサーバー
  * 側（`introductionPartner()`）で、この画面はその結果を映しているだけ。
  */
-export default function IntroductionChat({ introductionId, partnerName }: {
+export default function IntroductionChat({ introductionId, partnerName, heading = true }: {
   introductionId: string; partnerName: string;
+  /**
+   * 上の見出しを出すか。**外側がもう相手の名前を出しているときは消す。**
+   * 受け箱の中では要るが、メッセージから開いたときはモーダルの見出しと重なる。
+   */
+  heading?: boolean;
 }) {
   const [messages, setMessages] = useState<IntroductionMessage[] | null>(null);
   const [text, setText] = useState('');
@@ -65,10 +70,10 @@ export default function IntroductionChat({ introductionId, partnerName }: {
   }
 
   return <section className="intro-chat" aria-label={`${partnerName}さんとのやり取り`}>
-    <p className="intro-chat-head">
+    {heading && <p className="intro-chat-head">
       <b>{partnerName}さんとやり取りする</b>
       <small>このやり取りは、おふたりだけが読めます。</small>
-    </p>
+    </p>}
 
     {messages === null ? <p className="intro-chat-loading">読み込んでいます…</p>
       : <ol className="intro-chat-list">

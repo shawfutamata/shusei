@@ -4,7 +4,7 @@ import { ChangeEvent, CSSProperties, FormEvent, useCallback, useEffect, useMemo,
 import Cropper, { type Area } from 'react-easy-crop';
 import type { AdSlot, BoardRequest, MemberProfile, MemberStats, MessageThread, ReferralSummary } from '@/db/data';
 import ReceivedIntroductions from './ReceivedIntroductions';
-import RequestThread from './RequestThread';
+import IntroductionChat from './IntroductionChat';
 import FacebookLink from './FacebookLink';
 import { areaMatchesRegion, getRegion, prefectures, regions, requestAreaOptions, type Prefecture } from './profile-options';
 import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-options';
@@ -199,9 +199,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [threads, setThreads] = useState<MessageThread[]>([]);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [threadsLoading, setThreadsLoading] = useState(true);
-  /** メッセージから開いたやり取り。相手の会員IDと、見出しに出す名前。 */
-  const [openThreadWith, setOpenThreadWith] = useState('');
-  const [threadPartner, setThreadPartner] = useState('');
+  /** メッセージの一覧から開いたやり取り。ここで直に読み書きする。 */
+  const [openChat, setOpenChat] = useState<MessageThread | null>(null);
   /** お支払いの情報を読み込めなかったか。「準備中」と混ぜないための印。 */
   const [referralFailed, setReferralFailed] = useState(false);
   /** 中身を見せていない（＝プランが足りない）届いたオファーの数。 */
@@ -999,23 +998,15 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   }
 
   /**
-   * 一覧から、そのやり取りの場所へ直に飛ぶ。
+   * 一覧から、そのやり取りをその場で開く。
    *
-   * やり取りは3か所に分かれて置いてあるので、行き先も3通り。**会員には
-   * その違いを見せない。** 押したら続きが読める、という1つの動きにする。
+   * **探しごとの詳細へは飛ばさない。** 見たいのは相手との話であって、
+   * 案件の説明ではない。押したら会話がそのまま出る、という1つの動きにする。
    */
   function openThread(thread: MessageThread) {
     markRead(thread.key);
-    if (thread.kind === 'request') {
-      const need = requests.find((item) => item.id === thread.requestId);
-      if (!need) return showToast('この探しごとは、もう見られなくなっています。');
-      setOpenThreadWith(thread.threadWith);
-      setThreadPartner(thread.partnerName);
-      setSelected(need);
-      return setModal('thread');
-    }
-    // オファーのやり取りは受け箱の中にある。そこを開く。
-    setModal('responses');
+    setOpenChat(thread);
+    setModal('thread');
   }
 
   function showSearch(industry = industryFilter) {
@@ -1273,9 +1264,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </div>
       </section> : activeTab === 'messages' ? <section className="profile-page messages-page" aria-labelledby="messages-title">
         <header className="profile-page-heading"><p>MESSAGES</p><h1 id="messages-title">個別メッセージ</h1></header>
-        {/* 探しごとのコメントの続き・オファーのやり取り・広告へのオファーは
-            置き場所が別々だが、会員から見ればどれも「あの人との話」なので、
-            1つの箱にまとめて新しい順に並べる。 */}
+        {/* 探しごとへのオファーと広告へのオファーは置き場所が別々だが、会員から
+            見ればどちらも「あの人との話」なので、1つの箱にまとめて新しい順に
+            並べる。押すとその場で会話が開く（探しごとの詳細へは飛ばさない）。 */}
         {threadsLoading ? <p className="messages-loading">読み込んでいます…</p>
           : threads.length === 0 ? <div className="received-empty"><span>✉</span><b>やり取りはまだありません</b>
             <p>オファーやリファラルを送ると、相手とおふたりだけのやり取りがここにまとまります。</p>
@@ -1286,7 +1277,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               <span className="message-main">
                 <b>{thread.partnerName}{thread.partnerCompany && <small>{thread.partnerCompany}</small>}</b>
                 <em>{thread.kind === 'ad' ? '広告' : '探しごと'}：{thread.title}</em>
-                <p>{thread.lastBody}</p>
+                {/* 中身を見せていないぶんは、本文のかわりに理由を出す。
+                    空欄にすると「壊れている」と読まれてしまう。 */}
+                <p className={thread.locked ? 'is-locked' : ''}>
+                  {thread.locked ? 'スタンダードプランで中身を読めます' : thread.lastBody}</p>
               </span>
               <span className="message-side">
                 <time dateTime={thread.lastAt}>{shortDate(thread.lastAt)}</time>
@@ -1861,9 +1855,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {modal === 'responses' && <Modal title="オファーのやり取り" lead="届いたオファーと、あなたが出したオファーです。相手とそのままやり取りできます。" onClose={() => setModal(null)}><ReceivedIntroductions onUpgrade={() => { setModal(null); goTab('plan'); }} /></Modal>}
 
-      {/* 閉じたら「この相手のやり取りを開く」指定も落とす。次に別の探しごとを
-          開いたときに、前の相手のやり取りが開いたままにならないように。 */}
-      {modal === 'detail' && selected && <Modal title="探しごとの詳細" lead={`${selected.authorName}さんの探しごとです。`} onClose={() => { setModal(null); setOpenThreadWith(''); }}><article className="need-detail">
+      {modal === 'detail' && selected && <Modal title="探しごとの詳細" lead={`${selected.authorName}さんの探しごとです。`} onClose={() => setModal(null)}><article className="need-detail">
         <div className="card-topline"><span className={`kind ${categories[selected.category].className}`}>{categories[selected.category].label}</span><button className={favoriteIds.includes(selected.id) ? 'detail-heart active' : 'detail-heart'} onClick={() => toggleFavorite(selected)}>♥ {favoriteIds.includes(selected.id) ? '保存済み' : 'お気に入り'}</button></div>
         <h3>{selected.title}</h3>
         {selected.imageUrls.length > 1
@@ -1894,12 +1886,19 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </div>}
       </article></Modal>}
 
-      {/* すでに始まっている個別のやり取り。**コメントはやめたが、続いている
-          会話は切らない。** メッセージの一覧から、この形で開いて返事できる。 */}
-      {modal === 'thread' && selected && <Modal title={`${threadPartner || 'この方'}とのやり取り`}
-        lead={`「${selected.title}」でのおふたりだけのやり取りです。ほかの会員には見えません。`}
-        onClose={() => { setModal(null); setOpenThreadWith(''); }}>
-        <RequestThread requestId={selected.id} viewerId={stats.memberId} threadWith={openThreadWith} />
+      {/* メッセージの一覧から開くやり取り。**ここで完結する。**
+          相手の名前を見出しに、何についての話かを下に添える。 */}
+      {modal === 'thread' && openChat && <Modal title={`${openChat.partnerName}さんとのやり取り`}
+        lead={`${openChat.kind === 'ad' ? '広告' : '探しごと'}「${openChat.title}」でのおふたりだけのやり取りです。ほかの会員には見えません。`}
+        onClose={() => { setModal(null); setOpenChat(null); }}>
+        {openChat.locked
+          ? <div className="quota-block">
+              <p><b>{openChat.partnerName}さんから、あなたにオファーが届いています。</b></p>
+              <p>届いたオファーの中身とやり取りは、スタンダードプランでご覧いただけます。
+                ご自身から出したオファーのやり取りは、無料のままいつでも読めます。</p>
+              <button className="submit-button" onClick={() => { setModal(null); setOpenChat(null); goTab('plan'); }}>プランを見る</button>
+            </div>
+          : <IntroductionChat introductionId={openChat.chatId} partnerName={openChat.partnerName} heading={false} />}
       </Modal>}
 
       {cropSource && <div className="crop-backdrop"><section className="crop-dialog" role="dialog" aria-modal="true" aria-labelledby="crop-title"><header><button onClick={() => setCropSource('')}>キャンセル</button><div><h2 id="crop-title">顔写真を調整</h2><p>指で動かして、顔が中央に来るようにします</p></div><button className="crop-confirm" onClick={confirmCrop} disabled={cropping || !croppedArea}>{cropping ? '処理中' : '決定'}</button></header><div className="crop-stage"><Cropper image={cropSource} crop={crop} zoom={zoom} aspect={1} cropShape="round" showGrid={false} minZoom={1} maxZoom={4} zoomSpeed={0.35} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_, pixels) => setCroppedArea(pixels)} disableAutomaticStylesInjection /></div><div className="crop-controls"><label><span>顔の大きさ</span><input type="range" min="1" max="4" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} aria-label="顔写真の拡大率" /><b>{Math.round(zoom * 100)}%</b></label><p>写真を指で動かせます。丸の中がプロフィール写真に表示されます。</p></div></section></div>}

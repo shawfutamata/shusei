@@ -2190,213 +2190,43 @@ export async function countFeedback(memberId: string) {
 }
 // --- 機能改善の受け口 ここまで ------------------------------------------------
 
-// --- 探しごとへのコメント ここから -----------------------------------------
-// **コメントはやめた。新しくは書けない。**
+// --- 探しごとへのコメント（廃止）------------------------------------------
+// コメント欄はやめた。にぎわいは、実際に人が動いた数（オファーとリファラルの
+// 件数）で見せている。読み書きの経路は全部外してある。
 //
-// 公開のひとことは「掲示板がにぎわって見える」ために置いていたが、にぎわいは
-// リファラルとオファーの件数で見せることにした（掲示板のカードに出る）。実際に
-// 人が動いた数のほうが、ひとことより正直で、書く手間もいらない。
-//
-// **表と、すでに入っているやり取りは消さない。** 個別のやり取りは、いま
-// 続いている本物の会話なので、途中で切ると相手に不義理になる。読むのも返すのも
-// これまでどおりできる（メッセージの一覧から開く）。新しく1本を始める道だけ閉じた。
-// 始まりは必ず公開のひとことだったので、書けなくすれば自然に増えなくなる。
-
-export type RequestComment = {
-  id: string;
-  requestId: string;
-  body: string;
-  createdAt: string;
-  authorId: string;
-  authorName: string;
-  authorCompany: string;
-  authorVenue: string;
-  authorAvatarUrl: string;
-  authorFacebookUrl: string;
-  isAuthorOfRequest: boolean;
-  /** 会員みんなに見えるひとことか。false なら投稿者とその人だけのやり取り。 */
-  isPublic: boolean;
-  /**
-   * どのやり取りに属するか。投稿者ではないほうの会員のID。
-   * 探しごとの投稿者が全体に向けて書いたひとことだけ空になる。
-   */
-  threadWith: string;
-  /** 同じやり取りの相手の名前。非公開のぶんに「◯◯さんとのやり取り」と出す。 */
-  threadWithName: string;
-  /**
-   * この相手との、おふたりだけのやり取りが開いているか。
-   * **開くのはオファーかリファラルを出した人だけ。**（`canOpenPrivateThread`）
-   * 画面はこれを見て「続ける」ボタンを出すか決める。判定そのものは書き込み側にもある。
-   */
-  threadOpen: boolean;
-};
-
-export const COMMENT_MAX_LENGTH = 600;
-
-/**
- * その人と、投稿者とのおふたりだけのやり取りに入れるか。
- *
- * **入れるのはオファーかリファラルを出した人だけ。** 公開のひとことは
- * 誰でも書ける（掲示板がにぎわう入口として残す）が、2通目からは投稿者と
- * 2人だけの場になり、これは有料の「オファー」で買えるものとほぼ同じ。
- * 素通しにすると、コメントから入れば無料で同じことができてしまう。
- *
- * **リファラル（知り合いをつなぐ・無料）でも開く。** 払わないと誰とも
- * 話せない、という作りにはしない。
- */
-async function canOpenPrivateThread(requestId: string, memberId: string) {
-  if (!memberId) return false;
-  const offered = await env.DB.prepare(`SELECT 1 AS ok FROM introductions
-    WHERE request_id = ? AND introducer_id = ? LIMIT 1`).bind(requestId, memberId).first();
-  if (offered) return true;
-  // **この決まりより前に始まっていた話は、途中で切らない。**
-  // すでに非公開のやり取りがあるなら、そのまま続けられる。新しく開くほうは
-  // 上の条件で塞がっているので、ここが抜け道になることはない。
-  const started = await env.DB.prepare(`SELECT 1 AS ok FROM request_comments
-    WHERE request_id = ? AND thread_with = ? AND visibility = 'private' LIMIT 1`)
-    .bind(requestId, memberId).first();
-  return Boolean(started);
-}
-
-/**
- * 探しごとのやり取りを読む。
- *
- * **最初のひとことだけ会員みんなに見える。2通目からは投稿者とその人だけ。**
- * 込み入った話や金額の話が公開の場に出てしまうのを避けつつ、掲示板が
- * にぎわって見える入口は残すため。
- *
- * **絞っているのはここ。** 画面で隠すだけだと、通信を覗けば読めてしまう。
- * 見せる相手は「みんなに見えるぶん」＋「探しごとの投稿者」＋「その本人」だけ。
- */
-export async function getRequestComments(requestId: string, viewerId = ''): Promise<RequestComment[]> {
-  await ensureDatabase();
-  const rows = await env.DB.prepare(`SELECT c.id, c.request_id AS requestId, c.body, c.created_at AS createdAt,
-    c.visibility, m.id AS authorId, m.display_name AS authorName, m.company AS authorCompany, m.venue AS authorVenue,
-    m.avatar_key AS authorAvatarKey, m.avatar_version AS authorAvatarVersion, m.facebook_url AS authorFacebookUrl,
-    r.author_id AS requestAuthorId,
-    -- 古い行は thread_with が空。書いたのが投稿者以外なら、その人自身との1本として扱う。
-    CASE WHEN c.thread_with != '' THEN c.thread_with
-         WHEN c.member_id != r.author_id THEN c.member_id
-         ELSE '' END AS threadWith
-    FROM request_comments c
-    JOIN members m ON m.id = c.member_id
-    JOIN requests r ON r.id = c.request_id
-    WHERE c.request_id = ?
-    ORDER BY c.created_at`).bind(requestId)
-    .all<Omit<RequestComment, 'authorAvatarUrl' | 'isAuthorOfRequest' | 'isPublic' | 'threadWithName'>
-      & { authorAvatarKey: string; authorAvatarVersion: number; requestAuthorId: string; visibility: string }>();
-
-  const requestAuthorId = rows.results[0]?.requestAuthorId ?? '';
-  const isRequestAuthor = Boolean(viewerId) && viewerId === requestAuthorId;
-  // おふたりだけのやり取りが開いている相手。1回の問い合わせでまとめて取る。
-  const introducers = new Set([
-    ...(await env.DB.prepare('SELECT DISTINCT introducer_id AS memberId FROM introductions WHERE request_id = ?')
-      .bind(requestId).all<{ memberId: string }>()).results.map((row) => row.memberId),
-    // この決まりより前に始まっていた話は、そのまま続けられる（canOpenPrivateThread と同じ）。
-    ...(await env.DB.prepare(`SELECT DISTINCT thread_with AS memberId FROM request_comments
-      WHERE request_id = ? AND thread_with != '' AND visibility = 'private'`)
-      .bind(requestId).all<{ memberId: string }>()).results.map((row) => row.memberId),
-  ]);
-  // やり取りの相手の名前。非公開のぶんに「◯◯さんとのやり取り」と添えるのに使う。
-  const names = new Map<string, string>();
-  for (const row of rows.results) if (row.threadWith === row.authorId) names.set(row.authorId, row.authorName);
-
-  return rows.results
-    .filter((row) => row.visibility !== 'private' || isRequestAuthor || row.threadWith === viewerId)
-    .map(({ authorAvatarKey, authorAvatarVersion, requestAuthorId: author, visibility, ...comment }) => ({
-      ...comment,
-      authorAvatarUrl: avatarUrl(comment.authorId, authorAvatarKey, authorAvatarVersion),
-      isAuthorOfRequest: comment.authorId === author,
-      isPublic: visibility !== 'private',
-      threadWithName: names.get(comment.threadWith) ?? '',
-      threadOpen: Boolean(comment.threadWith) && introducers.has(comment.threadWith),
-    }));
-}
-
-/**
- * やり取りを1つ書く。
- *
- * **公開になるのは、その人の最初のひとことだけ。** 2通目からは投稿者との
- * 1本に入る。投稿者の返事は、必ずどの相手への返事かを決めて非公開で入る
- * （`threadWith`）。相手を決めずに書いた投稿者のひとことだけ、全体向けの
- * 公開として残る。
- */
-export async function addRequestComment(user: SessionUser, requestId: string, rawBody: string, threadWith = '') {
-  await upsertMember(user);
-  const body = rawBody.trim().slice(0, COMMENT_MAX_LENGTH);
-  if (!body) throw new Error('コメントを入力してください。');
-
-  const request = await env.DB.prepare('SELECT id, author_id AS authorId FROM requests WHERE id = ?')
-    .bind(requestId).first<{ id: string; authorId: string }>();
-  if (!request) throw new Error('この探しごとは見つかりませんでした。');
-
-  const isRequestAuthor = user.userId === request.authorId;
-  // 投稿者以外は、自分のやり取りにしか書けない。ほかの人の相手先を指定して
-  // 割り込めないよう、相手は必ず自分自身に上書きする。
-  const thread = isRequestAuthor ? threadWith : user.userId;
-  if (isRequestAuthor && thread) {
-    // 返事の相手は、実際にその探しごとへ書いた人だけ。
-    const known = await env.DB.prepare(`SELECT 1 AS ok FROM request_comments
-      WHERE request_id = ? AND member_id = ? LIMIT 1`).bind(requestId, thread).first();
-    if (!known) throw new Error('この方とのやり取りはまだありません。');
-  }
-
-  // 公開になるのは、そのやり取りの1通目だけ。すでに何か書いていれば非公開。
-  const existing = thread
-    ? await env.DB.prepare(`SELECT 1 AS ok FROM request_comments
-        WHERE request_id = ? AND (thread_with = ? OR (thread_with = '' AND member_id = ?)) LIMIT 1`)
-      .bind(requestId, thread, thread).first()
-    : null;
-  const visibility = thread && existing ? 'private' : 'public';
-
-  // **新しいやり取りは、ここでは始められない。** コメントはやめたので、
-  // 公開になるはずのもの（＝その相手との1通目）は受け付けない。
-  // すでに続いている個別のやり取りへの返事だけを通す。
-  if (visibility !== 'private') {
-    throw new Error('コメントは終了しました。オファーかリファラルからご連絡ください。');
-  }
-  // **画面で隠すだけでは足りない。** 通信を直接叩けば書けてしまうので、
-  // 入れるかどうかはここでも確かめる（判定は canOpenPrivateThread 1か所）。
-  if (!await canOpenPrivateThread(requestId, thread)) {
-    throw new Error(isRequestAuthor
-      ? 'この方とのやり取りはまだありません。'
-      : 'このやり取りは開いていません。オファーかリファラルからご連絡ください。');
-  }
-
-  const now = new Date().toISOString();
-  await env.DB.prepare(`INSERT INTO request_comments
-    (id, request_id, member_id, thread_with, visibility, body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-    .bind(crypto.randomUUID(), requestId, user.userId, thread, visibility, body, now).run();
-  return getRequestComments(requestId, user.userId);
-}
-
-export async function deleteRequestComment(user: SessionUser, commentId: string) {
-  await ensureDatabase();
-  // 自分が書いたコメントだけ消せる。
-  const result = await env.DB.prepare('DELETE FROM request_comments WHERE id = ? AND member_id = ?')
-    .bind(commentId, user.userId).run();
-  if (!result.meta.changes) throw new Error('このコメントは削除できません。');
-}
-// --- 探しごとへのコメント ここまで -----------------------------------------
+// **表そのものは残してある。** 投稿や会員を消したときの後片づけ
+// （DELETE FROM request_comments）がここを見るので、無いと古いデータベースでも
+// 新しいデータベースでも掃除が転ぶ。中身が要らなくなったら、手で1回
+//   npx wrangler d1 execute tasuki --remote --command "DELETE FROM request_comments"
+// を流せばよい。**消す操作をデプロイに混ぜない。** 取り返しがつかないので、
+// 人が決めて人が流す。
 
 // --- 個別メッセージ ここから -------------------------------------------------
-// **2人だけのやり取りは3か所に散っている。**
-//   1. 探しごとのコメントの、2通目から先（request_comments の private）
-//   2. オファーのやり取り（introduction_messages）
-//   3. 広告へのオファーのやり取り（ad_introduction_messages）
-// 会員から見ればどれも「あの人とのやり取り」なので、1つの箱にまとめて出す。
+// **2人だけのやり取りは2か所に分かれている。**
+//   1. 探しごとへのオファーのやり取り（introduction_messages）
+//   2. 広告へのオファーのやり取り（ad_introduction_messages）
+// 会員から見ればどちらも「あの人とのやり取り」なので、1つの箱にまとめて出す。
 // 表を統合はしない。既に入っているやり取りを移す危険を負う値打ちがない。
 
 export type MessageThread = {
   /** 既読の記録に使う名前。thread_reads.thread_key と同じもの。 */
   key: string;
-  kind: 'request' | 'intro' | 'ad';
-  /** 開く先。コメントなら探しごとと相手、オファーならオファーのID。 */
+  kind: 'intro' | 'ad';
+  /**
+   * やり取りを開くときに渡すID。広告へのオファーは `ad:` が付く
+   * （`listIntroductionMessages` が、その印で見に行く表を決める）。
+   */
+  chatId: string;
+  /** もとになった探しごと／広告のID。 */
   requestId: string;
-  introductionId: string;
-  threadWith: string;
   /** 何についてのやり取りか（探しごとや広告の題名）。 */
   title: string;
+  /**
+   * 中身を見せていないか。**無料プランのまま、届いたオファーの中身は読めない。**
+   * 一覧に出す最後の1通も、locked のときは空にして送る。画面で隠すだけだと、
+   * 通信を覗けば読めてしまう。送った側は無料でもずっと読める。
+   */
+  locked: boolean;
   partnerId: string;
   partnerName: string;
   partnerCompany: string;
@@ -2408,6 +2238,7 @@ export type MessageThread = {
 
 /** 相手の顔ぶれ。どちらが自分かで、出す相手が入れ替わる。 */
 type ThreadRow = {
+  introductionId: string; requestId: string;
   lastBody: string; lastAt: string; unread: number; title: string;
   ownerId: string; ownerName: string; ownerCompany: string; ownerAvatarKey: string; ownerAvatarVersion: number;
   otherId: string; otherName: string; otherCompany: string; otherAvatarKey: string; otherAvatarVersion: number;
@@ -2438,30 +2269,18 @@ function partnerOf(row: ThreadRow, viewerId: string) {
 export async function getMessageThreads(viewerId: string): Promise<MessageThread[]> {
   await ensureDatabase();
   if (!viewerId) return [];
-  const unread = (senderColumn: string) =>
-    `SUM(CASE WHEN ${senderColumn} != ? AND ${senderColumn === 'c.member_id' ? 'c' : 'n'}.created_at > COALESCE(t.last_read_at, '') THEN 1 ELSE 0 END) AS unread`;
+  // まだ読んでいない通数。自分が送ったぶんは数えない。
+  const unread = "SUM(CASE WHEN n.sender_id != ? AND n.created_at > COALESCE(t.last_read_at, '') THEN 1 ELSE 0 END) AS unread";
   const people = (owner: string, other: string) => `
     ${owner}.id AS ownerId, ${owner}.display_name AS ownerName, ${owner}.company AS ownerCompany,
     ${owner}.avatar_key AS ownerAvatarKey, ${owner}.avatar_version AS ownerAvatarVersion,
     ${other}.id AS otherId, ${other}.display_name AS otherName, ${other}.company AS otherCompany,
     ${other}.avatar_key AS otherAvatarKey, ${other}.avatar_version AS otherAvatarVersion`;
 
-  const [comments, offers, adOffers] = await env.DB.batch<ThreadRow & Record<string, string>>([
-    // 1. 探しごとのコメントの、非公開のぶん
-    env.DB.prepare(`SELECT c.request_id AS requestId, c.thread_with AS threadWith,
-      c.body AS lastBody, MAX(c.created_at) AS lastAt, r.title AS title, ${unread('c.member_id')},
-      ${people('mo', 'mw')}
-      FROM request_comments c
-      JOIN requests r ON r.id = c.request_id
-      JOIN members mo ON mo.id = r.author_id
-      JOIN members mw ON mw.id = c.thread_with
-      LEFT JOIN thread_reads t ON t.member_id = ?
-        AND t.thread_key = 'request:' || c.request_id || ':' || c.thread_with
-      WHERE c.visibility = 'private' AND c.thread_with != '' AND (r.author_id = ? OR c.thread_with = ?)
-      GROUP BY c.request_id, c.thread_with`).bind(viewerId, viewerId, viewerId, viewerId),
-    // 2. 探しごとへのオファーのやり取り
+  const [offers, adOffers] = await env.DB.batch<ThreadRow & Record<string, string>>([
+    // 1. 探しごとへのオファーのやり取り
     env.DB.prepare(`SELECT i.id AS introductionId, i.request_id AS requestId,
-      n.body AS lastBody, MAX(n.created_at) AS lastAt, r.title AS title, ${unread('n.sender_id')},
+      n.body AS lastBody, MAX(n.created_at) AS lastAt, r.title AS title, ${unread},
       ${people('mo', 'mi')}
       FROM introduction_messages n
       JOIN introductions i ON i.id = n.introduction_id
@@ -2471,9 +2290,9 @@ export async function getMessageThreads(viewerId: string): Promise<MessageThread
       LEFT JOIN thread_reads t ON t.member_id = ? AND t.thread_key = 'intro:' || i.id
       WHERE r.author_id = ? OR i.introducer_id = ?
       GROUP BY i.id`).bind(viewerId, viewerId, viewerId, viewerId),
-    // 3. 広告へのオファーのやり取り
+    // 2. 広告へのオファーのやり取り
     env.DB.prepare(`SELECT i.id AS introductionId, i.ad_id AS requestId,
-      n.body AS lastBody, MAX(n.created_at) AS lastAt, a.title AS title, ${unread('n.sender_id')},
+      n.body AS lastBody, MAX(n.created_at) AS lastAt, a.title AS title, ${unread},
       ${people('mo', 'mi')}
       FROM ad_introduction_messages n
       JOIN ad_introductions i ON i.id = n.ad_introduction_id
@@ -2485,25 +2304,28 @@ export async function getMessageThreads(viewerId: string): Promise<MessageThread
       GROUP BY i.id`).bind(viewerId, viewerId, viewerId, viewerId),
   ]);
 
+  // **受け取る側が無料プランなら、中身は渡さない。** 届いていること自体は
+  // 出す（それが分からないと、上げる理由が伝わらない）が、最後の1通は空にする。
+  const canRead = can(await getPlanState(viewerId), 'receive_introductions');
+  const build = (kind: 'intro' | 'ad') => (row: ThreadRow & Record<string, string>) => {
+    const locked = !canRead && viewerId === row.ownerId;
+    return {
+      key: `${kind}:${row.introductionId}`,
+      kind,
+      // 広告のぶんは `ad:` を付ける。やり取りを読む側が、この印で表を選ぶ。
+      chatId: kind === 'ad' ? `${AD_OFFER_PREFIX}${row.introductionId}` : row.introductionId,
+      requestId: row.requestId,
+      title: row.title || (kind === 'ad' ? '広告' : '探しごと'),
+      locked,
+      ...partnerOf(row, viewerId),
+      lastBody: locked ? '' : row.lastBody,
+      lastAt: row.lastAt,
+      unread: Number(row.unread) || 0,
+    };
+  };
   const threads: MessageThread[] = [
-    ...comments.results.map((row) => ({
-      key: `request:${row.requestId}:${row.threadWith}`, kind: 'request' as const,
-      requestId: row.requestId, introductionId: '', threadWith: row.threadWith,
-      title: row.title || '探しごと', ...partnerOf(row, viewerId),
-      lastBody: row.lastBody, lastAt: row.lastAt, unread: Number(row.unread) || 0,
-    })),
-    ...offers.results.map((row) => ({
-      key: `intro:${row.introductionId}`, kind: 'intro' as const,
-      requestId: row.requestId, introductionId: row.introductionId, threadWith: '',
-      title: row.title || '探しごと', ...partnerOf(row, viewerId),
-      lastBody: row.lastBody, lastAt: row.lastAt, unread: Number(row.unread) || 0,
-    })),
-    ...adOffers.results.map((row) => ({
-      key: `ad:${row.introductionId}`, kind: 'ad' as const,
-      requestId: row.requestId, introductionId: row.introductionId, threadWith: '',
-      title: row.title || '広告', ...partnerOf(row, viewerId),
-      lastBody: row.lastBody, lastAt: row.lastAt, unread: Number(row.unread) || 0,
-    })),
+    ...offers.results.map(build('intro')),
+    ...adOffers.results.map(build('ad')),
   ];
   // 自分ひとりのやり取り（相手がいない）は出さない。数合わせにしかならない。
   return threads.filter((thread) => thread.partnerId && thread.partnerId !== viewerId)

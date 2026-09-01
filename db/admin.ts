@@ -12,7 +12,9 @@ import { planCatalog, yearlyYen } from '../app/plan-catalog';
 export type AdminSummary = {
   members: number; activeMembers: number; suspendedMembers: number;
   requests: number; openRequests: number;
-  introductions: number; comments: number;
+  introductions: number;
+  /** 内訳。オファー（自社で請け負う）と、リファラル（知り合いの紹介）。 */
+  offers: number; referrals: number;
   liveAds: number; newFeedback: number;
   /** お金を払っている会員。運営の特典で開いている人は**数えない**。 */
   paidMembers: number;
@@ -50,7 +52,7 @@ export type AdminMember = {
 export type AdminRequest = {
   id: string; title: string; category: string; status: string; deadline: string;
   createdAt: string; authorName: string; authorEmail: string;
-  introCount: number; commentCount: number;
+  introCount: number; offerCount: number; referralCount: number;
 };
 
 export type AdminAd = {
@@ -72,13 +74,14 @@ export async function adminSummary(): Promise<AdminSummary> {
     const row = await env.DB.prepare(sql).bind(...binds).first<{ count: number }>();
     return Number(row?.count ?? 0);
   };
-  const [members, activeMembers, requests, openRequests, introductions, comments, liveAds, newFeedback] = await Promise.all([
+  const [members, activeMembers, requests, openRequests, introductions, offers, referrals, liveAds, newFeedback] = await Promise.all([
     one('SELECT COUNT(*) AS count FROM members'),
     one("SELECT COUNT(*) AS count FROM members WHERE membership_status = 'active'"),
     one('SELECT COUNT(*) AS count FROM requests'),
     one("SELECT COUNT(*) AS count FROM requests WHERE status = 'open' AND deadline >= ?", today),
     one('SELECT COUNT(*) AS count FROM introductions'),
-    one('SELECT COUNT(*) AS count FROM request_comments'),
+    one("SELECT COUNT(*) AS count FROM introductions WHERE kind = 'self'"),
+    one("SELECT COUNT(*) AS count FROM introductions WHERE kind != 'self'"),
     one("SELECT COUNT(*) AS count FROM ad_slots WHERE status = 'active' AND start_date <= ? AND end_date >= ?", today, today),
     one("SELECT COUNT(*) AS count FROM feedback WHERE status = 'new'"),
   ]);
@@ -109,7 +112,7 @@ export async function adminSummary(): Promise<AdminSummary> {
   }
 
   return { members, activeMembers, suspendedMembers: members - activeMembers,
-    requests, openRequests, introductions, comments, liveAds, newFeedback,
+    requests, openRequests, introductions, offers, referrals, liveAds, newFeedback,
     paidMembers: payers.length, monthlyPayers, yearlyPayers, mrrYen,
     adRevenueTotalYen: Number(adRevenue?.total ?? 0), adRevenueThisMonthYen: Number(adRevenue?.thisMonth ?? 0),
     rankCounts };
@@ -180,7 +183,8 @@ export async function adminRequests(keyword = '', limit = 200): Promise<AdminReq
   const statement = env.DB.prepare(`SELECT r.id, r.title, r.category, r.status, r.deadline,
     r.created_at AS createdAt, m.display_name AS authorName, m.email AS authorEmail,
     (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id) AS introCount,
-    (SELECT COUNT(*) FROM request_comments c WHERE c.request_id = r.id) AS commentCount
+    (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id AND i.kind = 'self') AS offerCount,
+    (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id AND i.kind != 'self') AS referralCount
     FROM requests r JOIN members m ON m.id = r.author_id
     ${where} ORDER BY r.created_at DESC LIMIT ${Number(limit)}`);
   const rows = await (term ? statement.bind(like) : statement).all<AdminRequest>();
@@ -361,14 +365,13 @@ export async function adminAnalytics(days = 90): Promise<AdminAnalytics> {
       m.email, m.created_at AS createdAt,
       (SELECT MAX(created_at) FROM requests WHERE author_id = m.id) AS lastRequest,
       (SELECT MAX(created_at) FROM introductions WHERE introducer_id = m.id) AS lastIntro,
-      (SELECT MAX(created_at) FROM request_comments WHERE member_id = m.id) AS lastComment
     FROM members m WHERE m.membership_status = 'active'`)
     .all<{ id: string; displayName: string; company: string; venue: string; email: string;
-      createdAt: string; lastRequest: string | null; lastIntro: string | null; lastComment: string | null }>();
+      createdAt: string; lastRequest: string | null; lastIntro: string | null }>();
   const dormant = dormantRows.results
     .map((row) => {
       // 何もしていない人は、登録した日を最後の動きとする。
-      const lastActive = [row.lastRequest, row.lastIntro, row.lastComment, row.createdAt]
+      const lastActive = [row.lastRequest, row.lastIntro, row.createdAt]
         .filter(Boolean).sort().pop() as string;
       return {
         id: row.id, displayName: row.displayName, company: row.company, venue: row.venue, email: row.email,

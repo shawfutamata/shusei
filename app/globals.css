@@ -1711,3 +1711,5 @@ body { font-weight:600; }
 .backup-layers li b { display:block; color:#1d2b45; font-size:13px; }
 .backup-layers li small { color:#5d6b81; font-size:11px; }
 .backup-download { margin-top:14px; }
+/* 中身を見せていないやり取り。本文のかわりに理由を出すので、色を落とす。 */
+.message-main>p.is-locked { color:#a2500b; font-weight:800; }

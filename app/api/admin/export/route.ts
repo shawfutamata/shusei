@@ -18,9 +18,9 @@ export async function GET(request: Request) {
   } else if (type === 'requests') {
     const list = await adminRequests('', 1000);
     name = '探しごと';
-    rows = [['見出し', '種類', '状況', '期限', '投稿者', 'メール', 'オファー', 'やり取り', '投稿日'],
+    rows = [['見出し', '種類', '状況', '期限', '投稿者', 'メール', 'オファー', 'リファラル', '投稿日'],
       ...list.map((row) => [row.title, row.category, row.status, row.deadline, row.authorName, row.authorEmail,
-        row.introCount, row.commentCount, row.createdAt.slice(0, 10)])];
+        row.offerCount, row.referralCount, row.createdAt.slice(0, 10)])];
   } else {
     const list = await adminMembers('', 1000);
     name = '会員';

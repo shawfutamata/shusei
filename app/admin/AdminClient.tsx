@@ -172,7 +172,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
         <div><dt>広告の累計売上</dt><dd>{money(summary.adRevenueTotalYen)}</dd>
           <small>今月 {money(summary.adRevenueThisMonthYen)}・掲載中 {summary.liveAds}件</small></div>
         <div><dt>累計の探しごと</dt><dd>{yen0(summary.requests)}<small>件</small></dd><small>募集中 {summary.openRequests}</small></div>
-        <div><dt>届いたオファー</dt><dd>{yen0(summary.introductions)}<small>件</small></dd><small>やり取り {summary.comments}・未読のご意見 {summary.newFeedback}</small></div>
+        <div><dt>届いたオファー</dt><dd>{yen0(summary.introductions)}<small>件</small></dd><small>オファー {summary.offers}・リファラル {summary.referrals}・未読のご意見 {summary.newFeedback}</small></div>
       </dl>
 
       <section className="viz-card">
@@ -352,7 +352,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
           <span>{item.status === 'closed' ? '募集終了' : '募集中'}</span>
           <span>期限 {item.deadline.replace(/-/g, '/')}</span>
           <span>オファー {item.introCount}件</span>
-          <span>やり取り {item.commentCount}件</span>
+          <span>リファラル {item.referralCount}件</span>
           <span>{item.createdAt.slice(0, 10).replace(/-/g, '/')} 投稿</span>
         </p>
         <div className="admin-actions">
@@ -461,7 +461,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       <div className="admin-confirm" role="dialog" aria-modal="true">
         <h2>この投稿を削除しますか</h2>
         <p><b>{confirming.title}</b></p>
-        <p>{confirming.authorName}さんの投稿です。届いたオファー {confirming.introCount}件と、やり取り {confirming.commentCount}件も一緒に消えます。<b>元に戻せません。</b></p>
+        <p>{confirming.authorName}さんの投稿です。届いたオファーとリファラル {confirming.introCount}件、それに付いたやり取りも一緒に消えます。<b>元に戻せません。</b></p>
         <button className="is-danger" disabled={busy === confirming.id}
           onClick={() => { const target = confirming; setConfirming(null); act(target.id, `/api/admin/requests/${target.id}`, null, 'DELETE', '投稿を削除しました。'); }}>削除する</button>
         <button onClick={() => setConfirming(null)}>やめる</button>
