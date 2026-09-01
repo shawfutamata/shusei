@@ -1724,3 +1724,14 @@ body { font-weight:600; }
 .chat-opener-kind span { color:#5d6b81; font-size:11px; font-weight:800; }
 .chat-opener-kind time { margin-left:auto; color:#98a4b6; font-size:10px; font-weight:700; }
 .chat-opener-body { margin:8px 0 0; color:#25344c; font-size:13px; line-height:1.75; white-space:pre-wrap; }
+
+/* --- 棚の見出しを1行に収める -------------------------------------------------
+   「あなたにおすすめの探しごと」が折り返して、2行目に「と」だけが残っていた。
+   幅に合わせて字を少し詰め、折り返さない。長い題が来ても崩れないよう、
+   はみ出すぶんは「…」で切る。 */
+.home-section-heading > div { min-width:0; }
+.home-section-heading h2 {
+  font-size:clamp(15px, 4.9vw, 21px);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+@media(min-width:481px){ .home-section-heading h2 { font-size:23px; } }
