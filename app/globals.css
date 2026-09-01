@@ -1018,10 +1018,41 @@ body { font-weight:600; }
 /* ===== 運営用の管理画面（admin.tasuki.club）=====
    会員向けの画面とは作りが違う。幅を広く取り、色を抑えて、
    数と状態が読み取れることだけを狙う。スマホからも触れる。 */
-.admin { max-width:900px; margin:0 auto; padding:22px 16px 60px; background:#f6f8fb; min-height:100vh; }
+/* 左に黒い帯、右に本文。帯は画面に貼りつけ、本文だけが動く。
+   狭い画面では帯を上に畳んで、横に並ぶ操作にする。 */
+.admin-shell { min-height:100vh; min-height:100dvh; display:grid; grid-template-columns:248px minmax(0,1fr); background:#f4f6fa; }
+.admin-side { position:sticky; top:0; height:100vh; height:100dvh; padding:18px 14px; display:flex; flex-direction:column; gap:18px; background:#14161c; color:#c7cede; }
+.admin-brand { display:flex; align-items:center; gap:10px; padding:6px 8px; }
+.admin-brand span { width:30px; height:30px; flex:0 0 auto; display:grid; place-items:center; border-radius:9px; background:var(--blue); color:#fff; font-size:13px; font-weight:900; }
+.admin-brand b { color:#fff; font-size:14px; font-weight:900; letter-spacing:-.01em; }
+.admin-side-nav { display:grid; gap:3px; }
+.admin-side-nav button { min-height:46px; padding:0 12px; display:flex; align-items:center; gap:11px; border:0; border-radius:11px; background:transparent; color:#9aa4b8; font-size:14px; font-weight:800; text-align:left; cursor:pointer; }
+.admin-side-nav button:hover { background:#20242e; color:#e6ebf5; }
+.admin-side-nav button.selected { background:var(--blue); color:#fff; }
+.admin-side-nav button span { flex:1; min-width:0; }
+.admin-side-nav button em { padding:2px 8px; border-radius:99px; background:rgba(255,255,255,.14); color:inherit; font-size:11px; font-style:normal; font-weight:900; }
+.admin-side-foot { margin-top:auto; padding:11px 10px; display:flex; align-items:center; gap:10px; border-top:1px solid #262b36; }
+.admin-side-foot span { width:30px; height:30px; flex:0 0 auto; display:grid; place-items:center; border-radius:50%; background:#2a3040; color:#c7cede; font-size:12px; font-weight:900; }
+.admin-side-foot div { min-width:0; }
+.admin-side-foot b { display:block; color:#e6ebf5; font-size:12px; font-weight:900; }
+.admin-side-foot small { display:block; overflow:hidden; color:#77819a; font-size:10px; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
+.admin { max-width:1180px; margin:0 auto; padding:26px 24px 60px; }
+.admin-open-site { flex:0 0 auto; min-height:42px; padding:0 16px; border:0; border-radius:11px; background:#14161c; color:#fff; font-size:12px; font-weight:800; cursor:pointer; }
+@media(max-width:900px){
+  .admin-shell { grid-template-columns:minmax(0,1fr); }
+  .admin-side { position:static; height:auto; padding:12px; flex-direction:row; align-items:center; gap:12px; overflow-x:auto; }
+  .admin-brand { flex:0 0 auto; }
+  .admin-side-nav { flex:1; display:flex; gap:6px; }
+  .admin-side-nav button { flex:0 0 auto; min-height:42px; }
+  .admin-side-nav button span { display:none; }
+  .admin-side-nav button.selected span { display:inline; }
+  .admin-side-foot { display:none; }
+  .admin { padding:18px 14px 60px; }
+}
 .admin-header { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; }
-.admin-header p { margin:0 0 4px; color:#b4380f; font-size:10px; font-weight:900; letter-spacing:.18em; }
-.admin-header h1 { margin:0; color:var(--navy); font-size:23px; }
+.admin-header { align-items:center; }
+.admin-header h1 { margin:0; color:#14161c; font-size:27px; letter-spacing:-.02em; }
+.admin-header p { margin:6px 0 0; color:#7b8ca4; font-size:12px; font-weight:700; }
 .admin-who { color:#6b7a90; font-size:12px; font-weight:800; }
 
 .admin-summary { margin:18px 0 0; padding:0; display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
@@ -1099,7 +1130,60 @@ body { font-weight:600; }
 .viz-range button.selected { border-color:var(--navy); background:var(--navy); color:#fff; }
 .viz-export { margin-left:auto; flex:0 0 auto; padding:11px 15px; border:1px solid #cfdcee; border-radius:10px; background:#fff; color:#0f5fc4; font-size:12px; font-weight:800; text-decoration:none; }
 
-.viz-card { padding:18px; border:1px solid #e0e6ef; border-radius:16px; background:#fff; }
+.admin-kpis { margin:0; padding:0; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.admin-kpis div { padding:16px 18px; border:1px solid #e6eaf2; border-radius:15px; background:#fff; }
+.admin-kpis dt { color:#7b8ca4; font-size:12px; font-weight:800; }
+.admin-kpis dd { margin:8px 0 0; color:#14161c; font-size:29px; font-weight:900; line-height:1; letter-spacing:-.02em; }
+.admin-kpis dd small { margin-left:3px; color:#93a0b3; font-size:13px; font-weight:800; }
+.admin-kpis > div > small { display:block; margin-top:8px; color:#93a0b3; font-size:11px; font-weight:700; }
+@media(max-width:780px){ .admin-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+
+.admin-columns { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:12px; align-items:start; }
+.admin-aside { display:grid; gap:12px; }
+@media(max-width:980px){ .admin-columns { grid-template-columns:minmax(0,1fr); } }
+
+.viz-card-head { margin-bottom:14px; display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:10px; }
+.viz-card-head > div { min-width:0; }
+.viz-card-head h2 { margin:0; }
+.viz-card-head .viz-lead { margin-top:5px; }
+.viz-card-head .viz-export { margin-left:0; }
+
+.admin-queue-count { flex:0 0 auto; color:#93a0b3; font-size:11px; font-weight:800; }
+.admin-queue ul { margin:0; padding:0; list-style:none; display:grid; gap:2px; }
+.admin-queue button { width:100%; min-height:54px; padding:0 4px; display:flex; align-items:center; gap:11px; border:0; border-radius:11px; background:transparent; cursor:pointer; }
+.admin-queue button:hover { background:#f4f7fc; }
+.admin-queue i { width:32px; height:32px; flex:0 0 auto; display:grid; place-items:center; border-radius:9px; }
+.admin-queue i.is-red { color:#c9330a; } .admin-queue i.is-amber { color:#b2760b; } .admin-queue i.is-blue { color:#1e63c8; }
+.admin-queue i.is-red { background:#fdeae4; } .admin-queue i.is-amber { background:#fdf1dc; } .admin-queue i.is-blue { background:#e6effc; }
+.admin-queue span { flex:1; min-width:0; color:#3b4a61; font-size:13px; font-weight:800; text-align:left; }
+.admin-queue b { font-size:17px; font-weight:900; }
+.admin-queue b.is-red { color:#c9330a; } .admin-queue b.is-amber { color:#b2760b; } .admin-queue b.is-blue { color:#1e63c8; }
+.admin-queue em { color:#b6c0d0; font-size:15px; font-style:normal; }
+
+.admin-mini { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.admin-mini p { margin:0; color:#7b8ca4; font-size:12px; font-weight:800; }
+.admin-mini b { display:block; margin-top:5px; color:#14161c; font-size:24px; font-weight:900; line-height:1; }
+.admin-mini button { flex:0 0 auto; min-height:40px; padding:0 14px; border:1px solid #cfdcee; border-radius:10px; background:#fff; color:#0f5fc4; font-size:12px; font-weight:800; cursor:pointer; }
+
+.admin-rank { margin:0; padding:0; list-style:none; display:grid; gap:2px; }
+.admin-rank li { padding:11px 4px; display:grid; grid-template-columns:26px minmax(0,1.4fr) minmax(80px,1fr) auto; align-items:center; gap:12px; border-top:1px solid #eef1f6; }
+.admin-rank li:first-child { border-top:0; }
+.admin-rank i { width:22px; height:22px; display:grid; place-items:center; border-radius:7px; background:#f0f3f8; color:#7b8ca4; font-size:11px; font-style:normal; font-weight:900; }
+.admin-rank li:first-child i { background:#fdf1dc; color:#a97a10; }
+.admin-rank-who { min-width:0; }
+.admin-rank-who b { display:block; overflow:hidden; color:#22304a; font-size:14px; font-weight:900; text-overflow:ellipsis; white-space:nowrap; }
+.admin-rank-who small { display:block; overflow:hidden; margin-top:3px; color:#93a0b3; font-size:11px; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
+.admin-rank-bar { height:8px; border-radius:99px; background:#eef1f6; }
+.admin-rank-bar span { display:block; height:100%; border-radius:99px; background:var(--blue); }
+.admin-rank-num { text-align:right; }
+.admin-rank-num b { color:#14161c; font-size:15px; font-weight:900; }
+.admin-rank-num small { display:block; margin-top:3px; color:#93a0b3; font-size:10px; font-weight:700; white-space:nowrap; }
+@media(max-width:640px){
+  .admin-rank li { grid-template-columns:26px minmax(0,1fr) auto; }
+  .admin-rank-bar { display:none; }
+}
+
+.viz-card { padding:18px; border:1px solid #e6eaf2; border-radius:16px; background:#fff; }
 .viz-card h2 { margin:0; display:flex; align-items:baseline; gap:10px; color:var(--navy); font-size:17px; }
 .viz-count { padding:2px 9px; border-radius:99px; background:#eef1f5; color:#71809a; font-size:11px; font-weight:900; }
 .viz-lead { margin:7px 0 0; color:#62728a; font-size:12px; line-height:1.8; }

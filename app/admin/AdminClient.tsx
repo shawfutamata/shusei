@@ -11,7 +11,7 @@ type AdminData = {
 };
 
 const tabs = [
-  { key: 'analytics', label: '分析' },
+  { key: 'analytics', label: 'ダッシュボード' },
   { key: 'members', label: '会員' },
   { key: 'requests', label: '投稿' },
   { key: 'ads', label: '広告' },
@@ -72,45 +72,106 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   }
 
   const { summary } = data;
-  return <main className="admin">
+  const countFor = (key: (typeof tabs)[number]['key']) => key === 'members' ? data.members.length
+    : key === 'requests' ? data.requests.length : key === 'ads' ? data.ads.length
+    : key === 'feedback' ? data.feedback.filter((row) => row.status === 'new').length : 0;
+  // 要対応。**数を並べるだけにしない。** 押すとその一覧へ飛ぶ、次の手が決まっている
+  // ものだけを置く。数が0のものは出さない（片付いた列は見る必要がない）。
+  const waitingRequests = data.requests.filter((row) => row.status === 'open' && row.introCount === 0).length;
+  const queue = [
+    { key: 'feedback', tone: 'is-red', icon: 'feedback', label: '未読のご意見', value: summary.newFeedback, to: 'feedback' as const },
+    { key: 'waiting', tone: 'is-amber', icon: 'requests', label: 'オファーがまだ0件の募集', value: waitingRequests, to: 'requests' as const },
+    { key: 'off', tone: 'is-blue', icon: 'members', label: '停止中の会員', value: summary.suspendedMembers, to: 'members' as const },
+  ].filter((row) => row.value > 0);
+  // よく動いている会員。順位と棒で出す。棒の長さは1位を100%とした割合。
+  const ranking = [...data.members]
+    .map((row) => ({ ...row, score: row.introCount + row.requestCount }))
+    .filter((row) => row.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8);
+  const topScore = ranking[0]?.score ?? 1;
+  const today = new Date();
+  const dateLabel = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日（${'日月火水木金土'[today.getDay()]}）時点`;
+
+  return <div className="admin-shell">
+    <aside className="admin-side">
+      <div className="admin-brand"><span>管</span><b>{serviceName} 管理</b></div>
+      <nav className="admin-side-nav" aria-label="管理する対象">
+        {tabs.map((item) => <button key={item.key} className={tab === item.key ? 'selected' : ''}
+          onClick={() => setTab(item.key)} aria-pressed={tab === item.key}>
+          <SideIcon name={item.key} />
+          <span>{item.label}</span>
+          {countFor(item.key) > 0 && <em>{countFor(item.key)}</em>}
+        </button>)}
+      </nav>
+      <div className="admin-side-foot"><span>管</span><div><b>{adminName}</b><small>{adminEmail}</small></div></div>
+    </aside>
+
+    <main className="admin">
     <header className="admin-header">
       <div>
-        <p>ADMIN</p>
-        <h1>{serviceName} 管理画面</h1>
+        <h1>{tabs.find((item) => item.key === tab)?.label}</h1>
+        <p>{adminName}さん、こんにちは — {dateLabel}</p>
       </div>
-      <span className="admin-who">{adminName}</span>
+      <button className="admin-open-site" onClick={() => reload().then(() => say('最新の状態にしました。'))}>再読み込み</button>
     </header>
 
-    <dl className="admin-summary">
-      <div><dt>会員</dt><dd>{summary.members}</dd><small>利用中 {summary.activeMembers}／停止 {summary.suspendedMembers}</small></div>
-      <div><dt>探しごと</dt><dd>{summary.requests}</dd><small>募集中 {summary.openRequests}</small></div>
-      <div><dt>オファー</dt><dd>{summary.introductions}</dd><small>やり取り {summary.comments}</small></div>
-      <div><dt>掲載中の広告</dt><dd>{summary.liveAds}</dd><small>未読のご意見 {summary.newFeedback}</small></div>
-    </dl>
-
-    <nav className="admin-tabs" aria-label="管理する対象">
-      {tabs.map((item) => <button key={item.key} className={tab === item.key ? 'selected' : ''}
-        onClick={() => setTab(item.key)} aria-pressed={tab === item.key}>
-        {item.label}
-        {item.key !== 'analytics' && <span>{item.key === 'members' ? data.members.length : item.key === 'requests' ? data.requests.length
-          : item.key === 'ads' ? data.ads.length : data.feedback.filter((row) => row.status === 'new').length}</span>}
-      </button>)}
-    </nav>
-
     {tab === 'analytics' && <section className="viz-panel">
-      <div className="viz-range" role="group" aria-label="集計する期間">
-        {[30, 90, 365].map((value) => <button key={value} className={range === value ? 'selected' : ''}
-          onClick={() => { setAnalytics(null); setRange(value); }} aria-pressed={range === value}>{value === 365 ? '1年' : `${value}日`}</button>)}
-        <a className="viz-export" href="/api/admin/export?type=members">会員をCSVで書き出す</a>
-      </div>
+      <dl className="admin-kpis">
+        <div><dt>累計会員数</dt><dd>{summary.members.toLocaleString('ja-JP')}<small>人</small></dd><small>利用中 {summary.activeMembers}／停止 {summary.suspendedMembers}</small></div>
+        <div><dt>累計の探しごと</dt><dd>{summary.requests.toLocaleString('ja-JP')}<small>件</small></dd><small>募集中 {summary.openRequests}</small></div>
+        <div><dt>届いたオファー</dt><dd>{summary.introductions.toLocaleString('ja-JP')}<small>件</small></dd><small>やり取り {summary.comments}</small></div>
+        <div><dt>掲載中の広告</dt><dd>{summary.liveAds.toLocaleString('ja-JP')}<small>件</small></dd><small>未読のご意見 {summary.newFeedback}</small></div>
+      </dl>
 
-      {!analytics ? <p className="viz-empty">集計しています…</p> : <>
+      <div className="admin-columns">
         <section className="viz-card">
-          <h2>動きの推移</h2>
-          <p className="viz-lead">この{analytics.days}日間で、会員・探しごと・オファーがどれだけ増えたか。</p>
-          <TrendChart points={analytics.timeline} />
+          <div className="viz-card-head">
+            <div><h2>動きの推移</h2><p className="viz-lead">この{range}日間で、会員・探しごと・オファーがどれだけ増えたか。</p></div>
+            <div className="viz-range" role="group" aria-label="集計する期間">
+              {[30, 90, 365].map((value) => <button key={value} className={range === value ? 'selected' : ''}
+                onClick={() => { setAnalytics(null); setRange(value); }} aria-pressed={range === value}>{value === 365 ? '1年' : `${value}日`}</button>)}
+            </div>
+          </div>
+          {analytics ? <TrendChart points={analytics.timeline} /> : <p className="viz-empty">集計しています…</p>}
         </section>
 
+        <div className="admin-aside">
+          <section className="viz-card admin-queue">
+            <div className="viz-card-head"><h2>要対応</h2><span className="admin-queue-count">{queue.length}件のキュー</span></div>
+            {!queue.length ? <p className="viz-empty">いまは手が空いています。</p>
+              : <ul>{queue.map((row) => <li key={row.key}>
+                <button onClick={() => setTab(row.to)}>
+                  <i className={row.tone}><SideIcon name={row.icon} /></i>
+                  <span>{row.label}</span>
+                  <b className={row.tone}>{row.value.toLocaleString('ja-JP')}</b>
+                  <em aria-hidden="true">›</em>
+                </button>
+              </li>)}</ul>}
+          </section>
+
+          <section className="viz-card admin-mini">
+            <div><p>掲載中の広告</p><b>{summary.liveAds}</b></div>
+            <button onClick={() => setTab('ads')}>一覧へ</button>
+          </section>
+        </div>
+      </div>
+
+      <section className="viz-card">
+        <div className="viz-card-head">
+          <div><h2>よく動いている会員</h2><p className="viz-lead">オファーと投稿の合計です。<b>場を回している人が誰かが分かります。</b></p></div>
+          <a className="viz-export" href="/api/admin/export?type=members">会員をCSVで書き出す</a>
+        </div>
+        {!ranking.length ? <p className="viz-empty">まだ動きがありません。</p>
+          : <ol className="admin-rank">{ranking.map((row, index) => <li key={row.id}>
+            <i>{index + 1}</i>
+            <div className="admin-rank-who"><b>{row.displayName || '(名前なし)'}</b><small>{row.company || '会社名なし'}・{row.venue}</small></div>
+            <div className="admin-rank-bar"><span style={{ width: `${Math.round((row.score / topScore) * 100)}%` }} /></div>
+            <div className="admin-rank-num"><b>{row.score}</b><small>オファー {row.introCount}・投稿 {row.requestCount}</small></div>
+          </li>)}</ol>}
+      </section>
+
+      {!analytics ? null : <>
         <section className="viz-card">
           <h2>オファーが生まれているか</h2>
           <p className="viz-lead">投稿がオファーにつながった割合。<b>この数字がこのサービスの成否そのものです。</b></p>
@@ -298,5 +359,19 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
     </div>}
 
     {!!note && <p className="admin-note" role="status">{note}</p>}
-  </main>;
+    </main>
+  </div>;
+}
+
+/** 左の帯に出す印。線だけの形にして、選んでいるものだけ色が乗る。 */
+function SideIcon({ name }: { name: string }) {
+  const paths: Record<string, React.ReactNode> = {
+    analytics: <><path d="M3 13h4v8H3zM10 3h4v18h-4zM17 9h4v12h-4z" /></>,
+    members: <><circle cx="9" cy="8" r="3.4" /><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5" /><path d="M16 5.5a3 3 0 010 5.6M17.5 15c2.2.5 3.5 2 3.5 5" /></>,
+    requests: <><path d="M5 4h11l3 3v13H5z" /><path d="M8 10h8M8 14h5" /></>,
+    ads: <><rect x="3" y="5" width="18" height="12" rx="2" /><path d="M8 21h8" /></>,
+    feedback: <><path d="M4 5h16v11H9l-5 4z" /></>,
+  };
+  return <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+    strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
