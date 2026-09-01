@@ -15,6 +15,7 @@ import { feedbackCategories } from './feedback-options';
 import { adDailyPrice, adTotalPrice, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
 import LegalLinks from './LegalLinks';
+import Tutorial, { tutorialSeen } from './Tutorial';
 import { InviteIcon, OfferIcon, PlanIcon, PostsIcon, ProfileIcon, ReceiptIcon, VoiceIcon } from './MyPageIcons';
 import type { BillingRecord } from './stripe';
 import PerkIcon from './PerkIcon';
@@ -260,6 +261,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [offerAd, setOfferAd] = useState<AdSlot | null>(null);
   /** バナーを押して開いた広告。中身をひととおり見せてから、下でオファーへ。 */
   const [adDetail, setAdDetail] = useState<AdSlot | null>(null);
+  /** 初めて来た人への案内。出したかどうかは端末側に持つ（app/Tutorial.tsx）。 */
+  const [tutorial, setTutorial] = useState(false);
+  /** 投稿したあと、そのまま広告の申し込みへ進むか。新規の投稿のときだけ聞く。 */
+  const [postAsAd, setPostAsAd] = useState(false);
   /** プラン案内に出す一言。断られた理由をそのまま見せるため、空なら既定の文。 */
   const [upgradeNote, setUpgradeNote] = useState('');
   const [selected, setSelected] = useState<BoardRequest | null>(null);
@@ -360,6 +365,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const rankProgress = stats.level >= rankThresholds.length ? 100 : Math.max(0, Math.min(100, ((stats.inviteCount - rankStart) / Math.max(1, stats.nextRankAt - rankStart)) * 100));
   /** 次のランクまで、あと何人を招待すればよいか。 */
   const invitesToNextRank = Math.max(0, stats.nextRankAt - stats.inviteCount);
+  // 初めての人にだけ出す。**描き終わってから出す。** サーバー側では端末の
+  // 記録を読めないので、最初の描画に混ぜるとサーバーと食い違ってしまう。
+  useEffect(() => {
+    const timer = window.setTimeout(() => { if (!tutorialSeen()) setTutorial(true); }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     const result = new URLSearchParams(window.location.search).get('billing');
     if (!result) return;
@@ -607,9 +619,18 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     const result = await response.json() as { error?: string }; setBusy(false);
     if (!response.ok) return showToast(result.error ?? (editing ? '保存できませんでした。' : '投稿できませんでした。'));
     removeRequestVideo();
+    // 広告にする、を選んでいたら、投稿の見出しと本文を持って申し込みへ進む。
+    const toAd = !editing && postAsAd;
+    const adSeed = { title: String(body.get('title') ?? ''), description: String(body.get('description') ?? '') };
     setModal(null); setEditingRequest(null); form.reset(); setRequestIndustries([]); clearRequestPhoto();
+    setPostAsAd(false);
     await refreshBoard();
     await loadMyRequests().catch(() => {});
+    if (toAd) {
+      openAdSettings();
+      startAdFlow(adSeed);
+      return showToast('投稿しました。続けて広告のお申し込みへ進みます。');
+    }
     showToast(editing ? '探しごとを保存しました。' : '探しごとを投稿しました。関連業種の会員へ通知します。');
   }
 
@@ -746,9 +767,11 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     closeAdFlow();
   }
 
-  function startAdFlow() {
+  function startAdFlow(draft?: Partial<AdDraft>) {
     setAdFileName('');
-    setAdDraft(emptyAdDraft);
+    // 投稿から来たときは、見出しと本文を写しておく。
+    // 打ち直させない。文言はあとから直せる。
+    setAdDraft({ ...emptyAdDraft, ...draft });
     setAdStep(0);
     setAdFlow(true);
   }
@@ -1178,6 +1201,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <span className="mypage-invite-go" aria-hidden="true">›</span>
         </button>
 
+        <button className="mypage-howto" onClick={() => setTutorial(true)}>使い方をもう一度見る</button>
         <button className="mypage-signout" onClick={signOut} disabled={busy}>{busy ? '…' : 'ログアウト'}</button>
         <LegalLinks />
       </section> : activeTab === 'offers' ? <section className="profile-page" aria-labelledby="offers-title">
@@ -1375,7 +1399,17 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           : requestVideoPreview
             ? <div className="request-video-item"><video src={requestVideoPreview} controls playsInline preload="metadata" /><button type="button" onClick={removeRequestVideo}>動画を外す</button></div>
             : <label className="request-video-add"><input name="videoPick" type="file" accept="video/*" onChange={chooseRequestVideo} /><b>＋</b><small>動画を選ぶ</small></label>}</>}
-      </div><button className="submit-button" disabled={busy || !requestIndustries.length || videoProgress >= 0}>{busy ? '保存しています…' : editingRequest ? '保存する' : '投稿する'}</button></form></Modal>}
+      </div>{!editingRequest && adInfo?.ready && <div className="post-as-ad" role="group" aria-label="広告として出すか">
+          <p><b>広告としても出しますか</b><small>掲載日数分のお支払いが1回だけかかります。投稿そのものは無料です。</small></p>
+          <div className="post-as-ad-picks">
+            <button type="button" className={postAsAd ? '' : 'selected'} onClick={() => setPostAsAd(false)}>
+              <b>投稿だけ</b><small>無料。関連業種の会員へ通知します</small>
+            </button>
+            <button type="button" className={postAsAd ? 'selected' : ''} onClick={() => setPostAsAd(true)}>
+              <b>広告も出す</b><small>投稿のあと、続けてお申し込みへ</small>
+            </button>
+          </div>
+        </div>}<button className="submit-button" disabled={busy || !requestIndustries.length || videoProgress >= 0}>{busy ? '保存しています…' : editingRequest ? '保存する' : postAsAd ? '投稿して広告の申し込みへ' : '投稿する'}</button></form></Modal>}
 
       {deletingRequest && <Modal title="この探しごとを削除しますか" lead="削除すると元に戻せません。" onClose={() => setDeletingRequest(null)}>
         <div className="quota-block">
@@ -1518,7 +1552,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             : !nextOpenDay
             ? <p className="ad-note">ただいま{adInfo.daysAhead}日先まで、{placementName(adPlacement)}の{currentPlacement.slots}枠すべてが埋まっています。空きが出ましたらお申し込みいただけます。</p>
             : !adFlow
-              ? <button className="ad-entry-open" onClick={startAdFlow}>
+              ? <button className="ad-entry-open" onClick={() => startAdFlow()}>
                   <span><b>新規のお申し込み</b><small>4ステップで完了します。掲載日数分のお支払いが1回のみ</small></span>
                   <i aria-hidden="true">›</i>
                 </button>
@@ -1673,6 +1707,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       </article></Modal>}
 
       {cropSource && <div className="crop-backdrop"><section className="crop-dialog" role="dialog" aria-modal="true" aria-labelledby="crop-title"><header><button onClick={() => setCropSource('')}>キャンセル</button><div><h2 id="crop-title">顔写真を調整</h2><p>指で動かして、顔が中央に来るようにします</p></div><button className="crop-confirm" onClick={confirmCrop} disabled={cropping || !croppedArea}>{cropping ? '処理中' : '決定'}</button></header><div className="crop-stage"><Cropper image={cropSource} crop={crop} zoom={zoom} aspect={1} cropShape="round" showGrid={false} minZoom={1} maxZoom={4} zoomSpeed={0.35} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_, pixels) => setCroppedArea(pixels)} disableAutomaticStylesInjection /></div><div className="crop-controls"><label><span>顔の大きさ</span><input type="range" min="1" max="4" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} aria-label="顔写真の拡大率" /><b>{Math.round(zoom * 100)}%</b></label><p>写真を指で動かせます。丸の中がプロフィール写真に表示されます。</p></div></section></div>}
+      {tutorial && <Tutorial onClose={() => setTutorial(false)}
+        onFinish={() => { setTutorial(false); showProfileSettings(); }} />}
       {toast && <div className="toast" role="status">{toast}</div>}
   </>);
 }
