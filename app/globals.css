@@ -80,7 +80,7 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .card-person { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:9px; padding-top:2px; }.member-avatar { width:42px; height:42px; display:grid; place-items:center; overflow:hidden; border:2px solid #dbeafe; border-radius:50%; background:#e9f0fb; color:#41638f; font-size:12px; font-weight:700; }.card-person p { margin:0; }.card-person b,.card-person small { display:block; }.card-person b { font-size:9px; }.card-person small { max-width:240px; overflow:hidden; margin-top:3px; color:#8b97aa; font-size:7px; text-overflow:ellipsis; white-space:nowrap; }.card-person>span:last-child:not(.member-avatar) { color:#718099; font-size:8px; }.member-context { display:flex; flex-wrap:wrap; gap:5px; margin-top:9px; }.member-context span { padding:4px 6px; border-radius:5px; background:#eef5ff; color:#446aab; font-size:7px; font-weight:700; }
 .intro-button { width:100%; min-height:44px; margin-top:13px; border:1px solid var(--accent-line); border-radius:11px; background:var(--accent-soft); color:var(--accent-ink); font-size:10px; font-weight:800; }.intro-button span { float:right; margin-right:3px; }.empty { min-height:190px; display:grid; place-items:center; align-content:center; gap:7px; border:1px dashed #cbd5e1; border-radius:16px; background:#fff; color:#8b96a8; text-align:center; }.empty b { color:var(--ink); font-size:12px; }.empty span { font-size:9px; }
 
-.bottom-nav { width:min(100%,480px); height:var(--nav-h); padding:7px 8px calc(7px + env(safe-area-inset-bottom)); display:grid; grid-template-columns:repeat(5,1fr); align-items:end; position:fixed; z-index:95; left:50%; bottom:0; transform:translateX(-50%); background:rgba(255,255,255,.97); border-top:1px solid var(--line); backdrop-filter:blur(14px); }.bottom-nav button,.bottom-nav label { min-height:48px; padding:4px 2px; border:0; background:transparent; display:grid; place-items:center; align-content:center; gap:3px; color:#8c98aa; cursor:pointer; }.bottom-nav button>span,.bottom-nav label>span { font-size:20px; line-height:1; }.bottom-nav small { font-size:7px; font-weight:700; white-space:nowrap; letter-spacing:-.02em; }.nav-icon { width:1em; height:1em; display:block; }.bottom-nav .active { color:var(--blue); }.bottom-nav .nav-post { width:62px; height:62px; min-height:62px; margin:0 auto 8px; border-radius:18px; background:linear-gradient(135deg,#e04310,#fb7a3c); color:#fff; }.bottom-nav .nav-post span { font-size:34px; font-weight:300; }
+.bottom-nav { width:min(100%,480px); height:var(--nav-h); padding:7px 8px calc(7px + env(safe-area-inset-bottom)); display:grid; grid-template-columns:repeat(5,1fr); align-items:end; position:fixed; z-index:95; left:50%; bottom:0; transform:translateX(-50%); background:rgba(255,255,255,.97); border-top:1px solid var(--line); backdrop-filter:blur(14px); }.bottom-nav button,.bottom-nav label { min-height:48px; padding:4px 2px; border:0; background:transparent; display:grid; place-items:center; align-content:center; gap:3px; color:#8c98aa; cursor:pointer; }.bottom-nav button>span,.bottom-nav label>span { font-size:20px; line-height:1; }.bottom-nav small { font-size:7px; font-weight:700; white-space:nowrap; letter-spacing:-.02em; }.nav-icon { width:1em; height:1em; display:block; }.bottom-nav .active { color:var(--blue); }.bottom-nav .nav-post { width:62px; height:62px; min-height:62px; margin:0 auto 8px; border-radius:18px; background:var(--accent); color:#fff; }.bottom-nav .nav-post span { font-size:34px; font-weight:300; }
 
 .modal-backdrop { position:fixed; inset:0; z-index:50; display:grid; align-items:end; background:rgba(15,32,69,.53); backdrop-filter:blur(3px); }.modal { width:min(100%,480px); max-height:91vh; /* dvh に対応した端末では、いま見えている高さで測り直す。
   vh は iOS Safari だとアドレスバーが隠れているときの高さなので、バーが
@@ -167,12 +167,12 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .ad-entry-state { margin:0; display:flex; align-items:baseline; justify-content:space-between; gap:9px; }
 .ad-entry-state b { color:var(--navy); font-size:12px; font-weight:900; white-space:nowrap; }
 .ad-entry-state span { color:#62728a; font-size:10px; font-weight:800; font-variant-numeric:tabular-nums; }
-.ad-entry-open { width:100%; min-height:72px; padding:15px 18px; display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px; border:0; border-radius:15px; background:linear-gradient(135deg,#e04310,#fb7a3c); text-align:left; }
+.ad-entry-open { width:100%; min-height:72px; padding:15px 18px; display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px; border:0; border-radius:15px; background:var(--accent); text-align:left; }
 .ad-entry-open b { display:block; color:#fff; font-size:16px; font-weight:900; letter-spacing:-.01em; }
 .ad-entry-open small { display:block; margin-top:4px; color:rgba(255,255,255,.88); font-size:11px; font-weight:800; line-height:1.5; }
 .ad-entry-open i { width:30px; height:30px; display:grid; place-items:center; border-radius:50%; background:rgba(255,255,255,.22); color:#fff; font-size:17px; font-style:normal; font-weight:900; }
 .ad-entry-open:active { filter:brightness(.94); }
-.ad-entry-open { margin-bottom:14px; box-shadow:0 8px 20px rgba(224,67,16,.26); }
+.ad-entry-open { margin-bottom:14px; }
 .ad-panel { display:grid; gap:14px; }
 .ad-heading p { margin:0 0 4px; color:var(--accent-ink); font-size:9px; font-weight:900; letter-spacing:.16em; }
 .ad-heading h2 { margin:0; font-size:19px; }
@@ -1326,7 +1326,7 @@ body { font-weight:600; }
 .received-tabs .is-out.selected i { color:#fff; }
 .received-tabs .is-out.selected span { color:#fff; background:rgba(255,255,255,.26); }
 /* まとめの帯も、いま見ている側の色にする。 */
-.received-summary.is-out { background:linear-gradient(135deg,#c93d0e,#fb7a3c); }
+.received-summary.is-out { background:var(--accent); }
 .received-summary.is-out small { color:#ffe2d6; }
 .received-summary.is-out p { color:#fff1ea; }
 
