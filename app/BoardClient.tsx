@@ -464,9 +464,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // その欄が画面に無いので、位置を測っても意味がない。
   useEffect(() => {
     if (activeTab !== 'profile' || !profileFocus) return;
-    const target = document.getElementById(profileFocus);
-    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setProfileFocus('');
+    // 1拍おいてから測る。切り替えた直後は、まだ位置が決まりきっていない。
+    const timer = window.setTimeout(() => {
+      document.getElementById(profileFocus)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setProfileFocus('');
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [activeTab, profileFocus]);
 
   /** ここまで読んだ、と記録して数字を減らす。開いたときに呼ぶ。 */
