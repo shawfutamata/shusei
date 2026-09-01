@@ -1758,3 +1758,11 @@ body { font-weight:600; }
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 @media(min-width:481px){ .home-section-heading h2 { font-size:23px; } }
+
+/* --- 管理画面：止めた枠のまとまり --------------------------------------------
+   動いているものと混ぜない。混ざっていると「掲載を戻す」が並んで、
+   どれが生きている枠なのか一目で分からなかった。 */
+.admin-archive { margin-top:26px; padding-top:20px; border-top:1px dashed #cfd8e6; }
+.admin-archive h2 { margin:0; display:flex; align-items:baseline; gap:9px; color:#5b6b80; font-size:16px; font-weight:900; }
+.admin-archive h2 span { padding:2px 9px; border-radius:99px; background:#e7ecf4; color:#65758c; font-size:11px; font-weight:900; }
+.admin-archive > p { margin:6px 0 14px; color:#7b8a9e; font-size:12px; font-weight:700; line-height:1.7; }

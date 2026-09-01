@@ -81,6 +81,35 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
     return () => { alive = false; };
   }, [tab, backups]);
 
+  const liveAds = data.ads.filter((ad) => ad.status !== 'stopped');
+  const stoppedAds = data.ads.filter((ad) => ad.status === 'stopped');
+  /** 広告1件の行。動いているものと止めたもので、同じ形で並べる。 */
+  const adRow = (ad: AdminAd) => <li key={ad.id} className={ad.status === 'stopped' ? 'is-off' : ''}>
+    <div className="admin-row-top">
+      <b>{ad.title || '(入稿前)'}</b>
+      <span className={`admin-state ${ad.status === 'stopped' ? 'is-off' : 'is-on'}`}>
+        {ad.status === 'stopped' ? '停止中' : ad.status === 'reserved' ? '支払い待ち' : '掲載中'}
+      </span>
+    </div>
+    <p className="admin-meta">
+      <span>{ad.memberCompany || ad.memberName}</span>
+      <span>{placementName(ad.placement)}</span>
+      <span>{ad.startDate.replace(/-/g, '/')}〜{ad.endDate.replace(/-/g, '/')}</span>
+    </p>
+    <p className="admin-meta">
+      <span>表示 {ad.viewCount.toLocaleString('ja-JP')}</span>
+      <span>クリック {ad.clickCount.toLocaleString('ja-JP')}</span>
+      {!!ad.linkUrl && <span>{ad.linkUrl.replace(/^https?:\/\//, '')}</span>}
+    </p>
+    <div className="admin-actions">
+      <button className={ad.status === 'stopped' ? '' : 'is-danger'} disabled={busy === ad.id}
+        onClick={() => act(ad.id, `/api/admin/ads/${ad.id}`, { stopped: ad.status !== 'stopped' }, 'POST',
+          ad.status === 'stopped' ? '掲載を戻しました。' : '掲載を止めました。')}>
+        {busy === ad.id ? '…' : ad.status === 'stopped' ? '掲載を戻す' : '掲載を止める'}
+      </button>
+    </div>
+  </li>;
+
   /** いますぐ控えを取る。取れたら一覧を読み直して、増えたことが見えるようにする。 */
   async function takeBackup() {
     setBusy('backup');
@@ -371,34 +400,21 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       </li>)}
     </ul>}
 
-    {tab === 'ads' && <ul className="admin-list">
-      {!data.ads.length && <li className="admin-empty">まだ広告のお申し込みはありません。</li>}
-      {data.ads.map((ad) => <li key={ad.id} className={ad.status === 'stopped' ? 'is-off' : ''}>
-        <div className="admin-row-top">
-          <b>{ad.title || '(入稿前)'}</b>
-          <span className={`admin-state ${ad.status === 'stopped' ? 'is-off' : 'is-on'}`}>
-            {ad.status === 'stopped' ? '停止中' : ad.status === 'reserved' ? '支払い待ち' : '掲載中'}
-          </span>
-        </div>
-        <p className="admin-meta">
-          <span>{ad.memberCompany || ad.memberName}</span>
-          <span>{placementName(ad.placement)}</span>
-          <span>{ad.startDate.replace(/-/g, '/')}〜{ad.endDate.replace(/-/g, '/')}</span>
-        </p>
-        <p className="admin-meta">
-          <span>表示 {ad.viewCount.toLocaleString('ja-JP')}</span>
-          <span>クリック {ad.clickCount.toLocaleString('ja-JP')}</span>
-          {!!ad.linkUrl && <span>{ad.linkUrl.replace(/^https?:\/\//, '')}</span>}
-        </p>
-        <div className="admin-actions">
-          <button className={ad.status === 'stopped' ? '' : 'is-danger'} disabled={busy === ad.id}
-            onClick={() => act(ad.id, `/api/admin/ads/${ad.id}`, { stopped: ad.status !== 'stopped' }, 'POST',
-              ad.status === 'stopped' ? '掲載を戻しました。' : '掲載を止めました。')}>
-            {busy === ad.id ? '…' : ad.status === 'stopped' ? '掲載を戻す' : '掲載を止める'}
-          </button>
-        </div>
-      </li>)}
-    </ul>}
+    {/* 止めた枠は下にまとめる。**上の一覧はいま動いているものだけ。**
+        混ぜてあると「掲載を戻す」が並んで、どれが生きている枠なのか一目で
+        分からなかった。戻す操作は、下のまとまりの中だけに置く。 */}
+    {tab === 'ads' && <>
+      <ul className="admin-list">
+        {!data.ads.length && <li className="admin-empty">まだ広告のお申し込みはありません。</li>}
+        {data.ads.length > 0 && !liveAds.length && <li className="admin-empty">いま動いている広告はありません。</li>}
+        {liveAds.map(adRow)}
+      </ul>
+      {stoppedAds.length > 0 && <section className="admin-archive">
+        <h2>停止中の広告<span>{stoppedAds.length}件</span></h2>
+        <p>掲載を止めたものです。消えてはいないので、ここから戻せます。</p>
+        <ul className="admin-list">{stoppedAds.map(adRow)}</ul>
+      </section>}
+    </>}
 
     {tab === 'feedback' && <ul className="admin-list">
       {!data.feedback.length && <li className="admin-empty">まだご意見は届いていません。</li>}
