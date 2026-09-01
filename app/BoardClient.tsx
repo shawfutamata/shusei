@@ -82,10 +82,17 @@ const revenueBands: Record<string, string> = {
   revenue_100_plus: '1億円以上',
 };
 
+/**
+ * 出稿された広告が無いときに出す、自前のバナー。
+ *
+ * **行き先は名前で持つ。** 以前は「何枚目か」で分けていたので、1枚足すたびに
+ * 全部の行き先がずれた。
+ */
 const topBanners = [
-  { src: '/banners/top-request.webp', alt: 'こんな人、探しています。探しごとを投稿する案内' },
-  { src: '/banners/top-introductions.webp', alt: '届いたオファーをまとめて確認する案内' },
-  { src: '/banners/top-rank.webp', alt: 'オファーするほど会員ランクが上がる仕組みの案内' },
+  { src: '/banners/top-ad.webp', alt: 'この枠に広告を出稿できます。広告出稿のご案内', to: 'ads' },
+  { src: '/banners/top-request.webp', alt: 'こんな人、探しています。探しごとを投稿する案内', to: 'request' },
+  { src: '/banners/top-introductions.webp', alt: '届いたオファーをまとめて確認する案内', to: 'responses' },
+  { src: '/banners/top-rank.webp', alt: 'オファーするほど会員ランクが上がる仕組みの案内', to: 'mypage' },
 ] as const;
 const industryIcons: Record<string, string> = {
   'IT・システム': '/icons/industries/it-system.png', 'Web・広告': '/icons/industries/web-ad.png',
@@ -1093,7 +1100,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // 出稿された広告を先に置く。お金をいただいている枠なので、いちばん先に目に入る場所に出す。
   // 並びは開くたびに入れ替える。同じ月に出した人へ均等に順番が回るようにするため。
   const slides = useMemo(() => [
-    ...shuffle(bannerAds).map((ad) => ({ src: ad.imageUrl, alt: `${ad.memberName}さんの広告「${ad.title}」`, ad })),
+    ...shuffle(bannerAds).map((ad) => ({ src: ad.imageUrl, alt: `${ad.memberName}さんの広告「${ad.title}」`, ad, to: '' })),
     ...topBanners.map((banner) => ({ ...banner, ad: null as AdSlot | null })),
   ], [bannerAds]);
   const slide = slides[Math.min(carouselIndex, slides.length - 1)];
@@ -1161,9 +1168,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       setModal('adDetail');
       return;
     }
-    const fixedIndex = carouselIndex - (slides.length - topBanners.length);
-    if (fixedIndex === 0) return openRequest();
-    if (fixedIndex === 1) return setModal('responses');
+    if (slide?.to === 'ads') return openAdSettings();
+    if (slide?.to === 'request') return openRequest();
+    if (slide?.to === 'responses') return setModal('responses');
     showMyPage();
   }
 
