@@ -1794,6 +1794,8 @@ export type AdSlot = {
   industry: string;
   memberName: string;
   memberCompany: string;
+  /** 出した人。広告からその人のプロフィールへ行くために使う。 */
+  memberId: string;
   /** 見ている本人が出した広告かどうか。自分の広告にはオファーできない。 */
   mine: boolean;
   /** 見た人の合計。同じ会員は1日1回までしか数えない。 */
@@ -1926,10 +1928,9 @@ const adSelect = `SELECT a.id, a.start_date AS startDate, a.end_date AS endDate,
     m.display_name AS memberName, m.company AS memberCompany, a.member_id AS memberId
   FROM ad_slots a JOIN members m ON m.id = a.member_id`;
 
-type AdRow = Omit<AdSlot, 'imageUrl' | 'mine'> & { imageVersion: number; memberId: string };
-// 出した人のIDは画面に渡さない。渡すのは「自分のか、そうでないか」だけ。
-const toAdSlot = (viewerId: string) => ({ imageVersion, memberId, ...ad }: AdRow): AdSlot =>
-  ({ ...ad, mine: memberId === viewerId, imageUrl: adImageUrl(ad.id, imageVersion) });
+type AdRow = Omit<AdSlot, 'imageUrl' | 'mine'> & { imageVersion: number };
+const toAdSlot = (viewerId: string) => ({ imageVersion, ...ad }: AdRow): AdSlot =>
+  ({ ...ad, mine: ad.memberId === viewerId, imageUrl: adImageUrl(ad.id, imageVersion) });
 
 /**
  * いま出ている広告。ホームのバナーに出す。
@@ -2060,6 +2061,56 @@ async function countAdEvents(ids: string[], kind: 'views' | 'clicks') {
 }
 
 /** ランクだけを引く。出稿枠の判定で、掲示板ぜんぶを読まないため。 */
+/**
+ * ほかの会員に見せるプロフィール。**メールアドレスは返さない。**
+ *
+ * 掲示板や広告から「この人は何をしている人か」を確かめるためのもの。
+ * 連絡はオファーかFacebookから取ってもらう。メールを出すと、
+ * 掲示板の外で直接届いてしまい、やり取りの記録が残らない。
+ */
+export type MemberProfile = {
+  id: string; displayName: string; company: string; positionTitle: string; venue: string;
+  businessArea: string; primaryIndustry: string; facebookUrl: string; avatarUrl: string;
+  rank: string; level: number; introCount: number; joinedAt: string;
+  /** その人がいま出している、募集中の探しごと。 */
+  requests: { id: string; title: string; category: string; deadline: string; budgetBand: string; budgetLabel: string; area: string; industryTags: string[]; thumbUrl: string }[];
+};
+
+export async function getMemberProfile(memberId: string): Promise<MemberProfile | null> {
+  await ensureDatabase();
+  const row = await env.DB.prepare(`SELECT id, display_name AS displayName, company,
+    position_title AS positionTitle, venue, business_area AS businessArea,
+    primary_industry AS primaryIndustry, facebook_url AS facebookUrl,
+    avatar_key AS avatarKey, avatar_version AS avatarVersion,
+    intro_count AS introCount, created_at AS createdAt, membership_status AS status
+    FROM members WHERE id = ?`)
+    .bind(memberId).first<{ id: string; displayName: string; company: string; positionTitle: string; venue: string;
+      businessArea: string; primaryIndustry: string; facebookUrl: string; avatarKey: string; avatarVersion: number;
+      introCount: number; createdAt: string; status: MembershipStatus }>();
+  // 利用を止めた人のページは出さない。掲示板から消えた人が、
+  // 広告のリンクからだけ見えてしまうのを防ぐ。
+  if (!row || normalizeMembershipStatus(row.status) === 'canceled') return null;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const requests = await env.DB.prepare(`SELECT id, title, category, deadline,
+    budget_band AS budgetBand, budget_label AS budgetLabel, area,
+    industry_tags AS industryTagsJson, image_version AS imageVersion
+    FROM requests WHERE author_id = ? AND status = 'open' AND deadline >= ?
+    ORDER BY created_at DESC LIMIT 20`).bind(memberId, today)
+    .all<{ id: string; title: string; category: string; deadline: string; budgetBand: string; budgetLabel: string; area: string; industryTagsJson: string; imageVersion: number }>();
+
+  const { rank, level } = await getMemberRank(memberId);
+  return {
+    id: row.id, displayName: row.displayName, company: row.company, positionTitle: row.positionTitle,
+    venue: row.venue, businessArea: row.businessArea, primaryIndustry: row.primaryIndustry,
+    facebookUrl: row.facebookUrl, avatarUrl: avatarUrl(row.id, row.avatarKey, row.avatarVersion),
+    rank, level, introCount: Number(row.introCount ?? 0), joinedAt: row.createdAt.slice(0, 10),
+    requests: requests.results.map(({ industryTagsJson, imageVersion, ...request }) => ({
+      ...request, industryTags: parseStringArray(industryTagsJson), thumbUrl: requestImageUrl(request.id, imageVersion, 'thumb'),
+    })),
+  };
+}
+
 export async function getMemberRank(memberId: string) {
   await ensureDatabase();
   // 数え方は getMemberStats と揃える。登録が済んだ人はそのまま数える。

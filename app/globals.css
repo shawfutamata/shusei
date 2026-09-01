@@ -155,6 +155,35 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .post-as-ad-picks button.selected { border-color:var(--accent); background:#fff; }
 .post-as-ad-picks button.selected b { color:var(--accent-ink); }
 
+/* ほかの会員のプロフィール。広告や掲示板から「何をしている人か」を見る。 */
+.ad-detail-who { padding:0; border:0; background:transparent; color:var(--blue); font-size:13px; font-weight:900; text-align:left; cursor:pointer; }
+.ad-detail-who small { display:block; margin-top:3px; color:var(--muted); font-size:11px; font-weight:700; }
+.member-loading { margin:0; padding:26px 0; color:var(--muted); font-size:13px; font-weight:700; text-align:center; }
+.member-page { display:grid; gap:15px; }
+.member-head { display:flex; align-items:center; gap:13px; }
+.member-avatar { width:64px; height:64px; flex:0 0 auto; display:grid; place-items:center; overflow:hidden; border-radius:50%; background:#dbeafe; color:#0f5fc4; font-size:22px; font-weight:900; }
+.member-avatar img { width:100%; height:100%; object-fit:cover; }
+.member-head > div { min-width:0; }
+.member-head b { display:block; color:var(--ink); font-size:17px; font-weight:900; }
+.member-head small { display:block; margin-top:4px; color:var(--muted); font-size:12px; font-weight:700; }
+.member-rank { display:inline-block; margin-top:7px; padding:3px 9px; border-radius:99px; background:#eef2f8; color:#5b6b80; font-size:10px; font-weight:900; letter-spacing:.06em; }
+.member-rank.rank-2 { background:#fdf1dc; color:#a97a10; }
+.member-rank.rank-3 { background:#e9eefc; color:#43569b; }
+.member-rank.rank-4 { background:#e2f6fa; color:#1f7f92; }
+.member-facts { margin:0; padding:13px; display:grid; grid-template-columns:1fr 1fr; gap:11px; border-radius:12px; background:#f6f8fc; }
+.member-facts div { min-width:0; }
+.member-facts dt { color:#8b98ac; font-size:10px; font-weight:800; }
+.member-facts dd { margin:4px 0 0; overflow:hidden; color:var(--ink); font-size:12px; font-weight:800; text-overflow:ellipsis; }
+.member-requests h3 { margin:0 0 9px; display:flex; align-items:center; gap:8px; font-size:14px; }
+.member-requests h3 span { color:var(--muted); font-size:11px; font-weight:800; }
+.member-requests ul { margin:0; padding:0; list-style:none; display:grid; gap:8px; }
+.member-requests button { width:100%; padding:12px 13px; display:grid; gap:5px; border:1px solid var(--line); border-radius:12px; background:#fff; text-align:left; cursor:pointer; }
+.member-requests button:disabled { opacity:.6; cursor:default; }
+.member-requests button > span { color:var(--ink); font-size:13px; font-weight:900; line-height:1.5; }
+.member-requests button small { color:var(--muted); font-size:10px; font-weight:700; }
+.member-requests .kind { justify-self:start; }
+.member-empty { margin:0; color:var(--muted); font-size:12px; font-weight:700; }
+
 /* 初めての人への案内。**押す場所そのものを指す。**
    まわりを暗くするのは、穴あきの箱に大きな影を広げて作る。
    要素を切り抜くより素直で、どの端末でも同じに出る。 */

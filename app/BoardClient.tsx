@@ -2,7 +2,7 @@
 
 import { ChangeEvent, CSSProperties, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
-import type { AdSlot, BoardRequest, MemberStats, ReferralSummary } from '@/db/data';
+import type { AdSlot, BoardRequest, MemberProfile, MemberStats, ReferralSummary } from '@/db/data';
 import ReceivedIntroductions from './ReceivedIntroductions';
 import RequestComments from './RequestComments';
 import FacebookLink from './FacebookLink';
@@ -251,7 +251,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [zoom, setZoom] = useState(1);
   const [croppedArea, setCroppedArea] = useState<Area | null>(null);
   const [cropping, setCropping] = useState(false);
-  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'responses' | 'ads' | 'perks' | 'categories' | 'upgrade' | 'adDetail' | null>(null);
+  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'responses' | 'ads' | 'perks' | 'categories' | 'upgrade' | 'adDetail' | 'member' | null>(null);
   /**
    * オファーの種類。**知り合いの紹介は無料、自社で請け負う（受注）は有料。**
    * 画面はここで出し分けるだけで、実際に止めているのは `createIntroduction()`。
@@ -261,6 +261,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [offerAd, setOfferAd] = useState<AdSlot | null>(null);
   /** バナーを押して開いた広告。中身をひととおり見せてから、下でオファーへ。 */
   const [adDetail, setAdDetail] = useState<AdSlot | null>(null);
+  /** 開いている会員のプロフィール。読み込み中は null のまま。 */
+  const [memberProfile, setMemberProfile] = useState<MemberProfile | null>(null);
+  const [memberLoading, setMemberLoading] = useState(false);
   /** 初めて来た人への案内。出したかどうかは端末側に持つ（app/Tutorial.tsx）。 */
   const [tutorial, setTutorial] = useState(false);
   /** 投稿したあと、そのまま広告の申し込みへ進むか。新規の投稿のときだけ聞く。 */
@@ -727,6 +730,20 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   }
 
   /** 広告あてにオファーする。入力も線引きも探しごとと同じで、宛先が違うだけ。 */
+  /** ほかの会員のプロフィールを開く。掲示板の外へは出さない。 */
+  async function openMember(memberId: string) {
+    setMemberProfile(null); setMemberLoading(true); setModal('member');
+    try {
+      const response = await fetch(`/api/members/${encodeURIComponent(memberId)}`);
+      if (!response.ok) { setModal(null); return showToast('この会員のプロフィールを開けませんでした。'); }
+      setMemberProfile(await response.json() as MemberProfile);
+    } catch {
+      setModal(null); showToast('通信に失敗しました。時間をおいてお試しください。');
+    } finally {
+      setMemberLoading(false);
+    }
+  }
+
   function openAdIntroduction(ad: AdSlot) {
     // 自分の広告に自分でオファーはできない。送ってから断られるより、
     // 押した時点で「どこで見られるか」まで伝えるほうが早い。
@@ -1525,13 +1542,19 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <div className="ad-detail">
           <AdBanner ad={{ title: adDetail.title, description: adDetail.description, imageUrl: adDetail.imageUrl, by: adDetail.memberCompany || adDetail.memberName }} />
           <dl className="ad-detail-facts">
-            <div><dt>出しているのは</dt><dd>{adDetail.memberCompany || '会社名なし'}<small>{adDetail.memberName}</small></dd></div>
+            <div><dt>出しているのは</dt><dd>
+              <button className="ad-detail-who" onClick={() => openMember(adDetail.memberId)}>
+                {adDetail.memberCompany || '会社名なし'}<small>{adDetail.memberName}・プロフィールを見る ›</small>
+              </button>
+            </dd></div>
             <div><dt>掲載期間</dt><dd>{formatRange(adDetail.startDate, adDetail.endDate)}</dd></div>
           </dl>
           {adDetail.description && <p className="ad-detail-body">{adDetail.description}</p>}
-          {/* 外部のサイトへ出るのは、押した人が選んだときだけにする。 */}
+          {/* 外部のサイトへ出るのは、押した人が選んだときだけにする。
+              **掲示板の中の「プロフィール」とは別物**なので、行き先が
+              外であることが分かる書き方にする。 */}
           {!!adDetail.linkUrl && <a className="ad-detail-link" href={adDetail.linkUrl} target="_blank" rel="noopener noreferrer">
-            広告主のページを開く<small>{adDetail.linkUrl.replace(/^https?:\/\//, '')}</small>
+            広告主のサイトを開く<small>{adDetail.linkUrl.replace(/^https?:\/\//, '')} ↗</small>
           </a>}
           {adDetail.mine
             ? <p className="ad-detail-mine">ご自身の広告です。届いたオファーは「広告」タブから見られます。</p>
@@ -1539,6 +1562,44 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 この広告にオファー
               </button>}
         </div>
+      </Modal>}
+
+      {modal === 'member' && <Modal title={memberProfile?.displayName ? `${memberProfile.displayName}さん` : '会員のプロフィール'}
+        lead={memberProfile ? `${memberProfile.company || '会社名なし'}・${memberProfile.venue}` : '読み込んでいます…'}
+        onClose={() => { setModal(null); setMemberProfile(null); }}>
+        {memberLoading || !memberProfile ? <p className="member-loading">読み込んでいます…</p> : <div className="member-page">
+          <div className="member-head">
+            <Avatar src={memberProfile.avatarUrl} name={memberProfile.displayName} className="member-avatar" />
+            <div>
+              <b>{memberProfile.displayName}</b>
+              <small>{[memberProfile.positionTitle, memberProfile.company].filter(Boolean).join('・') || '会社名なし'}</small>
+              <span className={`member-rank rank-${memberProfile.level}`}>{memberProfile.rank}</span>
+            </div>
+          </div>
+          <dl className="member-facts">
+            <div><dt>会場</dt><dd>{memberProfile.venue}</dd></div>
+            <div><dt>業種</dt><dd>{memberProfile.primaryIndustry || '未設定'}</dd></div>
+            <div><dt>活動エリア</dt><dd>{memberProfile.businessArea || '指定なし'}</dd></div>
+            <div><dt>オファー</dt><dd>{memberProfile.introCount}件</dd></div>
+          </dl>
+          {!!memberProfile.facebookUrl && <FacebookLink url={memberProfile.facebookUrl} name={memberProfile.displayName} />}
+          <section className="member-requests">
+            <h3>いま出している探しごと<span>{memberProfile.requests.length}件</span></h3>
+            {!memberProfile.requests.length
+              ? <p className="member-empty">いまは出していません。</p>
+              : <ul>{memberProfile.requests.map((item) => {
+                  // 掲示板に載っているものと同じ投稿。開いてオファーできる。
+                  const full = requests.find((entry) => entry.id === item.id);
+                  return <li key={item.id}>
+                    <button onClick={() => { if (full) { setModal(null); setMemberProfile(null); openNeed(full); } }} disabled={!full}>
+                      <b className={`kind ${categoryOf(item.category).className}`}>{categoryOf(item.category).label}</b>
+                      <span>{item.title}</span>
+                      <small>{budgetBandLabel(item.budgetBand) || item.budgetLabel || '予算は応相談'}・{item.area || 'エリア指定なし'}</small>
+                    </button>
+                  </li>;
+                })}</ul>}
+          </section>
+        </div>}
       </Modal>}
 
       {modal === 'ads' && adInfo && <Modal title="広告を出す" lead={`ご指定の期間だけ広告を掲載できます。お支払いは日数分の1回のみ（税込）。`} onClose={closeAdSettings}>
@@ -1995,6 +2056,14 @@ function Avatar({ src, name, className }: { src: string; name: string; className
  */
 function planName(stats: { plan: Plan; adminPlan: boolean }) {
   return stats.adminPlan ? `${planCatalog[stats.plan].name}（管理者特典）` : planCatalog[stats.plan].name;
+}
+
+/**
+ * 投稿の種類。**知らない値でも落とさない。** DBに古い値が残っていても、
+ * 一覧が真っ白になるより、そのまま出したほうがよい。
+ */
+function categoryOf(key: string) {
+  return categories[key as keyof typeof categories] ?? { label: key, className: '' };
 }
 
 function isOpenRequest(need: BoardRequest) {
