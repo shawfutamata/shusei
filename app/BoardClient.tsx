@@ -2,7 +2,7 @@
 
 import { ChangeEvent, CSSProperties, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
-import type { AdSlot, BoardRequest, MemberProfile, MemberStats, ReferralSummary } from '@/db/data';
+import type { AdSlot, BoardRequest, MemberProfile, MemberStats, MessageThread, ReferralSummary } from '@/db/data';
 import ReceivedIntroductions from './ReceivedIntroductions';
 import RequestComments from './RequestComments';
 import FacebookLink from './FacebookLink';
@@ -163,7 +163,7 @@ function weekdayOf(date: string) {
 }
 
 /** 下のメニューの「マイページ」の中で行き来する画面。 */
-type MyTab = 'home' | 'search' | 'mypage' | 'profile' | 'posts' | 'offers' | 'plan' | 'invite' | 'receipts' | 'feedback';
+type MyTab = 'home' | 'search' | 'recommend' | 'messages' | 'mypage' | 'profile' | 'posts' | 'offers' | 'plan' | 'invite' | 'receipts' | 'feedback';
 
 /** マイページの「自分の投稿」に出す1件。掲示板の一覧とは別に読む。 */
 type MyRequest = {
@@ -195,6 +195,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [deletingRequest, setDeletingRequest] = useState<MyRequest | null>(null);
   const [receipts, setReceipts] = useState<BillingRecord[] | null>(null);
   const [introCounts, setIntroCounts] = useState({ received: 0, sent: 0 });
+  /** 個別メッセージの一覧と、まだ読んでいない通数。下のメニューの数字に使う。 */
+  const [threads, setThreads] = useState<MessageThread[]>([]);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [threadsLoading, setThreadsLoading] = useState(true);
+  /** メッセージから開いたやり取り。探しごとの詳細で、その相手の続きを開く。 */
+  const [openThreadWith, setOpenThreadWith] = useState('');
   /** お支払いの情報を読み込めなかったか。「準備中」と混ぜないための印。 */
   const [referralFailed, setReferralFailed] = useState(false);
   /** 中身を見せていない（＝プランが足りない）届いたオファーの数。 */
@@ -343,7 +349,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // 通知はアプリを出してから。それまでは選んだ業種をホームのおすすめに使う。
   // 自分の投稿は外す。おすすめは「自分が紹介できる相手」を出す場所なので。
   // 判定は名前ではなくIDで行う。同姓同名の会員がいると、名前では他人の投稿まで消える。
-  const { recommended, ownMatching, recommendFallback } = useMemo(() => {
+  const { recommended, recommendedAll, ownMatching, recommendFallback } = useMemo(() => {
     const inGroup = (item: BoardRequest) => stats.notifyIndustries.some((industry) =>
       matchesIndustry(item.industryTags, getIndustryGroup(industry)?.name ?? industry));
     // オファーを出せる相手＝自分以外の、まだ募集中の投稿。
@@ -354,6 +360,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       // 掲示板に投稿があるのに棚だけ空だと「投稿されているのに出てこない」と見える。
       // その場合は募集中のものを並べ、理由を見出しの下に書く。
       recommended: (matched.length ? matched : offerable).slice(0, 12),
+      // おすすめの画面は絞らずに全部並べる。棚（ホーム）は12件まで。
+      recommendedAll: matched.length ? matched : offerable,
       recommendFallback: matched.length === 0 && offerable.length > 0,
       // 業種は合っているのに自分の投稿しか無い、という状態を見分けるため。
       // 「選んだのに何も出ない」と見えるのは、たいていこれ。
@@ -432,6 +440,36 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       .catch(() => {});
     return () => { alive = false; };
   }, [activeTab]);
+
+  // 個別メッセージ。**下のメニューの数字に使うので、最初に一度は必ず読む。**
+  // どの画面にいても未読が分かるようにしておかないと、「メッセージ」を押す
+  // 理由が生まれない。開いたときには読み直して、送った直後の分も出す。
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/messages').then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!alive || !data) return;
+        const payload = data as { threads: MessageThread[]; unread: number };
+        setThreads(payload.threads ?? []);
+        setUnreadMessages(payload.unread ?? 0);
+      })
+      .catch(() => { /* 読めなくても画面は動かす。数字が出ないだけ。 */ })
+      .finally(() => { if (alive) setThreadsLoading(false); });
+    return () => { alive = false; };
+  }, [activeTab]);
+
+  /** ここまで読んだ、と記録して数字を減らす。開いたときに呼ぶ。 */
+  const markRead = useCallback(async (key: string) => {
+    // 押した瞬間に数字を減らす。通信の往復を待たせない。
+    setThreads((current) => current.map((item) => item.key === key ? { ...item, unread: 0 } : item));
+    setUnreadMessages((current) => Math.max(0, current - (threads.find((item) => item.key === key)?.unread ?? 0)));
+    try {
+      const response = await fetch('/api/messages', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key }) });
+      if (!response.ok) return;
+      const data = await response.json() as { threads: MessageThread[]; unread: number };
+      setThreads(data.threads ?? []); setUnreadMessages(data.unread ?? 0);
+    } catch { /* 記録できなくても、開くこと自体は止めない。 */ }
+  }, [threads]);
 
   // 紹介の受け箱の件数。中身はモーダルを開いたときに読むので、ここは数だけ。
   //
@@ -924,10 +962,56 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     showToast(isFavorite ? 'お気に入りから外しました。' : 'お気に入りに保存しました。');
   }
 
+  /** 掲示板のカード。**探す**と**おすすめ**で同じものを出すため、1か所に置く。 */
+  const needCard = (need: BoardRequest) => (
+    <article className={isOpenRequest(need) ? 'need-card' : 'need-card closed'} key={need.id} onClick={() => openNeed(need)}>
+      <div className="card-topline"><span className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</span><span className="card-top-actions">{isOpenRequest(need) ? <span className="deadline">あと{daysLeft(need.deadline)}日</span> : <span className="deadline ended">募集終了</span>}<button className={favoriteIds.includes(need.id) ? 'card-heart active' : 'card-heart'} aria-label={favoriteIds.includes(need.id) ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={(event) => { event.stopPropagation(); toggleFavorite(need); }}>♥</button></span></div>
+      <h3>{need.title}</h3>{need.thumbUrl && <img className="need-thumb" src={need.thumbUrl} alt="" loading="lazy" decoding="async" />}<p className="need-body">{need.description}</p>
+      <div className="industry-tags" aria-label="関連業種">{need.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
+      <dl className="details"><div><dt>予算</dt><dd>{budgetText(need)}</dd></div><div><dt>エリア</dt><dd>{need.area || '指定なし'}</dd></div></dl>
+      <div className="card-person"><Avatar src={need.authorAvatarUrl} name={need.authorName} className="member-avatar" /><p><b>{need.authorName}</b><small>{need.authorPositionTitle && `${need.authorPositionTitle}｜`}{need.authorCompany || '会社名未設定'}</small></p><span>オファー {need.introCount}件</span></div>
+      <div className="member-context">{need.commentCount > 0 && <span className="comment-count">やり取り {need.commentCount}件</span>}<span>会場 {need.authorVenue}</span>{need.authorBusinessArea && <span>エリア {need.authorBusinessArea}</span>}{need.authorRevenueBand && <span>年商 {revenueBands[need.authorRevenueBand]}</span>}</div>
+      <button className="intro-button" onClick={(event) => { event.stopPropagation(); openIntroduction(need); }}>この人にオファー <span>→</span></button>
+    </article>
+  );
+
   function showHome() {
     setModal(null);
     setActiveTab('home');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /** おすすめの探しごとだけを並べる画面。下のメニューの「おすすめ」。 */
+  function showRecommend() {
+    setModal(null);
+    setActiveTab('recommend');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /** 個別メッセージの一覧。下のメニューの「メッセージ」。 */
+  function showMessages() {
+    setModal(null);
+    // 一覧は activeTab が変わったところで読み直される。ここでは呼ばない。
+    setActiveTab('messages');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /**
+   * 一覧から、そのやり取りの場所へ直に飛ぶ。
+   *
+   * やり取りは3か所に分かれて置いてあるので、行き先も3通り。**会員には
+   * その違いを見せない。** 押したら続きが読める、という1つの動きにする。
+   */
+  function openThread(thread: MessageThread) {
+    markRead(thread.key);
+    if (thread.kind === 'request') {
+      const need = requests.find((item) => item.id === thread.requestId);
+      if (!need) return showToast('この探しごとは、もう見られなくなっています。');
+      setOpenThreadWith(thread.threadWith);
+      return openNeed(need);
+    }
+    // オファーのやり取りは受け箱の中にある。そこを開く。
+    setModal('responses');
   }
 
   function showSearch(industry = industryFilter) {
@@ -1166,18 +1250,46 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 オファーは別のボタンにして、押し間違いで飛ばないよう伝播を止める。 */}
             {!ad.mine && <button className="intro-button" onClick={(event) => { event.stopPropagation(); openAdIntroduction(ad); }}>この広告にオファー <span>→</span></button>}
           </article>)}
-          {shown.length === 0 ? <div className="empty"><b>条件に合う投稿がありません</b><span>絞り込みを変えて探してみましょう。</span></div> : shown.map((need) => (
-            <article className={isOpenRequest(need) ? 'need-card' : 'need-card closed'} key={need.id} onClick={() => openNeed(need)}>
-              <div className="card-topline"><span className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</span><span className="card-top-actions">{isOpenRequest(need) ? <span className="deadline">あと{daysLeft(need.deadline)}日</span> : <span className="deadline ended">募集終了</span>}<button className={favoriteIds.includes(need.id) ? 'card-heart active' : 'card-heart'} aria-label={favoriteIds.includes(need.id) ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={(event) => { event.stopPropagation(); toggleFavorite(need); }}>♥</button></span></div>
-              <h3>{need.title}</h3>{need.thumbUrl && <img className="need-thumb" src={need.thumbUrl} alt="" loading="lazy" decoding="async" />}<p className="need-body">{need.description}</p>
-              <div className="industry-tags" aria-label="関連業種">{need.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
-              <dl className="details"><div><dt>予算</dt><dd>{budgetText(need)}</dd></div><div><dt>エリア</dt><dd>{need.area || '指定なし'}</dd></div></dl>
-              <div className="card-person"><Avatar src={need.authorAvatarUrl} name={need.authorName} className="member-avatar" /><p><b>{need.authorName}</b><small>{need.authorPositionTitle && `${need.authorPositionTitle}｜`}{need.authorCompany || '会社名未設定'}</small></p><span>オファー {need.introCount}件</span></div>
-              <div className="member-context">{need.commentCount > 0 && <span className="comment-count">やり取り {need.commentCount}件</span>}<span>会場 {need.authorVenue}</span>{need.authorBusinessArea && <span>エリア {need.authorBusinessArea}</span>}{need.authorRevenueBand && <span>年商 {revenueBands[need.authorRevenueBand]}</span>}</div>
-              <button className="intro-button" onClick={(event) => { event.stopPropagation(); openIntroduction(need); }}>この人にオファー <span>→</span></button>
-            </article>
-          ))}
+          {shown.length === 0 ? <div className="empty"><b>条件に合う投稿がありません</b><span>絞り込みを変えて探してみましょう。</span></div> : shown.map(needCard)}
         </div>
+      </section> : activeTab === 'recommend' ? <section className="mobile-board recommend-page" aria-labelledby="recommend-title">
+        <div className="section-title"><div><p>FOR YOU</p><h2 id="recommend-title">あなたにおすすめ</h2></div><span>{recommendedAll.length}件</span></div>
+        {/* なぜこの並びなのかを最初に言う。理由が分からないと、外れていたときに
+            設定で直せることに気づけない。 */}
+        <p className="recommend-lead">{recommendFallback
+          ? stats.notifyIndustries.length
+            ? `選んだ業種（${stats.notifyIndustries.join('・')}）の探しごとは、いまほかの会員から出ていません。かわりに募集中のものを並べています。`
+            : 'おすすめに出したい業種を選ぶと、関係のありそうな探しごとが先に並びます。'
+          : `選んだ業種（${stats.notifyIndustries.join('・')}）に合う、ほかの会員の探しごとです。`}</p>
+        <button className="recommend-settings" onClick={showProfileSettings}>おすすめに出す業種を選び直す</button>
+        <div className="card-list">
+          {recommendedAll.length === 0
+            ? <div className="empty"><b>いまは募集中の探しごとがありません</b><span>ほかの会員が投稿すると、ここに並びます。</span></div>
+            : recommendedAll.map(needCard)}
+        </div>
+      </section> : activeTab === 'messages' ? <section className="profile-page messages-page" aria-labelledby="messages-title">
+        <header className="profile-page-heading"><p>MESSAGES</p><h1 id="messages-title">個別メッセージ</h1></header>
+        {/* 探しごとのコメントの続き・オファーのやり取り・広告へのオファーは
+            置き場所が別々だが、会員から見ればどれも「あの人との話」なので、
+            1つの箱にまとめて新しい順に並べる。 */}
+        {threadsLoading ? <p className="messages-loading">読み込んでいます…</p>
+          : threads.length === 0 ? <div className="received-empty"><span>✉</span><b>やり取りはまだありません</b>
+            <p>オファーやリファラルを送ると、相手とおふたりだけのやり取りがここにまとまります。</p>
+            <button className="submit-button" onClick={() => showSearch()}>探しごとを見る</button></div>
+          : <ul className="message-list">{threads.map((thread) => <li key={thread.key}>
+            <button className={thread.unread ? 'message-row is-unread' : 'message-row'} onClick={() => openThread(thread)}>
+              <Avatar src={thread.partnerAvatarUrl} name={thread.partnerName} className="member-avatar" />
+              <span className="message-main">
+                <b>{thread.partnerName}{thread.partnerCompany && <small>{thread.partnerCompany}</small>}</b>
+                <em>{thread.kind === 'ad' ? '広告' : '探しごと'}：{thread.title}</em>
+                <p>{thread.lastBody}</p>
+              </span>
+              <span className="message-side">
+                <time dateTime={thread.lastAt}>{shortDate(thread.lastAt)}</time>
+                {thread.unread > 0 && <i className="message-unread">{thread.unread}</i>}
+              </span>
+            </button>
+          </li>)}</ul>}
       </section> : activeTab === 'mypage' ? <section className="profile-page" aria-labelledby="profile-page-title">
         <header className="profile-page-heading"><p>MY PAGE</p><h1 id="profile-page-title">マイページ</h1></header>
         <button className={`rank-card rank-${stats.rank.toLowerCase()} rank-card-slim`} onClick={() => setModal('perks')} aria-label={`${stats.rank}会員ランクカード。特典を見る`}>
@@ -1393,12 +1505,22 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       </section>}
     </main>
 
-      <nav className="bottom-nav" aria-label="アプリメニュー">
-        <button className={activeTab === 'home' ? 'active' : ''} onClick={showHome}><span><HomeIcon /></span><small>ホーム</small></button>
-        <button className={activeTab === 'search' ? 'active' : ''} onClick={() => showSearch()}><span><SearchIcon /></span><small>探す</small></button>
+      {/* ＋を真ん中に置きたいので、左右3つずつの6項目にしてある。増やすときは
+          必ず偶数で。奇数にすると＋が中央から外れて、押す場所が動いて見える。 */}
+      <nav className="bottom-nav is-six" aria-label="アプリメニュー">
+        {/* 並び順ではなく名前で指せるように、1つずつ印をつけてある。案内
+            （チュートリアル）がここを指すので、項目を足しても指す先がずれない。 */}
+        <button className={`nav-home${activeTab === 'home' ? ' active' : ''}`} onClick={showHome}><span><HomeIcon /></span><small>ホーム</small></button>
+        <button className={`nav-search${activeTab === 'search' ? ' active' : ''}`} onClick={() => showSearch()}><span><SearchIcon /></span><small>探す</small></button>
+        <button className={`nav-recommend${activeTab === 'recommend' ? ' active' : ''}`} onClick={showRecommend}><span><RecommendIcon /></span><small>おすすめ</small></button>
         <button className="nav-post" onClick={openRequest} aria-label="探しごとを投稿する"><span>＋</span></button>
-        <button className={modal === 'ads' ? 'active' : ''} onClick={openAdSettings}><span><BannerIcon /></span><small>広告</small></button>
-        <button className={modal !== 'ads' && activeTab !== 'home' && activeTab !== 'search' ? 'active' : ''} onClick={showMyPage}><span><PersonIcon /></span><small>マイページ</small></button>
+        <button className={`nav-messages${activeTab === 'messages' ? ' active' : ''}`} onClick={showMessages}
+          aria-label={unreadMessages ? `メッセージ 未読${unreadMessages}件` : 'メッセージ'}>
+          <span><MessageIcon />{unreadMessages > 0 && <i className="nav-badge">{unreadMessages > 99 ? '99+' : unreadMessages}</i>}</span>
+          <small>メッセージ</small>
+        </button>
+        <button className={`nav-ads${modal === 'ads' ? ' active' : ''}`} onClick={openAdSettings}><span><BannerIcon /></span><small>広告</small></button>
+        <button className={`nav-mypage${modal !== 'ads' && !['home', 'search', 'recommend', 'messages'].includes(activeTab) ? ' active' : ''}`} onClick={showMyPage}><span><PersonIcon /></span><small>マイページ</small></button>
       </nav>
 
       {modal === 'request' && !canPostRequest && !editingRequest && <Modal title="今月分の投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showMyPage(); }}>マイページを開く</button></div></Modal>}
@@ -1735,7 +1857,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {modal === 'responses' && <Modal title="オファーのやり取り" lead="届いたオファーと、あなたが出したオファーです。相手とそのままやり取りできます。" onClose={() => setModal(null)}><ReceivedIntroductions onUpgrade={() => { setModal(null); goTab('plan'); }} /></Modal>}
 
-      {modal === 'detail' && selected && <Modal title="探しごとの詳細" lead={`${selected.authorName}さんの探しごとです。`} onClose={() => setModal(null)}><article className="need-detail">
+      {/* 閉じたら「この相手のやり取りを開く」指定も落とす。次に別の探しごとを
+          開いたときに、前の相手のやり取りが開いたままにならないように。 */}
+      {modal === 'detail' && selected && <Modal title="探しごとの詳細" lead={`${selected.authorName}さんの探しごとです。`} onClose={() => { setModal(null); setOpenThreadWith(''); }}><article className="need-detail">
         <div className="card-topline"><span className={`kind ${categories[selected.category].className}`}>{categories[selected.category].label}</span><button className={favoriteIds.includes(selected.id) ? 'detail-heart active' : 'detail-heart'} onClick={() => toggleFavorite(selected)}>♥ {favoriteIds.includes(selected.id) ? '保存済み' : 'お気に入り'}</button></div>
         <h3>{selected.title}</h3>
         {selected.imageUrls.length > 1
@@ -1765,7 +1889,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </div>}
 
         <RequestComments requestId={selected.id} viewerId={stats.memberId} isRequestAuthor={selected.mine}
-          onOffer={selected.mine ? undefined : () => openIntroduction(selected)} onCountChange={(count) => setRequests((current) => current.map((item) => item.id === selected.id ? { ...item, commentCount: count } : item))} />
+          initialThread={openThreadWith} onOffer={selected.mine ? undefined : () => openIntroduction(selected)} onCountChange={(count) => setRequests((current) => current.map((item) => item.id === selected.id ? { ...item, commentCount: count } : item))} />
       </article></Modal>}
 
       {cropSource && <div className="crop-backdrop"><section className="crop-dialog" role="dialog" aria-modal="true" aria-labelledby="crop-title"><header><button onClick={() => setCropSource('')}>キャンセル</button><div><h2 id="crop-title">顔写真を調整</h2><p>指で動かして、顔が中央に来るようにします</p></div><button className="crop-confirm" onClick={confirmCrop} disabled={cropping || !croppedArea}>{cropping ? '処理中' : '決定'}</button></header><div className="crop-stage"><Cropper image={cropSource} crop={crop} zoom={zoom} aspect={1} cropShape="round" showGrid={false} minZoom={1} maxZoom={4} zoomSpeed={0.35} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_, pixels) => setCroppedArea(pixels)} disableAutomaticStylesInjection /></div><div className="crop-controls"><label><span>顔の大きさ</span><input type="range" min="1" max="4" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} aria-label="顔写真の拡大率" /><b>{Math.round(zoom * 100)}%</b></label><p>写真を指で動かせます。丸の中がプロフィール写真に表示されます。</p></div></section></div>}
@@ -1963,6 +2087,35 @@ function SearchIcon() {
   return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
     <circle cx="10.6" cy="10.6" r="6.9" />
     <path d="m15.7 15.7 4.9 4.9" />
+  </svg>;
+}
+
+/**
+ * やり取りの日付。**今日なら時刻、それ以外は日付。** 一覧では「いつごろの話か」
+ * さえ分かればよく、年月日時分を全部出すと数字ばかりで読みにくい。
+ */
+function shortDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const today = new Date();
+  const sameDay = date.toDateString() === today.toDateString();
+  return sameDay
+    ? `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+    : `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+/** おすすめ。**星ひとつ**。線の太さと角の丸めは、ほかの項目に合わせてある。 */
+function RecommendIcon() {
+  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <path d="m12 3.6 2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 17.13l-5.3 2.78 1.01-5.9-4.29-4.18 5.93-.86z" />
+  </svg>;
+}
+
+/** 個別メッセージ。**吹き出しひとつ**。オファーの受け箱（封筒）と見分ける。 */
+function MessageIcon() {
+  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <path d="M20.4 13.2a2.6 2.6 0 0 1-2.6 2.6H9.4L4.9 19.4a.4.4 0 0 1-.65-.32V7.2A2.6 2.6 0 0 1 6.85 4.6h10.95a2.6 2.6 0 0 1 2.6 2.6z" />
+    <path d="M8.6 8.9h7.8M8.6 11.9h5.2" />
   </svg>;
 }
 

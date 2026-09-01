@@ -21,8 +21,10 @@ const MAX_LENGTH = 600;
  *
  * 非公開のぶんはそもそもサーバーから届かない。ここで隠しているのではない。
  */
-export default function RequestComments({ requestId, viewerId, isRequestAuthor, onOffer, onCountChange }:
-  { requestId: string; viewerId: string; isRequestAuthor: boolean; onOffer?: () => void;
+export default function RequestComments({ requestId, viewerId, isRequestAuthor, initialThread = '', onOffer, onCountChange }:
+  { requestId: string; viewerId: string; isRequestAuthor: boolean;
+    /** メッセージ一覧から開いたとき、その相手のやり取りを最初から開いておく。 */
+    initialThread?: string; onOffer?: () => void;
     onCountChange?: (count: number) => void }) {
   const [comments, setComments] = useState<RequestComment[]>([]);
   const [body, setBody] = useState('');
@@ -30,7 +32,7 @@ export default function RequestComments({ requestId, viewerId, isRequestAuthor, 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   /** 開いているやり取りの相手（会員ID）。空なら誰も開いていない。 */
-  const [openThread, setOpenThread] = useState('');
+  const [openThread, setOpenThread] = useState(initialThread);
   /** やり取りの中で書いている文。相手ごとに分けて持つ。 */
   const [replyBody, setReplyBody] = useState('');
 

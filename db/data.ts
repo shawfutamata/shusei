@@ -407,6 +407,15 @@ const statements = [
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   )`,
+  // どのやり取りを、どこまで読んだか。**未読の数はここから引き算で出す。**
+  // 1通ずつ既読の印を持つと行が増え続けるので、「いつまで読んだか」だけ持つ。
+  `CREATE TABLE IF NOT EXISTS thread_reads (
+    member_id TEXT NOT NULL REFERENCES members(id),
+    -- 'request:<探しごとID>:<相手の会員ID>' / 'intro:<オファーID>' / 'ad:<広告オファーID>'
+    thread_key TEXT NOT NULL,
+    last_read_at TEXT NOT NULL,
+    PRIMARY KEY (member_id, thread_key)
+  )`,
   'CREATE INDEX IF NOT EXISTS idx_ad_slots_member ON ad_slots(member_id)',
   'CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at)',
   'CREATE INDEX IF NOT EXISTS idx_requests_status_created_at ON requests(status, created_at)',
@@ -421,6 +430,7 @@ const statements = [
   'CREATE INDEX IF NOT EXISTS idx_attendance_events_owner_date ON attendance_events(owner_id, meeting_date)',
   'CREATE INDEX IF NOT EXISTS idx_attendance_people_event_id ON attendance_people(event_id)',
   'CREATE INDEX IF NOT EXISTS idx_attendance_people_owner_important ON attendance_people(owner_id, is_important)',
+  'CREATE INDEX IF NOT EXISTS idx_thread_reads_member ON thread_reads(member_id)',
 ];
 
 let initialized = false;
@@ -2347,6 +2357,158 @@ export async function deleteRequestComment(user: SessionUser, commentId: string)
   if (!result.meta.changes) throw new Error('このコメントは削除できません。');
 }
 // --- 探しごとへのコメント ここまで -----------------------------------------
+
+// --- 個別メッセージ ここから -------------------------------------------------
+// **2人だけのやり取りは3か所に散っている。**
+//   1. 探しごとのコメントの、2通目から先（request_comments の private）
+//   2. オファーのやり取り（introduction_messages）
+//   3. 広告へのオファーのやり取り（ad_introduction_messages）
+// 会員から見ればどれも「あの人とのやり取り」なので、1つの箱にまとめて出す。
+// 表を統合はしない。既に入っているやり取りを移す危険を負う値打ちがない。
+
+export type MessageThread = {
+  /** 既読の記録に使う名前。thread_reads.thread_key と同じもの。 */
+  key: string;
+  kind: 'request' | 'intro' | 'ad';
+  /** 開く先。コメントなら探しごとと相手、オファーならオファーのID。 */
+  requestId: string;
+  introductionId: string;
+  threadWith: string;
+  /** 何についてのやり取りか（探しごとや広告の題名）。 */
+  title: string;
+  partnerId: string;
+  partnerName: string;
+  partnerCompany: string;
+  partnerAvatarUrl: string;
+  lastBody: string;
+  lastAt: string;
+  unread: number;
+};
+
+/** 相手の顔ぶれ。どちらが自分かで、出す相手が入れ替わる。 */
+type ThreadRow = {
+  lastBody: string; lastAt: string; unread: number; title: string;
+  ownerId: string; ownerName: string; ownerCompany: string; ownerAvatarKey: string; ownerAvatarVersion: number;
+  otherId: string; otherName: string; otherCompany: string; otherAvatarKey: string; otherAvatarVersion: number;
+};
+
+function partnerOf(row: ThreadRow, viewerId: string) {
+  const owner = viewerId === row.ownerId;
+  const id = owner ? row.otherId : row.ownerId;
+  return {
+    partnerId: id,
+    partnerName: owner ? row.otherName : row.ownerName,
+    partnerCompany: owner ? row.otherCompany : row.ownerCompany,
+    partnerAvatarUrl: avatarUrl(id,
+      owner ? row.otherAvatarKey : row.ownerAvatarKey,
+      owner ? row.otherAvatarVersion : row.ownerAvatarVersion),
+  };
+}
+
+/**
+ * その人の個別メッセージを、新しい順にまとめて返す。
+ *
+ * 未読は「自分が送ったのではない、最後に読んだ時より後の通数」。1通ずつ既読の
+ * 印を持つと行が増え続けるので、`thread_reads` には**いつまで読んだか**だけ置く。
+ *
+ * SQLiteでは MAX() を使うと、同じ行のほかの列も**その最大の行のもの**が返る。
+ * 最後の1通の本文を出すのにこれを使っている。
+ */
+export async function getMessageThreads(viewerId: string): Promise<MessageThread[]> {
+  await ensureDatabase();
+  if (!viewerId) return [];
+  const unread = (senderColumn: string) =>
+    `SUM(CASE WHEN ${senderColumn} != ? AND ${senderColumn === 'c.member_id' ? 'c' : 'n'}.created_at > COALESCE(t.last_read_at, '') THEN 1 ELSE 0 END) AS unread`;
+  const people = (owner: string, other: string) => `
+    ${owner}.id AS ownerId, ${owner}.display_name AS ownerName, ${owner}.company AS ownerCompany,
+    ${owner}.avatar_key AS ownerAvatarKey, ${owner}.avatar_version AS ownerAvatarVersion,
+    ${other}.id AS otherId, ${other}.display_name AS otherName, ${other}.company AS otherCompany,
+    ${other}.avatar_key AS otherAvatarKey, ${other}.avatar_version AS otherAvatarVersion`;
+
+  const [comments, offers, adOffers] = await env.DB.batch<ThreadRow & Record<string, string>>([
+    // 1. 探しごとのコメントの、非公開のぶん
+    env.DB.prepare(`SELECT c.request_id AS requestId, c.thread_with AS threadWith,
+      c.body AS lastBody, MAX(c.created_at) AS lastAt, r.title AS title, ${unread('c.member_id')},
+      ${people('mo', 'mw')}
+      FROM request_comments c
+      JOIN requests r ON r.id = c.request_id
+      JOIN members mo ON mo.id = r.author_id
+      JOIN members mw ON mw.id = c.thread_with
+      LEFT JOIN thread_reads t ON t.member_id = ?
+        AND t.thread_key = 'request:' || c.request_id || ':' || c.thread_with
+      WHERE c.visibility = 'private' AND c.thread_with != '' AND (r.author_id = ? OR c.thread_with = ?)
+      GROUP BY c.request_id, c.thread_with`).bind(viewerId, viewerId, viewerId, viewerId),
+    // 2. 探しごとへのオファーのやり取り
+    env.DB.prepare(`SELECT i.id AS introductionId, i.request_id AS requestId,
+      n.body AS lastBody, MAX(n.created_at) AS lastAt, r.title AS title, ${unread('n.sender_id')},
+      ${people('mo', 'mi')}
+      FROM introduction_messages n
+      JOIN introductions i ON i.id = n.introduction_id
+      JOIN requests r ON r.id = i.request_id
+      JOIN members mo ON mo.id = r.author_id
+      JOIN members mi ON mi.id = i.introducer_id
+      LEFT JOIN thread_reads t ON t.member_id = ? AND t.thread_key = 'intro:' || i.id
+      WHERE r.author_id = ? OR i.introducer_id = ?
+      GROUP BY i.id`).bind(viewerId, viewerId, viewerId, viewerId),
+    // 3. 広告へのオファーのやり取り
+    env.DB.prepare(`SELECT i.id AS introductionId, i.ad_id AS requestId,
+      n.body AS lastBody, MAX(n.created_at) AS lastAt, a.title AS title, ${unread('n.sender_id')},
+      ${people('mo', 'mi')}
+      FROM ad_introduction_messages n
+      JOIN ad_introductions i ON i.id = n.ad_introduction_id
+      JOIN ad_slots a ON a.id = i.ad_id
+      JOIN members mo ON mo.id = a.member_id
+      JOIN members mi ON mi.id = i.introducer_id
+      LEFT JOIN thread_reads t ON t.member_id = ? AND t.thread_key = 'ad:' || i.id
+      WHERE a.member_id = ? OR i.introducer_id = ?
+      GROUP BY i.id`).bind(viewerId, viewerId, viewerId, viewerId),
+  ]);
+
+  const threads: MessageThread[] = [
+    ...comments.results.map((row) => ({
+      key: `request:${row.requestId}:${row.threadWith}`, kind: 'request' as const,
+      requestId: row.requestId, introductionId: '', threadWith: row.threadWith,
+      title: row.title || '探しごと', ...partnerOf(row, viewerId),
+      lastBody: row.lastBody, lastAt: row.lastAt, unread: Number(row.unread) || 0,
+    })),
+    ...offers.results.map((row) => ({
+      key: `intro:${row.introductionId}`, kind: 'intro' as const,
+      requestId: row.requestId, introductionId: row.introductionId, threadWith: '',
+      title: row.title || '探しごと', ...partnerOf(row, viewerId),
+      lastBody: row.lastBody, lastAt: row.lastAt, unread: Number(row.unread) || 0,
+    })),
+    ...adOffers.results.map((row) => ({
+      key: `ad:${row.introductionId}`, kind: 'ad' as const,
+      requestId: row.requestId, introductionId: row.introductionId, threadWith: '',
+      title: row.title || '広告', ...partnerOf(row, viewerId),
+      lastBody: row.lastBody, lastAt: row.lastAt, unread: Number(row.unread) || 0,
+    })),
+  ];
+  // 自分ひとりのやり取り（相手がいない）は出さない。数合わせにしかならない。
+  return threads.filter((thread) => thread.partnerId && thread.partnerId !== viewerId)
+    .sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+}
+
+/** 未読の合計。下のメニューの数字に使う。 */
+export async function getUnreadMessageCount(viewerId: string) {
+  return (await getMessageThreads(viewerId)).reduce((total, thread) => total + thread.unread, 0);
+}
+
+/**
+ * ここまで読んだ、と記録する。
+ *
+ * **どのやり取りかは名前で受け取る。** 相手を確かめずに書けるが、書けるのは
+ * 自分の既読の記録だけなので、他人のやり取りが読めるようになるわけではない。
+ */
+export async function markThreadRead(user: SessionUser, threadKey: string) {
+  await ensureDatabase();
+  const key = threadKey.trim().slice(0, 200);
+  if (!key) return;
+  await env.DB.prepare(`INSERT INTO thread_reads (member_id, thread_key, last_read_at) VALUES (?, ?, ?)
+    ON CONFLICT(member_id, thread_key) DO UPDATE SET last_read_at = excluded.last_read_at`)
+    .bind(user.userId, key, new Date().toISOString()).run();
+}
+// --- 個別メッセージ ここまで -------------------------------------------------
 
 // --- プラン（無料 / 有料）ここから ------------------------------------------
 // 会員かどうか（membership_status）と、お金を払っているか（plan）は別の軸。

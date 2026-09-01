@@ -43,12 +43,12 @@ const steps: Step[] = [
   {
     eyebrow: 'STEP 2', title: '仕事の掲示板を見る',
     body: '仲間の「こんな人を探しています」が並びます。業種・エリア・予算・会場で絞り込めます。',
-    targets: ['.bottom-nav button:nth-child(2)'], click: 'ここをタップ',
+    targets: ['.bottom-nav .nav-search'], click: 'ここをタップ',
   },
   {
     eyebrow: 'STEP 3', title: 'オファーを送る',
     body: '自社で請け負うなら「オファー」、知り合いをつなぐなら「リファラル」。リファラルは無料です。',
-    targets: ['.home-shelf .home-request-card', '.home-shelf', '.bottom-nav button:nth-child(2)'],
+    targets: ['.home-shelf .home-request-card', '.home-shelf', '.bottom-nav .nav-search'],
     click: 'カードを開くと選べます',
   },
   {
@@ -59,7 +59,7 @@ const steps: Step[] = [
   {
     eyebrow: 'STEP 5', title: '広告で見てもらう数を増やす',
     body: '画面上部のバナーや掲示板の上位に出せます。掲載日数分の1回払いで、自動更新はありません。',
-    targets: ['.bottom-nav button:nth-child(4)'], click: 'ここをタップ',
+    targets: ['.bottom-nav .nav-ads'], click: 'ここをタップ',
   },
 ];
 

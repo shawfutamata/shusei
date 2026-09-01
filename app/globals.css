@@ -1625,3 +1625,49 @@ body { font-weight:600; }
 .plan-table thead th.is-current { color:#0b3f86; }
 .plan-table thead th em { display:block; margin-top:2px; white-space:nowrap; color:#0f5fc4; font-size:9px; font-style:normal; font-weight:900; }
 .plan-table-soon { display:inline-block; margin-left:5px; padding:1px 5px; white-space:nowrap; border-radius:99px; background:#eef2f8; color:#7b8a9e; font-size:8px; font-style:normal; font-weight:900; vertical-align:middle; }
+
+/* --- 下のメニュー（6項目＋投稿ボタン）ここから ------------------------------
+   ＋を真ん中に置くため、項目は左右3つずつの6つ。列は7つ。
+   **この指定は必ずファイルの後ろに置く。** 前に書くと、上の方にある
+   .bottom-nav の5列指定に負けて何も変わらない（あとに書いた方が勝つ）。 */
+.bottom-nav.is-six { grid-template-columns:repeat(7,1fr); padding-left:2px; padding-right:2px; }
+.bottom-nav.is-six small { font-size:7px; letter-spacing:-.04em; transform:scale(.94); }
+.bottom-nav.is-six button>span,.bottom-nav.is-six label>span { font-size:19px; }
+/* 項目が増えたぶん1列が狭い。＋も同じだけ細くしないと、隣にはみ出す。 */
+.bottom-nav.is-six .nav-post { width:52px; height:52px; min-height:52px; margin-bottom:9px; border-radius:16px; }
+.bottom-nav.is-six .nav-post span { font-size:29px; }
+/* 未読の数。アイコンの右肩に載せる。0のときは出さない（数字が無い方が静か）。 */
+.bottom-nav button>span { position:relative; }
+.nav-badge { position:absolute; top:-5px; left:calc(50% + 3px); min-width:15px; height:15px; padding:0 4px;
+  display:grid; place-items:center; border-radius:99px; background:var(--accent); color:#fff;
+  font-size:9px; font-style:normal; font-weight:900; line-height:1; }
+@media(min-width:481px){
+  .bottom-nav.is-six small { font-size:clamp(8px,2.1vw,10px); transform:none; }
+  .bottom-nav.is-six button>span,.bottom-nav.is-six label>span { font-size:26px; }
+  .bottom-nav.is-six .nav-post { width:60px; height:60px; min-height:60px; border-radius:18px; }
+  .nav-badge { top:-6px; min-width:18px; height:18px; font-size:10px; }
+}
+/* --- 下のメニュー ここまで -------------------------------------------------- */
+
+/* --- おすすめの画面 --------------------------------------------------------- */
+.recommend-lead { margin:0 0 11px; padding:11px 13px; border-radius:12px; background:#eff6ff; color:#31527f; font-size:11px; font-weight:700; line-height:1.7; }
+.recommend-settings { width:100%; min-height:44px; margin-bottom:14px; padding:0 14px; border:1px solid #cfe0f7; border-radius:12px; background:#fff; color:#0f5fc4; font-size:11px; font-weight:900; cursor:pointer; }
+
+/* --- 個別メッセージの一覧 --------------------------------------------------- */
+.messages-loading { min-height:200px; display:grid; place-items:center; color:#68778e; font-size:13px; font-weight:800; }
+.message-list { margin:0; padding:0; list-style:none; display:grid; gap:9px; }
+.message-row { width:100%; padding:12px; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:start; gap:11px;
+  border:1px solid #e2e8f2; border-radius:14px; background:#fff; text-align:left; cursor:pointer; }
+/* 未読は左の縁を橙にする。色だけでなく、太字と数字でも分かるようにしてある。 */
+.message-row.is-unread { border-color:#f6cba3; background:#fffaf4; box-shadow:inset 3px 0 0 var(--accent); }
+.message-main { min-width:0; display:grid; gap:3px; }
+.message-main>b { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; color:#1d2b45; font-size:13px; }
+.message-main>b small { color:#8794a7; font-size:10px; font-weight:700; }
+.message-main>em { color:#0f5fc4; font-size:10px; font-style:normal; font-weight:800;
+  overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+/* 本文は1行だけ見せる。一覧は「誰と・何の話か」が分かれば足りる。 */
+.message-main>p { margin:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#5d6b81; font-size:11px; line-height:1.6; }
+.message-side { display:grid; justify-items:end; gap:5px; }
+.message-side time { color:#93a0b3; font-size:10px; font-weight:700; }
+.message-unread { min-width:19px; height:19px; padding:0 5px; display:grid; place-items:center; border-radius:99px;
+  background:var(--accent); color:#fff; font-size:10px; font-style:normal; font-weight:900; }
