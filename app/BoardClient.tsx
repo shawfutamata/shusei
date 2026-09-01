@@ -250,7 +250,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [zoom, setZoom] = useState(1);
   const [croppedArea, setCroppedArea] = useState<Area | null>(null);
   const [cropping, setCropping] = useState(false);
-  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'responses' | 'ads' | 'perks' | 'categories' | 'upgrade' | null>(null);
+  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'responses' | 'ads' | 'perks' | 'categories' | 'upgrade' | 'adDetail' | null>(null);
   /**
    * オファーの種類。**知り合いの紹介は無料、自社で請け負う（受注）は有料。**
    * 画面はここで出し分けるだけで、実際に止めているのは `createIntroduction()`。
@@ -258,6 +258,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [offerKind, setOfferKind] = useState<'referral' | 'self'>('referral');
   /** オファーの宛先が広告のとき、その広告。探しごと宛のときは null。 */
   const [offerAd, setOfferAd] = useState<AdSlot | null>(null);
+  /** バナーを押して開いた広告。中身をひととおり見せてから、下でオファーへ。 */
+  const [adDetail, setAdDetail] = useState<AdSlot | null>(null);
   /** プラン案内に出す一言。断られた理由をそのまま見せるため、空なら既定の文。 */
   const [upgradeNote, setUpgradeNote] = useState('');
   const [selected, setSelected] = useState<BoardRequest | null>(null);
@@ -1010,12 +1012,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   function openCurrentBanner() {
     const ad = slide?.ad;
     if (ad) {
+      // **押したら、まず広告の中身を開く。** 以前はここで外部リンクへ飛ばすか、
+      // オファーの入力へ直行していた。飛ばされる側は何の広告か分からないまま
+      // 別のサイトへ出てしまうし、オファー直行は気が早い。1枚はさむ。
       trackAd({ clicks: [ad.id] });
-      if (ad.linkUrl) window.open(ad.linkUrl, '_blank', 'noopener,noreferrer');
-      // リンクの無い広告は、バナーのどこを押してもオファーへ。
-      // 「この広告にオファー」を押したつもりで少し外すと、下のバナーに当たって
-      // 行き止まりの案内が出ていた。押し外しても同じ所へ行くようにする。
-      else openAdIntroduction(ad);
+      setAdDetail(ad);
+      setModal('adDetail');
       return;
     }
     const fixedIndex = carouselIndex - (slides.length - topBanners.length);
@@ -1070,10 +1072,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <button key={carouselIndex} className={`hero-image-slide${slide?.ad ? ' is-ad' : ''}`} onClick={openCurrentBanner} aria-label={`${slide?.alt ?? ''}を開く`}>{slide?.ad
             ? <AdBanner ad={{ title: slide.ad.title, description: slide.ad.description, imageUrl: slide.ad.imageUrl, by: slide.ad.memberCompany || slide.ad.memberName }} />
             : <img src={slide?.src} alt={slide?.alt ?? ''} />}</button>
-          {/* バナー全体が1つのボタンなので、オファーの入口は入れ子にできない。
-              重ねて置く。押す先が違う（バナー＝広告主のページ、こちら＝オファー）
-              ので、見た目でも分かれているほうがよい。 */}
-          {slide?.ad && !slide.ad.mine && <button className="hero-ad-offer" onClick={() => openAdIntroduction(slide.ad!)}>この広告にオファー</button>}
           <div className="carousel-dots" aria-label="バナーを切り替える">{slides.map((entry, index) => <button key={index} aria-label={`${index + 1}枚目${entry.ad ? '（広告）' : ''}`} className={`${carouselIndex === index ? 'active' : ''}${entry.ad ? ' is-ad' : ''}`} onClick={() => { setCarouselPaused(true); setCarouselIndex(index); }} />)}</div>
         </section>
 
@@ -1483,6 +1481,29 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           })()}
 
           <p className="perk-terms">特典の内容は、予告なく変更または終了することがあります。ランクは招待して参加した仲間の人数で決まり、下がることはありません。</p>
+        </div>
+      </Modal>}
+
+      {/* バナーを押して開く、広告の中身。**オファーの入口は下に置く。**
+          上から順に「何の広告か → 出している人 → 行き先 → オファー」。
+          見てから決められるようにする。 */}
+      {modal === 'adDetail' && adDetail && <Modal title="広告の詳細" lead={`${adDetail.memberCompany || adDetail.memberName}さまの広告です。`} onClose={() => { setModal(null); setAdDetail(null); }}>
+        <div className="ad-detail">
+          <AdBanner ad={{ title: adDetail.title, description: adDetail.description, imageUrl: adDetail.imageUrl, by: adDetail.memberCompany || adDetail.memberName }} />
+          <dl className="ad-detail-facts">
+            <div><dt>出しているのは</dt><dd>{adDetail.memberCompany || '会社名なし'}<small>{adDetail.memberName}</small></dd></div>
+            <div><dt>掲載期間</dt><dd>{formatRange(adDetail.startDate, adDetail.endDate)}</dd></div>
+          </dl>
+          {adDetail.description && <p className="ad-detail-body">{adDetail.description}</p>}
+          {/* 外部のサイトへ出るのは、押した人が選んだときだけにする。 */}
+          {!!adDetail.linkUrl && <a className="ad-detail-link" href={adDetail.linkUrl} target="_blank" rel="noopener noreferrer">
+            広告主のページを開く<small>{adDetail.linkUrl.replace(/^https?:\/\//, '')}</small>
+          </a>}
+          {adDetail.mine
+            ? <p className="ad-detail-mine">ご自身の広告です。届いたオファーは「広告」タブから見られます。</p>
+            : <button className="ad-detail-offer" onClick={() => { const ad = adDetail; setAdDetail(null); openAdIntroduction(ad); }}>
+                この広告にオファー
+              </button>}
         </div>
       </Modal>}
 

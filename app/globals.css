@@ -37,7 +37,19 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
    そこと取り違えないよう隅に小さく置く。 */
 /* 右上に置く。左上はPRの札、下は広告の見出しと説明が入るので、空いているのは
    ここだけ。文字に重ねると、広告主が伝えたいことを隠してしまう。 */
-.hero-ad-offer { position:absolute; right:10px; top:10px; z-index:2; min-height:44px; padding:0 16px; border:0; border-radius:999px; background:rgba(23,37,84,.9); color:#fff; font-size:12px; font-weight:900; line-height:1; cursor:pointer; backdrop-filter:blur(6px); }
+/* バナーを押して開く、広告の中身。オファーの入口はこの中のいちばん下。 */
+.ad-detail { display:grid; gap:14px; }
+.ad-detail-facts { margin:0; padding:0; display:grid; gap:10px; }
+.ad-detail-facts div { display:grid; grid-template-columns:88px minmax(0,1fr); gap:10px; align-items:baseline; }
+.ad-detail-facts dt { color:#8b98ac; font-size:11px; font-weight:800; }
+.ad-detail-facts dd { margin:0; color:var(--ink); font-size:13px; font-weight:800; }
+.ad-detail-facts dd small { display:block; margin-top:3px; color:var(--muted); font-size:11px; font-weight:700; }
+.ad-detail-body { margin:0; padding:12px 13px; border-radius:11px; background:#f6f8fc; color:#40506a; font-size:13px; font-weight:600; line-height:1.85; white-space:pre-wrap; }
+.ad-detail-link { min-height:50px; padding:9px 15px; display:grid; align-content:center; border:1px solid #cfdcee; border-radius:12px; color:var(--blue); font-size:13px; font-weight:900; text-decoration:none; }
+.ad-detail-link small { display:block; overflow:hidden; margin-top:2px; color:#93a0b3; font-size:10px; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
+.ad-detail-offer { width:100%; min-height:54px; border:0; border-radius:13px; background:var(--accent); color:#fff; font-size:15px; font-weight:900; cursor:pointer; }
+.ad-detail-offer:active { filter:brightness(.94); }
+.ad-detail-mine { margin:0; padding:12px 13px; border-radius:11px; background:#f4f7fc; color:#5b6b80; font-size:12px; font-weight:700; line-height:1.7; }
 .hero-image-slide { width:100%; aspect-ratio:3/2; padding:0; display:block; overflow:hidden; border:0; border-radius:23px; background:#1478d6; animation:hero-in .32s ease; }
 .hero-image-slide img { width:100%; height:100%; display:block; object-fit:cover; }
 .hero-image-slide:focus-visible { outline:4px solid #93c5fd; outline-offset:3px; }
