@@ -81,6 +81,36 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
     return () => { alive = false; };
   }, [tab, backups]);
 
+  const liveMembers = data.members.filter((member) => member.canUse);
+  const stoppedMembers = data.members.filter((member) => !member.canUse);
+  /** 会員1件の行。使っている人と止めた人で、同じ形で並べる。 */
+  const memberRow = (member: AdminMember) => <li key={member.id} className={member.canUse ? '' : 'is-off'}>
+    <div className="admin-row-top">
+      <b>{member.displayName || '(名前なし)'}</b>
+      <span className={`admin-state ${member.canUse ? 'is-on' : 'is-off'}`}>{member.canUse ? '利用中' : '停止中'}</span>
+    </div>
+    <p className="admin-meta">
+      <span>{member.company || '会社名なし'}</span><span>{member.venue}</span><span>{member.email}</span>
+    </p>
+    <p className="admin-meta">
+      <span>プラン {member.plan === 'standard' ? 'スタンダード' : '無料'}{member.adminPlan && '（管理者特典）'}</span>
+      <span>オファー {member.introCount}件</span>
+      <span>投稿 {member.requestCount}件</span>
+      <span>{member.createdAt.slice(0, 10).replace(/-/g, '/')} 登録</span>
+    </p>
+    <div className="admin-actions">
+      {/* 自分の行にはボタンを出さない。押しても断られるだけなので、
+          押せるように見せない（サーバー側でも止めてある）。 */}
+      {member.email.toLowerCase() === adminEmail.toLowerCase()
+        ? <span className="admin-self">ご自身のアカウントです</span>
+        : <button className={member.canUse ? 'is-danger' : ''} disabled={busy === member.id}
+            onClick={() => act(member.id, `/api/admin/members/${member.id}`, { active: !member.canUse }, 'POST',
+              member.canUse ? '利用を止めました。' : '利用を戻しました。')}>
+            {busy === member.id ? '…' : member.canUse ? '利用を止める' : '利用を戻す'}
+          </button>}
+    </div>
+  </li>;
+
   const liveAds = data.ads.filter((ad) => ad.status !== 'stopped');
   const stoppedAds = data.ads.filter((ad) => ad.status === 'stopped');
   /** 広告1件の行。動いているものと止めたもので、同じ形で並べる。 */
@@ -196,7 +226,8 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
         <p>{adminName}さん、こんにちは — {dateLabel}</p>
       </div>
       <div className="admin-header-actions">
-        <button className="admin-open-site" onClick={() => reload().then(() => say('最新の状態にしました。'))}>再読み込み</button>
+        <button className="admin-open-site" onClick={() => reload().then(() => say('最新の状態にしました。'))}
+          aria-label="再読み込み" title="再読み込み"><ReloadMark /></button>
         <button className="admin-signout" onClick={signOut} disabled={busy === 'signout'}>{busy === 'signout' ? '…' : 'ログアウト'}</button>
       </div>
     </header>
@@ -347,35 +378,20 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       {!!keyword && <button type="button" className="admin-clear" onClick={() => { setKeyword(''); reload(''); }}>戻す</button>}
     </form>}
 
-    {tab === 'members' && <ul className="admin-list">
-      {!data.members.length && <li className="admin-empty">該当する会員がいません。</li>}
-      {data.members.map((member) => <li key={member.id} className={member.canUse ? '' : 'is-off'}>
-        <div className="admin-row-top">
-          <b>{member.displayName || '(名前なし)'}</b>
-          <span className={`admin-state ${member.canUse ? 'is-on' : 'is-off'}`}>{member.canUse ? '利用中' : '停止中'}</span>
-        </div>
-        <p className="admin-meta">
-          <span>{member.company || '会社名なし'}</span><span>{member.venue}</span><span>{member.email}</span>
-        </p>
-        <p className="admin-meta">
-          <span>プラン {member.plan === 'standard' ? 'スタンダード' : '無料'}{member.adminPlan && '（管理者特典）'}</span>
-          <span>オファー {member.introCount}件</span>
-          <span>投稿 {member.requestCount}件</span>
-          <span>{member.createdAt.slice(0, 10).replace(/-/g, '/')} 登録</span>
-        </p>
-        <div className="admin-actions">
-          {/* 自分の行にはボタンを出さない。押しても断られるだけなので、
-              押せるように見せない（サーバー側でも止めてある）。 */}
-          {member.email.toLowerCase() === adminEmail.toLowerCase()
-            ? <span className="admin-self">ご自身のアカウントです</span>
-            : <button className={member.canUse ? 'is-danger' : ''} disabled={busy === member.id}
-                onClick={() => act(member.id, `/api/admin/members/${member.id}`, { active: !member.canUse }, 'POST',
-                  member.canUse ? '利用を止めました。' : '利用を戻しました。')}>
-                {busy === member.id ? '…' : member.canUse ? '利用を止める' : '利用を戻す'}
-              </button>}
-        </div>
-      </li>)}
-    </ul>}
+    {/* 広告と同じ形。**上の一覧はいま使っている人だけ。** 止めた人が混ざって
+        いると「利用を戻す」が並んで、誰が動いている会員なのか分からなくなる。 */}
+    {tab === 'members' && <>
+      <ul className="admin-list">
+        {!data.members.length && <li className="admin-empty">該当する会員がいません。</li>}
+        {data.members.length > 0 && !liveMembers.length && <li className="admin-empty">いま使っている会員はいません。</li>}
+        {liveMembers.map(memberRow)}
+      </ul>
+      {stoppedMembers.length > 0 && <section className="admin-archive">
+        <h2>停止中の会員<span>{stoppedMembers.length}人</span></h2>
+        <p>利用を止めた方です。データは残っているので、ここから戻せます。</p>
+        <ul className="admin-list">{stoppedMembers.map(memberRow)}</ul>
+      </section>}
+    </>}
 
     {tab === 'requests' && <ul className="admin-list">
       {!data.requests.length && <li className="admin-empty">該当する投稿がありません。</li>}
@@ -505,6 +521,15 @@ function yen0(value: number) { return value.toLocaleString('ja-JP'); }
 function money(value: number) { return `¥${value.toLocaleString('ja-JP')}`; }
 
 /** 左の帯に出す印。線だけの形にして、選んでいるものだけ色が乗る。 */
+/** 再読み込み。丸い矢印1本。文字より小さく置けて、意味も伝わる。 */
+function ReloadMark() {
+  return <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20 12a8 8 0 1 1-2.34-5.66" />
+    <path d="M20 4v5h-5" />
+  </svg>;
+}
+
 /** ファイルの大きさ。桁を読むより「だいたいどれくらい」が分かればよい。 */
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes}B`;

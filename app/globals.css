@@ -1766,3 +1766,6 @@ body { font-weight:600; }
 .admin-archive h2 { margin:0; display:flex; align-items:baseline; gap:9px; color:#5b6b80; font-size:16px; font-weight:900; }
 .admin-archive h2 span { padding:2px 9px; border-radius:99px; background:#e7ecf4; color:#65758c; font-size:11px; font-weight:900; }
 .admin-archive > p { margin:6px 0 14px; color:#7b8a9e; font-size:12px; font-weight:700; line-height:1.7; }
+/* 再読み込みは絵だけ。文字が無いぶん、正方形にして押しやすさを保つ。 */
+.admin-open-site { width:42px; padding:0; display:grid; place-items:center; }
+@media(max-width:900px){ .admin-open-site { width:38px; } }
