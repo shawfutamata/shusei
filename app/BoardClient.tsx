@@ -1644,7 +1644,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             if (!perk) return null;
             const unlocked = stats.level >= perk.minLevel;
             return <div className={`perk-detail${unlocked ? '' : ' locked'}`}>
-              <p className="perk-detail-head"><b>{perk.label}</b><span>{perk.soon ? '近日公開' : unlocked ? '使えます' : `${rankNames[perk.minLevel - 1]}で解放`}</span></p>
+              <p className="perk-detail-head"><b>{perk.label}</b><span>{perk.soon ? '近日公開' : unlocked ? '使用可' : `${rankNames[perk.minLevel - 1]}で解放`}</span></p>
               <p className="perk-detail-body">{perk.detail}</p>
               {perk.soon && <p className="perk-detail-note">この特典はまだ作っている途中です。できあがったら、いまのランクのままお使いいただけます。</p>}
               {!unlocked && !perk.soon && <p className="perk-detail-note">あと{Math.max(0, rankThresholds[perk.minLevel - 1] - stats.inviteCount)}人の仲間をご招待いただくと使えるようになります。</p>}
