@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
  * 初めて来た人への案内。**実際の画面の、押す場所そのものを指す。**
@@ -37,28 +37,28 @@ type Step = {
 const steps: Step[] = [
   {
     eyebrow: 'STEP 1', title: 'プロフィールを登録する',
-    body: '顔写真とお仕事の内容を登録します。誰からのオファーなのかが分かることが、安心してやり取りできる前提なので、顔写真は必須です。登録しないと投稿とオファーができません。',
+    body: '顔写真とお仕事の内容を登録します。誰からのオファーか分かることが前提なので、顔写真は必須です。',
     targets: ['.header-profile'], click: 'ここをタップ',
   },
   {
     eyebrow: 'STEP 2', title: '仕事の掲示板を見る',
-    body: '仲間が出している「こんな人を探しています」が並びます。業種・エリア・予算・会場で絞り込めるので、自分に関係のあるものだけを見られます。',
+    body: '仲間の「こんな人を探しています」が並びます。業種・エリア・予算・会場で絞り込めます。',
     targets: ['.bottom-nav button:nth-child(2)'], click: 'ここをタップ',
   },
   {
     eyebrow: 'STEP 3', title: 'オファーを送る',
-    body: '気になる探しごとを開くと、2通りの返し方があります。自社で請け負うなら「オファー」、知り合いをつなぐなら「リファラル」。リファラルはどのプランでも無料です。',
+    body: '自社で請け負うなら「オファー」、知り合いをつなぐなら「リファラル」。リファラルは無料です。',
     targets: ['.home-shelf .home-request-card', '.home-shelf', '.bottom-nav button:nth-child(2)'],
     click: 'カードを開くと選べます',
   },
   {
     eyebrow: 'STEP 4', title: '自分の探しごとを投稿する',
-    body: '抱えている案件や、困っていることを投稿します。関連する業種の仲間に届き、そのままオファーが返ってきます。',
+    body: '抱えている案件や困りごとを投稿すると、関連する業種の仲間に届きます。',
     targets: ['.bottom-nav .nav-post'], click: 'ここをタップ',
   },
   {
     eyebrow: 'STEP 5', title: '広告で見てもらう数を増やす',
-    body: '画面上部のバナーや、掲示板の上位に広告を出せます。掲載日数分のお支払いが1回だけで、自動更新はありません。もっと多くの仲間に届けたいときに。',
+    body: '画面上部のバナーや掲示板の上位に出せます。掲載日数分の1回払いで、自動更新はありません。',
     targets: ['.bottom-nav button:nth-child(4)'], click: 'ここをタップ',
   },
 ];
@@ -68,6 +68,11 @@ type Spot = { top: number; left: number; width: number; height: number };
 const PAD = 8;
 /** 目印と案内のあいだ。ここに矢印を置くので、指1本ぶんは空ける。 */
 const GAP = 26;
+/**
+ * 案内の高さの下限の見込み。**実際の高さは描いてから測る。**
+ * 決め打ちにすると、文章の長さや端末の文字サイズで「次へ」がはみ出す。
+ */
+const MIN_CARD = 210;
 
 /**
  * **いま実際に見えている範囲。**
@@ -92,6 +97,9 @@ export default function Tutorial({ onClose, onFinish }: { onClose: () => void; o
   const [index, setIndex] = useState(0);
   const [spot, setSpot] = useState<Spot | null>(null);
   const [band, setBand] = useState(() => visibleBand());
+  /** 案内の中身が必要とする高さ。描いてから測って、次の計算に使う。 */
+  const [needed, setNeeded] = useState(MIN_CARD);
+  const cardRef = useRef<HTMLElement>(null);
   const step = steps[index];
   const last = index === steps.length - 1;
 
@@ -110,13 +118,29 @@ export default function Tutorial({ onClose, onFinish }: { onClose: () => void; o
 
   const measure = useCallback(() => { setBand(visibleBand()); locate(); }, [locate]);
 
+  // 「次へ」まで入る高さを、描かれたものから測る。文章の長さも文字サイズも
+  // 端末で変わるので、決め打ちの数字では足りたり足りなかったりする。
   useEffect(() => {
-    // 画面の外にあるものは、先に見えるところへ寄せてから測る。
+    const card = cardRef.current;
+    if (!card) return;
+    // 本文だけは縮む（中でスクロールする）。それ以外は縮まない。
+    // 「本文をゼロにしたときの高さ」＝ 中身の高さ − いまの本文の高さ。
+    const body = card.querySelector('.tut-body');
+    const want = Math.ceil(card.scrollHeight - (body ? body.clientHeight : 0)) + 4;
+    if (Math.abs(want - needed) > 2) setNeeded(want);
+  });
+
+  useEffect(() => {
+    // 目印を画面の上のほうへ寄せる。**下に案内の場所を作るため。**
+    // 画面に貼りついているもの（下のメニューなど）は動かないので、そのまま。
     for (const selector of steps[index].targets) {
       const el = document.querySelector(selector);
       if (!el) continue;
-      const box = el.getBoundingClientRect();
-      if (box.top < 0 || box.bottom > window.innerHeight) el.scrollIntoView({ block: 'center' });
+      if (getComputedStyle(el).position !== 'fixed') {
+        const wanted = visibleBand().top + 16;
+        const shift = el.getBoundingClientRect().top - wanted;
+        if (Math.abs(shift) > 8) window.scrollBy({ top: shift, behavior: 'auto' });
+      }
       break;
     }
     const timer = window.setTimeout(measure, 260);
@@ -149,13 +173,20 @@ export default function Tutorial({ onClose, onFinish }: { onClose: () => void; o
   const cardWidth = Math.min(wide - 32, 420);
   const cardLeft = (wide - cardWidth) / 2;
   const arrowX = spot ? Math.min(Math.max(spot.left + spot.width / 2 - cardLeft, 22), cardWidth - 22) : cardWidth / 2;
-  const cardStyle: React.CSSProperties = spot
-    ? below
-      ? { top: spot.top + spot.height + GAP, maxHeight: room, ['--arrow-x' as string]: `${arrowX}px` }
-      // fixed の bottom は「画面の下端から」。見えている範囲の下端ではないので、
-      // 隠れている帯（Safariの下のバー）のぶんは足さない。目印の上に置くだけ。
-      : { bottom: view - spot.top + GAP, maxHeight: room, ['--arrow-x' as string]: `${arrowX}px` }
-    : { top: band.top + 16, maxHeight: band.height - 32 };
+  // 空きが「次へ」の入る高さに足りないときは、画面の端に寄せて高さを確保する。
+  // 目印に少しかかっても、ボタンが見えないよりはよい。
+  const tight = room < needed;
+  const height = Math.min(Math.max(room, needed), band.height - 24);
+  const arrowVar = { ['--arrow-x' as string]: `${arrowX}px` };
+  const cardStyle: React.CSSProperties = !spot
+    ? { top: band.top + 16, maxHeight: band.height - 32 }
+    : tight
+      ? { top: below ? band.bottom - 12 - height : band.top + 12, maxHeight: height, ...arrowVar }
+      : below
+        ? { top: spot.top + spot.height + GAP, maxHeight: room, ...arrowVar }
+        // fixed の bottom は「画面の下端から」。見えている範囲の下端ではないので、
+        // 隠れている帯（Safariの下のバー）のぶんは足さない。目印の上に置くだけ。
+        : { bottom: view - spot.top + GAP, maxHeight: room, ...arrowVar };
 
   return <div className="tut-layer" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
     {spot
@@ -171,7 +202,7 @@ export default function Tutorial({ onClose, onFinish }: { onClose: () => void; o
         </>
       : <div className="tut-dim" />}
 
-    <section className={`tut-card${spot ? (below ? ' points-up' : ' points-down') : ' is-center'}`} style={cardStyle}>
+    <section ref={cardRef} className={`tut-card${spot ? (below ? ' points-up' : ' points-down') : ' is-center'}`} style={cardStyle}>
       <div className="tut-top">
         <span className="tut-count">{index + 1} / {steps.length}</span>
         {/* いつでも閉じられるようにする。読ませきる作りにはしない。 */}

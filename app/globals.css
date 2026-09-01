@@ -170,9 +170,9 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .tut-hint i { font-size:15px; font-style:normal; line-height:1; }
 
 .tut-card { position:fixed; left:50%; width:min(calc(100% - 32px),420px); margin-left:max(calc(-50vw + 16px),-210px);
-  padding:14px 16px 16px; display:flex; flex-direction:column; overflow:auto; border-radius:16px; background:#fff; animation:hero-in .22s ease; }
-.tut-card .tut-body { overflow:auto; }
-.tut-actions { flex:0 0 auto; }
+  padding:14px 16px 16px; display:flex; flex-direction:column; overflow:hidden; border-radius:16px; background:#fff; animation:hero-in .22s ease; }
+.tut-card .tut-body { flex:1 1 auto; min-height:0; overflow:auto; }
+.tut-top,.tut-eyebrow,.tut-card h2,.tut-hint,.tut-dots,.tut-actions { flex:0 0 auto; }
 .tut-card.is-center { margin-left:0; transform:translate(-50%,-50%); }
 /* 案内から目印へ向く矢印。 */
 .tut-card::before { content:''; position:absolute; left:var(--arrow-x,50%); margin-left:-8px; border:8px solid transparent; }
