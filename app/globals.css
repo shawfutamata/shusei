@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 @import 'react-easy-crop/react-easy-crop.css';
 
-:root { --ink:#13233f; --muted:#6f7c92; --blue:#1478d6; --blue-dark:#0f5fc4; --navy:#0b4a9e; --sky:#46c6fb; --accent:#f4501e; --nav-h:74px; --accent-ink:#c93d0e; --accent-soft:#fff3ee; --accent-line:#fac9b4; --paper:#f6f8fc; --line:#e4e9f1; }
+:root { --ink:#13233f; --muted:#6f7c92; --blue:#1478d6; --blue-dark:#0f5fc4; --navy:#0b4a9e; --sky:#46c6fb; --accent:#f4501e; --nav-h:88px; --accent-ink:#c93d0e; --accent-soft:#fff3ee; --accent-line:#fac9b4; --paper:#f6f8fc; --line:#e4e9f1; }
 * { box-sizing:border-box; }
 html { scroll-behavior:smooth; }
 body { margin:0; background:#e8effa; color:var(--ink); font-family:Arial,"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif; }
@@ -547,7 +547,7 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .plan-detail li.all span { background:#e8f1ff; color:var(--blue-dark); }
 
 /* Senior-friendly readability: larger, heavier text and touch targets. */
-:root { --muted:#536176; --nav-h:94px; }
+:root { --muted:#536176; --nav-h:100px; }
 body { font-weight:600; }
 .app-shell { padding-bottom:128px; }
 .mobile-header { height:76px; }
@@ -1633,21 +1633,32 @@ body { font-weight:600; }
 /* 真ん中の列（＋）を広めに取ると、左右の3つずつが外側へ寄る。等分だと6つが
    ＋のまわりに固まって見えて、端が間延びする。 */
 .bottom-nav.is-six { grid-template-columns:repeat(3,1fr) 1.7fr repeat(3,1fr); padding-left:0; padding-right:0; }
-.bottom-nav.is-six small { font-size:7px; letter-spacing:-.04em; transform:scale(.94); }
-.bottom-nav.is-six button>span,.bottom-nav.is-six label>span { font-size:19px; }
-/* 項目が増えたぶん1列が狭い。＋も同じだけ細くしないと、隣にはみ出す。 */
-.bottom-nav.is-six .nav-post { width:52px; height:52px; min-height:52px; margin-bottom:9px; border-radius:16px; }
-.bottom-nav.is-six .nav-post span { font-size:29px; }
+/* 項目が7つ並ぶので、1つぶんの幅は画面まかせ。**文字も絵も幅に合わせて
+   決める。** 決め打ちにすると、狭い端末で「マイページ」がはみ出し、広い
+   端末では小さすぎて読めない。字間を少し詰めて、そのぶん字を大きくする。 */
+.bottom-nav.is-six small { font-size:clamp(8px,2.55vw,11px); letter-spacing:-.05em; transform:none; }
+.bottom-nav.is-six button>span,.bottom-nav.is-six label>span { font-size:clamp(21px,6vw,26px); }
+.bottom-nav.is-six button,.bottom-nav.is-six label { gap:5px; padding:4px 0; }
+/* ＋は真ん中の列（広め）に収まる大きさまで。隣にはみ出さない。 */
+.bottom-nav.is-six .nav-post { width:clamp(54px,15vw,62px); height:clamp(54px,15vw,62px);
+  min-height:clamp(54px,15vw,62px); margin-bottom:9px; border-radius:18px; }
+.bottom-nav.is-six .nav-post span { font-size:clamp(30px,8vw,35px); }
 /* 未読の数。アイコンの右肩に載せる。0のときは出さない（数字が無い方が静か）。 */
 .bottom-nav button>span { position:relative; }
-.nav-badge { position:absolute; top:-5px; left:calc(50% + 3px); min-width:15px; height:15px; padding:0 4px;
+/* 帯を厚くする。中の絵と文字を大きくしたので、そのぶん上下の余白が要る。
+   モーダルや通知の下余白もこの値を見ているので、ここを変えれば全部そろう。 */
+.bottom-nav.is-six { height:88px; }
+@media(min-width:481px){ .bottom-nav.is-six { height:100px; } }
+.nav-badge { position:absolute; top:-5px; left:calc(50% + 3px); min-width:16px; height:16px; padding:0 4px;
   display:grid; place-items:center; border-radius:99px; background:var(--accent); color:#fff;
   font-size:9px; font-style:normal; font-weight:900; line-height:1; }
 @media(min-width:481px){
-  .bottom-nav.is-six small { font-size:clamp(8px,2.1vw,10px); transform:none; }
-  .bottom-nav.is-six button>span,.bottom-nav.is-six label>span { font-size:26px; }
-  .bottom-nav.is-six .nav-post { width:60px; height:60px; min-height:60px; border-radius:18px; }
-  .nav-badge { top:-6px; min-width:18px; height:18px; font-size:10px; }
+  /* 画面が広いところでは幅に余裕があるので、上限で止める。 */
+  .bottom-nav.is-six small { font-size:12px; letter-spacing:-.02em; }
+  .bottom-nav.is-six button>span,.bottom-nav.is-six label>span { font-size:28px; }
+  .bottom-nav.is-six .nav-post { width:66px; height:66px; min-height:66px; border-radius:20px; }
+  .bottom-nav.is-six .nav-post span { font-size:37px; }
+  .nav-badge { top:-6px; min-width:19px; height:19px; font-size:11px; }
 }
 /* --- 下のメニュー ここまで -------------------------------------------------- */
 
