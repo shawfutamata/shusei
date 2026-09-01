@@ -1657,10 +1657,11 @@ body { font-weight:600; }
 .bottom-nav.is-six .nav-post span { font-size:clamp(30px,8vw,35px); }
 /* 未読の数。アイコンの右肩に載せる。0のときは出さない（数字が無い方が静か）。 */
 .bottom-nav button>span { position:relative; }
-/* 帯を厚くする。中の絵と文字を大きくしたので、そのぶん上下の余白が要る。
-   モーダルや通知の下余白もこの値を見ているので、ここを変えれば全部そろう。 */
-.bottom-nav.is-six { height:88px; }
-@media(min-width:481px){ .bottom-nav.is-six { height:100px; } }
+/* 帯を厚くする。**高さは変数だけで決める。** 帯の高さと、モーダル・通知・
+   本文の下余白は全部この値を見ているので、ここ1か所を変えれば全部そろう。
+   帯にだけ height を書くと、余白の計算だけ古い値のまま残ってしまう。 */
+:root { --nav-h:88px; }
+@media(min-width:481px){ :root { --nav-h:100px; } }
 .nav-badge { position:absolute; top:-5px; left:calc(50% + 3px); min-width:16px; height:16px; padding:0 4px;
   display:grid; place-items:center; border-radius:99px; background:var(--accent); color:#fff;
   font-size:9px; font-style:normal; font-weight:900; line-height:1; }
@@ -1769,3 +1770,10 @@ body { font-weight:600; }
 /* 再読み込みは絵だけ。文字が無いぶん、正方形にして押しやすさを保つ。 */
 .admin-open-site { width:42px; padding:0; display:grid; place-items:center; }
 @media(max-width:900px){ .admin-open-site { width:38px; } }
+
+/* --- 下の余白を1か所にまとめる ------------------------------------------------
+   下のメニューに隠れないための余白は `.app-shell` が持つ。マイページは
+   自分でも同じだけ取っていたので、二重になって画面の下が大きく空いていた。
+   ここは読む余白ぶんだけにする。 */
+.app-shell { padding-bottom:calc(var(--nav-h) + 20px + env(safe-area-inset-bottom)); }
+.profile-page { padding-bottom:20px; }
