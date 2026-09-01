@@ -10,8 +10,10 @@ type AdminData = {
   ads: AdminAd[]; feedback: AdminFeedback[];
 };
 
+// short は、下の帯に出す短い呼び名。狭いところで「ダッシュボ…」と
+// 切れてしまうので、切るのではなく別の言葉にする。
 const tabs = [
-  { key: 'analytics', label: 'ダッシュボード' },
+  { key: 'analytics', label: 'ダッシュボード', short: 'ホーム' },
   { key: 'members', label: '会員' },
   { key: 'requests', label: '投稿' },
   { key: 'ads', label: '広告' },
@@ -100,7 +102,8 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
         {tabs.map((item) => <button key={item.key} className={tab === item.key ? 'selected' : ''}
           onClick={() => setTab(item.key)} aria-pressed={tab === item.key}>
           <SideIcon name={item.key} />
-          <span>{item.label}</span>
+          <span className="admin-nav-long">{item.label}</span>
+          <span className="admin-nav-short">{'short' in item ? item.short : item.label}</span>
           {countFor(item.key) > 0 && <em>{countFor(item.key)}</em>}
         </button>)}
       </nav>
