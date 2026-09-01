@@ -14,13 +14,16 @@ export const metadata: Metadata = {
     title: `${serviceName}｜${serviceTagline}`,
     description: '案件・協業先・相談相手を探し、仲間のつながりから信頼あるオファーを届ける会員向け掲示板。',
     type: 'website',
-    images: [{ url: '/og.png', width: 1672, height: 941, alt: `${serviceName} ${serviceTagline}` }],
+    // **ファイル名を変えて差し替える。** LINEやSNSは中身ではなくURLで
+    // 覚えているので、同じ名前のまま画像だけ入れ替えても、古いものが
+    // 出続ける。1200x630 は各社が想定している比率。
+    images: [{ url: '/og-tasuki.png', width: 1200, height: 630, alt: `${serviceName} ${serviceTagline}` }],
   },
   twitter: {
     card: 'summary_large_image',
     title: `${serviceName}｜${serviceTagline}`,
     description: '仲間のつながりから信頼あるオファーを届ける会員向け掲示板。',
-    images: ['/og.png'],
+    images: ['/og-tasuki.png'],
   },
 };
 
