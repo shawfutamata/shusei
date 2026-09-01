@@ -4,7 +4,7 @@ import { ChangeEvent, CSSProperties, FormEvent, useCallback, useEffect, useMemo,
 import Cropper, { type Area } from 'react-easy-crop';
 import type { AdSlot, BoardRequest, MemberProfile, MemberStats, MessageThread, ReferralSummary } from '@/db/data';
 import ReceivedIntroductions from './ReceivedIntroductions';
-import RequestComments from './RequestComments';
+import RequestThread from './RequestThread';
 import FacebookLink from './FacebookLink';
 import { areaMatchesRegion, getRegion, prefectures, regions, requestAreaOptions, type Prefecture } from './profile-options';
 import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-options';
@@ -169,7 +169,7 @@ type MyTab = 'home' | 'search' | 'recommend' | 'messages' | 'mypage' | 'profile'
 type MyRequest = {
   id: string; category: string; title: string; description: string; budgetLabel: string; budgetBand: string;
   area: string; industryTags: string[]; deadline: string; status: string; createdAt: string;
-  extendedAt: string; introCount: number; commentCount: number;
+  extendedAt: string; introCount: number; offerCount: number; referralCount: number;
   thumbUrl: string; imageCount: number; hasVideo: boolean;
 };
 
@@ -199,8 +199,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [threads, setThreads] = useState<MessageThread[]>([]);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [threadsLoading, setThreadsLoading] = useState(true);
-  /** メッセージから開いたやり取り。探しごとの詳細で、その相手の続きを開く。 */
+  /** メッセージから開いたやり取り。相手の会員IDと、見出しに出す名前。 */
   const [openThreadWith, setOpenThreadWith] = useState('');
+  const [threadPartner, setThreadPartner] = useState('');
   /** お支払いの情報を読み込めなかったか。「準備中」と混ぜないための印。 */
   const [referralFailed, setReferralFailed] = useState(false);
   /** 中身を見せていない（＝プランが足りない）届いたオファーの数。 */
@@ -220,9 +221,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const shownPosts = useMemo(() => myRequests.filter((item) =>
     postFilter === 'all' ? true : postFilter === 'open' ? isPostOpen(item) : !isPostOpen(item)),
   [myRequests, postFilter, isPostOpen]);
-  /** ダッシュボードの数字。届いた紹介とやり取りの合計。 */
+  /** ダッシュボードの数字。届いたオファーとリファラルの合計。 */
   const postTotals = useMemo(() => myRequests.reduce((sum, item) => ({
-    intro: sum.intro + item.introCount, comment: sum.comment + item.commentCount,
+    intro: sum.intro + item.introCount, comment: sum.comment + item.referralCount,
   }), { intro: 0, comment: 0 }), [myRequests]);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [carouselPaused, setCarouselPaused] = useState(false);
@@ -257,7 +258,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [zoom, setZoom] = useState(1);
   const [croppedArea, setCroppedArea] = useState<Area | null>(null);
   const [cropping, setCropping] = useState(false);
-  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'responses' | 'ads' | 'perks' | 'categories' | 'upgrade' | 'adDetail' | 'member' | null>(null);
+  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'thread' | 'responses' | 'ads' | 'perks' | 'categories' | 'upgrade' | 'adDetail' | 'member' | null>(null);
   /**
    * オファーの種類。**知り合いの紹介は無料、自社で請け負う（受注）は有料。**
    * 画面はここで出し分けるだけで、実際に止めているのは `createIntroduction()`。
@@ -969,8 +970,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       <h3>{need.title}</h3>{need.thumbUrl && <img className="need-thumb" src={need.thumbUrl} alt="" loading="lazy" decoding="async" />}<p className="need-body">{need.description}</p>
       <div className="industry-tags" aria-label="関連業種">{need.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
       <dl className="details"><div><dt>予算</dt><dd>{budgetText(need)}</dd></div><div><dt>エリア</dt><dd>{need.area || '指定なし'}</dd></div></dl>
-      <div className="card-person"><Avatar src={need.authorAvatarUrl} name={need.authorName} className="member-avatar" /><p><b>{need.authorName}</b><small>{need.authorPositionTitle && `${need.authorPositionTitle}｜`}{need.authorCompany || '会社名未設定'}</small></p><span>オファー {need.introCount}件</span></div>
-      <div className="member-context">{need.commentCount > 0 && <span className="comment-count">やり取り {need.commentCount}件</span>}<span>会場 {need.authorVenue}</span>{need.authorBusinessArea && <span>エリア {need.authorBusinessArea}</span>}{need.authorRevenueBand && <span>年商 {revenueBands[need.authorRevenueBand]}</span>}</div>
+      <div className="card-person"><Avatar src={need.authorAvatarUrl} name={need.authorName} className="member-avatar" /><p><b>{need.authorName}</b><small>{need.authorPositionTitle && `${need.authorPositionTitle}｜`}{need.authorCompany || '会社名未設定'}</small></p></div>
+      <ActivityCounts need={need} />
+      <div className="member-context"><span>会場 {need.authorVenue}</span>{need.authorBusinessArea && <span>エリア {need.authorBusinessArea}</span>}{need.authorRevenueBand && <span>年商 {revenueBands[need.authorRevenueBand]}</span>}</div>
       <button className="intro-button" onClick={(event) => { event.stopPropagation(); openIntroduction(need); }}>この人にオファー <span>→</span></button>
     </article>
   );
@@ -1008,7 +1010,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       const need = requests.find((item) => item.id === thread.requestId);
       if (!need) return showToast('この探しごとは、もう見られなくなっています。');
       setOpenThreadWith(thread.threadWith);
-      return openNeed(need);
+      setThreadPartner(thread.partnerName);
+      setSelected(need);
+      return setModal('thread');
     }
     // オファーのやり取りは受け箱の中にある。そこを開く。
     setModal('responses');
@@ -1465,8 +1469,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               <b className="my-request-title">{item.title}</b>
               <p className="my-request-meta">
                 <span>期限 {item.deadline.replace(/-/g, '/')}</span>
-                <span>オファー {item.introCount}件</span>
-                <span>やり取り {item.commentCount}件</span>
+                <span>オファー {item.offerCount}件</span>
+                <span>リファラル {item.referralCount}件</span>
                 {item.imageCount > 0 && <span>写真 {item.imageCount}枚</span>}
                 {item.hasVideo && <span>動画あり</span>}
               </p>
@@ -1553,7 +1557,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       {deletingRequest && <Modal title="この探しごとを削除しますか" lead="削除すると元に戻せません。" onClose={() => setDeletingRequest(null)}>
         <div className="quota-block">
           <p><b>{deletingRequest.title}</b></p>
-          <p>この探しごとに届いたオファー {deletingRequest.introCount}件と、やり取り {deletingRequest.commentCount}件も一緒に消えます。写真や動画も消えます。</p>
+          <p>この探しごとに届いたオファーとリファラル {deletingRequest.introCount}件、それに付いたやり取りも一緒に消えます。写真や動画も消えます。</p>
           <p>募集を止めたいだけなら、削除ではなく<b>編集から「募集を終了する」</b>を選ぶと、記録とやり取りを残したまま新しいオファーを止められます。</p>
           <button className="submit-button is-danger" onClick={confirmDeleteRequest} disabled={busy}>{busy ? '削除しています…' : '削除する'}</button>
           <button className="quota-cancel" onClick={() => setDeletingRequest(null)} disabled={busy}>やめる</button>
@@ -1868,6 +1872,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <p>{selected.description}</p>
         {selected.videoUrl && <video className="need-video" src={selected.videoUrl} controls playsInline preload="metadata" />}
         <div className="industry-tags">{selected.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
+        <ActivityCounts need={selected} size="detail" />
         <dl><div><dt>予算</dt><dd>{budgetText(selected)}</dd></div><div><dt>希望エリア</dt><dd>{selected.area || '指定なし'}</dd></div><div><dt>募集期限</dt><dd>{selected.deadline}</dd></div></dl>
         <div className="detail-author"><Avatar src={selected.authorAvatarUrl} name={selected.authorName} className="member-avatar" /><p><b>{selected.authorName}</b><span>{selected.authorPositionTitle && `${selected.authorPositionTitle}｜`}{selected.authorCompany || '会社名未設定'}</span><small>{selected.authorVenue}{selected.authorBusinessArea && `・${selected.authorBusinessArea}`}</small></p><FacebookLink url={selected.authorFacebookUrl} name={selected.authorName} /></div>
         {selected.mine
@@ -1887,10 +1892,15 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             : <p><b>あなたはこの探しごとにオファーを{selected.myIntroCount}件送りました</b><small>中身は投稿者だけが読めます。ここには出ません</small></p>}
           {selected.mine && <button type="button" onClick={() => { setSelected(null); setModal('responses'); }}>届いたオファーを見る</button>}
         </div>}
-
-        <RequestComments requestId={selected.id} viewerId={stats.memberId} isRequestAuthor={selected.mine}
-          initialThread={openThreadWith} onOffer={selected.mine ? undefined : () => openIntroduction(selected)} onCountChange={(count) => setRequests((current) => current.map((item) => item.id === selected.id ? { ...item, commentCount: count } : item))} />
       </article></Modal>}
+
+      {/* すでに始まっている個別のやり取り。**コメントはやめたが、続いている
+          会話は切らない。** メッセージの一覧から、この形で開いて返事できる。 */}
+      {modal === 'thread' && selected && <Modal title={`${threadPartner || 'この方'}とのやり取り`}
+        lead={`「${selected.title}」でのおふたりだけのやり取りです。ほかの会員には見えません。`}
+        onClose={() => { setModal(null); setOpenThreadWith(''); }}>
+        <RequestThread requestId={selected.id} viewerId={stats.memberId} threadWith={openThreadWith} />
+      </Modal>}
 
       {cropSource && <div className="crop-backdrop"><section className="crop-dialog" role="dialog" aria-modal="true" aria-labelledby="crop-title"><header><button onClick={() => setCropSource('')}>キャンセル</button><div><h2 id="crop-title">顔写真を調整</h2><p>指で動かして、顔が中央に来るようにします</p></div><button className="crop-confirm" onClick={confirmCrop} disabled={cropping || !croppedArea}>{cropping ? '処理中' : '決定'}</button></header><div className="crop-stage"><Cropper image={cropSource} crop={crop} zoom={zoom} aspect={1} cropShape="round" showGrid={false} minZoom={1} maxZoom={4} zoomSpeed={0.35} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_, pixels) => setCroppedArea(pixels)} disableAutomaticStylesInjection /></div><div className="crop-controls"><label><span>顔の大きさ</span><input type="range" min="1" max="4" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} aria-label="顔写真の拡大率" /><b>{Math.round(zoom * 100)}%</b></label><p>写真を指で動かせます。丸の中がプロフィール写真に表示されます。</p></div></section></div>}
       {tutorial && <Tutorial onClose={() => setTutorial(false)}
@@ -1968,7 +1978,6 @@ const planRows: { label: string; note?: string; soon?: boolean; value: (plan: Pl
   { label: '掲示板を見る', value: (plan) => allows(plan, 'view_board') },
   { label: '会員を探す', note: '業種・エリア・会場', soon: true, value: (plan) => allows(plan, 'member_search') },
   { label: 'リファラルを送る', note: '知り合いの紹介', value: (plan) => allows(plan, 'introduce') },
-  { label: '探しごとでやり取り', note: 'コメント', value: (plan) => allows(plan, 'comment') },
   { label: '探しごとの投稿', value: (plan) => planPostLimit(plan) },
   { label: 'オファーを受け取る', note: '中身を読む・返事する', value: (plan) => allows(plan, 'receive_introductions') },
   { label: 'オファーを送る', note: '自社で請け負う', value: (plan) => allows(plan, 'self_offer') },
@@ -2200,6 +2209,27 @@ function HomeRequestCard({ need, favorite, onOpen, onFavorite }: { need: BoardRe
       : <><IndustryIcon group={primaryGroup} /><small>{primaryIndustry}</small></>}</span>
     <span className="home-request-copy"><small><b className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</b> あと{daysLeft(need.deadline)}日</small><strong>{need.title}</strong><span>{budgetText(need)}</span><em>{need.authorName}・{need.authorVenue}</em></span>
   </button></article>;
+}
+
+/**
+ * その探しごとに、どれだけ人が動いたか。
+ *
+ * **中身は出さない。数だけ。** オファーとリファラルの中身は本人と投稿者だけの
+ * ものだが、件数まで隠すと掲示板が止まって見える。実際に動いた数を出すほうが、
+ * ひとことを並べるより正直で、書く手間もいらない。
+ *
+ * 0件のときは「0」と書かない。数字の0は、動きが無いことを言うより先に
+ * 「ここは寂れている」と読まれてしまう。かわりに、いちばんに動ける場だと伝える。
+ */
+function ActivityCounts({ need, size = 'card' }: { need: BoardRequest; size?: 'card' | 'detail' }) {
+  if (need.offerCount + need.referralCount === 0) {
+    return <p className={`activity-counts is-quiet is-${size}`}>まだ誰も動いていません。いちばんに動けます。</p>;
+  }
+  return <p className={`activity-counts is-${size}`}
+    aria-label={`オファー${need.offerCount}件、リファラル${need.referralCount}件`}>
+    {need.offerCount > 0 && <span className="is-offer"><b>{need.offerCount}</b>件のオファー</span>}
+    {need.referralCount > 0 && <span className="is-referral"><b>{need.referralCount}</b>件のリファラル</span>}
+  </p>;
 }
 
 function Modal({ title, lead, onClose, children }: { title: string; lead: string; onClose: () => void; children: React.ReactNode }) { return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div className="modal-top"><span className="sheet-handle" /><button className="modal-close" onClick={onClose} aria-label="閉じる">×</button></div><h2 id="modal-title">{title}</h2><p className="modal-lead">{lead}</p>{children}</section></div>; }

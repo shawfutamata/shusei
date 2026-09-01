@@ -42,7 +42,9 @@ export const planLimits: Record<Plan, { requestsPerMonth: number }> = {
 export const features = [
   'view_board',           // 掲示板を見る
   'introduce',            // 人をオファーする（ギブ）
-  'comment',              // 探しごとでやり取りする
+  // 'comment' は廃止（コメント欄をやめた）。**列挙からは外さない**。
+  // 消すと、この名前で保存されている古い設定や記録が読めなくなる。
+  'comment',              // 使わない。すでに始まっているやり取りの続きだけ
   'receive_introductions',// 届いたオファーを見る
   'post_request',         // 探しごとを投稿する（無料は月1件）
   // 会員を業種・エリアで探す。**全プラン**（ここに無い＝どのプランでも使える）。

@@ -51,8 +51,12 @@ export type BoardRequest = {
   authorRevenueBand: string;
   authorAvatarUrl: string;
   authorFacebookUrl: string;
+  /** 届いたオファーとリファラルの合計。 */
   introCount: number;
-  commentCount: number;
+  /** 自社で請け負う「オファー」の数。 */
+  offerCount: number;
+  /** 知り合いをつなぐ「リファラル」の数。 */
+  referralCount: number;
 };
 
 export type MemberStats = {
@@ -959,9 +963,11 @@ export async function getBoardData(user: SessionUser) {
     -- 自分が出したオファーの数。オファーは本人と投稿者にしか見えないので、
     -- やり取り欄では「出した／届いている」という事実だけを出す。
     (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id AND i.introducer_id = ?) AS myIntroCount,
-    -- 掲示板に出す数は**みんなに見えるぶんだけ**。非公開のやり取りまで数えると、
-    -- 開いても出てこない数が札に出て、だれと話しているかの気配まで漏れる。
-    (SELECT COUNT(*) FROM request_comments c WHERE c.request_id = r.id AND c.visibility != 'private') AS commentCount
+    -- **動きが見えるように、内訳も出す。** 中身は本人と投稿者だけのものなので
+    -- 出さないが、「何件届いているか」は会員みんなに見せてよい。むしろ見せないと、
+    -- 誰も動いていない掲示板に見えてしまう。
+    (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id AND i.kind = 'self') AS offerCount,
+    (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id AND i.kind != 'self') AS referralCount
     FROM requests r
     JOIN members m ON m.id = r.author_id
     ${hideSamples}
@@ -1098,12 +1104,13 @@ export async function listMyRequests(user: SessionUser) {
     r.deadline, r.status, r.image_version AS imageVersion, r.image_count AS imageCount,
     r.video_version AS videoVersion, r.created_at AS createdAt, r.extended_at AS extendedAt,
     (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id) AS introCount,
-    (SELECT COUNT(*) FROM request_comments c WHERE c.request_id = r.id) AS commentCount
+    (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id AND i.kind = 'self') AS offerCount,
+    (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id AND i.kind != 'self') AS referralCount
     FROM requests r WHERE r.author_id = ? ORDER BY r.created_at DESC`)
     .bind(user.userId).all<{ id: string; category: string; title: string; description: string;
       budgetLabel: string; budgetBand: string; area: string; industryTagsJson: string; deadline: string; status: string;
       imageVersion: number; imageCount: number; videoVersion: number; createdAt: string;
-      extendedAt: string; introCount: number; commentCount: number }>();
+      extendedAt: string; introCount: number; offerCount: number; referralCount: number }>();
   return rows.results.map(({ industryTagsJson, imageVersion, imageCount, videoVersion, ...rest }) => ({
     ...rest,
     industryTags: parseStringArray(industryTagsJson),
@@ -2184,8 +2191,16 @@ export async function countFeedback(memberId: string) {
 // --- 機能改善の受け口 ここまで ------------------------------------------------
 
 // --- 探しごとへのコメント ここから -----------------------------------------
-// 紹介の前後で、投稿した人と答える人がその場でやり取りできるようにするための機能。
-// ギブ側の行動なので、無料会員でも使える（docs/pricing-plan-ja.md）。
+// **コメントはやめた。新しくは書けない。**
+//
+// 公開のひとことは「掲示板がにぎわって見える」ために置いていたが、にぎわいは
+// リファラルとオファーの件数で見せることにした（掲示板のカードに出る）。実際に
+// 人が動いた数のほうが、ひとことより正直で、書く手間もいらない。
+//
+// **表と、すでに入っているやり取りは消さない。** 個別のやり取りは、いま
+// 続いている本物の会話なので、途中で切ると相手に不義理になる。読むのも返すのも
+// これまでどおりできる（メッセージの一覧から開く）。新しく1本を始める道だけ閉じた。
+// 始まりは必ず公開のひとことだったので、書けなくすれば自然に増えなくなる。
 
 export type RequestComment = {
   id: string;
@@ -2334,12 +2349,18 @@ export async function addRequestComment(user: SessionUser, requestId: string, ra
     : null;
   const visibility = thread && existing ? 'private' : 'public';
 
+  // **新しいやり取りは、ここでは始められない。** コメントはやめたので、
+  // 公開になるはずのもの（＝その相手との1通目）は受け付けない。
+  // すでに続いている個別のやり取りへの返事だけを通す。
+  if (visibility !== 'private') {
+    throw new Error('コメントは終了しました。オファーかリファラルからご連絡ください。');
+  }
   // **画面で隠すだけでは足りない。** 通信を直接叩けば書けてしまうので、
   // 入れるかどうかはここでも確かめる（判定は canOpenPrivateThread 1か所）。
-  if (visibility === 'private' && !await canOpenPrivateThread(requestId, thread)) {
+  if (!await canOpenPrivateThread(requestId, thread)) {
     throw new Error(isRequestAuthor
-      ? 'この方はまだオファーを出していません。個別のやり取りは、オファーが届いてからになります。'
-      : '続きは、オファーかリファラルを送ってからになります。知り合いをつなぐリファラルは無料です。');
+      ? 'この方とのやり取りはまだありません。'
+      : 'このやり取りは開いていません。オファーかリファラルからご連絡ください。');
   }
 
   const now = new Date().toISOString();

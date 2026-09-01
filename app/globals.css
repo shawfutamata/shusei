@@ -1630,7 +1630,9 @@ body { font-weight:600; }
    ＋を真ん中に置くため、項目は左右3つずつの6つ。列は7つ。
    **この指定は必ずファイルの後ろに置く。** 前に書くと、上の方にある
    .bottom-nav の5列指定に負けて何も変わらない（あとに書いた方が勝つ）。 */
-.bottom-nav.is-six { grid-template-columns:repeat(7,1fr); padding-left:2px; padding-right:2px; }
+/* 真ん中の列（＋）を広めに取ると、左右の3つずつが外側へ寄る。等分だと6つが
+   ＋のまわりに固まって見えて、端が間延びする。 */
+.bottom-nav.is-six { grid-template-columns:repeat(3,1fr) 1.7fr repeat(3,1fr); padding-left:0; padding-right:0; }
 .bottom-nav.is-six small { font-size:7px; letter-spacing:-.04em; transform:scale(.94); }
 .bottom-nav.is-six button>span,.bottom-nav.is-six label>span { font-size:19px; }
 /* 項目が増えたぶん1列が狭い。＋も同じだけ細くしないと、隣にはみ出す。 */
@@ -1671,3 +1673,32 @@ body { font-weight:600; }
 .message-side time { color:#93a0b3; font-size:10px; font-weight:700; }
 .message-unread { min-width:19px; height:19px; padding:0 5px; display:grid; place-items:center; border-radius:99px;
   background:var(--accent); color:#fff; font-size:10px; font-style:normal; font-weight:900; }
+
+/* --- 投稿ごとの「動き」 ------------------------------------------------------
+   コメント欄をやめたかわりに、実際に人が動いた数を出す。中身は出さない。 */
+.activity-counts { margin:10px 0 0; display:flex; flex-wrap:wrap; gap:6px; }
+.activity-counts span { padding:6px 10px; display:inline-flex; align-items:baseline; gap:4px;
+  border-radius:999px; font-size:10px; font-weight:900; }
+.activity-counts span b { font-size:13px; }
+/* オファー（自社で請け負う＝お金が動く）は橙。リファラル（つなぐ）は青。
+   アプリの中で「自分が出す」はずっと橙なので、それに合わせている。 */
+.activity-counts .is-offer { background:#fff1e4; color:#a2500b; }
+.activity-counts .is-referral { background:#e9f2ff; color:#12539f; }
+.activity-counts.is-quiet { color:#93a0b3; font-size:10px; font-weight:700; }
+.activity-counts.is-detail { margin:13px 0 0; }
+.activity-counts.is-detail span { padding:8px 13px; font-size:11px; }
+.activity-counts.is-detail span b { font-size:16px; }
+.activity-counts.is-detail.is-quiet { font-size:11px; }
+
+/* --- すでに始まっているおふたりだけのやり取り -------------------------------- */
+.request-thread ol { margin:0 0 14px; padding:0; list-style:none; display:grid; gap:11px; }
+.request-thread li { padding:11px 13px; border:1px solid #e2e8f2; border-radius:14px; background:#fff; }
+/* 自分のぶんは右に寄せて色を変える。会話として読めるように。 */
+.request-thread li.is-mine { margin-left:22px; border-color:#cfe0f7; background:#f2f8ff; }
+.thread-who { display:flex; align-items:center; gap:7px; }
+.thread-who img { width:26px; height:26px; border-radius:50%; object-fit:cover; }
+.thread-who b { width:26px; height:26px; display:grid; place-items:center; border-radius:50%;
+  background:#dbeafe; color:#1478d6; font-size:11px; }
+.thread-who em { color:#41546e; font-size:11px; font-style:normal; font-weight:900; }
+.request-thread li p { margin:7px 0 0; color:#25344c; font-size:13px; line-height:1.75; white-space:pre-wrap; }
+.request-thread li time { display:block; margin-top:6px; color:#98a4b6; font-size:10px; font-weight:700; }
