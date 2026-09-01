@@ -66,10 +66,32 @@ const steps: Step[] = [
 type Spot = { top: number; left: number; width: number; height: number };
 
 const PAD = 8;
+/** 目印と案内のあいだ。ここに矢印を置くので、指1本ぶんは空ける。 */
+const GAP = 26;
+
+/**
+ * **いま実際に見えている範囲。**
+ *
+ * iOS Safari の `window.innerHeight` は、上下のバーを隠したときの高さを返す。
+ * 実際に見えているのはそれより低いので、この値で置き場所を決めると、
+ * 案内が下のメニューに覆いかぶさる（画面の外に押し出す）。
+ * `visualViewport` は、いまバーが出ている状態の高さを返す。
+ *
+ * 位置は `position:fixed` と同じ座標で扱う。`top` は、その中で
+ * 「見えている範囲の上端が、どこから始まるか」。
+ */
+function visibleBand() {
+  if (typeof window === 'undefined') return { top: 0, bottom: 0, height: 0 };
+  const vv = window.visualViewport;
+  const top = vv ? vv.offsetTop : 0;
+  const height = vv ? vv.height : window.innerHeight;
+  return { top, bottom: top + height, height };
+}
 
 export default function Tutorial({ onClose, onFinish }: { onClose: () => void; onFinish: () => void }) {
   const [index, setIndex] = useState(0);
   const [spot, setSpot] = useState<Spot | null>(null);
+  const [band, setBand] = useState(() => visibleBand());
   const step = steps[index];
   const last = index === steps.length - 1;
 
@@ -86,6 +108,8 @@ export default function Tutorial({ onClose, onFinish }: { onClose: () => void; o
     setSpot(null);
   }, [index]);
 
+  const measure = useCallback(() => { setBand(visibleBand()); locate(); }, [locate]);
+
   useEffect(() => {
     // 画面の外にあるものは、先に見えるところへ寄せてから測る。
     for (const selector of steps[index].targets) {
@@ -95,26 +119,30 @@ export default function Tutorial({ onClose, onFinish }: { onClose: () => void; o
       if (box.top < 0 || box.bottom > window.innerHeight) el.scrollIntoView({ block: 'center' });
       break;
     }
-    const timer = window.setTimeout(locate, 260);
-    window.addEventListener('resize', locate);
-    window.addEventListener('scroll', locate, true);
+    const timer = window.setTimeout(measure, 260);
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    // バーの出入りで見える高さが変わる。そのたびに置き直す。
+    window.visualViewport?.addEventListener('resize', measure);
+    window.visualViewport?.addEventListener('scroll', measure);
     return () => {
       window.clearTimeout(timer);
-      window.removeEventListener('resize', locate);
-      window.removeEventListener('scroll', locate, true);
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+      window.visualViewport?.removeEventListener('resize', measure);
+      window.visualViewport?.removeEventListener('scroll', measure);
     };
-  }, [index, locate]);
+  }, [index, measure]);
 
   function close() { markTutorialSeen(); onClose(); }
 
-  // 案内は、目印の**空いているほう**に置く。半分より上か下かで決めると、
-  // 目印が大きいときに置き場所が足りず、ボタンが画面の外へ出てしまう。
+  // 案内は、目印の**空いているほう**に置く。空きは「見えている範囲」で測る。
   // 置ける高さも渡して、あふれる分は案内の中でスクロールさせる。
   const view = typeof window === 'undefined' ? 0 : window.innerHeight;
-  const spaceBelow = spot ? view - (spot.top + spot.height) : 0;
-  const spaceAbove = spot ? spot.top : 0;
+  const spaceBelow = spot ? band.bottom - (spot.top + spot.height) - GAP : 0;
+  const spaceAbove = spot ? spot.top - band.top - GAP : 0;
   const below = Boolean(spot) && spaceBelow >= spaceAbove;
-  const room = Math.max(spaceBelow, spaceAbove) - 26;
+  const room = Math.max(spaceBelow, spaceAbove) - 14;
   // 矢印は目印の真ん中を指す。案内は画面の中央に出るので、そのままだと
   // 端にある目印（右上のプロフィールなど）に対して見当違いの所を指す。
   const wide = typeof window === 'undefined' ? 0 : window.innerWidth;
@@ -123,13 +151,24 @@ export default function Tutorial({ onClose, onFinish }: { onClose: () => void; o
   const arrowX = spot ? Math.min(Math.max(spot.left + spot.width / 2 - cardLeft, 22), cardWidth - 22) : cardWidth / 2;
   const cardStyle: React.CSSProperties = spot
     ? below
-      ? { top: spot.top + spot.height + 14, maxHeight: room, ['--arrow-x' as string]: `${arrowX}px` }
-      : { bottom: view - spot.top + 14, maxHeight: room, ['--arrow-x' as string]: `${arrowX}px` }
-    : { top: '50%', transform: 'translateY(-50%)', maxHeight: view - 32 };
+      ? { top: spot.top + spot.height + GAP, maxHeight: room, ['--arrow-x' as string]: `${arrowX}px` }
+      // fixed の bottom は「画面の下端から」。見えている範囲の下端ではないので、
+      // 隠れている帯（Safariの下のバー）のぶんは足さない。目印の上に置くだけ。
+      : { bottom: view - spot.top + GAP, maxHeight: room, ['--arrow-x' as string]: `${arrowX}px` }
+    : { top: band.top + 16, maxHeight: band.height - 32 };
 
   return <div className="tut-layer" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
     {spot
-      ? <div className="tut-hole" style={{ top: spot.top, left: spot.left, width: spot.width, height: spot.height }} />
+      ? <>
+          <div className="tut-hole" style={{ top: spot.top, left: spot.left, width: spot.width, height: spot.height }} />
+          {/* 目印と案内のあいだに矢印。目印そのものを指す。 */}
+          <span className="tut-arrow" aria-hidden="true"
+            style={below
+              ? { top: spot.top + spot.height + 2, left: spot.left + spot.width / 2 }
+              : { top: spot.top - 24, left: spot.left + spot.width / 2 }}>
+            {below ? '↑' : '↓'}
+          </span>
+        </>
       : <div className="tut-dim" />}
 
     <section className={`tut-card${spot ? (below ? ' points-up' : ' points-down') : ' is-center'}`} style={cardStyle}>
