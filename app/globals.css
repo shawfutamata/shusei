@@ -172,11 +172,7 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .ad-entry-open small { display:block; margin-top:4px; color:rgba(255,255,255,.88); font-size:11px; font-weight:800; line-height:1.5; }
 .ad-entry-open i { width:30px; height:30px; display:grid; place-items:center; border-radius:50%; background:rgba(255,255,255,.22); color:#fff; font-size:17px; font-style:normal; font-weight:900; }
 .ad-entry-open:active { filter:brightness(.94); }
-/* 申し込みの入口は、スクロールしても下に貼りついたままにする。
-   広告の画面は掲載中のカードとレポートで縦に長く、いちばん下まで
-   降りないと入口に届かなかった。**買う気になった瞬間に押せる場所へ。**
-   下端の余白は、下のメニューに重ならない高さぶん空けている。 */
-.ad-flow-open { position:sticky; z-index:3; bottom:10px; box-shadow:0 10px 26px rgba(224,67,16,.34); }
+.ad-entry-open { margin-bottom:14px; box-shadow:0 8px 20px rgba(224,67,16,.26); }
 .ad-panel { display:grid; gap:14px; }
 .ad-heading p { margin:0 0 4px; color:var(--accent-ink); font-size:9px; font-weight:900; letter-spacing:.16em; }
 .ad-heading h2 { margin:0; font-size:19px; }

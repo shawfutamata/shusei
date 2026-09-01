@@ -1488,7 +1488,22 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {modal === 'ads' && adInfo && <Modal title="広告を出す" lead={`ご指定の期間だけ広告を掲載できます。お支払いは日数分の1回のみ（税込）。`} onClose={closeAdSettings}>
         <div className="ad-panel">
-          {/* いま持っている枠。ここは見るところで、申し込みは下の流れで行う。 */}
+          {/* 申し込みの入口は、開いてすぐ目に入るいちばん上に置く。
+              下に置くと、掲載中のカードと掲載レポートを越えないと届かない。
+              スクロールに貼りつかせる形も試したが、掲載中の広告に重なって
+              読めなくなるので、素直に先頭へ。 */}
+          {!adInfo.ready
+            ? <p className="ad-note">広告の受け付けは準備中です。ご希望の方は運営窓口までお問い合わせください。</p>
+            : !nextOpenDay
+            ? <p className="ad-note">ただいま{adInfo.daysAhead}日先まで、{placementName(adPlacement)}の{currentPlacement.slots}枠すべてが埋まっています。空きが出ましたらお申し込みいただけます。</p>
+            : !adFlow
+              ? <button className="ad-entry-open" onClick={startAdFlow}>
+                  <span><b>新規のお申し込み</b><small>4ステップで完了します。掲載日数分のお支払いが1回のみ</small></span>
+                  <i aria-hidden="true">›</i>
+                </button>
+              : null}
+
+          {/* いま持っている枠。ここは見るところで、申し込みは上の入口から。 */}
           {adInfo.slots.length > 0 && !adFlow && <ul className="ad-slot-list">{adInfo.slots.map((ad) => {
             const state = adState(ad);
             return <li key={ad.id} className={`ad-slot is-${state.tone}`}>
@@ -1509,16 +1524,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             </li>;
           })}</ul>}
 
-          {!adInfo.ready
-            ? <p className="ad-note">広告の受け付けは準備中です。ご希望の方は運営窓口までお問い合わせください。</p>
-            : !nextOpenDay
-            ? <p className="ad-note">ただいま{adInfo.daysAhead}日先まで、{placementName(adPlacement)}の{currentPlacement.slots}枠すべてが埋まっています。空きが出ましたらお申し込みいただけます。</p>
-            : !adFlow
-              ? <button className="ad-entry-open ad-flow-open" onClick={startAdFlow}>
-                  <span><b>新規のお申し込み</b><small>4ステップで完了します。掲載日数分のお支払いが1回のみ</small></span>
-                  <i aria-hidden="true">›</i>
-                </button>
-              : <form className="ad-flow" onSubmit={buyAdSlot}>
+          {adInfo.ready && nextOpenDay && adFlow && <form className="ad-flow" onSubmit={buyAdSlot}>
                   <ol className="ad-steps" aria-label="出すまでの手順">
                     {['掲載枠', '掲載内容', '掲載期間', 'ご確認'].map((name, index) => <li key={name} className={`${index === adStep ? 'now' : ''}${index < adStep ? ' done' : ''}`.trim()}>
                       <b>{index < adStep ? '✓' : index + 1}</b><span>{name}</span>
