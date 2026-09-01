@@ -201,6 +201,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [threadsLoading, setThreadsLoading] = useState(true);
   /** メッセージの一覧から開いたやり取り。ここで直に読み書きする。 */
   const [openChat, setOpenChat] = useState<MessageThread | null>(null);
+  /** プロフィール設定を開いたとき、どの欄まで送るか。空なら先頭のまま。 */
+  const [profileFocus, setProfileFocus] = useState('');
   /** お支払いの情報を読み込めなかったか。「準備中」と混ぜないための印。 */
   const [referralFailed, setReferralFailed] = useState(false);
   /** 中身を見せていない（＝プランが足りない）届いたオファーの数。 */
@@ -457,6 +459,15 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       .finally(() => { if (alive) setThreadsLoading(false); });
     return () => { alive = false; };
   }, [activeTab]);
+
+  // 目当ての欄まで送る。**描き終わってから測る。** 切り替えた直後はまだ
+  // その欄が画面に無いので、位置を測っても意味がない。
+  useEffect(() => {
+    if (activeTab !== 'profile' || !profileFocus) return;
+    const target = document.getElementById(profileFocus);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setProfileFocus('');
+  }, [activeTab, profileFocus]);
 
   /** ここまで読んだ、と記録して数字を減らす。開いたときに呼ぶ。 */
   const markRead = useCallback(async (key: string) => {
@@ -1033,10 +1044,18 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   function showMyPosts() { goTab('posts'); }
 
   /** プロフィールを入力するページ。入口は右上の顔写真だけ。 */
-  function showProfileSettings() {
+  /**
+   * プロフィール設定を開く。
+   *
+   * `focus` を渡すと、その欄まで送る。**「業種を選んでください」と言われた人を
+   * ページの先頭に置き去りにしない。** 長い設定ページなので、どこを直せばよいか
+   * 分からないまま閉じられてしまう。
+   */
+  function showProfileSettings(focus = '') {
     setModal(null);
     setActiveTab('profile');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setProfileFocus(focus);
+    if (!focus) window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   // 広告は出す場所で分かれる。バナーはカルーセル、一覧は掲示板の先頭。
@@ -1183,7 +1202,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     <main className="app-shell" id="home">
       <header className="mobile-header">
         <button className="mobile-brand" onClick={showHome}><BrandMark /><b>{serviceName}</b></button>
-        <button className="header-profile" onClick={showProfileSettings}><span><small>こんにちは</small><b>{shownName}</b></span><Avatar src={stats.avatarUrl} name={shownName} className="mini-avatar" /></button>
+        <button className="header-profile" onClick={() => showProfileSettings()}><span><small>こんにちは</small><b>{shownName}</b></span><Avatar src={stats.avatarUrl} name={shownName} className="mini-avatar" /></button>
       </header>
 
       {activeTab === 'home' ? <div className="home-dashboard">
@@ -1202,7 +1221,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           emptyTitle={ownMatching > 0 ? 'いまは、ご自身の投稿だけです' : 'まだ募集中の探しごとがありません'}
           emptyText={ownMatching > 0 ? `選んだ業種に合う探しごとは${ownMatching}件ありますが、すべてご自身の投稿です。ここにはオファーできる相手だけを並べるため、ご自身の分は出しません。ほかの会員が投稿すると並びます。`
             : 'ほかの会員が探しごとを投稿すると、ここに並びます。'}
-          onMore={() => stats.notifyIndustries.length ? showSearch() : showProfileSettings()}>
+          onMore={() => stats.notifyIndustries.length ? showSearch() : showProfileSettings('notify-industries')}>
           {recommended.map((need) => <HomeRequestCard key={need.id} need={need} favorite={favoriteIds.includes(need.id)} onOpen={() => openNeed(need)} onFavorite={() => toggleFavorite(need)} />)}
         </HomeShelf>
 
@@ -1219,7 +1238,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div className="industry-grid">{industryGroups.map((group) => <button key={group.name} onClick={() => showSearch(group.name)}><span><IndustryIcon group={group.name} /></span><b>{group.name}</b><small>{requests.filter((item) => matchesIndustry(item.industryTags, group.name)).length}件</small></button>)}</div>
         </section>
 
-        {!stats.avatarUrl && <button className="photo-required-banner" onClick={showProfileSettings}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・オファーができます。</b><i>登録する →</i></button>}
+        {!stats.avatarUrl && <button className="photo-required-banner" onClick={() => showProfileSettings()}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・オファーができます。</b><i>登録する →</i></button>}
       </div> : activeTab === 'search' ? <section className="mobile-board search-page" id="board">
         <div className="section-title"><div><p>REQUESTS</p><h2>{industryFilter === 'all' ? '仕事の掲示板' : industryFilter}<button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="案件・協業先・相談の違いを見る">i</button></h2></div><span>{shown.length}件</span></div>
         {industryFilter !== 'all' && <button className="clear-industry" onClick={() => setIndustryFilter('all')}><IndustryIcon group={getIndustryGroup(industryFilter)?.name ?? 'その他'} />{industryFilter}で絞り込み中 <i>×</i></button>}
@@ -1256,7 +1275,11 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             ? `選んだ業種（${stats.notifyIndustries.join('・')}）の探しごとは、いまほかの会員から出ていません。かわりに募集中のものを並べています。`
             : 'おすすめに出したい業種を選ぶと、関係のありそうな探しごとが先に並びます。'
           : `選んだ業種（${stats.notifyIndustries.join('・')}）に合う、ほかの会員の探しごとです。`}</p>
-        <button className="recommend-settings" onClick={showProfileSettings}>おすすめに出す業種を選び直す</button>
+        {/* まだ選んでいない人には「選ぶ」と言い、その欄まで直に送る。
+            長い設定ページの先頭に放り出すと、どこを直すのか分からない。 */}
+        <button className="recommend-settings" onClick={() => showProfileSettings('notify-industries')}>
+          {stats.notifyIndustries.length ? 'おすすめに出す業種を選び直す' : 'おすすめに出したい業種を選ぶ'}
+        </button>
         <div className="card-list">
           {recommendedAll.length === 0
             ? <div className="empty"><b>いまは募集中の探しごとがありません</b><span>ほかの会員が投稿すると、ここに並びます。</span></div>
@@ -1494,7 +1517,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <label>肩書き <small>任意</small><input value={profilePosition} onChange={(event) => setProfilePosition(event.target.value)} maxLength={60} placeholder="世話人" /></label>
           <label>活動エリア <small>任意・検索に使われます</small><select value={profileArea} onChange={(event) => setProfileArea(event.target.value)}><option value="">選択しない</option>{prefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
           <div className="profile-industry-select"><p>自分の業種 <small>おすすめの設定に使われます</small></p><label>大分類<select value={profileIndustryGroup} onChange={(event) => { setProfileIndustryGroup(event.target.value); setProfileIndustry(''); }}><option value="">選択してください</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label><label>詳細業種<select value={profileIndustry} onChange={(event) => { const value = event.target.value; setProfileIndustry(value); if (value && !profileNotifyIndustries.includes(value)) setProfileNotifyIndustries((current) => [...current, value].slice(0, notifyIndustryLimit(stats.level))); }} disabled={!profileIndustryGroup}><option value="">詳細業種を選択</option>{profileIndustry === profileIndustryGroup && <option value={profileIndustryGroup}>大分類のみ（旧設定）</option>}{industryGroups.find((group) => group.name === profileIndustryGroup)?.children.map((industry) => <option value={industry} key={industry}>{industry}</option>)}</select></label></div>
-          <IndustryPicker legend="おすすめに出したい業種" note={`${notifyIndustryLimit(stats.level)}個まで`} description="選んだ詳細業種の探しごとが、ホームの「あなたにおすすめ」に出ます。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, notifyIndustryLimit(stats.level))} className="profile-tag-field" />
+          <IndustryPicker id="notify-industries" legend="おすすめに出したい業種" note={`${notifyIndustryLimit(stats.level)}個まで`} description="選んだ詳細業種の探しごとが、ホームの「あなたにおすすめ」に出ます。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, notifyIndustryLimit(stats.level))} className="profile-tag-field" />
           <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
           <label>Facebook <small>任意・オファーのあとに直接やり取りできます</small><input value={profileFacebook} onChange={(event) => setProfileFacebook(event.target.value)} maxLength={200} placeholder="https://www.facebook.com/your.name" inputMode="url" /></label>
           <button className="profile-save-button" onClick={saveProfile} disabled={busy || !profileName.trim() || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
@@ -2173,14 +2196,16 @@ function HomeShelf({ title, count, note = '', emptyTitle, emptyText, onMore, chi
  * 上段は「いま開いている」だけの見た目にして、選んだ数を各大分類の肩に出す。
  * どこに何個入っているかが、開かなくても分かる。
  */
-function IndustryPicker({ legend, note, description, selected, activeGroup, onGroupChange, onToggle, className = '' }: {
+function IndustryPicker({ id, legend, note, description, selected, activeGroup, onGroupChange, onToggle, className = '' }: {
+  /** 外から「ここまで送る」と指せるようにする目印。 */
+  id?: string;
   legend: string; note: string; description?: string; selected: string[];
   activeGroup: string; onGroupChange: (value: string) => void; onToggle: (value: string) => void; className?: string;
 }) {
   const active = industryGroups.find((group) => group.name === activeGroup) ?? industryGroups[0];
   const countIn = (group: typeof industryGroups[number]) => group.children.filter((child) => selected.includes(child)).length;
 
-  return <fieldset className={`tag-field hierarchical-industry-picker ${className}`}>
+  return <fieldset id={id} className={`tag-field hierarchical-industry-picker ${className}`}>
     <legend>{legend} <small>{note}</small></legend>
     {description && <p>{description}</p>}
 
