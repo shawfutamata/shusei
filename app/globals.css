@@ -443,6 +443,8 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .plan-list li.plan-premium .plan-pick { background:linear-gradient(135deg,#a8843a,#d5ae5c); }
 .plan-pick:disabled { opacity:.55; }
 .plan-manage { min-height:40px; padding:0 14px; justify-self:start; border:1px solid var(--line); border-radius:10px; background:#fff; color:#4c5a70; font-size:11px; font-weight:800; }
+.plan-manage-note { margin:14px 0 0; padding:11px 13px; border-radius:11px; background:#f4f7fc; color:#5b6b80; font-size:11px; font-weight:700; line-height:1.75; }
+.plan-manage-note a { color:var(--blue); font-weight:900; }
 .plan-detail { margin:0; padding:0; list-style:none; display:grid; gap:9px; }
 .plan-detail li { display:grid; justify-items:start; gap:3px; }
 .plan-detail b { font-size:11px; font-weight:800; line-height:1.5; }

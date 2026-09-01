@@ -857,20 +857,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     setBusy(false);
   }
 
-  async function openBillingPortal() {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const response = await fetch('/api/billing/portal', { method: 'POST' });
-      const data = await response.json() as { url?: string; error?: string };
-      if (data.url) { window.location.assign(data.url); return; }
-      showToast(data.error || 'お支払いの管理画面を開けませんでした。');
-    } catch {
-      showToast('通信に失敗しました。時間をおいてお試しください。');
-    }
-    setBusy(false);
-  }
-
   function openNeed(need: BoardRequest) {
     setViewedIds((current) => [need.id, ...current.filter((id) => id !== need.id)].slice(0, 12));
     setSelected(need);
@@ -1223,7 +1209,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             </ul>
             <PlanTable current={stats.plan} />
             {stats.adminPlan && <p className="plan-until">運営のアカウントとして、お支払いなしでスタンダードの機能をお使いいただけます。設定は Cloudflare の ADMIN_EMAILS です。</p>}
-            {referral?.billing?.hasCustomer && !stats.adminPlan && <button className="plan-manage" onClick={openBillingPortal} disabled={busy}>お支払い・解約の手続き</button>}
+            {referral?.billing?.hasCustomer && !stats.adminPlan && <p className="plan-manage-note">お支払いカードの変更・領収書のダウンロード・解約は、<a href="/support#billing">サポートの「解約・お支払いの変更」</a>からお手続きいただけます。</p>}
             <p className="plan-note">仲間を1人招待してご利用が{referral?.qualifyDays ?? 30}日続くと、{stats.contractedPlan === 'free' ? <><b>自動でスタンダードが1ヶ月使えるようになります</b>（お手続きは要りません）</> : <><b>次回の請求から1ヶ月分自動で引かれます</b></>}。{referral?.billing?.ready ? '有料プランへのお申し込みは、上のボタンからいつでもどうぞ。解約もいつでもできます。' : ''}</p>
           </div>
         </details>

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { serviceName } from '../brand';
 import { LegalNav, LegalStyles } from '../LegalPage';
+import BillingPortalButton from '../BillingPortalButton';
 
 export const metadata: Metadata = { title: `サポート｜${serviceName}`, description: `${serviceName}の使い方とお問い合わせ窓口` };
 
@@ -14,11 +15,11 @@ const faqs = [
   ['仲間を招待したい', 'マイページの「仲間を招待する」から、あなた専用の招待リンクをコピーして共有してください。リンクから登録された方は、そのままご利用いただけます。'],
   ['招待の特典について', '招待した方のご利用が30日続くと、有料プランの方は会費が1ヶ月分安くなり、無料プランの方はスタンダードが1ヶ月使えるようになります（合計6ヶ月分まで）。お手続きは要りません。この特典は、予告なく内容の変更または終了をすることがあります。すでに確定した分は、そのままご利用いただけます。'],
   ['顔写真の登録は必須ですか', '必須です。誰からの探しごと・オファーなのかが分かることが、安心してオファーし合うための前提だからです。'],
-  ['料金はかかりますか', 'アプリは無料です。守成クラブの会員契約はアプリの外で行われ、アプリ内での購入や課金は一切ありません。'],
+  ['料金はかかりますか', '無料プランのままお使いいただけます。Webのマイページから、月額のスタンダードプランへお切り替えいただくこともできます。iPhone・Androidのアプリの中では購入や課金はできません（お手続きはWebのみです）。'],
 ];
 
 export default function SupportPage() {
-  return <main style={styles.page}><article style={styles.card}><LegalStyles /><p style={styles.eyebrow}>SUPPORT</p><h1 style={styles.title}>サポート</h1><p style={styles.lead}>{serviceName}（守成クラブ会員向けのオファー・探しごとアプリ）のお問い合わせ窓口とよくあるご質問です。</p><section style={styles.contact}><h2 style={styles.contactHeading}>お問い合わせ</h2><p style={styles.body}>ご質問・不具合のご連絡は <a href={`mailto:${contactEmail}`} style={styles.link}>{contactEmail}</a> までお願いします。3営業日以内にご返信します。</p><p style={styles.body}>不具合のご連絡には、お使いの端末（iPhone / Android）とアプリのバージョン、操作の手順を添えていただけると解決が早くなります。</p></section>{faqs.map(([question, answer]) => <section key={question} style={styles.section}><h2 style={styles.heading}>{question}</h2><p style={styles.body}>{answer}</p></section>)}<section style={styles.section}><h2 style={styles.heading}>アカウントの削除</h2><p style={styles.body}>アプリの「マイページ」下部から、プロフィール、投稿、オファー、登録した画像、通知端末、ログインセッションを削除できます。削除後は元に戻せません。アプリから削除できない場合は <a href={`mailto:${contactEmail}`} style={styles.link}>{contactEmail}</a> へご連絡ください。詳しくは<a href="/privacy#delete" style={styles.link}>プライバシーポリシー</a>をご覧ください。</p></section><section style={styles.section}><h2 style={styles.heading}>規約とポリシー</h2><LegalNav /></section></article></main>;
+  return <main style={styles.page}><article style={styles.card}><LegalStyles /><p style={styles.eyebrow}>SUPPORT</p><h1 style={styles.title}>サポート</h1><p style={styles.lead}>{serviceName}（守成クラブ会員向けのオファー・探しごとアプリ）のお問い合わせ窓口とよくあるご質問です。</p><section style={styles.contact}><h2 style={styles.contactHeading}>お問い合わせ</h2><p style={styles.body}>ご質問・不具合のご連絡は <a href={`mailto:${contactEmail}`} style={styles.link}>{contactEmail}</a> までお願いします。3営業日以内にご返信します。</p><p style={styles.body}>不具合のご連絡には、お使いの端末（iPhone / Android）とアプリのバージョン、操作の手順を添えていただけると解決が早くなります。</p></section>{faqs.map(([question, answer]) => <section key={question} style={styles.section}><h2 style={styles.heading}>{question}</h2><p style={styles.body}>{answer}</p></section>)}<section id="billing" style={styles.section}><h2 style={styles.heading}>解約・お支払いの変更</h2><p style={styles.body}>スタンダードプランの解約、お支払いカードの変更、領収書のダウンロードは、いずれも下のボタンから同じ画面でお手続きいただけます。<b>解約はいつでもでき、日割りの返金はありませんが、お支払いいただいた期間の末日まではそのままご利用いただけます。</b></p><p style={styles.body}>ボタンを押すと、決済会社（Stripe社）のお手続き画面が開きます。TASUKIにログインした状態でお進みください。うまく開かない場合は <a href={`mailto:${contactEmail}`} style={styles.link}>{contactEmail}</a> へご連絡いただければ、こちらでお手続きします。</p><BillingPortalButton /><p style={styles.body}>解約されたあとも、無料プランとして掲示板の閲覧や探しごとの投稿（月1件）はお続けいただけます。アカウントごと消したい場合は、次の「アカウントの削除」をご覧ください。</p></section><section style={styles.section}><h2 style={styles.heading}>アカウントの削除</h2><p style={styles.body}>アプリの「マイページ」下部から、プロフィール、投稿、オファー、登録した画像、通知端末、ログインセッションを削除できます。削除後は元に戻せません。アプリから削除できない場合は <a href={`mailto:${contactEmail}`} style={styles.link}>{contactEmail}</a> へご連絡ください。詳しくは<a href="/privacy#delete" style={styles.link}>プライバシーポリシー</a>をご覧ください。</p></section><section style={styles.section}><h2 style={styles.heading}>規約とポリシー</h2><LegalNav /></section></article></main>;
 }
 
 const styles = {
