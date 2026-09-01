@@ -2198,9 +2198,40 @@ export type RequestComment = {
   threadWith: string;
   /** 同じやり取りの相手の名前。非公開のぶんに「◯◯さんとのやり取り」と出す。 */
   threadWithName: string;
+  /**
+   * この相手との、おふたりだけのやり取りが開いているか。
+   * **開くのはオファーかリファラルを出した人だけ。**（`canOpenPrivateThread`）
+   * 画面はこれを見て「続ける」ボタンを出すか決める。判定そのものは書き込み側にもある。
+   */
+  threadOpen: boolean;
 };
 
 export const COMMENT_MAX_LENGTH = 600;
+
+/**
+ * その人と、投稿者とのおふたりだけのやり取りに入れるか。
+ *
+ * **入れるのはオファーかリファラルを出した人だけ。** 公開のひとことは
+ * 誰でも書ける（掲示板がにぎわう入口として残す）が、2通目からは投稿者と
+ * 2人だけの場になり、これは有料の「オファー」で買えるものとほぼ同じ。
+ * 素通しにすると、コメントから入れば無料で同じことができてしまう。
+ *
+ * **リファラル（知り合いをつなぐ・無料）でも開く。** 払わないと誰とも
+ * 話せない、という作りにはしない。
+ */
+async function canOpenPrivateThread(requestId: string, memberId: string) {
+  if (!memberId) return false;
+  const offered = await env.DB.prepare(`SELECT 1 AS ok FROM introductions
+    WHERE request_id = ? AND introducer_id = ? LIMIT 1`).bind(requestId, memberId).first();
+  if (offered) return true;
+  // **この決まりより前に始まっていた話は、途中で切らない。**
+  // すでに非公開のやり取りがあるなら、そのまま続けられる。新しく開くほうは
+  // 上の条件で塞がっているので、ここが抜け道になることはない。
+  const started = await env.DB.prepare(`SELECT 1 AS ok FROM request_comments
+    WHERE request_id = ? AND thread_with = ? AND visibility = 'private' LIMIT 1`)
+    .bind(requestId, memberId).first();
+  return Boolean(started);
+}
 
 /**
  * 探しごとのやり取りを読む。
@@ -2232,6 +2263,15 @@ export async function getRequestComments(requestId: string, viewerId = ''): Prom
 
   const requestAuthorId = rows.results[0]?.requestAuthorId ?? '';
   const isRequestAuthor = Boolean(viewerId) && viewerId === requestAuthorId;
+  // おふたりだけのやり取りが開いている相手。1回の問い合わせでまとめて取る。
+  const introducers = new Set([
+    ...(await env.DB.prepare('SELECT DISTINCT introducer_id AS memberId FROM introductions WHERE request_id = ?')
+      .bind(requestId).all<{ memberId: string }>()).results.map((row) => row.memberId),
+    // この決まりより前に始まっていた話は、そのまま続けられる（canOpenPrivateThread と同じ）。
+    ...(await env.DB.prepare(`SELECT DISTINCT thread_with AS memberId FROM request_comments
+      WHERE request_id = ? AND thread_with != '' AND visibility = 'private'`)
+      .bind(requestId).all<{ memberId: string }>()).results.map((row) => row.memberId),
+  ]);
   // やり取りの相手の名前。非公開のぶんに「◯◯さんとのやり取り」と添えるのに使う。
   const names = new Map<string, string>();
   for (const row of rows.results) if (row.threadWith === row.authorId) names.set(row.authorId, row.authorName);
@@ -2244,6 +2284,7 @@ export async function getRequestComments(requestId: string, viewerId = ''): Prom
       isAuthorOfRequest: comment.authorId === author,
       isPublic: visibility !== 'private',
       threadWithName: names.get(comment.threadWith) ?? '',
+      threadOpen: Boolean(comment.threadWith) && introducers.has(comment.threadWith),
     }));
 }
 
@@ -2282,6 +2323,14 @@ export async function addRequestComment(user: SessionUser, requestId: string, ra
       .bind(requestId, thread, thread).first()
     : null;
   const visibility = thread && existing ? 'private' : 'public';
+
+  // **画面で隠すだけでは足りない。** 通信を直接叩けば書けてしまうので、
+  // 入れるかどうかはここでも確かめる（判定は canOpenPrivateThread 1か所）。
+  if (visibility === 'private' && !await canOpenPrivateThread(requestId, thread)) {
+    throw new Error(isRequestAuthor
+      ? 'この方はまだオファーを出していません。個別のやり取りは、オファーが届いてからになります。'
+      : '続きは、オファーかリファラルを送ってからになります。知り合いをつなぐリファラルは無料です。');
+  }
 
   const now = new Date().toISOString();
   await env.DB.prepare(`INSERT INTO request_comments

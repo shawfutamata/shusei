@@ -14,10 +14,16 @@ const MAX_LENGTH = 600;
  * 込み入った話や金額の話がそのまま公開の場に出てしまうのを避けつつ、
  * 掲示板がにぎわって見える入口は残すため。
  *
+ * **おふたりだけのやり取りに入れるのは、オファーかリファラルを出した人だけ。**
+ * ひとことは誰でも書けるが、その先は有料の「オファー」で買えるものと同じなので、
+ * コメントを迂回路にしない。リファラル（無料）でも開くので、道は塞がらない。
+ * 開いているかどうかはサーバーが `threadOpen` で教えてくれる（判定はあちら側）。
+ *
  * 非公開のぶんはそもそもサーバーから届かない。ここで隠しているのではない。
  */
-export default function RequestComments({ requestId, viewerId, isRequestAuthor, onCountChange }:
-  { requestId: string; viewerId: string; isRequestAuthor: boolean; onCountChange?: (count: number) => void }) {
+export default function RequestComments({ requestId, viewerId, isRequestAuthor, onOffer, onCountChange }:
+  { requestId: string; viewerId: string; isRequestAuthor: boolean; onOffer?: () => void;
+    onCountChange?: (count: number) => void }) {
   const [comments, setComments] = useState<RequestComment[]>([]);
   const [body, setBody] = useState('');
   const [loading, setLoading] = useState(true);
@@ -55,6 +61,8 @@ export default function RequestComments({ requestId, viewerId, isRequestAuthor, 
 
   /** 自分が既に書いているか。書いていれば、次からは非公開のやり取りに入る。 */
   const myThreadStarted = !isRequestAuthor && comments.some((item) => item.threadWith === viewerId);
+  /** その非公開のやり取りに、自分が入れるか（＝オファーかリファラルを出したか）。 */
+  const myThreadOpen = comments.some((item) => item.threadWith === viewerId && item.threadOpen);
 
   async function send(text: string, threadWith: string) {
     const response = await fetch('/api/comments', {
@@ -97,7 +105,12 @@ export default function RequestComments({ requestId, viewerId, isRequestAuthor, 
       {publicComments.map((comment) => {
         // 続きを開けるのは、探しごとの投稿者と、その本人だけ。
         const thread = comment.threadWith ? threads.get(comment.threadWith) ?? [] : [];
-        const canOpen = Boolean(comment.threadWith) && (isRequestAuthor || comment.threadWith === viewerId);
+        const mine = comment.threadWith === viewerId;
+        // 相手として関係があるか。**開けるかどうかは別で、オファーが要る。**
+        const canOpen = Boolean(comment.threadWith) && (isRequestAuthor || mine) && comment.threadOpen;
+        // 塞がっていることを行内に出すのは投稿者だけ。書いた本人には、
+        // 入力欄のところで一度だけ伝える（同じ案内を二度出さない）。
+        const locked = Boolean(comment.threadWith) && isRequestAuthor && !comment.threadOpen;
         const open = openThread === comment.threadWith;
         return <li key={comment.id} className={comment.isAuthorOfRequest ? 'comment is-owner' : 'comment'}>
           <span className="comment-avatar">{comment.authorAvatarUrl
@@ -119,6 +132,10 @@ export default function RequestComments({ requestId, viewerId, isRequestAuthor, 
               onClick={() => { setOpenThread(open ? '' : comment.threadWith); setReplyBody(''); }}>
               {open ? 'とじる' : `${isRequestAuthor ? `${comment.authorName}さんと` : ''}個別にやり取りする${thread.length ? ` ${thread.length}件` : ''}`}
             </button>}
+
+            {locked && <p className="comment-thread-locked">
+              {comment.authorName}さんからの<b>オファーはまだ届いていません</b>。おふたりだけのやり取りは、届いてからになります。
+            </p>}
 
             {canOpen && open && <div className="comment-thread">
               <p className="comment-thread-note">ここからは<b>おふたりだけ</b>のやり取りです。ほかの会員には見えません。</p>
@@ -144,9 +161,15 @@ export default function RequestComments({ requestId, viewerId, isRequestAuthor, 
     <form className="comment-form" onSubmit={submit}>
       {!!error && <p className="comment-error">{error}</p>}
       {myThreadStarted
-        ? <p className="comment-thread-note">この探しごとへのひとことは、もう出しています。続きは上の<b>「個別にやり取りする」</b>から、投稿者とおふたりだけで話せます。</p>
+        ? (myThreadOpen
+          ? <p className="comment-thread-note">この探しごとへのひとことは、もう出しています。続きは上の<b>「個別にやり取りする」</b>から、投稿者とおふたりだけで話せます。</p>
+          : <p className="comment-thread-note">
+              この探しごとへのひとことは、もう出しています。続きは<b>オファーかリファラル</b>を送ってから、投稿者とおふたりだけで話せます。
+              <small>知り合いをつなぐリファラルは無料です。</small>
+              {onOffer && <button type="button" className="comment-thread-cta" onClick={onOffer}>オファー・リファラルを送る</button>}
+            </p>)
         : <>
-          <p className="comment-public-note">ここに書いたひとことは<b>会員みんなに見えます</b>。2通目からは、投稿者とおふたりだけのやり取りになります。</p>
+          <p className="comment-public-note">ここに書いたひとことは<b>会員みんなに見えます</b>。おふたりだけのやり取りに進むには、オファーかリファラルが要ります（リファラルは無料）。</p>
           <div className="comment-input">
             <textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={MAX_LENGTH} rows={1}
               placeholder="心当たりを書く…" aria-label="コメントを書く" onInput={grow} />
