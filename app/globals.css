@@ -1097,8 +1097,23 @@ body { font-weight:600; }
 .admin-search button { min-height:48px; padding:0 17px; flex:0 0 auto; border:0; border-radius:11px; background:var(--navy); color:#fff; font-size:13px; font-weight:800; cursor:pointer; }
 .admin-search .admin-clear { border:1px solid var(--line); background:#fff; color:#5b6b80; }
 
-.admin-list { margin:14px 0 0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr)); gap:10px; align-items:start; }
+/* **1件＝1行。** 段組みにすると目が左右に往復するので、上から下へ
+   なぞるだけで読めるようにする。広い画面では、その1行の中で
+   「名前 → 中身 → 操作」と横に並べて、高さを詰める。 */
+.admin-list { margin:14px 0 0; padding:0; list-style:none; display:grid; grid-template-columns:minmax(0,1fr); gap:8px; align-items:start; }
 .admin-list li { padding:15px; display:grid; gap:8px; border:1px solid #e2e8f1; border-radius:14px; background:#fff; }
+@media(min-width:900px){
+  .admin-list li { padding:12px 16px; grid-template-columns:minmax(180px,1fr) minmax(0,2.3fr) auto;
+    align-items:center; column-gap:20px; row-gap:4px; }
+  /* 名前と状態は左の柱にまとめる。行の高さぶん縦に伸ばして、真ん中に置く。 */
+  .admin-list li > .admin-row-top { grid-column:1; grid-row:1/3; flex-direction:column; align-items:flex-start; gap:5px; }
+  .admin-list li > .admin-meta, .admin-list li > .admin-body { grid-column:2; }
+  .admin-list li > .admin-body { margin:0; padding:0; background:transparent; font-size:12px;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .admin-list li > .admin-actions { grid-column:3; grid-row:1/3; justify-content:flex-end; }
+  .admin-list li > .admin-actions button { min-height:38px; padding:0 13px; font-size:12px; }
+  .admin-self { font-size:11px; white-space:nowrap; }
+}
 .admin-list li.is-off { background:#fafbfd; }
 .admin-empty { grid-column:1/-1; color:#7b8ca4; font-size:13px; text-align:center; }
 .admin-row-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
@@ -1153,23 +1168,36 @@ body { font-weight:600; }
 .viz-range button.selected { border-color:var(--navy); background:var(--navy); color:#fff; }
 .viz-export { margin-left:auto; flex:0 0 auto; padding:11px 15px; border:1px solid #cfdcee; border-radius:10px; background:#fff; color:#0f5fc4; font-size:12px; font-weight:800; text-decoration:none; }
 
-.admin-kpis { margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fit,minmax(min(210px,100%),1fr)); gap:12px; }
+/* 6枚。**段の数を固定する。** 幅で自動に折り返させると、
+   広い画面で「5枚＋1枚」のような半端な並びになる。 */
+.admin-kpis { margin:0; padding:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 .admin-kpis div { padding:16px 18px; border:1px solid #e6eaf2; border-radius:15px; background:#fff; }
 .admin-kpis dt { color:#7b8ca4; font-size:12px; font-weight:800; }
 .admin-kpis dd { margin:8px 0 0; color:#14161c; font-size:29px; font-weight:900; line-height:1; letter-spacing:-.02em; }
 .admin-kpis dd small { margin-left:3px; color:#93a0b3; font-size:13px; font-weight:800; }
 .admin-kpis > div > small { display:block; margin-top:8px; color:#93a0b3; font-size:11px; font-weight:700; }
-/* スマホでは2枚ずつ。1枚ずつ縦に積むと、グラフに着くまでが遠い。
-   この上書きは **.admin-kpis の本体より後ろ**に置くこと。CSSは後勝ちなので、
+/* この上書きは **.admin-kpis の本体より後ろ**に置くこと。CSSは後勝ちなので、
    前に置くと効かない（一度それで直っていなかった）。 */
+@media(min-width:760px){ .admin-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media(max-width:620px){
-  .admin-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+  .admin-kpis { gap:9px; }
   .admin-kpis div { padding:13px 14px; }
   .admin-kpis dt { font-size:11px; }
   .admin-kpis dd { margin-top:6px; font-size:24px; }
   .admin-kpis dd small { font-size:11px; }
   .admin-kpis > div > small { margin-top:6px; font-size:10px; }
 }
+
+.admin-ranks { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr)); gap:10px; }
+.admin-rank-box { padding:13px 15px; border:1px solid #e6eaf2; border-left:4px solid #cfd8e6; border-radius:12px; background:#fbfcfe; }
+.admin-rank-box p { margin:0; color:#7b8ca4; font-size:11px; font-weight:900; letter-spacing:.08em; }
+.admin-rank-box b { display:block; margin-top:6px; color:#14161c; font-size:24px; font-weight:900; line-height:1; }
+.admin-rank-box b small { margin-left:3px; color:#93a0b3; font-size:12px; }
+.admin-rank-box span { display:block; margin-top:6px; color:#93a0b3; font-size:11px; font-weight:800; }
+.admin-rank-box.rank-1 { border-left-color:#b6c0d0; }
+.admin-rank-box.rank-2 { border-left-color:#d8a93f; }
+.admin-rank-box.rank-3 { border-left-color:#6f8fc0; }
+.admin-rank-box.rank-4 { border-left-color:#3fb6c8; }
 
 .admin-columns { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:12px; align-items:start; }
 .admin-aside { display:grid; gap:12px; }

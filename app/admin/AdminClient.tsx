@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { AdminAd, AdminAnalytics, AdminFeedback, AdminMember, AdminRequest, AdminSummary } from '@/db/admin';
 import { placementName } from '@/app/ad-options';
+import { rankNames } from '@/app/rank-perks';
 import { BarList, TrendChart } from './Charts';
 
 type AdminData = {
@@ -121,11 +122,30 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
 
     {tab === 'analytics' && <section className="viz-panel">
       <dl className="admin-kpis">
-        <div><dt>累計会員数</dt><dd>{summary.members.toLocaleString('ja-JP')}<small>人</small></dd><small>利用中 {summary.activeMembers}／停止 {summary.suspendedMembers}</small></div>
-        <div><dt>累計の探しごと</dt><dd>{summary.requests.toLocaleString('ja-JP')}<small>件</small></dd><small>募集中 {summary.openRequests}</small></div>
-        <div><dt>届いたオファー</dt><dd>{summary.introductions.toLocaleString('ja-JP')}<small>件</small></dd><small>やり取り {summary.comments}</small></div>
-        <div><dt>掲載中の広告</dt><dd>{summary.liveAds.toLocaleString('ja-JP')}<small>件</small></dd><small>未読のご意見 {summary.newFeedback}</small></div>
+        <div><dt>累計会員数</dt><dd>{yen0(summary.members)}<small>人</small></dd><small>利用中 {summary.activeMembers}／停止 {summary.suspendedMembers}</small></div>
+        <div><dt>課金している会員</dt><dd>{yen0(summary.paidMembers)}<small>人</small></dd>
+          <small>月払い {summary.monthlyPayers}／年払い {summary.yearlyPayers}{summary.members ? `・全体の${Math.round((summary.paidMembers / summary.members) * 1000) / 10}%` : ''}</small></div>
+        <div><dt>毎月のサブスク売上</dt><dd>{money(summary.mrrYen)}</dd>
+          <small>いまの契約が続いた場合の月あたり。年払いは12で割っています</small></div>
+        <div><dt>広告の累計売上</dt><dd>{money(summary.adRevenueTotalYen)}</dd>
+          <small>今月 {money(summary.adRevenueThisMonthYen)}・掲載中 {summary.liveAds}件</small></div>
+        <div><dt>累計の探しごと</dt><dd>{yen0(summary.requests)}<small>件</small></dd><small>募集中 {summary.openRequests}</small></div>
+        <div><dt>届いたオファー</dt><dd>{yen0(summary.introductions)}<small>件</small></dd><small>やり取り {summary.comments}・未読のご意見 {summary.newFeedback}</small></div>
       </dl>
+
+      <section className="viz-card">
+        <div className="viz-card-head">
+          <div><h2>ランク別の会員数</h2>
+            <p className="viz-lead">ランクは<b>招待して参加した仲間の人数</b>で上がります。上に行くほど、場そのものを大きくした人です。</p></div>
+        </div>
+        <div className="admin-ranks">{rankNames.map((name, index) => {
+          const count = summary.rankCounts[index] ?? 0;
+          return <div key={name} className={`admin-rank-box rank-${index + 1}`}>
+            <p>{name}</p><b>{yen0(count)}<small>人</small></b>
+            <span>{summary.members ? Math.round((count / summary.members) * 1000) / 10 : 0}%</span>
+          </div>;
+        })}</div>
+      </section>
 
       <div className="admin-columns">
         <section className="viz-card">
@@ -365,6 +385,11 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
     </main>
   </div>;
 }
+
+/** 3桁ごとに区切った数。 */
+function yen0(value: number) { return value.toLocaleString('ja-JP'); }
+/** 金額。「約」は付けない。見込みかどうかは、カードの下の一行で言う。 */
+function money(value: number) { return `¥${value.toLocaleString('ja-JP')}`; }
 
 /** 左の帯に出す印。線だけの形にして、選んでいるものだけ色が乗る。 */
 function SideIcon({ name }: { name: string }) {

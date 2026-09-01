@@ -5,12 +5,30 @@
 import { env } from 'cloudflare:workers';
 import { ensureDatabase } from './data';
 import { effectivePlan, isPlanOverridden } from '../app/effective-plan';
+import { isAdminEmail } from '../app/admin-emails';
+import { MAX_LEVEL, levelFor, rankNames } from '../app/rank-perks';
+import { planCatalog, yearlyYen } from '../app/plan-catalog';
 
 export type AdminSummary = {
   members: number; activeMembers: number; suspendedMembers: number;
   requests: number; openRequests: number;
   introductions: number; comments: number;
   liveAds: number; newFeedback: number;
+  /** お金を払っている会員。運営の特典で開いている人は**数えない**。 */
+  paidMembers: number;
+  monthlyPayers: number;
+  yearlyPayers: number;
+  /**
+   * 毎月のサブスク売上（月あたりに直した見込み）。
+   * 年払いは12で割って月あたりに直す。実際に請求した額ではなく、
+   * 「いま契約が続いていれば、毎月これだけ入る」という数。
+   */
+  mrrYen: number;
+  /** 広告の売上。申し込み時に実際に請求した額なので、Stripeと一致する。 */
+  adRevenueTotalYen: number;
+  adRevenueThisMonthYen: number;
+  /** ランクごとの会員数。SILVER→DIAMOND の順。 */
+  rankCounts: number[];
 };
 
 export type AdminMember = {
@@ -64,8 +82,37 @@ export async function adminSummary(): Promise<AdminSummary> {
     one("SELECT COUNT(*) AS count FROM ad_slots WHERE status = 'active' AND start_date <= ? AND end_date >= ?", today, today),
     one("SELECT COUNT(*) AS count FROM feedback WHERE status = 'new'"),
   ]);
+  // 課金。運営の特典で開いている人は外す。特典は売上ではないため。
+  const payerRows = await env.DB.prepare(`SELECT email, plan_interval AS interval FROM members
+    WHERE plan = 'standard' AND (plan_period_end = '' OR plan_period_end >= ?)`).bind(today).all<{ email: string; interval: string }>();
+  const payers = payerRows.results.filter((row) => !isAdminEmail(row.email));
+  const monthlyPayers = payers.filter((row) => row.interval !== 'year').length;
+  const yearlyPayers = payers.length - monthlyPayers;
+  const mrrYen = monthlyPayers * planCatalog.standard.monthlyYen + Math.round(yearlyPayers * yearlyYen('standard') / 12);
+
+  const month = today.slice(0, 7);
+  const adRevenue = await env.DB.prepare(`SELECT
+      COALESCE(SUM(amount_yen), 0) AS total,
+      COALESCE(SUM(CASE WHEN substr(start_date,1,7) = ? THEN amount_yen ELSE 0 END), 0) AS thisMonth
+    FROM ad_slots WHERE status IN ('active', 'stopped') AND amount_yen > 0`)
+    .bind(month).first<{ total: number; thisMonth: number }>();
+
+  // ランクは招待した人数で決まる（app/rank-perks.ts）。列には持っていないので、
+  // 招待の数を数えてから振り分ける。運営は最上位で固定。
+  const inviteRows = await env.DB.prepare(`SELECT m.email,
+      (SELECT COUNT(*) FROM members inv WHERE inv.invited_by = m.id) AS inviteCount
+    FROM members m`).all<{ email: string; inviteCount: number }>();
+  const rankCounts = new Array<number>(rankNames.length).fill(0);
+  for (const row of inviteRows.results) {
+    const level = isAdminEmail(row.email) ? MAX_LEVEL : levelFor(Number(row.inviteCount ?? 0));
+    rankCounts[Math.min(Math.max(level, 1), rankNames.length) - 1] += 1;
+  }
+
   return { members, activeMembers, suspendedMembers: members - activeMembers,
-    requests, openRequests, introductions, comments, liveAds, newFeedback };
+    requests, openRequests, introductions, comments, liveAds, newFeedback,
+    paidMembers: payers.length, monthlyPayers, yearlyPayers, mrrYen,
+    adRevenueTotalYen: Number(adRevenue?.total ?? 0), adRevenueThisMonthYen: Number(adRevenue?.thisMonth ?? 0),
+    rankCounts };
 }
 
 /**
