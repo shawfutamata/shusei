@@ -1140,36 +1140,45 @@ body { font-weight:600; }
 .admin-open-site { flex:0 0 auto; min-height:42px; padding:0 16px; border:0; border-radius:11px; background:#14161c; color:#fff; font-size:12px; font-weight:800; cursor:pointer; }
 .admin-signout { flex:0 0 auto; min-height:42px; padding:0 14px; border:1px solid #d7deea; border-radius:11px; background:#fff; color:#5b6b80; font-size:12px; font-weight:800; cursor:pointer; }
 .admin-signout:disabled { opacity:.5; cursor:wait; }
-/* スマホでは、左の帯を**画面の下に貼りつく5つのメニュー**にする。
-   会員側の画面と同じ形なので迷わないし、親指が届く。
-   横に流れる帯にしていたときは、押したい項目が画面の外にあることがあった。 */
+/* パソコンの幅では、ハンバーガーは要らない（左に帯が出ている）。 */
+.admin-menu-toggle { display:none; }
+/* スマホでは、左の帯を**しまっておいて、押したら横から出す**。
+   下に貼りつく形にしていたら、項目が増えて2段に折り返し、画面の下を
+   大きく食っていた。数字を見る画面なので、menuは普段は消えているほうがよい。 */
 @media(max-width:900px){
   .admin-shell { grid-template-columns:minmax(0,1fr); }
-  .admin-side { position:fixed; z-index:60; left:0; right:0; bottom:0; top:auto;
-    height:auto; padding:6px 8px calc(6px + env(safe-area-inset-bottom));
-    flex-direction:row; gap:0; border-top:1px solid #262b36; }
-  /* 会社名と、ログイン中の人。どちらも下の帯には要らない。
-     誰として見ているかは、見出しの「◯◯さん、こんにちは」に出ている。 */
-  .admin-brand, .admin-side-foot { display:none; }
-  .admin-side-nav { flex:1; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:2px; }
-  .admin-side-nav button { position:relative; min-height:52px; padding:0 2px; flex-direction:column;
-    align-items:center; justify-content:center; gap:3px; border-radius:10px; }
-  .admin-side-nav button span { display:block; flex:none; overflow:hidden; max-width:100%;
-    font-size:10px; font-weight:900; text-align:center; text-overflow:ellipsis; white-space:nowrap; }
-  .admin-side-nav .admin-nav-long { display:none; }
-  .admin-side-nav .admin-nav-short { display:block; }
-  /* 件数は肩に小さく載せる。行に並べると、名前を押し出してしまう。 */
-  .admin-side-nav button em { position:absolute; right:6px; top:5px; min-width:16px; padding:1px 4px;
-    background:#f04b1e; color:#fff; font-size:9px; line-height:1.5; text-align:center; }
-  .admin-side-nav button.selected em { background:rgba(0,0,0,.3); }
-  /* 下の帯に隠れないぶんだけ、本文の下を空ける。 */
-  .admin { padding:18px 14px calc(74px + env(safe-area-inset-bottom)); }
-  .admin-header { align-items:flex-start; }
+  .admin-side { position:fixed; z-index:70; left:0; top:0; bottom:0; right:auto;
+    width:min(78vw,268px); height:100dvh; padding:16px 12px calc(16px + env(safe-area-inset-bottom));
+    border-right:1px solid #262b36; overflow-y:auto;
+    transform:translateX(-102%); transition:transform .22s ease; }
+  .admin-side.is-open { transform:none; box-shadow:22px 0 60px rgba(5,10,25,.4); }
+  .admin-side-veil { position:fixed; z-index:65; inset:0; border:0; padding:0;
+    background:rgba(10,16,32,.5); cursor:pointer; }
+  /* 引き出しの中は、パソコンと同じ縦並び。会社名もログイン中の人も出す。 */
+  .admin-side-nav button { min-height:50px; }
+  .admin-side-nav .admin-nav-short { display:none; }
+  .admin-side-nav .admin-nav-long { display:block; }
+
+  /* 三本線。押しやすい大きさ（44px）を確保しつつ、見出しの左に置く。 */
+  .admin-menu-toggle { flex:0 0 auto; width:44px; height:44px; display:grid; align-content:center;
+    justify-items:center; gap:5px; padding:0; border:1px solid #d7deea; border-radius:11px;
+    background:#fff; cursor:pointer; }
+  .admin-menu-toggle span { width:18px; height:2px; border-radius:2px; background:#3c4a60; }
+
+  /* 下の帯が無くなったので、本文の下を空ける必要も無い。 */
+  .admin { padding:18px 14px 48px; }
+  /* 三本線と操作ボタンを1行目、見出しを2行目に回す。横に4つ並べると
+     「ダッシュボード」が2行に折れて、日付まで3行になっていた。 */
+  .admin-header { flex-wrap:wrap; align-items:center; gap:10px; }
+  .admin-menu-toggle { order:1; }
+  /* 操作ボタンも div なので、見出しの側は「操作ボタンではない div」で指す。
+     `.admin-header > div` だけだと両方に当たって、ボタンまで下に落ちる。 */
+  .admin-header > .admin-header-actions { order:2; margin-left:auto; flex:0 0 auto; }
+  .admin-header > div:not(.admin-header-actions) { order:3; flex:0 0 100%; min-width:0; }
   .admin-header h1 { font-size:22px; }
   .admin-header p { font-size:11px; }
   .admin-open-site, .admin-signout { min-height:38px; padding:0 11px; font-size:11px; }
-  /* 知らせは帯の上に出す。重なると、何が起きたのか読めない。 */
-  .admin-note { bottom:calc(74px + env(safe-area-inset-bottom)); }
+  .admin-note { bottom:18px; }
 }
 .admin-header { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; }
 .admin-header { align-items:center; }

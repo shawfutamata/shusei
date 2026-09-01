@@ -42,6 +42,8 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   const [confirming, setConfirming] = useState<AdminRequest | null>(null);
   /** 置いてあるデータの控え。バックアップのタブを開いたときに読む。 */
   const [backups, setBackups] = useState<BackupEntry[] | null>(null);
+  /** スマホでのメニューの開け閉め。パソコンの幅では常に出ているので関係ない。 */
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // 分析は集計が重いので、そのタブを開いたときだけ読む。
   useEffect(() => {
@@ -136,11 +138,14 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   const dateLabel = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日（${'日月火水木金土'[today.getDay()]}）時点`;
 
   return <div className="admin-shell">
-    <aside className="admin-side">
+    {/* スマホでメニューを開いているあいだの覆い。**押せば閉じる。**
+        引き出しの外を押して閉じられないと、出口が「×」だけになる。 */}
+    {menuOpen && <button className="admin-side-veil" aria-label="メニューを閉じる" onClick={() => setMenuOpen(false)} />}
+    <aside className={`admin-side${menuOpen ? ' is-open' : ''}`}>
       <div className="admin-brand"><BrandMark className="admin-brand-mark" /><b>{serviceName} 管理</b></div>
       <nav className="admin-side-nav" aria-label="管理する対象">
         {tabs.map((item) => <button key={item.key} className={tab === item.key ? 'selected' : ''}
-          onClick={() => setTab(item.key)} aria-pressed={tab === item.key}>
+          onClick={() => { setTab(item.key); setMenuOpen(false); }} aria-pressed={tab === item.key}>
           <SideIcon name={item.key} />
           <span className="admin-nav-long">{item.label}</span>
           <span className="admin-nav-short">{'short' in item ? item.short : item.label}</span>
@@ -152,6 +157,11 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
 
     <main className="admin">
     <header className="admin-header">
+      {/* スマホだけに出る入口。パソコンの幅では左に帯が出ているので隠す。 */}
+      <button className="admin-menu-toggle" onClick={() => setMenuOpen(true)}
+        aria-label="メニューを開く" aria-expanded={menuOpen}>
+        <span /><span /><span />
+      </button>
       <div>
         <h1>{tabs.find((item) => item.key === tab)?.label}</h1>
         <p>{adminName}さん、こんにちは — {dateLabel}</p>
