@@ -290,6 +290,19 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [adStats, setAdStats] = useState<{ slot: AdSlot; days: AdDay[] } | null>(null);
   const [openPerk, setOpenPerk] = useState('');
 
+  /**
+   * ログアウト。**会員側にも入口が無かった。**
+   * 例会でスマホを見せ合うような場面もあるので、自分で切れる口は要る。
+   */
+  async function signOut() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await fetch('/api/auth/session', { method: 'DELETE' });
+    } catch { /* 通信に失敗しても、開き直せば入り直しになる */ }
+    window.location.assign('/');
+  }
+
   function showToast(message: string) { setToast(message); window.setTimeout(() => setToast(''), 3800); }
 
   // 全国の会場を都道府県ごとにまとめて出す。一覧に無い会場（その他で登録された人）も
@@ -1167,6 +1180,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <span className="mypage-invite-go" aria-hidden="true">›</span>
         </button>
 
+        <button className="mypage-signout" onClick={signOut} disabled={busy}>{busy ? '…' : 'ログアウト'}</button>
         <LegalLinks />
       </section> : activeTab === 'offers' ? <section className="profile-page" aria-labelledby="offers-title">
         <header className="profile-page-heading"><p>OFFERS</p><h1 id="offers-title">オファーのやり取り</h1><span>届いたオファーと、あなたが出したオファーです。相手とそのままやり取りできます。</span></header>
@@ -1224,7 +1238,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               例会で口頭で伝えたり、名刺に書いて渡したりできる。
               受け取った人はログイン画面の「招待コードをお持ちの方」から入れる。 */}
           <p className="invite-code"><small>あなたの招待コード</small><b>{referral.code}</b>
-            <em>リンクを送れないときは、このコードをお伝えください。ログイン画面から入力して参加できます。</em></p>
+            <em>リンクを送れないときは、このコードをお伝えください。相手はログイン画面（tasuki.club）の「招待コードをお持ちの方はこちら」から入力して参加できます。</em></p>
           <dl className="invite-stats">
             <div><dt>招待した人</dt><dd>{referral.invitedCount}<small>人</small></dd></div>
             <div><dt>利用中</dt><dd>{referral.activeCount}<small>人</small></dd></div>

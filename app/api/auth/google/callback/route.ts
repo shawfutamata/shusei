@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE } from '@/app/app-auth';
-import { GOOGLE_INVITE_COOKIE, GOOGLE_STATE_COOKIE, exchangeGoogleCode, googleRedirectUri } from '@/app/google-auth';
+import { GOOGLE_INVITE_COOKIE, GOOGLE_RETURN_COOKIE, GOOGLE_STATE_COOKIE, exchangeGoogleCode, googleRedirectUri, safeReturnPath } from '@/app/google-auth';
 import { registerEarlyAccessMember, registerInvitedMember, startMemberSessionByEmail } from '@/db/data';
 
 export async function GET(request: Request) {
@@ -9,6 +9,8 @@ export async function GET(request: Request) {
   const jar = await cookies();
   const expectedState = jar.get(GOOGLE_STATE_COOKIE)?.value ?? '';
   const inviteCode = jar.get(GOOGLE_INVITE_COOKIE)?.value ?? '';
+  // 入ってきた場所。無ければ掲示板のトップ。
+  const back = safeReturnPath(jar.get(GOOGLE_RETURN_COOKIE)?.value ?? '');
   const state = url.searchParams.get('state') ?? '';
   const code = url.searchParams.get('code') ?? '';
 
@@ -67,17 +69,19 @@ export async function GET(request: Request) {
     return redirectHome(request, 'notmember');
   }
 
-  const response = redirectHome(request);
+  const response = redirectHome(request, undefined, back);
   response.cookies.set(SESSION_COOKIE, session.token, {
     httpOnly: true, secure: true, sameSite: 'lax', path: '/', expires: new Date(session.expiresAt),
   });
   return response;
 }
 
-function redirectHome(request: Request, login?: string) {
-  const target = new URL(login ? `/?login=${login}` : '/', request.url);
+function redirectHome(request: Request, login?: string, back = '') {
+  // 入ってきた場所に戻す。ただし**お知らせを出すときは掲示板のトップへ**。
+  // 「入れませんでした」を管理画面の404の上に重ねても伝わらないため。
+  const target = new URL(login ? `/?login=${login}` : back || '/', request.url);
   const response = NextResponse.redirect(target);
-  for (const name of [GOOGLE_STATE_COOKIE, GOOGLE_INVITE_COOKIE]) {
+  for (const name of [GOOGLE_STATE_COOKIE, GOOGLE_INVITE_COOKIE, GOOGLE_RETURN_COOKIE]) {
     response.cookies.set(name, '', { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 0 });
   }
   return response;

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { AdminAd, AdminAnalytics, AdminFeedback, AdminMember, AdminRequest, AdminSummary } from '@/db/admin';
 import { placementName } from '@/app/ad-options';
 import { rankNames } from '@/app/rank-perks';
+import BrandMark from '@/app/BrandMark';
 import { BarList, TrendChart } from './Charts';
 
 type AdminData = {
@@ -54,6 +55,16 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
     setData(await response.json() as AdminData);
   }
 
+  /** ログアウト。セッションを消してから、掲示板のトップへ戻す。 */
+  async function signOut() {
+    if (busy) return;
+    setBusy('signout');
+    try {
+      await fetch('/api/auth/session', { method: 'DELETE' });
+    } catch { /* 通信に失敗しても、下で開き直せば入り直しになる */ }
+    window.location.assign('/');
+  }
+
   function say(message: string) {
     setNote(message);
     window.setTimeout(() => setNote(''), 3200);
@@ -98,7 +109,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
 
   return <div className="admin-shell">
     <aside className="admin-side">
-      <div className="admin-brand"><span>管</span><b>{serviceName} 管理</b></div>
+      <div className="admin-brand"><BrandMark className="admin-brand-mark" /><b>{serviceName} 管理</b></div>
       <nav className="admin-side-nav" aria-label="管理する対象">
         {tabs.map((item) => <button key={item.key} className={tab === item.key ? 'selected' : ''}
           onClick={() => setTab(item.key)} aria-pressed={tab === item.key}>
@@ -117,7 +128,10 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
         <h1>{tabs.find((item) => item.key === tab)?.label}</h1>
         <p>{adminName}さん、こんにちは — {dateLabel}</p>
       </div>
-      <button className="admin-open-site" onClick={() => reload().then(() => say('最新の状態にしました。'))}>再読み込み</button>
+      <div className="admin-header-actions">
+        <button className="admin-open-site" onClick={() => reload().then(() => say('最新の状態にしました。'))}>再読み込み</button>
+        <button className="admin-signout" onClick={signOut} disabled={busy === 'signout'}>{busy === 'signout' ? '…' : 'ログアウト'}</button>
+      </div>
     </header>
 
     {tab === 'analytics' && <section className="viz-panel">

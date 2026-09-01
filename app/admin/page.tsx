@@ -30,7 +30,7 @@ export default async function AdminPage() {
             「権限がありません」とは書かない。それを書くと、ここに管理画面が
             あること自体を教えてしまう。 */}
         {access && <small className="admin-locked-who">いま <b>{access.user.email}</b> でログイン中です。</small>}
-        <a href="/api/auth/google/start">Googleでログイン</a>
+        <a href="/api/auth/google/start?return_to=%2Fadmin">Googleでログイン</a>
       </div>
     </main>;
   }

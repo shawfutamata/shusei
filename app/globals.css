@@ -131,6 +131,8 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 /* **指で押せる大きさにする。** 文字は9pxなので、余白を足さないと高さ12pxの
    線にしかならず、指では当たらない（Appleの目安は44px）。マウスの矢印なら
    当たるので、PCで見ているかぎり気づけない。 */
+.mypage-signout { width:100%; min-height:48px; margin-top:18px; border:1px solid var(--line); border-radius:12px; background:#fff; color:#6b7a90; font-size:13px; font-weight:800; cursor:pointer; }
+.mypage-signout:disabled { opacity:.5; cursor:wait; }
 .legal-links a { min-height:44px; padding:0 8px; display:flex; align-items:center; color:#7b8ca4; font-size:9px; font-weight:800; }
 .legal-links a:hover { color:var(--blue); }
 .legal-links a:active { color:var(--blue); }
@@ -1025,7 +1027,7 @@ body { font-weight:600; }
 .admin-shell { min-height:100vh; min-height:100dvh; display:grid; grid-template-columns:248px minmax(0,1fr); background:#f4f6fa; }
 .admin-side { position:sticky; top:0; height:100vh; height:100dvh; padding:18px 14px; display:flex; flex-direction:column; gap:18px; background:#14161c; color:#c7cede; }
 .admin-brand { display:flex; align-items:center; gap:10px; padding:6px 8px; }
-.admin-brand span { width:30px; height:30px; flex:0 0 auto; display:grid; place-items:center; border-radius:9px; background:var(--blue); color:#fff; font-size:13px; font-weight:900; }
+.admin-brand-mark { width:30px; height:30px; flex:0 0 auto; display:block; }
 .admin-brand b { color:#fff; font-size:14px; font-weight:900; letter-spacing:-.01em; }
 .admin-side-nav { display:grid; gap:3px; }
 .admin-side-nav button { min-height:46px; padding:0 12px; display:flex; align-items:center; gap:11px; border:0; border-radius:11px; background:transparent; color:#9aa4b8; font-size:14px; font-weight:800; text-align:left; cursor:pointer; }
@@ -1042,7 +1044,10 @@ body { font-weight:600; }
 /* 幅は決め打ちにしない。管理画面はPCの大きい画面で開くものなので、
    真ん中に細く出すと、右も左も余ったまま一覧だけが縦に伸びる。 */
 .admin { min-width:0; padding:26px 28px 60px; }
+.admin-header-actions { flex:0 0 auto; display:flex; gap:8px; }
 .admin-open-site { flex:0 0 auto; min-height:42px; padding:0 16px; border:0; border-radius:11px; background:#14161c; color:#fff; font-size:12px; font-weight:800; cursor:pointer; }
+.admin-signout { flex:0 0 auto; min-height:42px; padding:0 14px; border:1px solid #d7deea; border-radius:11px; background:#fff; color:#5b6b80; font-size:12px; font-weight:800; cursor:pointer; }
+.admin-signout:disabled { opacity:.5; cursor:wait; }
 /* スマホでは、左の帯を**画面の下に貼りつく5つのメニュー**にする。
    会員側の画面と同じ形なので迷わないし、親指が届く。
    横に流れる帯にしていたときは、押したい項目が画面の外にあることがあった。 */
@@ -1070,7 +1075,7 @@ body { font-weight:600; }
   .admin-header { align-items:flex-start; }
   .admin-header h1 { font-size:22px; }
   .admin-header p { font-size:11px; }
-  .admin-open-site { min-height:38px; padding:0 12px; font-size:11px; }
+  .admin-open-site, .admin-signout { min-height:38px; padding:0 11px; font-size:11px; }
   /* 知らせは帯の上に出す。重なると、何が起きたのか読めない。 */
   .admin-note { bottom:calc(74px + env(safe-area-inset-bottom)); }
 }

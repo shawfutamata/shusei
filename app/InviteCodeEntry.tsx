@@ -31,7 +31,7 @@ export default function InviteCodeEntry() {
       <span>招待コード</span>
       {/* 英数字だけ。手で打つものなので、小文字で入れても大文字に直す。 */}
       <input value={code} maxLength={16} autoCapitalize="characters" autoComplete="off" spellCheck={false}
-        placeholder="例：A1B2C3D4" onChange={(event) => setCode(event.target.value.replace(/[^A-Za-z0-9]/g, ''))} />
+        placeholder="例：A1B2C3D4" onChange={(event) => setCode(event.target.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase())} />
     </label>
     <button className="primary-button" disabled={!clean}>招待を確かめる</button>
   </form>;
