@@ -2234,12 +2234,35 @@ export type MessageThread = {
   lastBody: string;
   lastAt: string;
   unread: number;
+  /**
+   * このやり取りのきっかけになったオファーそのもの。
+   * **会話の1通目として、やり取りの画面の先頭に出す。** 何の話か分からないまま
+   * 返事だけ並んでいても、答えようがない。中身を見せていないときは空。
+   */
+  offer: { kind: 'self' | 'referral'; body: string; at: string; mine: boolean };
 };
+
+/**
+ * まだ返事が1通も無いときに、一覧へ出す1行。
+ *
+ * **オファーの中身をそのまま出す。** 受け取った人にいちばん要るのは
+ * 「誰が、どういう理由で手を挙げたか」なので、定型文より本人の言葉が効く。
+ * 空で出してきた人のぶんだけ、代わりの短い言葉を置く。
+ */
+function openingLine(kind: string, fitReason: string, mine: boolean) {
+  const body = String(fitReason || '').trim();
+  if (body) return body;
+  const what = kind === 'self' ? 'オファー' : 'リファラル';
+  return mine ? `${what}を送りました` : `${what}が届いています`;
+}
 
 /** 相手の顔ぶれ。どちらが自分かで、出す相手が入れ替わる。 */
 type ThreadRow = {
   introductionId: string; requestId: string;
-  lastBody: string; lastAt: string; unread: number; title: string;
+  /** オファーを出した日時と、出した人。まだ1通もやり取りが無いときに使う。 */
+  offerAt: string; introducerId: string; kind: string; fitReason: string;
+  lastBody: string; lastMessageAt: string | null; lastReadAt: string | null;
+  unread: number; title: string;
   ownerId: string; ownerName: string; ownerCompany: string; ownerAvatarKey: string; ownerAvatarVersion: number;
   otherId: string; otherName: string; otherCompany: string; otherAvatarKey: string; otherAvatarVersion: number;
 };
@@ -2270,35 +2293,45 @@ export async function getMessageThreads(viewerId: string): Promise<MessageThread
   await ensureDatabase();
   if (!viewerId) return [];
   // まだ読んでいない通数。自分が送ったぶんは数えない。
-  const unread = "SUM(CASE WHEN n.sender_id != ? AND n.created_at > COALESCE(t.last_read_at, '') THEN 1 ELSE 0 END) AS unread";
+  // **やり取りが1通も無いオファーもあるので、LEFT JOIN で NULL が来る。**
+  // その行はここでは数えず、オファー本体のぶんをあとで足す。
+  const unread = "SUM(CASE WHEN n.sender_id IS NOT NULL AND n.sender_id != ? AND n.created_at > COALESCE(t.last_read_at, '') THEN 1 ELSE 0 END) AS unread";
   const people = (owner: string, other: string) => `
     ${owner}.id AS ownerId, ${owner}.display_name AS ownerName, ${owner}.company AS ownerCompany,
     ${owner}.avatar_key AS ownerAvatarKey, ${owner}.avatar_version AS ownerAvatarVersion,
     ${other}.id AS otherId, ${other}.display_name AS otherName, ${other}.company AS otherCompany,
     ${other}.avatar_key AS otherAvatarKey, ${other}.avatar_version AS otherAvatarVersion`;
 
+  // **数えるもとはオファーそのもの。やり取りの本文ではない。**
+  // 以前はメッセージの表から数えていたので、送ったばかりで誰もまだ返事を
+  // 書いていないオファーが1件も出なかった。会員から見れば、オファーを
+  // 出した時点でその人との話は始まっている。
   const [offers, adOffers] = await env.DB.batch<ThreadRow & Record<string, string>>([
-    // 1. 探しごとへのオファーのやり取り
+    // 1. 探しごとへのオファー
     env.DB.prepare(`SELECT i.id AS introductionId, i.request_id AS requestId,
-      n.body AS lastBody, MAX(n.created_at) AS lastAt, r.title AS title, ${unread},
+      i.created_at AS offerAt, i.introducer_id AS introducerId, i.kind AS kind, i.fit_reason AS fitReason,
+      n.body AS lastBody, MAX(n.created_at) AS lastMessageAt,
+      t.last_read_at AS lastReadAt, r.title AS title, ${unread},
       ${people('mo', 'mi')}
-      FROM introduction_messages n
-      JOIN introductions i ON i.id = n.introduction_id
+      FROM introductions i
       JOIN requests r ON r.id = i.request_id
       JOIN members mo ON mo.id = r.author_id
       JOIN members mi ON mi.id = i.introducer_id
+      LEFT JOIN introduction_messages n ON n.introduction_id = i.id
       LEFT JOIN thread_reads t ON t.member_id = ? AND t.thread_key = 'intro:' || i.id
       WHERE r.author_id = ? OR i.introducer_id = ?
       GROUP BY i.id`).bind(viewerId, viewerId, viewerId, viewerId),
-    // 2. 広告へのオファーのやり取り
+    // 2. 広告へのオファー
     env.DB.prepare(`SELECT i.id AS introductionId, i.ad_id AS requestId,
-      n.body AS lastBody, MAX(n.created_at) AS lastAt, a.title AS title, ${unread},
+      i.created_at AS offerAt, i.introducer_id AS introducerId, i.kind AS kind, i.fit_reason AS fitReason,
+      n.body AS lastBody, MAX(n.created_at) AS lastMessageAt,
+      t.last_read_at AS lastReadAt, a.title AS title, ${unread},
       ${people('mo', 'mi')}
-      FROM ad_introduction_messages n
-      JOIN ad_introductions i ON i.id = n.ad_introduction_id
+      FROM ad_introductions i
       JOIN ad_slots a ON a.id = i.ad_id
       JOIN members mo ON mo.id = a.member_id
       JOIN members mi ON mi.id = i.introducer_id
+      LEFT JOIN ad_introduction_messages n ON n.ad_introduction_id = i.id
       LEFT JOIN thread_reads t ON t.member_id = ? AND t.thread_key = 'ad:' || i.id
       WHERE a.member_id = ? OR i.introducer_id = ?
       GROUP BY i.id`).bind(viewerId, viewerId, viewerId, viewerId),
@@ -2309,6 +2342,12 @@ export async function getMessageThreads(viewerId: string): Promise<MessageThread
   const canRead = can(await getPlanState(viewerId), 'receive_introductions');
   const build = (kind: 'intro' | 'ad') => (row: ThreadRow & Record<string, string>) => {
     const locked = !canRead && viewerId === row.ownerId;
+    const mine = row.introducerId === viewerId;
+    // まだ1通もやり取りが無ければ、オファーそのものを1通目として扱う。
+    const lastMessageAt = row.lastMessageAt ?? '';
+    const started = Boolean(lastMessageAt);
+    // 受け取った側から見れば、そのオファー自体がまだ読んでいない1件。
+    const offerUnread = !mine && row.offerAt > (row.lastReadAt || '') ? 1 : 0;
     return {
       key: `${kind}:${row.introductionId}`,
       kind,
@@ -2318,9 +2357,15 @@ export async function getMessageThreads(viewerId: string): Promise<MessageThread
       title: row.title || (kind === 'ad' ? '広告' : '探しごと'),
       locked,
       ...partnerOf(row, viewerId),
-      lastBody: locked ? '' : row.lastBody,
-      lastAt: row.lastAt,
-      unread: Number(row.unread) || 0,
+      lastBody: locked ? '' : started ? row.lastBody : openingLine(row.kind, row.fitReason, mine),
+      lastAt: lastMessageAt > row.offerAt ? lastMessageAt : row.offerAt,
+      unread: (Number(row.unread) || 0) + offerUnread,
+      offer: {
+        kind: row.kind === 'self' ? 'self' as const : 'referral' as const,
+        body: locked ? '' : String(row.fitReason || ''),
+        at: row.offerAt,
+        mine,
+      },
     };
   };
   const threads: MessageThread[] = [

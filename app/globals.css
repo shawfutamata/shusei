@@ -1713,3 +1713,14 @@ body { font-weight:600; }
 .backup-download { margin-top:14px; }
 /* 中身を見せていないやり取り。本文のかわりに理由を出すので、色を落とす。 */
 .message-main>p.is-locked { color:#a2500b; font-weight:800; }
+
+/* --- やり取りの画面の先頭に出す、きっかけのオファー ------------------------- */
+.chat-opener { margin:0 0 14px; padding:12px 13px; border-radius:14px; border:1px solid #f2d4b4; background:#fff7ef; }
+/* 自分が送ったぶんは青。アプリの中で「届いた」は橙、「自分が出した」は青。 */
+.chat-opener.is-mine { border-color:#cfe0f7; background:#f2f8ff; }
+.chat-opener-kind { margin:0; display:flex; flex-wrap:wrap; align-items:baseline; gap:7px; }
+.chat-opener-kind b { padding:3px 8px; border-radius:999px; background:#ea6a15; color:#fff; font-size:10px; font-weight:900; }
+.chat-opener.is-mine .chat-opener-kind b { background:#0f5fc4; }
+.chat-opener-kind span { color:#5d6b81; font-size:11px; font-weight:800; }
+.chat-opener-kind time { margin-left:auto; color:#98a4b6; font-size:10px; font-weight:700; }
+.chat-opener-body { margin:8px 0 0; color:#25344c; font-size:13px; line-height:1.75; white-space:pre-wrap; }
