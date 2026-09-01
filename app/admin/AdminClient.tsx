@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { AdminAd, AdminAnalytics, AdminFeedback, AdminMember, AdminRequest, AdminSummary } from '@/db/admin';
+import type { BackupEntry } from '@/db/backup';
 import { placementName } from '@/app/ad-options';
 import { rankNames } from '@/app/rank-perks';
 import BrandMark from '@/app/BrandMark';
@@ -20,6 +21,7 @@ const tabs = [
   { key: 'requests', label: '投稿' },
   { key: 'ads', label: '広告' },
   { key: 'feedback', label: 'ご意見' },
+  { key: 'backup', label: 'バックアップ', short: '控え' },
 ] as const;
 
 const categoryNames: Record<string, string> = {
@@ -38,6 +40,8 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   const [note, setNote] = useState('');
   /** 消す前に必ず一度止める。取り消せない操作なので。 */
   const [confirming, setConfirming] = useState<AdminRequest | null>(null);
+  /** 置いてあるデータの控え。バックアップのタブを開いたときに読む。 */
+  const [backups, setBackups] = useState<BackupEntry[] | null>(null);
 
   // 分析は集計が重いので、そのタブを開いたときだけ読む。
   useEffect(() => {
@@ -63,6 +67,30 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       await fetch('/api/auth/session', { method: 'DELETE' });
     } catch { /* 通信に失敗しても、下で開き直せば入り直しになる */ }
     window.location.assign('/');
+  }
+
+  // バックアップのタブを開いたときだけ読む。ほかの画面には要らない。
+  useEffect(() => {
+    if (tab !== 'backup' || backups) return;
+    let alive = true;
+    fetch('/api/admin/backup?list=1').then((response) => response.ok ? response.json() : null)
+      .then((payload) => { if (alive && payload) setBackups((payload as { backups: BackupEntry[] }).backups ?? []); })
+      .catch(() => { if (alive) setBackups([]); });
+    return () => { alive = false; };
+  }, [tab, backups]);
+
+  /** いますぐ控えを取る。取れたら一覧を読み直して、増えたことが見えるようにする。 */
+  async function takeBackup() {
+    setBusy('backup');
+    try {
+      const response = await fetch('/api/admin/backup', { method: 'POST' });
+      const payload = await response.json() as { rows?: number; tables?: number; error?: string };
+      if (!response.ok) throw new Error(payload.error ?? '取れませんでした。');
+      say(`控えを取りました（${payload.tables}個の表・${payload.rows}件）。`);
+      setBackups(null);
+    } catch (error) {
+      say(error instanceof Error ? error.message : '取れませんでした。');
+    } finally { setBusy(''); }
   }
 
   function say(message: string) {
@@ -384,6 +412,51 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       </li>)}
     </ul>}
 
+    {tab === 'backup' && <section className="viz-panel">
+      <section className="viz-card">
+        <div className="viz-card-head">
+          <div>
+            <h2>データの控え</h2>
+            <p className="viz-lead">会員の名簿、探しごと、オファーのやり取り、お支払いの記録。
+              <b>一度消えると元に戻せないものです。</b>毎日いちど、自動で写しを取っています。</p>
+          </div>
+          <button className="viz-export" onClick={takeBackup} disabled={busy === 'backup'}>
+            {busy === 'backup' ? '取っています…' : 'いますぐ控えを取る'}
+          </button>
+        </div>
+
+        {/* 守りが3枚あることを、押す前に分かるようにしておく。 */}
+        <ol className="backup-layers">
+          <li><b>Cloudflareが自動で持っている控え</b>
+            <small>直近30日なら、どの時点にも戻せます（Time Travel）。設定はいりません。</small></li>
+          <li><b>毎日のR2への写し</b>
+            <small>下の一覧です。表ごと消してしまったときは、ここから戻します。</small></li>
+          <li><b>お手元へのダウンロード</b>
+            <small>Cloudflareのアカウントそのものを失う事故に備えられるのは、これだけです。
+              月にいちど、パソコンかご自身のクラウドに1本落としておいてください。</small></li>
+        </ol>
+
+        <div className="backup-download">
+          <a className="viz-export" href="/api/admin/backup">いまの中身をダウンロード</a>
+        </div>
+
+        {backups === null ? <p className="viz-empty">読み込んでいます…</p>
+          : !backups.length ? <p className="viz-empty">まだ控えがありません。上の「いますぐ控えを取る」を押してください。</p>
+          : <div className="viz-table-wrap">
+            <table className="viz-table">
+              <thead><tr><th>日付</th><th className="is-num">大きさ</th><th>取った時刻</th><th /></tr></thead>
+              <tbody>{backups.map((row) => <tr key={row.key}>
+                <td>{row.date.replace(/-/g, '/')}</td>
+                <td className="is-num">{formatSize(row.size)}</td>
+                <td>{new Date(row.uploadedAt).toLocaleString('ja-JP')}</td>
+                <td><a href={`/api/admin/backup?date=${row.date}`}>ダウンロード</a></td>
+              </tr>)}</tbody>
+            </table>
+          </div>}
+        <p className="viz-lead">直近30日ぶんは毎日、それより古いものは月初の1本だけを1年間残します。</p>
+      </section>
+    </section>}
+
     {confirming && <div className="admin-confirm-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setConfirming(null); }}>
       <div className="admin-confirm" role="dialog" aria-modal="true">
         <h2>この投稿を削除しますか</h2>
@@ -406,6 +479,13 @@ function yen0(value: number) { return value.toLocaleString('ja-JP'); }
 function money(value: number) { return `¥${value.toLocaleString('ja-JP')}`; }
 
 /** 左の帯に出す印。線だけの形にして、選んでいるものだけ色が乗る。 */
+/** ファイルの大きさ。桁を読むより「だいたいどれくらい」が分かればよい。 */
+function formatSize(bytes: number) {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+}
+
 function SideIcon({ name }: { name: string }) {
   const paths: Record<string, React.ReactNode> = {
     analytics: <><path d="M3 13h4v8H3zM10 3h4v18h-4zM17 9h4v12h-4z" /></>,
@@ -413,6 +493,8 @@ function SideIcon({ name }: { name: string }) {
     requests: <><path d="M5 4h11l3 3v13H5z" /><path d="M8 10h8M8 14h5" /></>,
     ads: <><rect x="3" y="5" width="18" height="12" rx="2" /><path d="M8 21h8" /></>,
     feedback: <><path d="M4 5h16v11H9l-5 4z" /></>,
+    // 金庫。控えがしまってある場所、という気持ちで。
+    backup: <><rect x="3.5" y="4.5" width="17" height="15" rx="2.2" /><circle cx="12" cy="12" r="3.2" /><path d="M12 7.6v1.2M12 15.2v1.2" /></>,
   };
   return <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
     strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;

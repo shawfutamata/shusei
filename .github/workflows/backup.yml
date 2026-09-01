@@ -1,0 +1,40 @@
+# 毎日、本番のデータの控えを取る。
+#
+# 中身を運ぶのはこの実行ではない。**サイト自身に「控えを取れ」と声をかける
+# だけ**で、書き出しと保存は本番のWorkerがCloudflareの中で行う。会員の名簿を
+# GitHubへ持ち出さずに済む。
+#
+# 動かすのに要るもの（リポジトリの Settings → Secrets and variables → Actions）
+#   BACKUP_TOKEN … `npx wrangler secret put BACKUP_TOKEN` で本番に入れたものと同じ文字列
+name: Backup
+
+on:
+  schedule:
+    # 毎日 18:00 UTC ＝ 日本時間の翌 03:00。人が使っていない時間に寄せる。
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    name: 本番データの控えを取る
+    runs-on: ubuntu-latest
+    steps:
+      - name: 控えを取る
+        env:
+          BACKUP_TOKEN: ${{ secrets.BACKUP_TOKEN }}
+        run: |
+          if [ -z "$BACKUP_TOKEN" ]; then
+            echo "BACKUP_TOKEN が設定されていません。リポジトリのSecretsに入れてください。"
+            exit 1
+          fi
+          # -f を付けてあるので、失敗した回はこの実行が赤くなる。
+          # **取れていないことに気づけるのがいちばん大事。**
+          curl -fsS --retry 3 --retry-delay 20 --max-time 300 \
+            -X POST \
+            -H "authorization: Bearer $BACKUP_TOKEN" \
+            https://tasuki.club/api/admin/backup | tee result.json
+          echo
+          echo "### 控えを取りました" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat result.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

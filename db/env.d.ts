@@ -25,6 +25,10 @@ declare namespace Cloudflare {
     // ランクが最上位で固定される人でもある（app/admin-emails.ts）。
     // **空なら誰も当てはまらない。** 設定を忘れたときに素通りさせないため。
     ADMIN_EMAILS: string;
+    // 毎日のバックアップを外から起こすための合言葉。
+    // `npx wrangler secret put BACKUP_TOKEN` で入れる。
+    // **空なら自動実行の道は開かない**（管理画面からは今までどおり取れる）。
+    BACKUP_TOKEN: string;
   }
 }
 
