@@ -1632,11 +1632,14 @@ body { font-weight:600; }
    .bottom-nav の5列指定に負けて何も変わらない（あとに書いた方が勝つ）。 */
 /* 真ん中の列（＋）を広めに取ると、左右の3つずつが外側へ寄る。等分だと6つが
    ＋のまわりに固まって見えて、端が間延びする。 */
-.bottom-nav.is-six { grid-template-columns:repeat(3,1fr) 1.7fr repeat(3,1fr); padding-left:0; padding-right:0; }
+.bottom-nav.is-six { grid-template-columns:repeat(3,1fr) 1.7fr repeat(3,1fr);
+  /* 端にぴったり寄せると窮屈に見える。ただし取りすぎると1列が痩せて札が
+     はみ出すので、余白も幅に合わせて決める。 */
+  padding-left:clamp(3px,1.5vw,10px); padding-right:clamp(3px,1.5vw,10px); }
 /* 項目が7つ並ぶので、1つぶんの幅は画面まかせ。**文字も絵も幅に合わせて
    決める。** 決め打ちにすると、狭い端末で「マイページ」がはみ出し、広い
    端末では小さすぎて読めない。字間を少し詰めて、そのぶん字を大きくする。 */
-.bottom-nav.is-six small { font-size:clamp(8px,2.55vw,11px); letter-spacing:-.05em; transform:none; }
+.bottom-nav.is-six small { font-size:clamp(7.5px,2.45vw,11px); letter-spacing:-.05em; transform:none; }
 .bottom-nav.is-six button>span,.bottom-nav.is-six label>span { font-size:clamp(21px,6vw,26px); }
 .bottom-nav.is-six button,.bottom-nav.is-six label { gap:5px; padding:4px 0; }
 /* ＋は真ん中の列（広め）に収まる大きさまで。隣にはみ出さない。 */
@@ -1654,7 +1657,7 @@ body { font-weight:600; }
   font-size:9px; font-style:normal; font-weight:900; line-height:1; }
 @media(min-width:481px){
   /* 画面が広いところでは幅に余裕があるので、上限で止める。 */
-  .bottom-nav.is-six small { font-size:12px; letter-spacing:-.02em; }
+  .bottom-nav.is-six small { font-size:11px; letter-spacing:-.04em; }
   .bottom-nav.is-six button>span,.bottom-nav.is-six label>span { font-size:28px; }
   .bottom-nav.is-six .nav-post { width:66px; height:66px; min-height:66px; border-radius:20px; }
   .bottom-nav.is-six .nav-post span { font-size:37px; }
