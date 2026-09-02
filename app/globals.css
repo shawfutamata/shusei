@@ -1763,7 +1763,8 @@ body { font-weight:600; }
 /* --- 管理画面：止めた枠のまとまり --------------------------------------------
    動いているものと混ぜない。混ざっていると「掲載を戻す」が並んで、
    どれが生きている枠なのか一目で分からなかった。 */
-.admin-archive { margin-top:26px; padding-top:20px; border-top:1px dashed #cfd8e6; }
+/* ごみ箱の中。ふだんの一覧と入れ替わるので、上の区切り線は要らない。 */
+.admin-archive { margin-top:0; padding-top:0; border-top:0; }
 .admin-archive h2 { margin:0; display:flex; align-items:baseline; gap:9px; color:#5b6b80; font-size:16px; font-weight:900; }
 .admin-archive h2 span { padding:2px 9px; border-radius:99px; background:#e7ecf4; color:#65758c; font-size:11px; font-weight:900; }
 .admin-archive > p { margin:6px 0 14px; color:#7b8a9e; font-size:12px; font-weight:700; line-height:1.7; }
@@ -1800,3 +1801,17 @@ body { font-weight:600; }
 .card-topline { justify-content:flex-start; gap:8px; }
 .card-topline .card-top-actions,
 .card-topline .detail-heart { margin-left:auto; }
+
+/* --- 管理画面：ごみ箱 --------------------------------------------------------
+   止めたものはここにしまう。件数を肩に出して、中身があることが開かなくても
+   分かるようにする。0件のときはボタンごと出さない（押す先が無いので）。 */
+.admin-trash { position:relative; flex:0 0 auto; width:42px; min-height:42px; display:grid; place-items:center;
+  border:1px solid #d7deea; border-radius:11px; background:#fff; color:#5b6b80; cursor:pointer; }
+.admin-trash:hover { border-color:#c2ccdb; color:#3c4a60; }
+.admin-trash.is-open { border-color:#14161c; background:#14161c; color:#fff; }
+.admin-trash em { position:absolute; top:-6px; right:-6px; min-width:18px; height:18px; padding:0 5px;
+  display:grid; place-items:center; border-radius:99px; background:#f04b1e; color:#fff;
+  font-size:10px; font-style:normal; font-weight:900; line-height:1; }
+.admin-archive-back { margin-top:16px; min-height:42px; padding:0 16px; border:1px solid #d7deea;
+  border-radius:11px; background:#fff; color:#5b6b80; font-size:12px; font-weight:800; cursor:pointer; }
+@media(max-width:900px){ .admin-trash { width:38px; min-height:38px; } }

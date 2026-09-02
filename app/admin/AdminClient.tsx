@@ -44,6 +44,11 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   const [backups, setBackups] = useState<BackupEntry[] | null>(null);
   /** スマホでのメニューの開け閉め。パソコンの幅では常に出ているので関係ない。 */
   const [menuOpen, setMenuOpen] = useState(false);
+  /**
+   * ごみ箱を開いているか。**止めたものだけを見る画面。**
+   * ふだんの一覧に混ぜておくと、いま動いているものが何件かを数えにくい。
+   */
+  const [trashOpen, setTrashOpen] = useState(false);
 
   // 分析は集計が重いので、そのタブを開いたときだけ読む。
   useEffect(() => {
@@ -54,6 +59,15 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       .catch(() => {});
     return () => { alive = false; };
   }, [tab, range]);
+
+  /**
+   * タブを移す。**移ったらごみ箱は閉じる。**
+   * 開いたままだと、押したタブに何も無いように見えてしまう。
+   */
+  function goTab(key: (typeof tabs)[number]['key']) {
+    setTab(key);
+    setTrashOpen(false);
+  }
 
   async function reload(nextKeyword = keyword) {
     const response = await fetch(`/api/admin/data?q=${encodeURIComponent(nextKeyword)}`);
@@ -80,6 +94,10 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       .catch(() => { if (alive) setBackups([]); });
     return () => { alive = false; };
   }, [tab, backups]);
+
+  // いま開いているタブに、止めたものが何件あるか。無いタブではごみ箱を出さない。
+  const trashCount = tab === 'members' ? data.members.filter((member) => !member.canUse).length
+    : tab === 'ads' ? data.ads.filter((ad) => ad.status === 'stopped').length : 0;
 
   const liveMembers = data.members.filter((member) => member.canUse);
   const stoppedMembers = data.members.filter((member) => !member.canUse);
@@ -204,7 +222,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       <div className="admin-brand"><BrandMark className="admin-brand-mark" /><b>{serviceName} 管理</b></div>
       <nav className="admin-side-nav" aria-label="管理する対象">
         {tabs.map((item) => <button key={item.key} className={tab === item.key ? 'selected' : ''}
-          onClick={() => { setTab(item.key); setMenuOpen(false); }} aria-pressed={tab === item.key}>
+          onClick={() => { goTab(item.key); setMenuOpen(false); }} aria-pressed={tab === item.key}>
           <SideIcon name={item.key} />
           <span className="admin-nav-long">{item.label}</span>
           <span className="admin-nav-short">{'short' in item ? item.short : item.label}</span>
@@ -226,6 +244,13 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
         <p>{adminName}さん、こんにちは — {dateLabel}</p>
       </div>
       <div className="admin-header-actions">
+        {/* 止めたものはここにしまう。件数を肩に出して、中身があることが
+            開かなくても分かるようにする。 */}
+        {trashCount > 0 && <button className={`admin-trash${trashOpen ? ' is-open' : ''}`}
+          onClick={() => setTrashOpen((open) => !open)} aria-pressed={trashOpen}
+          aria-label={`ごみ箱（${trashCount}件）`} title={`ごみ箱（${trashCount}件）`}>
+          <TrashMark /><em>{trashCount}</em>
+        </button>}
         <button className="admin-open-site" onClick={() => reload().then(() => say('最新の状態にしました。'))}
           aria-label="再読み込み" title="再読み込み"><ReloadMark /></button>
         <button className="admin-signout" onClick={signOut} disabled={busy === 'signout'}>{busy === 'signout' ? '…' : 'ログアウト'}</button>
@@ -276,7 +301,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
             <div className="viz-card-head"><h2>要対応</h2><span className="admin-queue-count">{queue.length}件のキュー</span></div>
             {!queue.length ? <p className="viz-empty">いまは手が空いています。</p>
               : <ul>{queue.map((row) => <li key={row.key}>
-                <button onClick={() => setTab(row.to)}>
+                <button onClick={() => goTab(row.to)}>
                   <i className={row.tone}><SideIcon name={row.icon} /></i>
                   <span>{row.label}</span>
                   <b className={row.tone}>{row.value.toLocaleString('ja-JP')}</b>
@@ -287,7 +312,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
 
           <section className="viz-card admin-mini">
             <div><p>掲載中の広告</p><b>{summary.liveAds}</b></div>
-            <button onClick={() => setTab('ads')}>一覧へ</button>
+            <button onClick={() => goTab('ads')}>一覧へ</button>
           </section>
         </div>
       </div>
@@ -380,18 +405,21 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
 
     {/* 広告と同じ形。**上の一覧はいま使っている人だけ。** 止めた人が混ざって
         いると「利用を戻す」が並んで、誰が動いている会員なのか分からなくなる。 */}
-    {tab === 'members' && <>
-      <ul className="admin-list">
+    {tab === 'members' && (trashOpen
+      ? <section className="admin-archive">
+        <h2>停止中の会員<span>{stoppedMembers.length}人</span></h2>
+        <p>利用を止めた方です。データは残っているので、ここから戻せます。</p>
+        <ul className="admin-list">
+          {!stoppedMembers.length && <li className="admin-empty">停止中の会員はいません。</li>}
+          {stoppedMembers.map(memberRow)}
+        </ul>
+        <button className="admin-archive-back" onClick={() => setTrashOpen(false)}>利用中の一覧に戻る</button>
+      </section>
+      : <ul className="admin-list">
         {!data.members.length && <li className="admin-empty">該当する会員がいません。</li>}
         {data.members.length > 0 && !liveMembers.length && <li className="admin-empty">いま使っている会員はいません。</li>}
         {liveMembers.map(memberRow)}
-      </ul>
-      {stoppedMembers.length > 0 && <section className="admin-archive">
-        <h2>停止中の会員<span>{stoppedMembers.length}人</span></h2>
-        <p>利用を止めた方です。データは残っているので、ここから戻せます。</p>
-        <ul className="admin-list">{stoppedMembers.map(memberRow)}</ul>
-      </section>}
-    </>}
+      </ul>)}
 
     {tab === 'requests' && <ul className="admin-list">
       {!data.requests.length && <li className="admin-empty">該当する投稿がありません。</li>}
@@ -419,18 +447,21 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
     {/* 止めた枠は下にまとめる。**上の一覧はいま動いているものだけ。**
         混ぜてあると「掲載を戻す」が並んで、どれが生きている枠なのか一目で
         分からなかった。戻す操作は、下のまとまりの中だけに置く。 */}
-    {tab === 'ads' && <>
-      <ul className="admin-list">
+    {tab === 'ads' && (trashOpen
+      ? <section className="admin-archive">
+        <h2>停止中の広告<span>{stoppedAds.length}件</span></h2>
+        <p>掲載を止めたものです。消えてはいないので、ここから戻せます。</p>
+        <ul className="admin-list">
+          {!stoppedAds.length && <li className="admin-empty">停止中の広告はありません。</li>}
+          {stoppedAds.map(adRow)}
+        </ul>
+        <button className="admin-archive-back" onClick={() => setTrashOpen(false)}>掲載中の一覧に戻る</button>
+      </section>
+      : <ul className="admin-list">
         {!data.ads.length && <li className="admin-empty">まだ広告のお申し込みはありません。</li>}
         {data.ads.length > 0 && !liveAds.length && <li className="admin-empty">いま動いている広告はありません。</li>}
         {liveAds.map(adRow)}
-      </ul>
-      {stoppedAds.length > 0 && <section className="admin-archive">
-        <h2>停止中の広告<span>{stoppedAds.length}件</span></h2>
-        <p>掲載を止めたものです。消えてはいないので、ここから戻せます。</p>
-        <ul className="admin-list">{stoppedAds.map(adRow)}</ul>
-      </section>}
-    </>}
+      </ul>)}
 
     {tab === 'feedback' && <ul className="admin-list">
       {!data.feedback.length && <li className="admin-empty">まだご意見は届いていません。</li>}
@@ -521,6 +552,17 @@ function yen0(value: number) { return value.toLocaleString('ja-JP'); }
 function money(value: number) { return `¥${value.toLocaleString('ja-JP')}`; }
 
 /** 左の帯に出す印。線だけの形にして、選んでいるものだけ色が乗る。 */
+/** ごみ箱。止めたものをしまってある場所。 */
+function TrashMark() {
+  return <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+    strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M4 7h16" />
+    <path d="M9 7V5.2A1.2 1.2 0 0 1 10.2 4h3.6A1.2 1.2 0 0 1 15 5.2V7" />
+    <path d="M6.4 7l.8 12a1.6 1.6 0 0 0 1.6 1.5h6.4a1.6 1.6 0 0 0 1.6-1.5l.8-12" />
+    <path d="M10.4 11v6M13.6 11v6" />
+  </svg>;
+}
+
 /** 再読み込み。丸い矢印1本。文字より小さく置けて、意味も伝わる。 */
 function ReloadMark() {
   return <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
