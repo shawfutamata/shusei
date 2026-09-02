@@ -9,7 +9,6 @@ import FacebookLink from './FacebookLink';
 import { areaMatchesRegion, getRegion, prefectures, regions, requestAreaOptions, type Prefecture } from './profile-options';
 import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-options';
 import { budgetBandLabel, budgetBands } from './budget-options';
-import { findVenuePrefecture, isListedVenue, OTHER_VENUE, venuePrefectures, venuesByPrefecture } from './venue-options';
 import { UNLIMITED, can, plans, type BillingCycle, type Feature, type Plan } from './entitlements';
 import { feedbackCategories } from './feedback-options';
 import { adDailyPrice, adTotalPrice, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
@@ -95,9 +94,6 @@ const topBanners = [
   { src: '/banners/sample-cleaning.webp', alt: '出稿イメージ（サンプル）店舗清掃スタッフ募集の広告', to: 'ads', sample: true },
   { src: '/banners/sample-moving.webp', alt: '出稿イメージ（サンプル）オフィス引越しの広告', to: 'ads', sample: true },
   { src: '/banners/sample-catering.webp', alt: '出稿イメージ（サンプル）ケータリングの広告', to: 'ads', sample: true },
-  { src: '/banners/top-request.webp', alt: 'こんな人、探しています。探しごとを投稿する案内', to: 'request', sample: false },
-  { src: '/banners/top-introductions.webp', alt: '届いたオファーをまとめて確認する案内', to: 'responses', sample: false },
-  { src: '/banners/top-rank.webp', alt: 'オファーするほど会員ランクが上がる仕組みの案内', to: 'mypage', sample: false },
 ] as const;
 const industryIcons: Record<string, string> = {
   'IT・システム': '/icons/industries/it-system.png', 'Web・広告': '/icons/industries/web-ad.png',
@@ -192,7 +188,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [filter, setFilter] = useState('all');
   /** 予算の帯での絞り込み。会社の年商ではなく、その案件にいくら出せるかで見る。 */
   const [budgetFilter, setBudgetFilter] = useState('all');
-  const [venueFilter, setVenueFilter] = useState('all');
   const [regionFilter, setRegionFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'open' | 'closed' | 'all'>('open');
   const [industryFilter, setIndustryFilter] = useState('all');
@@ -249,11 +244,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [profileNameKana, setProfileNameKana] = useState(initialStats.nameKana);
   const [profileCompany, setProfileCompany] = useState(initialStats.company);
   const [profileCompanyKana, setProfileCompanyKana] = useState(initialStats.companyKana);
-  const [venuePrefecture, setVenuePrefecture] = useState(findVenuePrefecture(initialStats.venue));
-  const [venueChoice, setVenueChoice] = useState(initialStats.venue ? (isListedVenue(initialStats.venue) ? initialStats.venue : OTHER_VENUE) : '');
-  const [venueOther, setVenueOther] = useState(isListedVenue(initialStats.venue) ? '' : initialStats.venue);
-  const profileVenue = venueChoice === OTHER_VENUE ? venueOther.trim() : venueChoice;
-  const [profilePosition, setProfilePosition] = useState(initialStats.positionTitle);
   const [profileArea, setProfileArea] = useState(prefectures.includes(initialStats.businessArea as Prefecture) ? initialStats.businessArea : '');
   const [profileIndustry, setProfileIndustry] = useState(initialStats.primaryIndustry);
   const [profileIndustryGroup, setProfileIndustryGroup] = useState<string>(getIndustryGroup(initialStats.primaryIndustry)?.name ?? '');
@@ -335,21 +325,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
   function showToast(message: string) { setToast(message); window.setTimeout(() => setToast(''), 3800); }
 
-  // 全国の会場を都道府県ごとにまとめて出す。一覧に無い会場（その他で登録された人）も
-  // 投稿があるぶんだけ末尾に足して、絞り込めない会場が出ないようにする。
-  const venueGroups = useMemo(() => {
-    const listed = new Set(venuePrefectures.flatMap((prefecture) => venuesByPrefecture[prefecture]));
-    const extras = [...new Set(requests.map((item) => item.authorVenue).filter((venue) => venue && !listed.has(venue)))].sort();
-    const groups: Array<[string, string[]]> = venuePrefectures.map((prefecture) => [prefecture, venuesByPrefecture[prefecture]]);
-    return extras.length ? [...groups, ['その他', extras] as [string, string[]]] : groups;
-  }, [requests]);
   // 募集状況で先に切ってから、カテゴリの件数を数える。表示と件数がずれないようにする。
   const statusMatched = useMemo(() => requests.filter((item) => statusFilter === 'all' || (statusFilter === 'open') === isOpenRequest(item)), [requests, statusFilter]);
   const shown = useMemo(() => {
     const matched = statusMatched.filter((item) =>
       (filter === 'all' || item.category === filter) &&
       (budgetFilter === 'all' || item.budgetBand === budgetFilter) &&
-      (venueFilter === 'all' || item.authorVenue === venueFilter) &&
       // 希望エリアが入っていればそれで、無ければ投稿者の所在地で拾う。
       (regionFilter === 'all'
         || (item.area ? areaMatchesRegion(item.area, regionFilter) : getRegion(item.authorBusinessArea) === regionFilter)) &&
@@ -359,7 +340,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     const now = new Date().toISOString();
     const promoted = (item: BoardRequest) => item.promoUntil > now && matchesIndustry([item.promoIndustry], industryFilter);
     return [...matched].sort((a, b) => Number(promoted(b)) - Number(promoted(a)));
-  }, [budgetFilter, filter, industryFilter, regionFilter, statusMatched, venueFilter]);
+  }, [budgetFilter, filter, industryFilter, regionFilter, statusMatched]);
   // 通知はアプリを出してから。それまでは選んだ業種をホームのおすすめに使う。
   // 自分の投稿は外す。おすすめは「自分が紹介できる相手」を出す場所なので。
   // 判定は名前ではなくIDで行う。同姓同名の会員がいると、名前では他人の投稿まで消える。
@@ -722,7 +703,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   async function saveProfile() {
     setBusy(true);
     const body = new FormData();
-    body.set('company', profileCompany); body.set('venue', profileVenue); body.set('positionTitle', profilePosition);
+    // **会場と肩書きの入力は、いま画面から外してある。** 消したからといって
+    // すでに入っている値を空で上書きしないよう、保存済みのものをそのまま送る。
+    body.set('company', profileCompany); body.set('venue', stats.venue); body.set('positionTitle', stats.positionTitle);
     body.set('displayName', profileName.trim()); body.set('nameKana', profileNameKana.trim());
     body.set('companyKana', profileCompanyKana.trim());
     body.set('businessArea', profileArea); body.set('primaryIndustry', profileIndustry);
@@ -732,7 +715,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     const result = await response.json() as { error?: string; avatarUrl?: string }; setBusy(false);
     if (!response.ok) return showToast(result.error ?? 'プロフィールを保存できませんでした。');
     const avatarUrl = result.avatarUrl ?? stats.avatarUrl;
-    setStats((current) => ({ ...current, displayName: profileName.trim(), nameKana: profileNameKana.trim(), company: profileCompany, companyKana: profileCompanyKana.trim(), venue: profileVenue, positionTitle: profilePosition, businessArea: profileArea, primaryIndustry: profileIndustry, notifyIndustries: profileNotifyIndustries, annualRevenueBand: profileRevenue, facebookUrl: profileFacebook, avatarUrl }));
+    setStats((current) => ({ ...current, displayName: profileName.trim(), nameKana: profileNameKana.trim(), company: profileCompany, companyKana: profileCompanyKana.trim(), venue: stats.venue, positionTitle: stats.positionTitle, businessArea: profileArea, primaryIndustry: profileIndustry, notifyIndustries: profileNotifyIndustries, annualRevenueBand: profileRevenue, facebookUrl: profileFacebook, avatarUrl }));
     setProfilePhoto(null); setPhotoPreview(avatarUrl);
     await refreshBoard(); showToast('顔写真とプロフィールを保存しました。');
   }
@@ -997,9 +980,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       <h3>{need.title}</h3>{need.thumbUrl && <img className="need-thumb" src={need.thumbUrl} alt="" loading="lazy" decoding="async" />}<p className="need-body">{need.description}</p>
       <div className="industry-tags" aria-label="関連業種">{need.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
       <dl className="details"><div><dt>予算</dt><dd>{budgetText(need)}</dd></div><div><dt>エリア</dt><dd>{need.area || '指定なし'}</dd></div></dl>
-      <div className="card-person"><Avatar src={need.authorAvatarUrl} name={need.authorName} className="member-avatar" /><p><b>{need.authorName}</b><small>{need.authorPositionTitle && `${need.authorPositionTitle}｜`}{need.authorCompany || '会社名未設定'}</small></p></div>
+      <div className="card-person"><Avatar src={need.authorAvatarUrl} name={need.authorName} className="member-avatar" /><p><b>{need.authorName}</b><small>{need.authorCompany || '会社名未設定'}</small></p></div>
       <ActivityCounts need={need} />
-      <div className="member-context"><span>会場 {need.authorVenue}</span>{need.authorBusinessArea && <span>エリア {need.authorBusinessArea}</span>}{need.authorRevenueBand && <span>年商 {revenueBands[need.authorRevenueBand]}</span>}</div>
+      <div className="member-context">{need.authorBusinessArea && <span>エリア {need.authorBusinessArea}</span>}{need.authorRevenueBand && <span>年商 {revenueBands[need.authorRevenueBand]}</span>}</div>
       {!need.sample && <button className="intro-button" onClick={(event) => { event.stopPropagation(); openIntroduction(need); }}>この人にオファー <span>→</span></button>}
     </article>
   );
@@ -1175,10 +1158,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       setModal('adDetail');
       return;
     }
-    if (slide?.to === 'ads') return openAdSettings();
-    if (slide?.to === 'request') return openRequest();
-    if (slide?.to === 'responses') return setModal('responses');
-    showMyPage();
+    // いま自前で出しているのは広告のご案内と、その出稿イメージだけ。
+    // どれを押しても行き先は広告の申し込み。
+    openAdSettings();
   }
 
   async function submitFeedback(event: FormEvent<HTMLFormElement>) {
@@ -1264,7 +1246,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <div className="member-filters">
           <p>絞り込む</p>
           <label className="wide"><span>募集状況</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'open' | 'closed' | 'all')}><option value="open">募集中</option><option value="closed">募集終了</option><option value="all">すべて</option></select></label>
-          <label><span>会場</span><select value={venueFilter} onChange={(event) => setVenueFilter(event.target.value)}><option value="all">すべての会場</option>{venueGroups.map(([prefecture, venues]) => <optgroup label={prefecture} key={prefecture}>{venues.map((venue) => <option value={venue} key={venue}>{venue}</option>)}</optgroup>)}</select></label>
           <label><span>エリア</span><select value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)}><option value="all">全国</option>{regions.map((region) => <option value={region.name} key={region.name}>{region.name}</option>)}</select></label>
           <label><span>業種</span><select value={getIndustryGroup(industryFilter)?.name ?? 'all'} onChange={(event) => setIndustryFilter(event.target.value)}><option value="all">すべての業種</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label>
           <label className={canFilterByBudget(stats.level) ? '' : 'is-locked'}><span>案件の予算 {!canFilterByBudget(stats.level) && <em>{rankNames[2]}から</em>}</span><select value={budgetFilter} disabled={!canFilterByBudget(stats.level)} onChange={(event) => setBudgetFilter(event.target.value)}><option value="all">すべての予算</option>{Object.entries(budgetBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
@@ -1337,7 +1318,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <p className="rank-slim-sub">MEMBER</p>
           <div className="rank-slim-foot">
             <span><small>会員名</small><b>{shownName}</b></span>
-            <span className="rank-slim-venue"><small>会場</small><b>{stats.venue || '未設定'}</b></span>
           </div>
           <span className="rank-slim-more">特典を見る ›</span>
         </button>
@@ -1466,7 +1446,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div className="feedback-heading"><p>YOUR VOICE</p><h2>こうしてほしい、を聞かせてください</h2><span>{serviceName}は作っている途中です。使ってみて足りないところ、使いにくいところを教えてください。いただいたご意見は運営が必ず読みます。</span></div>
           {feedbackSent ? <div className="feedback-done"><b>お送りいただきました</b><span>ありがとうございます。続けてお気づきの点があれば、また送ってください。</span><button onClick={() => setFeedbackSent(false)}>もう1件送る</button></div> : <form className="feedback-form" onSubmit={submitFeedback}>
             <label><span>種類</span><select name="category" defaultValue="feature">{feedbackCategories.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select></label>
-            <label><span>内容</span><textarea name="body" required maxLength={1000} rows={4} placeholder="例：会場ごとの探しごとをまとめて見たい／会場での集まりの告知も出したい" /></label>
+            <label><span>内容</span><textarea name="body" required maxLength={1000} rows={4} placeholder="例：業種ごとの探しごとをまとめて見たい／集まりの告知も出したい" /></label>
             <button className="submit-button" disabled={busy}>{busy ? '送信しています…' : '送る'}</button>
           </form>}
         </section>
@@ -1525,19 +1505,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <label>お名前のふりがな <small>任意</small><input value={profileNameKana} onChange={(event) => setProfileNameKana(event.target.value)} maxLength={60} placeholder="ふたまた しょう" /></label>
           <label>会社名 <small className="req">必須</small><input value={profileCompany} onChange={(event) => setProfileCompany(event.target.value)} maxLength={80} placeholder="株式会社〇〇" required /></label>
           <label>会社名のふりがな <small>任意</small><input value={profileCompanyKana} onChange={(event) => setProfileCompanyKana(event.target.value)} maxLength={100} placeholder="かぶしきがいしゃ〇〇" /></label>
-          <div className="profile-venue-select">
-            <p>所属会場 <small className="req">必須</small></p>
-            <label>都道府県<select value={venuePrefecture} onChange={(event) => { setVenuePrefecture(event.target.value); setVenueChoice(''); }}><option value="">選択してください</option>{venuePrefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
-            <label>会場<select value={venueChoice} onChange={(event) => setVenueChoice(event.target.value)} disabled={!venuePrefecture && venueChoice !== OTHER_VENUE}><option value="">会場を選択</option>{(venuesByPrefecture[venuePrefecture] ?? []).map((venue) => <option value={venue} key={venue}>{venue}</option>)}<option value={OTHER_VENUE}>その他（自由入力）</option></select></label>
-            {venueChoice === OTHER_VENUE && <label className="wide">会場名 <small>正式な会場名を入力</small><input value={venueOther} onChange={(event) => setVenueOther(event.target.value)} maxLength={60} placeholder="例：ひるのめぐろ会場" /></label>}
-          </div>
-          <label>肩書き <small>任意</small><input value={profilePosition} onChange={(event) => setProfilePosition(event.target.value)} maxLength={60} placeholder="世話人" /></label>
           <label>活動エリア <small>任意・検索に使われます</small><select value={profileArea} onChange={(event) => setProfileArea(event.target.value)}><option value="">選択しない</option>{prefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
           <div className="profile-industry-select"><p>自分の業種 <small>おすすめの設定に使われます</small></p><label>大分類<select value={profileIndustryGroup} onChange={(event) => { setProfileIndustryGroup(event.target.value); setProfileIndustry(''); }}><option value="">選択してください</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label><label>詳細業種<select value={profileIndustry} onChange={(event) => { const value = event.target.value; setProfileIndustry(value); if (value && !profileNotifyIndustries.includes(value)) setProfileNotifyIndustries((current) => [...current, value].slice(0, notifyIndustryLimit(stats.level))); }} disabled={!profileIndustryGroup}><option value="">詳細業種を選択</option>{profileIndustry === profileIndustryGroup && <option value={profileIndustryGroup}>大分類のみ（旧設定）</option>}{industryGroups.find((group) => group.name === profileIndustryGroup)?.children.map((industry) => <option value={industry} key={industry}>{industry}</option>)}</select></label></div>
           <IndustryPicker id="notify-industries" legend="おすすめに出したい業種" note={`${notifyIndustryLimit(stats.level)}個まで`} description="選んだ詳細業種の探しごとが、ホームの「あなたにおすすめ」に出ます。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, notifyIndustryLimit(stats.level))} className="profile-tag-field" />
           <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
           <label>Facebook <small>任意・オファーのあとに直接やり取りできます</small><input value={profileFacebook} onChange={(event) => setProfileFacebook(event.target.value)} maxLength={200} placeholder="https://www.facebook.com/your.name" inputMode="url" /></label>
-          <button className="profile-save-button" onClick={saveProfile} disabled={busy || !profileName.trim() || !profileCompany.trim() || !profileVenue.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
+          <button className="profile-save-button" onClick={saveProfile} disabled={busy || !profileName.trim() || !profileCompany.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
         </div>
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section>}
@@ -1725,19 +1698,18 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       </Modal>}
 
       {modal === 'member' && <Modal title={memberProfile?.displayName ? `${memberProfile.displayName}さん` : '会員のプロフィール'}
-        lead={memberProfile ? `${memberProfile.company || '会社名なし'}・${memberProfile.venue}` : '読み込んでいます…'}
+        lead={memberProfile ? (memberProfile.company || '会社名なし') : '読み込んでいます…'}
         onClose={() => { setModal(null); setMemberProfile(null); }}>
         {memberLoading || !memberProfile ? <p className="member-loading">読み込んでいます…</p> : <div className="member-page">
           <div className="member-head">
             <Avatar src={memberProfile.avatarUrl} name={memberProfile.displayName} className="member-avatar" />
             <div>
               <b>{memberProfile.displayName}</b>
-              <small>{[memberProfile.positionTitle, memberProfile.company].filter(Boolean).join('・') || '会社名なし'}</small>
+              <small>{memberProfile.company || '会社名なし'}</small>
               <span className={`member-rank rank-${memberProfile.level}`}>{memberProfile.rank}</span>
             </div>
           </div>
           <dl className="member-facts">
-            <div><dt>会場</dt><dd>{memberProfile.venue}</dd></div>
             <div><dt>業種</dt><dd>{memberProfile.primaryIndustry || '未設定'}</dd></div>
             <div><dt>活動エリア</dt><dd>{memberProfile.businessArea || '指定なし'}</dd></div>
             <div><dt>オファー</dt><dd>{memberProfile.introCount}件</dd></div>
@@ -1906,7 +1878,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <div className="industry-tags">{selected.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
         <ActivityCounts need={selected} size="detail" />
         <dl><div><dt>予算</dt><dd>{budgetText(selected)}</dd></div><div><dt>希望エリア</dt><dd>{selected.area || '指定なし'}</dd></div><div><dt>募集期限</dt><dd>{selected.deadline}</dd></div></dl>
-        <div className="detail-author"><Avatar src={selected.authorAvatarUrl} name={selected.authorName} className="member-avatar" /><p><b>{selected.authorName}</b><span>{selected.authorPositionTitle && `${selected.authorPositionTitle}｜`}{selected.authorCompany || '会社名未設定'}</span><small>{selected.authorVenue}{selected.authorBusinessArea && `・${selected.authorBusinessArea}`}</small></p><FacebookLink url={selected.authorFacebookUrl} name={selected.authorName} /></div>
+        <div className="detail-author"><Avatar src={selected.authorAvatarUrl} name={selected.authorName} className="member-avatar" /><p><b>{selected.authorName}</b><span>{selected.authorCompany || '会社名未設定'}</span>{!!selected.authorBusinessArea && <small>{selected.authorBusinessArea}</small>}</p><FacebookLink url={selected.authorFacebookUrl} name={selected.authorName} /></div>
         {selected.mine
           ? <div className="owner-tools">
               <p className="owner-tools-head"><b>あなたの探しごと</b><span>{stats.rank}の特典が使えます</span></p>
@@ -2030,7 +2002,7 @@ function PlanTable({ current }: { current: Plan }) {
 /** 表に出す行。○×は entitlements の `can()` に聞く（ここで判断を持たない）。 */
 const planRows: { label: string; note?: string; soon?: boolean; value: (plan: Plan) => boolean | string }[] = [
   { label: '掲示板を見る', value: (plan) => allows(plan, 'view_board') },
-  { label: '会員を探す', note: '業種・エリア・会場', soon: true, value: (plan) => allows(plan, 'member_search') },
+  { label: '会員を探す', note: '業種・エリア', soon: true, value: (plan) => allows(plan, 'member_search') },
   { label: 'リファラルを送る', note: '知り合いの紹介', value: (plan) => allows(plan, 'introduce') },
   { label: '探しごとの投稿', value: (plan) => planPostLimit(plan) },
   { label: 'オファーを受け取る', note: '中身を読む・返事する', value: (plan) => allows(plan, 'receive_introductions') },
@@ -2263,7 +2235,7 @@ function HomeRequestCard({ need, favorite, onOpen, onFavorite }: { need: BoardRe
     <span className={need.thumbUrl ? 'home-request-cover has-photo' : 'home-request-cover'}>{need.thumbUrl
       ? <img src={need.thumbUrl} alt="" loading="lazy" decoding="async" />
       : <><IndustryIcon group={primaryGroup} /><small>{primaryIndustry}</small></>}</span>
-    <span className="home-request-copy"><small><b className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</b> あと{daysLeft(need.deadline)}日</small><strong>{need.title}</strong><span>{budgetText(need)}</span><em>{need.authorName}・{need.authorVenue}</em></span>
+    <span className="home-request-copy"><small><b className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</b> あと{daysLeft(need.deadline)}日</small><strong>{need.title}</strong><span>{budgetText(need)}</span><em>{need.authorName}</em></span>
   </button></article>;
 }
 

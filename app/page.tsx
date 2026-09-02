@@ -29,7 +29,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ l
   if (!access) {
     const { login } = await searchParams;
     const error = login ? loginErrors[login] ?? loginErrors.failed : '';
-    return <main className="signin-page"><div className="signin-card"><BrandMark /><p className="eyebrow">MEMBERS ONLY</p><h1>{serviceName}</h1><h2>オファーから、商売が生まれる。</h2><p>守成クラブの仲間同士で「こんな人を探しています」を共有し、信頼できるオファーを届ける会員向け掲示板です。</p>{!!error && <p className={login === 'pending' ? 'login-message' : 'login-error'}>{error}</p>}<a className="primary-button google-button" href="/api/auth/google/start"><GoogleMark />Googleでログイン</a><small>守成クラブに登録済みのメールアドレスのGoogleアカウントでログインしてください</small><InviteCodeEntry /><LegalLinks /></div></main>;
+    return <main className="signin-page"><div className="signin-card"><BrandMark /><p className="eyebrow">MEMBERS ONLY</p><h1>{serviceName}</h1><h2>オファーから、商売が生まれる。</h2><p>会員同士で「こんな人を探しています」を共有し、信頼できるオファーを届ける会員向け掲示板です。</p>{!!error && <p className={login === 'pending' ? 'login-message' : 'login-error'}>{error}</p>}<a className="primary-button google-button" href="/api/auth/google/start"><GoogleMark />Googleでログイン</a><small>ご登録済みのメールアドレスのGoogleアカウントでログインしてください</small><InviteCodeEntry /><LegalLinks /></div></main>;
   }
   if (!access.membership.canUseApp) {
     return <main className="signin-page"><div className="signin-card"><BrandMark /><p className="eyebrow">MEMBERS ONLY</p><h1>{serviceName}</h1><h2>まだ利用権限がありません。</h2><p>{access.user.email} は会員として登録されていないか、現在利用権限が停止しています。ご入会手続きや状態のご確認は運営窓口までお問い合わせください。</p><small>登録済みの会員メールアドレスでログインし直すと利用できます</small><LegalLinks /></div></main>;

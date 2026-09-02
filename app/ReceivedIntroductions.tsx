@@ -144,7 +144,7 @@ export default function ReceivedIntroductions({ onUpgrade }: { onUpgrade?: () =>
                 ? <img src={item.authorAvatarUrl} alt={`${item.authorName}さんの顔写真`} />
                 : <span>{item.authorName.slice(0, 1)}</span>}
               <p><small>探していた会員</small><b>{item.authorName}</b>
-                <em>{item.authorCompany || '会社名未設定'} · {item.authorVenue}</em>
+                <em>{item.authorCompany || '会社名未設定'}</em>
                 <FacebookLink url={item.authorFacebookUrl} name={item.authorName} /></p>
             </div>
             <IntroductionChat introductionId={item.id} partnerName={item.authorName} />

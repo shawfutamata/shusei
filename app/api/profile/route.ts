@@ -38,8 +38,10 @@ export async function PATCH(request: Request) {
   if (!displayName) {
     return NextResponse.json({ error: 'お名前を入力してください。' }, { status: 400 });
   }
-  if (!company || !venue) {
-    return NextResponse.json({ error: '会社名と所属会場を入力してください。' }, { status: 400 });
+  // 会場は画面から外してあるので、必須にしない（空でも通す）。
+  // 列とすでに入っている値は残してあるので、戻すときはここも戻す。
+  if (!company) {
+    return NextResponse.json({ error: '会社名を入力してください。' }, { status: 400 });
   }
   if (!kanaOnly.test(nameKana)) {
     return NextResponse.json({ error: 'お名前のふりがなは、ひらがな・カタカナで入力してください。' }, { status: 400 });

@@ -42,7 +42,7 @@ const steps: Step[] = [
   },
   {
     eyebrow: 'STEP 2', title: '仕事の掲示板を見る',
-    body: '仲間の「こんな人を探しています」が並びます。業種・エリア・予算・会場で絞り込めます。',
+    body: '仲間の「こんな人を探しています」が並びます。業種・エリア・予算で絞り込めます。',
     targets: ['.bottom-nav .nav-search'], click: 'ここをタップ',
   },
   {

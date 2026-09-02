@@ -5,7 +5,7 @@ import { serviceName, serviceTagline, serviceUrl } from './brand';
 export const metadata: Metadata = {
   metadataBase: new URL(serviceUrl),
   title: `${serviceName}｜${serviceTagline}`,
-  description: '守成クラブの仲間同士で、案件・協業先・相談相手を探し、信頼あるオファーを生み出す会員向け掲示板。',
+  description: '会員同士で、案件・協業先・相談相手を探し、信頼あるオファーを生み出す会員向け掲示板。',
   manifest: '/manifest.webmanifest',
   applicationName: serviceName,
   appleWebApp: { capable: true, statusBarStyle: 'default', title: serviceName },
