@@ -1793,3 +1793,10 @@ body { font-weight:600; }
 .kind.is-sample { background:#3b475c; color:#fff; }
 .sample-note { margin:2px 0 0; padding:13px 14px; border-radius:12px; border:1px dashed #c3ccda;
   background:#f6f8fc; color:#5d6b81; font-size:12px; font-weight:700; line-height:1.75; }
+
+/* サンプルの札は、種類の札のすぐ右に並べる。
+   この行は「左右に振り分け」なので、3つ目を足すと真ん中に浮いてしまう。
+   右側のかたまりだけを右端へ寄せ直して、左は詰めて並べる。 */
+.card-topline { justify-content:flex-start; gap:8px; }
+.card-topline .card-top-actions,
+.card-topline .detail-heart { margin-left:auto; }
