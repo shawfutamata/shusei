@@ -27,6 +27,7 @@ const samples = [
     industryTags: ['清掃・クリーニング'],
     authorName: '見本 太郎',
     authorCompany: 'サンプル商事株式会社',
+    authorPositionTitle: '代表取締役',
     authorBusinessArea: '東京都',
     authorRevenueBand: 'revenue_10_30',
     offerCount: 2,
@@ -43,6 +44,7 @@ const samples = [
     industryTags: ['内装・リフォーム'],
     authorName: '見本 花子',
     authorCompany: 'サンプル製作所',
+    authorPositionTitle: '専務取締役',
     authorBusinessArea: '東京都',
     authorRevenueBand: 'revenue_30_70',
     offerCount: 1,
@@ -59,6 +61,7 @@ const samples = [
     industryTags: ['イベント企画・運営'],
     authorName: '見本 一郎',
     authorCompany: '株式会社サンプル工業',
+    authorPositionTitle: '代表取締役社長',
     authorBusinessArea: '東京都',
     authorRevenueBand: 'revenue_70_100',
     offerCount: 0,
@@ -84,9 +87,8 @@ export function sampleRequests(now = new Date()): BoardRequest[] {
     introCount: item.offerCount + item.referralCount,
     pinnedUntil: '', extendedAt: '', promoIndustry: '', promoUntil: '',
     mine: false,
-    // 会場と肩書きは画面から外してあるので、見本にも入れない。
-    // 型には残っているので、空で埋める。
-    authorVenue: '', authorPositionTitle: '',
+    // 会場は画面から外してあるので、見本にも入れない。型には残っているので空で埋める。
+    authorVenue: '',
     authorAvatarUrl: '', authorFacebookUrl: '',
     sample: true,
   }));

@@ -50,6 +50,19 @@ export const requestAreaOptions = [ONLINE_AREA, ...prefectures] as const;
  * その希望エリアが、指定の地方ブロックに当てはまるか。
  * 「オンライン・全国」は場所を選ばないので、どのブロックでも当てはまる。
  */
+/**
+ * その探しごとが、選んだ都道府県に当てはまるか。
+ *
+ * **「オンライン・全国」はどこを選んでも当たる。** 場所を問わない募集を
+ * 都道府県で切って隠してしまうと、いちばん受けやすい仕事が見つからなくなる。
+ */
+export function areaMatchesPrefecture(area: string, prefecture: string) {
+  const value = area.trim();
+  if (!value) return false;
+  if (value === ONLINE_AREA) return true;
+  return value === prefecture;
+}
+
 export function areaMatchesRegion(area: string, region: string) {
   const value = area.trim();
   if (!value) return false;
