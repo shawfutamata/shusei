@@ -1815,3 +1815,8 @@ body { font-weight:600; }
 .admin-archive-back { margin-top:16px; min-height:42px; padding:0 16px; border:1px solid #d7deea;
   border-radius:11px; background:#fff; color:#5b6b80; font-size:12px; font-weight:800; cursor:pointer; }
 @media(max-width:900px){ .admin-trash { width:38px; min-height:38px; } }
+
+/* 顔写真が無いときの頭文字。**行の高さを1にして真ん中に置く。**
+   既定の行の高さのままだと、行の箱に欧文の上下の余白が入るぶん、
+   漢字が上に寄って見える。 */
+.member-avatar > span, .mini-avatar > span, .thread-who b { display:block; line-height:1; }
