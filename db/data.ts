@@ -2102,6 +2102,70 @@ export type MemberProfile = {
   requests: { id: string; title: string; category: string; deadline: string; budgetBand: string; budgetLabel: string; area: string; industryTags: string[]; thumbUrl: string }[];
 };
 
+/** 会員を探す一覧に出す1人ぶん。**連絡先は出さない**（プロフィールと同じ考え）。 */
+export type MemberCard = {
+  id: string; displayName: string; company: string; positionTitle: string;
+  businessArea: string; primaryIndustry: string; avatarUrl: string;
+  rank: string; level: number;
+  /** いま出している募集中の探しごとの数。0でも出す（探せることが値打ちなので）。 */
+  openRequests: number;
+  mine: boolean;
+};
+
+/**
+ * 会員を探す。
+ *
+ * **業種と都道府県で絞れることが要**。「東京で内装をやっている人」を
+ * 探せないと、掲示板に出ていない相手には一生たどり着けない。
+ *
+ * 利用を止めた人は出さない（プロフィールを開けないので、出すと行き止まりになる）。
+ * 顔写真がまだの人も出さない。**誰だか分からない相手に声はかけられない。**
+ */
+export async function searchMembers(viewerId: string, filter: { keyword?: string; industry?: string; prefecture?: string } = {}): Promise<MemberCard[]> {
+  await ensureDatabase();
+  const today = new Date().toISOString().slice(0, 10);
+  const keyword = (filter.keyword ?? '').trim();
+  const like = `%${keyword}%`;
+  const where: string[] = ["m.membership_status != 'canceled'", "m.avatar_key != ''", "m.display_name != ''"];
+  const binds: string[] = [];
+  if (!import.meta.env.DEV) {
+    where.push("m.email NOT LIKE '%@example.jp'", "m.email NOT LIKE '%@example.com'");
+  }
+  if (keyword) {
+    // メールでは探させない。**会員どうしの画面なので、連絡先は伏せたまま。**
+    where.push('(m.display_name LIKE ? OR m.company LIKE ? OR m.primary_industry LIKE ?)');
+    binds.push(like, like, like);
+  }
+  if (filter.prefecture) { where.push('m.business_area = ?'); binds.push(filter.prefecture); }
+
+  const rows = await env.DB.prepare(`SELECT m.id, m.display_name AS displayName, m.company,
+    m.position_title AS positionTitle, m.business_area AS businessArea,
+    m.primary_industry AS primaryIndustry, m.notify_industries AS notifyIndustriesJson,
+    m.avatar_key AS avatarKey, m.avatar_version AS avatarVersion, m.email,
+    (SELECT COUNT(*) FROM members inv WHERE inv.invited_by = m.id) AS inviteCount,
+    (SELECT COUNT(*) FROM requests r WHERE r.author_id = m.id AND r.status = 'open' AND r.deadline >= ?) AS openRequests
+    FROM members m WHERE ${where.join(' AND ')}
+    ORDER BY openRequests DESC, m.created_at DESC LIMIT 200`)
+    .bind(today, ...binds)
+    .all<{ id: string; displayName: string; company: string; positionTitle: string; businessArea: string;
+      primaryIndustry: string; notifyIndustriesJson: string; avatarKey: string; avatarVersion: number;
+      email: string; inviteCount: number; openRequests: number }>();
+
+  // 業種は「自分の業種」と「おすすめに出したい業種」の両方を見る。片方だけだと、
+  // 大分類で探した人に細かい業種の人が当たらない。
+  const industry = (filter.industry ?? '').trim();
+  return rows.results
+    .filter((row) => !industry || matchesIndustry([row.primaryIndustry, ...parseStringArray(row.notifyIndustriesJson)], industry))
+    .map((row) => ({
+      id: row.id, displayName: row.displayName, company: row.company, positionTitle: row.positionTitle,
+      businessArea: row.businessArea, primaryIndustry: row.primaryIndustry,
+      avatarUrl: avatarUrl(row.id, row.avatarKey, row.avatarVersion),
+      ...memberRank(row.email, Number(row.inviteCount ?? 0)),
+      openRequests: Number(row.openRequests ?? 0),
+      mine: row.id === viewerId,
+    }));
+}
+
 export async function getMemberProfile(memberId: string): Promise<MemberProfile | null> {
   await ensureDatabase();
   const row = await env.DB.prepare(`SELECT id, display_name AS displayName, company,
@@ -2137,6 +2201,15 @@ export async function getMemberProfile(memberId: string): Promise<MemberProfile 
   };
 }
 
+/**
+ * 招待した人数からランクを出す。**運営のアカウントは最上位で固定**
+ * （app/admin-emails.ts）。一覧でも1件ずつでも、必ずここを通す。
+ */
+function memberRank(email: string, inviteCount: number) {
+  const level = isAdminEmail(email) ? MAX_LEVEL : levelFor(inviteCount);
+  return { rank: rankName(level), level };
+}
+
 export async function getMemberRank(memberId: string) {
   await ensureDatabase();
   // 数え方は getMemberStats と揃える。登録が済んだ人はそのまま数える。
@@ -2144,9 +2217,7 @@ export async function getMemberRank(memberId: string) {
     (SELECT COUNT(*) FROM members inv WHERE inv.invited_by = m.id) AS inviteCount
     FROM members m WHERE m.id = ?`)
     .bind(memberId).first<{ email: string; inviteCount: number }>();
-  // 運営のアカウントはランク最上位で固定（app/admin-emails.ts）。
-  const level = isAdminEmail(row?.email ?? '') ? MAX_LEVEL : levelFor(Number(row?.inviteCount ?? 0));
-  return { rank: rankName(level), level };
+  return memberRank(row?.email ?? '', Number(row?.inviteCount ?? 0));
 }
 
 /** 出稿できるランクかどうか。紹介を積んだ人だけが買える。 */

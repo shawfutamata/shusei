@@ -2,7 +2,7 @@
 
 import { ChangeEvent, CSSProperties, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
-import type { AdSlot, BoardRequest, MemberProfile, MemberStats, MessageThread, ReferralSummary } from '@/db/data';
+import type { AdSlot, BoardRequest, MemberCard, MemberProfile, MemberStats, MessageThread, ReferralSummary } from '@/db/data';
 import ReceivedIntroductions from './ReceivedIntroductions';
 import IntroductionChat from './IntroductionChat';
 import FacebookLink from './FacebookLink';
@@ -204,6 +204,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   /** 予算の帯での絞り込み。会社の年商ではなく、その案件にいくら出せるかで見る。 */
   const [budgetFilter, setBudgetFilter] = useState('all');
   const [regionFilter, setRegionFilter] = useState('all');
+  /** 探すページのタブ。仕事を探すか、人を探すか。 */
+  const [searchMode, setSearchMode] = useState<'requests' | 'members'>('requests');
+  const [members, setMembers] = useState<MemberCard[] | null>(null);
+  const [memberKeyword, setMemberKeyword] = useState('');
+  const [memberIndustry, setMemberIndustry] = useState('all');
+  const [memberPrefecture, setMemberPrefecture] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'open' | 'closed' | 'all'>('open');
   const [industryFilter, setIndustryFilter] = useState('all');
   // 'mypage' はランク・プラン・招待・広告。'profile' は入力するプロフィール設定。
@@ -492,6 +498,23 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       setThreads(data.threads ?? []); setUnreadMessages(data.unread ?? 0);
     } catch { /* 記録できなくても、開くこと自体は止めない。 */ }
   }, [threads]);
+
+  // 会員を探す。**開いているときだけ引く。** 条件が変わるたびに引き直すが、
+  // 打っている途中で毎文字たたかないよう、少し待ってからにする。
+  useEffect(() => {
+    if (activeTab !== 'search' || searchMode !== 'members') return;
+    let alive = true;
+    const params = new URLSearchParams();
+    if (memberKeyword.trim()) params.set('q', memberKeyword.trim());
+    if (memberIndustry !== 'all') params.set('industry', memberIndustry);
+    if (memberPrefecture !== 'all') params.set('prefecture', memberPrefecture);
+    const timer = window.setTimeout(() => {
+      fetch(`/api/members?${params}`).then((response) => response.ok ? response.json() : null)
+        .then((data) => { if (alive && data) setMembers((data as { members: MemberCard[] }).members ?? []); })
+        .catch(() => { if (alive) setMembers([]); });
+    }, 250);
+    return () => { alive = false; window.clearTimeout(timer); };
+  }, [activeTab, searchMode, memberKeyword, memberIndustry, memberPrefecture]);
 
   // 紹介の受け箱の件数。中身はモーダルを開いたときに読むので、ここは数だけ。
   //
@@ -1264,6 +1287,58 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
         {!stats.avatarUrl && <button className="photo-required-banner" onClick={() => showProfileSettings()}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・オファーができます。</b><i>登録する →</i></button>}
       </div> : activeTab === 'search' ? <section className="mobile-board search-page" id="board">
+        {/* 探しているものが2通りあるので、先に分ける。仕事の一覧に会員が
+            混ざっていると、どちらを探しているときも余計なものが目に入る。 */}
+        <div className="search-tabs" role="tablist" aria-label="何を探すか">
+          <button role="tab" aria-selected={searchMode === 'requests'} className={searchMode === 'requests' ? 'selected' : ''}
+            onClick={() => setSearchMode('requests')}>仕事を探す</button>
+          <button role="tab" aria-selected={searchMode === 'members'} className={searchMode === 'members' ? 'selected' : ''}
+            onClick={() => setSearchMode('members')}>人を探す</button>
+        </div>
+
+        {searchMode === 'members' ? <>
+          <div className="section-title"><div><p>MEMBERS</p><h2>人を探す</h2></div><span>{members ? `${members.length}人` : '…'}</span></div>
+          <p className="member-search-lead">業種とエリアで会員を探せます。押すと、その方のプロフィールと<b>いま出している探しごと</b>が見られます。</p>
+          <div className="member-filters">
+            <p>絞り込む</p>
+            <label className="wide"><span>名前・会社・業種で探す</span>
+              <input value={memberKeyword} onChange={(event) => setMemberKeyword(event.target.value)}
+                maxLength={40} placeholder="例：山田／内装" /></label>
+            <label><span>エリア</span><select value={memberPrefecture} onChange={(event) => setMemberPrefecture(event.target.value)}>
+              <option value="all">全国</option>
+              {regions.map((region) => <optgroup label={region.name} key={region.name}>
+                {region.prefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}
+              </optgroup>)}
+            </select></label>
+            <label><span>業種</span><select value={memberIndustry} onChange={(event) => setMemberIndustry(event.target.value)}>
+              <option value="all">すべての業種</option>
+              {industryGroups.map((group) => <optgroup label={group.name} key={group.name}>
+                <option value={group.name}>{group.name}すべて</option>
+                {group.children.map((child) => <option value={child} key={child}>{child}</option>)}
+              </optgroup>)}
+            </select></label>
+          </div>
+          <div className="member-card-list">
+            {members === null ? <p className="messages-loading">読み込んでいます…</p>
+              : !members.length ? <div className="empty"><b>条件に合う方が見つかりません</b><span>絞り込みを外すと、ほかの会員が並びます。</span></div>
+              : members.map((member) => <button className="member-card" key={member.id} onClick={() => openMember(member.id)}>
+                <Avatar src={member.avatarUrl} name={member.displayName} className="member-avatar" />
+                <span className="member-card-main">
+                  <b>{member.displayName}{member.mine && <em>あなた</em>}</b>
+                  <small>{member.positionTitle && `${member.positionTitle}｜`}{member.company || '会社名未設定'}</small>
+                  <span className="member-card-tags">
+                    {member.primaryIndustry && <i>{member.primaryIndustry}</i>}
+                    {member.businessArea && <i>{member.businessArea}</i>}
+                  </span>
+                </span>
+                <span className="member-card-side">
+                  {/* 紋章は細かい絵なので、この大きさでは読めない。名前で出す。 */}
+                  <i className={`member-rank rank-${member.rank.toLowerCase()}`}>{member.rank}</i>
+                  {member.openRequests > 0 && <em>探しごと {member.openRequests}件</em>}
+                </span>
+              </button>)}
+          </div>
+        </> : <>
         <div className="section-title"><div><p>REQUESTS</p><h2>{industryFilter === 'all' ? '仕事の掲示板' : industryFilter}<button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="案件・協業先・相談の違いを見る">i</button></h2></div><span>{shown.length}件</span></div>
         {industryFilter !== 'all' && <button className="clear-industry" onClick={() => setIndustryFilter('all')}><IndustryIcon group={getIndustryGroup(industryFilter)?.name ?? 'その他'} />{industryFilter}で絞り込み中 <i>×</i></button>}
         {industryFilter !== 'all' && getIndustryGroup(industryFilter) && <div className="subindustry-filter" aria-label="詳細業種で絞り込む"><button className={industryFilter === getIndustryGroup(industryFilter)?.name ? 'selected' : ''} onClick={() => setIndustryFilter(getIndustryGroup(industryFilter)?.name ?? 'all')}>すべて</button>{getIndustryGroup(industryFilter)?.children.map((industry) => <button key={industry} className={industryFilter === industry ? 'selected' : ''} onClick={() => setIndustryFilter(industry)}>{industry}</button>)}</div>}
@@ -1297,6 +1372,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           </article>)}
           {shown.length === 0 ? <div className="empty"><b>条件に合う投稿がありません</b><span>絞り込みを変えて探してみましょう。</span></div> : shown.map(needCard)}
         </div>
+        </>}
       </section> : activeTab === 'recommend' ? <section className="mobile-board recommend-page" aria-labelledby="recommend-title">
         <div className="section-title"><div><p>FOR YOU</p><h2 id="recommend-title">あなたにおすすめ</h2></div><span>{recommendedAll.length}件</span></div>
         {/* なぜこの並びなのかを最初に言う。理由が分からないと、外れていたときに
@@ -2037,7 +2113,7 @@ function PlanTable({ current }: { current: Plan }) {
 /** 表に出す行。○×は entitlements の `can()` に聞く（ここで判断を持たない）。 */
 const planRows: { label: string; note?: string; soon?: boolean; value: (plan: Plan) => boolean | string }[] = [
   { label: '掲示板を見る', value: (plan) => allows(plan, 'view_board') },
-  { label: '会員を探す', note: '業種・エリア', soon: true, value: (plan) => allows(plan, 'member_search') },
+  { label: '会員を探す', note: '業種・エリア', value: (plan) => allows(plan, 'member_search') },
   { label: 'リファラルを送る', note: '知り合いの紹介', value: (plan) => allows(plan, 'introduce') },
   { label: '探しごとの投稿', value: (plan) => planPostLimit(plan) },
   { label: 'オファーを受け取る', note: '中身を読む・返事する', value: (plan) => allows(plan, 'receive_introductions') },
