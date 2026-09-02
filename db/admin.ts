@@ -34,7 +34,7 @@ export type AdminSummary = {
 };
 
 export type AdminMember = {
-  id: string; email: string; displayName: string; company: string; venue: string;
+  id: string; email: string; displayName: string; company: string;
   status: string;
   /**
    * **実効プラン。** `members.plan` の列をそのまま出さない。
@@ -119,7 +119,7 @@ export async function adminSummary(): Promise<AdminSummary> {
 }
 
 /**
- * 会員の一覧。`keyword` は名前・会社・メール・会場のどれかに当たれば拾う。
+ * 会員の一覧。`keyword` は名前・会社・メールのどれかに当たれば拾う。
  * LIKE に渡す前に `%` と `_` を無害化する。入れられると全件一致になるため。
  */
 export async function adminMembers(keyword = '', limit = 200): Promise<AdminMember[]> {
@@ -128,9 +128,9 @@ export async function adminMembers(keyword = '', limit = 200): Promise<AdminMemb
   const like = `%${term.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
   const where = term
     ? `WHERE (m.display_name LIKE ?1 ESCAPE '\\' OR m.company LIKE ?1 ESCAPE '\\'
-        OR m.email LIKE ?1 ESCAPE '\\' OR m.venue LIKE ?1 ESCAPE '\\')`
+        OR m.email LIKE ?1 ESCAPE '\\')`
     : '';
-  const statement = env.DB.prepare(`SELECT m.id, m.email, m.display_name AS displayName, m.company, m.venue,
+  const statement = env.DB.prepare(`SELECT m.id, m.email, m.display_name AS displayName, m.company,
     m.membership_status AS status, m.intro_count AS introCount, m.created_at AS createdAt,
     m.plan AS storedPlan, m.plan_period_end AS planPeriodEnd,
     m.bonus_plan AS bonusPlan, m.bonus_period_end AS bonusPeriodEnd,
@@ -273,12 +273,10 @@ export type AdminAnalytics = {
     /** 投稿から最初の紹介が届くまでの日数（中央値）。 */
     medianDaysToFirstIntro: number | null;
   };
-  /** 会場ごとの活きぐあい。どこに顔を出すかを決めるのに使う。 */
-  venues: { venue: string; members: number; requests: number; introductions: number }[];
   /** 業種の需要と供給。**探されているのに会員がいない業種＝勧誘すべき業種。** */
   industryGap: { industry: string; wanted: number; supply: number; gap: number }[];
   /** 動きが止まっている会員。声をかける相手の一覧。 */
-  dormant: { id: string; displayName: string; company: string; venue: string; email: string; lastActive: string; daysSince: number }[];
+  dormant: { id: string; displayName: string; company: string; email: string; lastActive: string; daysSince: number }[];
   /** 売上。広告は押さえた時点で記録した実額だけを使う。 */
   revenue: { month: string; adYen: number; adCount: number }[];
   paidMembers: number;
@@ -319,11 +317,6 @@ export async function adminAnalytics(days = 90): Promise<AdminAnalytics> {
   const requestTotal = firstIntro.results.length;
   const withIntro = gaps.length;
 
-  const venueRows = await env.DB.prepare(`SELECT m.venue AS venue, COUNT(*) AS members,
-      (SELECT COUNT(*) FROM requests r JOIN members a ON a.id = r.author_id WHERE a.venue = m.venue) AS requests,
-      (SELECT COUNT(*) FROM introductions i JOIN members b ON b.id = i.introducer_id WHERE b.venue = m.venue) AS introductions
-    FROM members m WHERE m.venue <> '' GROUP BY m.venue ORDER BY members DESC LIMIT 15`)
-    .all<{ venue: string; members: number; requests: number; introductions: number }>();
 
   // 業種は大分類でまとめる。詳細のままだと数が多すぎて、次に何をするか決められない。
   const [tagRows, memberIndustries] = await Promise.all([
@@ -361,12 +354,12 @@ export async function adminAnalytics(days = 90): Promise<AdminAnalytics> {
     .filter((row) => row.wanted > 0 || row.supply > 0)
     .sort((a, b) => b.gap - a.gap || b.wanted - a.wanted);
 
-  const dormantRows = await env.DB.prepare(`SELECT m.id, m.display_name AS displayName, m.company, m.venue,
+  const dormantRows = await env.DB.prepare(`SELECT m.id, m.display_name AS displayName, m.company,
       m.email, m.created_at AS createdAt,
       (SELECT MAX(created_at) FROM requests WHERE author_id = m.id) AS lastRequest,
-      (SELECT MAX(created_at) FROM introductions WHERE introducer_id = m.id) AS lastIntro,
+      (SELECT MAX(created_at) FROM introductions WHERE introducer_id = m.id) AS lastIntro
     FROM members m WHERE m.membership_status = 'active'`)
-    .all<{ id: string; displayName: string; company: string; venue: string; email: string;
+    .all<{ id: string; displayName: string; company: string; email: string;
       createdAt: string; lastRequest: string | null; lastIntro: string | null }>();
   const dormant = dormantRows.results
     .map((row) => {
@@ -374,7 +367,7 @@ export async function adminAnalytics(days = 90): Promise<AdminAnalytics> {
       const lastActive = [row.lastRequest, row.lastIntro, row.createdAt]
         .filter(Boolean).sort().pop() as string;
       return {
-        id: row.id, displayName: row.displayName, company: row.company, venue: row.venue, email: row.email,
+        id: row.id, displayName: row.displayName, company: row.company, email: row.email,
         lastActive: lastActive.slice(0, 10),
         daysSince: Math.floor((now - new Date(lastActive).getTime()) / 86400_000),
       };
@@ -400,7 +393,6 @@ export async function adminAnalytics(days = 90): Promise<AdminAnalytics> {
         ? Math.round(gaps[Math.floor((gaps.length - 1) / 2)] * 10) / 10
         : null,
     },
-    venues: venueRows.results.map((row) => ({ ...row, members: Number(row.members), requests: Number(row.requests), introductions: Number(row.introductions) })),
     industryGap,
     dormant,
     revenue: revenueRows.results.map((row) => ({ month: row.month, adYen: Number(row.adYen ?? 0), adCount: Number(row.adCount ?? 0) })).reverse(),

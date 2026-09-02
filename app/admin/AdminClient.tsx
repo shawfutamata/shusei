@@ -108,7 +108,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       <span className={`admin-state ${member.canUse ? 'is-on' : 'is-off'}`}>{member.canUse ? '利用中' : '停止中'}</span>
     </div>
     <p className="admin-meta">
-      <span>{member.company || '会社名なし'}</span><span>{member.venue}</span><span>{member.email}</span>
+      <span>{member.company || '会社名なし'}</span><span>{member.email}</span>
     </p>
     <p className="admin-meta">
       <span>プラン {member.plan === 'standard' ? 'スタンダード' : '無料'}{member.adminPlan && '（管理者特典）'}</span>
@@ -325,7 +325,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
         {!ranking.length ? <p className="viz-empty">まだ動きがありません。</p>
           : <ol className="admin-rank">{ranking.map((row, index) => <li key={row.id}>
             <i>{index + 1}</i>
-            <div className="admin-rank-who"><b>{row.displayName || '(名前なし)'}</b><small>{row.company || '会社名なし'}・{row.venue}</small></div>
+            <div className="admin-rank-who"><b>{row.displayName || '(名前なし)'}</b><small>{row.company || '会社名なし'}</small></div>
             <div className="admin-rank-bar"><span style={{ width: `${Math.round((row.score / topScore) * 100)}%` }} /></div>
             <div className="admin-rank-num"><b>{row.score}</b><small>オファー {row.introCount}・投稿 {row.requestCount}</small></div>
           </li>)}</ol>}
@@ -347,25 +347,14 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
           </dl>
         </section>
 
-        <div className="viz-grid">
-          <section className="viz-card">
-            <h2>足りていない業種</h2>
-            <p className="viz-lead"><b>探されている数から、その業種の会員数を引いた差</b>です。差が大きい業種ほど、次に誘うべき相手がはっきりしています。</p>
-            <BarList color="var(--viz-2)" unit="" rows={analytics.industryGap.slice(0, 8).map((row) => ({
-              label: row.industry, value: row.gap,
-              note: `探されている ${row.wanted}件 ／ 会員 ${row.supply}人`,
-            }))} />
-          </section>
-
-          <section className="viz-card">
-            <h2>会場ごとの動き</h2>
-            <p className="viz-lead">会員が多くても、探しごとが出ていない会場があります。顔を出す先を決めるのに使えます。</p>
-            <BarList unit="人" rows={analytics.venues.slice(0, 8).map((row) => ({
-              label: row.venue, value: row.members,
-              note: `探しごと ${row.requests}件 ／ オファー ${row.introductions}件`,
-            }))} />
-          </section>
-        </div>
+        <section className="viz-card">
+          <h2>足りていない業種</h2>
+          <p className="viz-lead"><b>探されている数から、その業種の会員数を引いた差</b>です。差が大きい業種ほど、次に誘うべき相手がはっきりしています。</p>
+          <BarList color="var(--viz-2)" unit="" rows={analytics.industryGap.slice(0, 8).map((row) => ({
+            label: row.industry, value: row.gap,
+            note: `探されている ${row.wanted}件 ／ 会員 ${row.supply}人`,
+          }))} />
+        </section>
 
         {analytics.revenue.length > 0 && <section className="viz-card">
           <h2>広告の売上</h2>
@@ -384,9 +373,9 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
           {!analytics.dormant.length ? <p className="viz-empty">全員が動いています。</p>
             : <div className="viz-table-wrap">
               <table className="viz-table">
-                <thead><tr><th>名前</th><th>会社</th><th>会場</th><th className="is-num">何日前</th></tr></thead>
+                <thead><tr><th>名前</th><th>会社</th><th className="is-num">何日前</th></tr></thead>
                 <tbody>{analytics.dormant.slice(0, 40).map((row) => <tr key={row.id}>
-                  <td>{row.displayName}</td><td>{row.company || '—'}</td><td>{row.venue}</td>
+                  <td>{row.displayName}</td><td>{row.company || '—'}</td>
                   <td className="is-num"><b>{row.daysSince}</b>日</td>
                 </tr>)}</tbody>
               </table>
@@ -398,7 +387,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
 
     {(tab === 'members' || tab === 'requests') && <form className="admin-search" onSubmit={(event) => { event.preventDefault(); reload(); }}>
       <input value={keyword} onChange={(event) => setKeyword(event.target.value)}
-        placeholder={tab === 'members' ? '名前・会社・メール・会場で探す' : '見出し・本文・投稿者で探す'} />
+        placeholder={tab === 'members' ? '名前・会社・メールで探す' : '見出し・本文・投稿者で探す'} />
       <button type="submit">探す</button>
       {!!keyword && <button type="button" className="admin-clear" onClick={() => { setKeyword(''); reload(''); }}>戻す</button>}
     </form>}

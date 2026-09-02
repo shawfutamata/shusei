@@ -18,7 +18,7 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
     <BrandMark />
     <p className="eyebrow">INVITATION</p>
     <h1>{serviceName}</h1>
-    <p className="invite-from"><b>{inviter.displayName}</b>さん<small>{[inviter.company, inviter.venue].filter(Boolean).join('・')}</small></p>
+    <p className="invite-from"><b>{inviter.displayName}</b>さん<small>{inviter.company}</small></p>
     <h2>からのご招待です。</h2>
     <p>会員同士で「こんな人を探しています」を共有し、信頼できるオファーを届ける会員向け掲示板です。</p>
     <a className="primary-button google-button" href={`/api/auth/google/start?invite=${encodeURIComponent(code)}`}><GoogleMark />Googleで参加する</a>

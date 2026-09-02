@@ -13,8 +13,8 @@ export async function GET(request: Request) {
   if (type === 'dormant') {
     const analytics = await adminAnalytics(Number(url.searchParams.get('days') ?? 90));
     name = '動いていない会員';
-    rows = [['名前', '会社', '会場', 'メール', '最後の動き', '何日前'],
-      ...analytics.dormant.map((row) => [row.displayName, row.company, row.venue, row.email, row.lastActive, row.daysSince])];
+    rows = [['名前', '会社', 'メール', '最後の動き', '何日前'],
+      ...analytics.dormant.map((row) => [row.displayName, row.company, row.email, row.lastActive, row.daysSince])];
   } else if (type === 'requests') {
     const list = await adminRequests('', 1000);
     name = '探しごと';
@@ -24,8 +24,8 @@ export async function GET(request: Request) {
   } else {
     const list = await adminMembers('', 1000);
     name = '会員';
-    rows = [['名前', '会社', '会場', 'メール', '状態', 'プラン', 'オファー', '投稿', '登録日'],
-      ...list.map((row) => [row.displayName, row.company, row.venue, row.email,
+    rows = [['名前', '会社', 'メール', '状態', 'プラン', 'オファー', '投稿', '登録日'],
+      ...list.map((row) => [row.displayName, row.company, row.email,
         row.canUse ? '利用中' : '停止中', row.plan, row.introCount, row.requestCount, row.createdAt.slice(0, 10)])];
   }
 
