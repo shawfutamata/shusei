@@ -7,6 +7,7 @@ import { AD_DESCRIPTION_MAX, AD_RESERVATION_MINUTES, AD_TITLE_MAX, DEFAULT_PLACE
 import { UNLIMITED, bonusPlan, can, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
 import { EXTEND_DAYS, MAX_LEVEL, canExtendRequest, canPostVideo, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
 import { isAdminEmail } from '@/app/admin-emails';
+import { sampleRequests } from './sample-requests';
 import { effectivePlanState, isPlanOverridden } from '@/app/effective-plan';
 import { matchesIndustry } from '@/app/industry-options';
 import { toBudgetBand } from '@/app/budget-options';
@@ -57,6 +58,11 @@ export type BoardRequest = {
   offerCount: number;
   /** 知り合いをつなぐ「リファラル」の数。 */
   referralCount: number;
+  /**
+   * 見本の投稿か。**本物の会員の投稿ではない。**
+   * 画面には札を出し、オファーは送れないようにする（db/sample-requests.ts）。
+   */
+  sample: boolean;
 };
 
 export type MemberStats = {
@@ -1001,6 +1007,7 @@ export async function getBoardData(user: SessionUser) {
   }, isAdminEmail(user.email));
   const requests = requestsResult.results.map(({ authorId, authorAvatarKey, authorAvatarVersion, industryTagsJson, imageVersion, imageCount, videoVersion, ...request }) => ({
     ...request,
+    sample: false,
     mine: authorId === user.userId,
     videoUrl: requestVideoUrl(request.id, videoVersion),
     imageUrls: Array.from({ length: Math.max(0, imageCount) }, (_, index) => requestImageUrl(request.id, imageVersion, 'full', index)),
@@ -1009,7 +1016,9 @@ export async function getBoardData(user: SessionUser) {
     imageUrl: requestImageUrl(request.id, imageVersion, 'full'),
     authorAvatarUrl: avatarUrl(authorId, authorAvatarKey, authorAvatarVersion),
   }));
-  return { requests, stats, ads: await listActiveAds(user.userId) };
+  // 見本は本物のうしろに置く。**先に出すと、本物の投稿が下に沈む。**
+  // 掲示板が育ったら、db/sample-requests.ts を空にすれば消える。
+  return { requests: [...requests, ...sampleRequests()], stats, ads: await listActiveAds(user.userId) };
 }
 
 export async function updateMemberProfile(user: SessionUser, input: { displayName: string; nameKana: string; company: string; companyKana: string; venue: string; positionTitle: string; businessArea: string; primaryIndustry: string; notifyIndustries: string[]; annualRevenueBand: string; facebookUrl: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {

@@ -817,6 +817,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   }
 
   function openIntroduction(need: BoardRequest) {
+    // 見本の投稿には送れない。**送ってから断るのは失礼にあたる。**
+    if (need.sample) return showToast('これは掲示板の見本です。実在の会員の投稿ではありません。');
     if (!stats.avatarUrl) { showProfileSettings(); return showToast('オファーの前に顔写真を登録してください。'); }
     setOfferAd(null); setOfferKind('referral');
     setSelected(need); setModal('intro');
@@ -991,14 +993,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   /** 掲示板のカード。**探す**と**おすすめ**で同じものを出すため、1か所に置く。 */
   const needCard = (need: BoardRequest) => (
     <article className={isOpenRequest(need) ? 'need-card' : 'need-card closed'} key={need.id} onClick={() => openNeed(need)}>
-      <div className="card-topline"><span className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</span><span className="card-top-actions">{isOpenRequest(need) ? <span className="deadline">あと{daysLeft(need.deadline)}日</span> : <span className="deadline ended">募集終了</span>}<button className={favoriteIds.includes(need.id) ? 'card-heart active' : 'card-heart'} aria-label={favoriteIds.includes(need.id) ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={(event) => { event.stopPropagation(); toggleFavorite(need); }}>♥</button></span></div>
+      <div className="card-topline"><span className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</span>{need.sample && <span className="kind is-sample">サンプル</span>}<span className="card-top-actions">{isOpenRequest(need) ? <span className="deadline">あと{daysLeft(need.deadline)}日</span> : <span className="deadline ended">募集終了</span>}<button className={favoriteIds.includes(need.id) ? 'card-heart active' : 'card-heart'} aria-label={favoriteIds.includes(need.id) ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={(event) => { event.stopPropagation(); toggleFavorite(need); }}>♥</button></span></div>
       <h3>{need.title}</h3>{need.thumbUrl && <img className="need-thumb" src={need.thumbUrl} alt="" loading="lazy" decoding="async" />}<p className="need-body">{need.description}</p>
       <div className="industry-tags" aria-label="関連業種">{need.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
       <dl className="details"><div><dt>予算</dt><dd>{budgetText(need)}</dd></div><div><dt>エリア</dt><dd>{need.area || '指定なし'}</dd></div></dl>
       <div className="card-person"><Avatar src={need.authorAvatarUrl} name={need.authorName} className="member-avatar" /><p><b>{need.authorName}</b><small>{need.authorPositionTitle && `${need.authorPositionTitle}｜`}{need.authorCompany || '会社名未設定'}</small></p></div>
       <ActivityCounts need={need} />
       <div className="member-context"><span>会場 {need.authorVenue}</span>{need.authorBusinessArea && <span>エリア {need.authorBusinessArea}</span>}{need.authorRevenueBand && <span>年商 {revenueBands[need.authorRevenueBand]}</span>}</div>
-      <button className="intro-button" onClick={(event) => { event.stopPropagation(); openIntroduction(need); }}>この人にオファー <span>→</span></button>
+      {!need.sample && <button className="intro-button" onClick={(event) => { event.stopPropagation(); openIntroduction(need); }}>この人にオファー <span>→</span></button>}
     </article>
   );
 
@@ -1894,7 +1896,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       {modal === 'responses' && <Modal title="オファーのやり取り" lead="届いたオファーと、あなたが出したオファーです。相手とそのままやり取りできます。" onClose={() => setModal(null)}><ReceivedIntroductions onUpgrade={() => { setModal(null); goTab('plan'); }} /></Modal>}
 
       {modal === 'detail' && selected && <Modal title="探しごとの詳細" lead={`${selected.authorName}さんの探しごとです。`} onClose={() => setModal(null)}><article className="need-detail">
-        <div className="card-topline"><span className={`kind ${categories[selected.category].className}`}>{categories[selected.category].label}</span><button className={favoriteIds.includes(selected.id) ? 'detail-heart active' : 'detail-heart'} onClick={() => toggleFavorite(selected)}>♥ {favoriteIds.includes(selected.id) ? '保存済み' : 'お気に入り'}</button></div>
+        <div className="card-topline"><span className={`kind ${categories[selected.category].className}`}>{categories[selected.category].label}</span>{selected.sample && <span className="kind is-sample">サンプル</span>}<button className={favoriteIds.includes(selected.id) ? 'detail-heart active' : 'detail-heart'} onClick={() => toggleFavorite(selected)}>♥ {favoriteIds.includes(selected.id) ? '保存済み' : 'お気に入り'}</button></div>
         <h3>{selected.title}</h3>
         {selected.imageUrls.length > 1
           ? <div className="need-gallery">{selected.imageUrls.map((url, index) => <img key={url} src={url} alt={`${selected.title}に添えられた写真 ${index + 1}枚目`} loading="lazy" decoding="async" />)}</div>
@@ -1914,7 +1916,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               </div>
               <p className="owner-tools-note">{ownerToolsNote(selected)}</p>
             </div>
-          : <button className="submit-button" onClick={() => openIntroduction(selected)}>この人にオファーする</button>}
+          : selected.sample
+            ? <p className="sample-note">これは掲示板の見本です。実在の会員の投稿ではないので、オファーは送れません。
+                本物の投稿には、ここに「この人にオファーする」が出ます。</p>
+            : <button className="submit-button" onClick={() => openIntroduction(selected)}>この人にオファーする</button>}
         {(selected.myIntroCount > 0 || (selected.mine && selected.introCount > 0)) && <div className="intro-notice">
           <span aria-hidden="true">✓</span>
           {selected.mine
