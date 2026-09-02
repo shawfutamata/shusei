@@ -18,6 +18,7 @@ import type { BoardRequest } from './data';
 const samples = [
   {
     id: 'sample-cleaning',
+    image: 'cleaning',
     category: 'project' as const,
     title: '店舗の定期清掃をお願いできる会社を探しています',
     description: '都内3店舗の床とトイレの清掃を、週1回でお願いできる会社を探しています。閉店後の作業になります。まずは1店舗から試させていただけると助かります。',
@@ -35,6 +36,7 @@ const samples = [
   },
   {
     id: 'sample-moving',
+    image: 'moving',
     category: 'collaboration' as const,
     title: 'オフィス移転を一緒に進めてくれる内装会社を探しています',
     description: '来春に事務所を移転します。引越しの手配はこちらで進めますが、レイアウトの設計と内装工事をお願いできる方を探しています。20名ほどの規模です。',
@@ -52,6 +54,7 @@ const samples = [
   },
   {
     id: 'sample-catering',
+    image: 'catering',
     category: 'consultation' as const,
     title: '創立20周年の記念パーティーについて相談させてください',
     description: '来年で創立20周年になります。取引先を80名ほどお招きしての式を考えていて、会場とお食事の手配をどう進めればよいか、経験のある方にお話を伺いたいです。',
@@ -77,9 +80,16 @@ const samples = [
  */
 export function sampleRequests(now = new Date()): BoardRequest[] {
   const day = 86400000;
-  return samples.map((item, index) => ({
+  // image は画面に渡す形には無い名前なので、ここで外す（そのまま流すと
+  // 使われない値が通信に混ざる）。
+  return samples.map(({ image, ...item }, index) => ({
     ...item,
-    thumbUrl: '', imageUrl: '', imageUrls: [], videoUrl: '',
+    // 写真は public/samples/ に置いてある。実際の投稿と同じ作り方で、
+    // 一覧用（幅480）と詳細用（幅1400）を分けてある。
+    thumbUrl: `/samples/${image}-thumb.webp`,
+    imageUrl: `/samples/${image}.webp`,
+    imageUrls: [`/samples/${image}.webp`],
+    videoUrl: '',
     deadline: new Date(now.getTime() + (60 + index * 15) * day).toISOString().slice(0, 10),
     status: 'open',
     createdAt: new Date(now.getTime() - (index + 1) * day).toISOString(),
