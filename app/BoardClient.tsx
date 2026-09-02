@@ -89,10 +89,15 @@ const revenueBands: Record<string, string> = {
  * 全部の行き先がずれた。
  */
 const topBanners = [
-  { src: '/banners/top-ad.webp', alt: 'この枠に広告を出稿できます。広告出稿のご案内', to: 'ads' },
-  { src: '/banners/top-request.webp', alt: 'こんな人、探しています。探しごとを投稿する案内', to: 'request' },
-  { src: '/banners/top-introductions.webp', alt: '届いたオファーをまとめて確認する案内', to: 'responses' },
-  { src: '/banners/top-rank.webp', alt: 'オファーするほど会員ランクが上がる仕組みの案内', to: 'mypage' },
+  { src: '/banners/top-ad.webp', alt: 'この枠に広告を出稿できます。広告出稿のご案内', to: 'ads', sample: false },
+  // 出稿の見本。**実在の広告主ではないので、必ず「サンプル」と分かるようにする。**
+  // 出せますと言われても、どう見えるかが分からないと申し込みようがない。
+  { src: '/banners/sample-cleaning.webp', alt: '出稿イメージ（サンプル）店舗清掃スタッフ募集の広告', to: 'ads', sample: true },
+  { src: '/banners/sample-moving.webp', alt: '出稿イメージ（サンプル）オフィス引越しの広告', to: 'ads', sample: true },
+  { src: '/banners/sample-catering.webp', alt: '出稿イメージ（サンプル）ケータリングの広告', to: 'ads', sample: true },
+  { src: '/banners/top-request.webp', alt: 'こんな人、探しています。探しごとを投稿する案内', to: 'request', sample: false },
+  { src: '/banners/top-introductions.webp', alt: '届いたオファーをまとめて確認する案内', to: 'responses', sample: false },
+  { src: '/banners/top-rank.webp', alt: 'オファーするほど会員ランクが上がる仕組みの案内', to: 'mypage', sample: false },
 ] as const;
 const industryIcons: Record<string, string> = {
   'IT・システム': '/icons/industries/it-system.png', 'Web・広告': '/icons/industries/web-ad.png',
@@ -1100,7 +1105,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // 出稿された広告を先に置く。お金をいただいている枠なので、いちばん先に目に入る場所に出す。
   // 並びは開くたびに入れ替える。同じ月に出した人へ均等に順番が回るようにするため。
   const slides = useMemo(() => [
-    ...shuffle(bannerAds).map((ad) => ({ src: ad.imageUrl, alt: `${ad.memberName}さんの広告「${ad.title}」`, ad, to: '' })),
+    ...shuffle(bannerAds).map((ad) => ({ src: ad.imageUrl, alt: `${ad.memberName}さんの広告「${ad.title}」`, ad, to: '', sample: false })),
     ...topBanners.map((banner) => ({ ...banner, ad: null as AdSlot | null })),
   ], [bannerAds]);
   const slide = slides[Math.min(carouselIndex, slides.length - 1)];
@@ -1217,7 +1222,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {activeTab === 'home' ? <div className="home-dashboard">
         <section className="hero-carousel" aria-label={`${serviceName}の使い方`}>
-          <button key={carouselIndex} className={`hero-image-slide${slide?.ad ? ' is-ad' : ''}`} onClick={openCurrentBanner} aria-label={`${slide?.alt ?? ''}を開く`}>{slide?.ad
+          <button key={carouselIndex} className={`hero-image-slide${slide?.ad ? ' is-ad' : ''}${slide?.sample ? ' is-sample' : ''}`} onClick={openCurrentBanner} aria-label={`${slide?.alt ?? ''}を開く`}>{slide?.sample && <span className="sample-flag">サンプル</span>}{slide?.ad
             ? <AdBanner ad={{ title: slide.ad.title, description: slide.ad.description, imageUrl: slide.ad.imageUrl, by: slide.ad.memberCompany || slide.ad.memberName }} />
             : <img src={slide?.src} alt={slide?.alt ?? ''} />}</button>
           <div className="carousel-dots" aria-label="バナーを切り替える">{slides.map((entry, index) => <button key={index} aria-label={`${index + 1}枚目${entry.ad ? '（広告）' : ''}`} className={`${carouselIndex === index ? 'active' : ''}${entry.ad ? ' is-ad' : ''}`} onClick={() => { setCarouselPaused(true); setCarouselIndex(index); }} />)}</div>
