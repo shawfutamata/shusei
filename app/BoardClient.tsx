@@ -1208,6 +1208,16 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     setSelected([...selected, value]);
   }
 
+  /**
+   * 下のメニューで、いまどこにいるか。
+   *
+   * **青くするのは必ず1つだけ。** 広告はモーダルで開くので、開いている
+   * あいだも下にいたタブ（メッセージなど）が光ったままになり、2つ青く
+   * 見えていた。ここで1つに決めてから配る。
+   */
+  const navHere = modal === 'ads' ? 'ads'
+    : (['home', 'search', 'recommend', 'messages'] as const).find((key) => key === activeTab) ?? 'mypage';
+
   // 画面に貼りつくもの（下のメニュー・モーダル・トースト）は app-shell の**外**に置く。
   // app-shell は角を丸めるために overflow を持っていて、**iOS Safari では
   // overflow を持つ親が position:fixed の子まで巻き込んで切り取る。** 中に入れると、
@@ -1546,17 +1556,17 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       <nav className="bottom-nav is-six" aria-label="アプリメニュー">
         {/* 並び順ではなく名前で指せるように、1つずつ印をつけてある。案内
             （チュートリアル）がここを指すので、項目を足しても指す先がずれない。 */}
-        <button className={`nav-home${activeTab === 'home' ? ' active' : ''}`} onClick={showHome}><span><HomeIcon /></span><small>ホーム</small></button>
-        <button className={`nav-search${activeTab === 'search' ? ' active' : ''}`} onClick={() => showSearch()}><span><SearchIcon /></span><small>探す</small></button>
-        <button className={`nav-recommend${activeTab === 'recommend' ? ' active' : ''}`} onClick={showRecommend}><span><RecommendIcon /></span><small>おすすめ</small></button>
+        <button className={`nav-home${navHere === 'home' ? ' active' : ''}`} onClick={showHome}><span><HomeIcon /></span><small>ホーム</small></button>
+        <button className={`nav-search${navHere === 'search' ? ' active' : ''}`} onClick={() => showSearch()}><span><SearchIcon /></span><small>探す</small></button>
+        <button className={`nav-recommend${navHere === 'recommend' ? ' active' : ''}`} onClick={showRecommend}><span><RecommendIcon /></span><small>おすすめ</small></button>
         <button className="nav-post" onClick={openRequest} aria-label="探しごとを投稿する"><span>＋</span></button>
-        <button className={`nav-messages${activeTab === 'messages' ? ' active' : ''}`} onClick={showMessages}
+        <button className={`nav-messages${navHere === 'messages' ? ' active' : ''}`} onClick={showMessages}
           aria-label={unreadMessages ? `メッセージ 未読${unreadMessages}件` : 'メッセージ'}>
           <span><MessageIcon />{unreadMessages > 0 && <i className="nav-badge">{unreadMessages > 99 ? '99+' : unreadMessages}</i>}</span>
           <small>メッセージ</small>
         </button>
-        <button className={`nav-ads${modal === 'ads' ? ' active' : ''}`} onClick={openAdSettings}><span><BannerIcon /></span><small>広告</small></button>
-        <button className={`nav-mypage${modal !== 'ads' && !['home', 'search', 'recommend', 'messages'].includes(activeTab) ? ' active' : ''}`} onClick={showMyPage}><span><PersonIcon /></span><small>マイページ</small></button>
+        <button className={`nav-ads${navHere === 'ads' ? ' active' : ''}`} onClick={openAdSettings}><span><BannerIcon /></span><small>広告</small></button>
+        <button className={`nav-mypage${navHere === 'mypage' ? ' active' : ''}`} onClick={showMyPage}><span><PersonIcon /></span><small>マイページ</small></button>
       </nav>
 
       {modal === 'request' && !canPostRequest && !editingRequest && <Modal title="今月分の投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showMyPage(); }}>マイページを開く</button></div></Modal>}
