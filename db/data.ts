@@ -5,6 +5,7 @@ import { cleanFacebookUrl } from '@/app/social-links';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
 import { AD_DESCRIPTION_MAX, AD_RESERVATION_MINUTES, AD_TITLE_MAX, DEFAULT_PLACEMENT, placementSlots } from '@/app/ad-options';
 import { UNLIMITED, bonusPlan, campaignPlan, can, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
+import { adGacha, drawPrize, gachaOpen, gachaPrize, jstDate } from '@/app/gacha';
 import { EXTEND_DAYS, MAX_LEVEL, canExtendRequest, canPostVideo, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
 import { isAdminEmail } from '@/app/admin-emails';
 import { sampleRequests } from './sample-requests';
@@ -430,7 +431,33 @@ const statements = [
     last_read_at TEXT NOT NULL,
     PRIMARY KEY (member_id, thread_key)
   )`,
+  // --- 広告の無料ガチャ（app/gacha.ts）---------------------------------------
+  // 引いた記録。**主キーで1人1回を守る。** 画面側の制御だけだと、
+  // 通信をやり直すだけで何度でも引けてしまう。
+  `CREATE TABLE IF NOT EXISTS gacha_draws (
+    member_id TEXT NOT NULL REFERENCES members(id),
+    -- どの回か（app/gacha.ts の key）。やり直すときは新しい名前にする。
+    campaign_key TEXT NOT NULL,
+    prize_key TEXT NOT NULL,
+    days INTEGER NOT NULL DEFAULT 0,
+    drawn_at TEXT NOT NULL,
+    PRIMARY KEY (member_id, campaign_key)
+  )`,
+  // 広告の無料券。当たった日数ぶん、広告の申し込みが無料になる。
+  // **使うのは「掲載日数を全部まかなえるとき」だけ**（app/api/ads/checkout）。
+  // 途中まで値引きにすると、支払いが途中で止まったときに券だけ消える。
+  `CREATE TABLE IF NOT EXISTS ad_gifts (
+    id TEXT PRIMARY KEY,
+    member_id TEXT NOT NULL REFERENCES members(id),
+    source TEXT NOT NULL DEFAULT 'gacha',
+    days INTEGER NOT NULL DEFAULT 0,
+    days_left INTEGER NOT NULL DEFAULT 0,
+    expires_on TEXT NOT NULL DEFAULT '',
+    used_ad_id TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  )`,
   'CREATE INDEX IF NOT EXISTS idx_ad_slots_member ON ad_slots(member_id)',
+  'CREATE INDEX IF NOT EXISTS idx_ad_gifts_member ON ad_gifts(member_id)',
   'CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at)',
   'CREATE INDEX IF NOT EXISTS idx_requests_status_created_at ON requests(status, created_at)',
   'CREATE INDEX IF NOT EXISTS idx_requests_category ON requests(category)',
@@ -2223,6 +2250,131 @@ export async function getMemberRank(memberId: string) {
     FROM members m WHERE m.id = ?`)
     .bind(memberId).first<{ email: string; inviteCount: number }>();
   return memberRank(row?.email ?? '', Number(row?.inviteCount ?? 0));
+}
+
+// --- 広告の無料ガチャ ---------------------------------------------------------
+// 引くのも、当たりを決めるのも、**必ずここ（サーバー）で行う**。
+// 画面で引くと、当たるまで押し直せてしまう。
+
+export type GachaState = {
+  /** いま引ける期間か。 */
+  open: boolean;
+  /** すでに引いたか。 */
+  drawn: boolean;
+  /** 引いた結果（引いていなければ空）。 */
+  prizeKey: string;
+  days: number;
+  /** いま使える無料券の合計日数。 */
+  giftDays: number;
+  /** 無料券の期限。 */
+  giftExpiresOn: string;
+};
+
+export async function getGachaState(memberId: string): Promise<GachaState> {
+  await ensureDatabase();
+  const row = await env.DB.prepare('SELECT prize_key AS prizeKey, days FROM gacha_draws WHERE member_id = ? AND campaign_key = ?')
+    .bind(memberId, adGacha.key).first<{ prizeKey: string; days: number }>();
+  return {
+    open: gachaOpen(),
+    drawn: Boolean(row),
+    prizeKey: row?.prizeKey ?? '',
+    days: Number(row?.days ?? 0),
+    giftDays: await availableAdGiftDays(memberId),
+    giftExpiresOn: adGacha.giftExpiresOn,
+  };
+}
+
+/**
+ * 1回だけ引く。
+ *
+ * **書き込みは INSERT OR IGNORE で行い、そのあと読み直した行を正とする。**
+ * 連打や通信のやり直しで2回届いても、勝つのは先に入った1行だけになる。
+ * 「引けたかどうか」を先に SELECT で調べてから INSERT すると、その隙間に
+ * 2回目が入り込む。
+ */
+export async function drawGacha(memberId: string): Promise<GachaState> {
+  await ensureDatabase();
+  if (!gachaOpen()) return getGachaState(memberId);
+
+  const already = await env.DB.prepare('SELECT 1 FROM gacha_draws WHERE member_id = ? AND campaign_key = ?')
+    .bind(memberId, adGacha.key).first();
+  if (already) return getGachaState(memberId);
+
+  // 配った日数が上限に届いていたら、以降ははずれだけにする。
+  // **上限が無いと、会員が増えたぶんだけ売る枠が消える。**
+  const given = await env.DB.prepare('SELECT COALESCE(SUM(days), 0) AS days FROM gacha_draws WHERE campaign_key = ?')
+    .bind(adGacha.key).first<{ days: number }>();
+  const soldOut = Number(given?.days ?? 0) >= adGacha.capDays;
+  const prize = soldOut ? gachaPrize('miss') : drawPrize();
+
+  const now = new Date().toISOString();
+  await env.DB.prepare(`INSERT OR IGNORE INTO gacha_draws (member_id, campaign_key, prize_key, days, drawn_at)
+    VALUES (?, ?, ?, ?, ?)`).bind(memberId, adGacha.key, prize.key, prize.days, now).run();
+
+  // 入ったのが自分の行かどうかを読み直して確かめる。負けていたら券は出さない。
+  const saved = await env.DB.prepare('SELECT prize_key AS prizeKey, days FROM gacha_draws WHERE member_id = ? AND campaign_key = ?')
+    .bind(memberId, adGacha.key).first<{ prizeKey: string; days: number }>();
+  if (saved?.prizeKey === prize.key && prize.days > 0) {
+    await env.DB.prepare(`INSERT INTO ad_gifts (id, member_id, source, days, days_left, expires_on, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .bind(crypto.randomUUID(), memberId, `gacha:${adGacha.key}`, prize.days, prize.days, adGacha.giftExpiresOn, now).run();
+  }
+  return getGachaState(memberId);
+}
+
+/** いま使える無料券の合計日数。期限切れと使い切ったものは数えない。 */
+export async function availableAdGiftDays(memberId: string) {
+  await ensureDatabase();
+  const row = await env.DB.prepare(`SELECT COALESCE(SUM(days_left), 0) AS days FROM ad_gifts
+    WHERE member_id = ? AND days_left > 0 AND (expires_on = '' OR expires_on >= ?)`)
+    .bind(memberId, jstDate()).first<{ days: number }>();
+  return Number(row?.days ?? 0);
+}
+
+/**
+ * 無料券を古いものから使う。使えた日数を返す。
+ *
+ * **お金を取らずに掲載を始めるときにだけ呼ぶ。** 値引きとして途中まで使うと、
+ * 支払いが完了しないまま券だけ消える事故が起きる。
+ */
+export async function spendAdGiftDays(memberId: string, days: number, adId: string) {
+  await ensureDatabase();
+  const rows = await env.DB.prepare(`SELECT id, days_left AS daysLeft FROM ad_gifts
+    WHERE member_id = ? AND days_left > 0 AND (expires_on = '' OR expires_on >= ?)
+    ORDER BY created_at`).bind(memberId, jstDate()).all<{ id: string; daysLeft: number }>();
+  let rest = days;
+  for (const gift of rows.results) {
+    if (rest <= 0) break;
+    const take = Math.min(rest, Number(gift.daysLeft));
+    await env.DB.prepare('UPDATE ad_gifts SET days_left = days_left - ?, used_ad_id = ? WHERE id = ?')
+      .bind(take, adId, gift.id).run();
+    rest -= take;
+  }
+  return days - rest;
+}
+
+/** 管理画面に出す、配った結果のまとめ。 */
+export async function gachaSummary() {
+  await ensureDatabase();
+  const rows = await env.DB.prepare(`SELECT prize_key AS prizeKey, COUNT(*) AS count, COALESCE(SUM(days), 0) AS days
+    FROM gacha_draws WHERE campaign_key = ? GROUP BY prize_key`)
+    .bind(adGacha.key).all<{ prizeKey: string; count: number; days: number }>();
+  const used = await env.DB.prepare(`SELECT COALESCE(SUM(days - days_left), 0) AS days FROM ad_gifts
+    WHERE source = ?`).bind(`gacha:${adGacha.key}`).first<{ days: number }>();
+  const draws = rows.results.reduce((sum, row) => sum + Number(row.count), 0);
+  const givenDays = rows.results.reduce((sum, row) => sum + Number(row.days), 0);
+  return {
+    name: adGacha.name,
+    open: gachaOpen(),
+    draws,
+    givenDays,
+    capDays: adGacha.capDays,
+    usedDays: Number(used?.days ?? 0),
+    prizes: adGacha.prizes.map((prize) => ({
+      key: prize.key, label: prize.label,
+      count: Number(rows.results.find((row) => row.prizeKey === prize.key)?.count ?? 0),
+    })),
+  };
 }
 
 /** 出稿できるランクかどうか。紹介を積んだ人だけが買える。 */

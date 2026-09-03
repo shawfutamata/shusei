@@ -8,9 +8,14 @@ import { rankNames } from '@/app/rank-perks';
 import BrandMark from '@/app/BrandMark';
 import { BarList, TrendChart } from './Charts';
 
+type GachaSummary = {
+  name: string; open: boolean; draws: number; givenDays: number; capDays: number; usedDays: number;
+  prizes: { key: string; label: string; count: number }[];
+};
+
 type AdminData = {
   summary: AdminSummary; members: AdminMember[]; requests: AdminRequest[];
-  ads: AdminAd[]; feedback: AdminFeedback[];
+  ads: AdminAd[]; feedback: AdminFeedback[]; gacha?: GachaSummary;
 };
 
 // short は、下の帯に出す短い呼び名。狭いところで「ダッシュボ…」と
@@ -199,7 +204,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
     say(done);
   }
 
-  const { summary } = data;
+  const { summary, gacha } = data;
   const countFor = (key: (typeof tabs)[number]['key']) => key === 'members' ? data.members.length
     : key === 'requests' ? data.requests.length : key === 'ads' ? data.ads.length
     : key === 'feedback' ? data.feedback.filter((row) => row.status === 'new').length : 0;
@@ -321,6 +326,16 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
             <div><p>掲載中の広告</p><b>{summary.liveAds}</b></div>
             <button onClick={() => goTab('ads')}>一覧へ</button>
           </section>
+
+          {/* ガチャで配った枠。**引いた数より「何日配ったか」が大事。**
+              配った日数のぶんだけ、売れる枠が減っている。 */}
+          {gacha && (gacha.open || gacha.draws > 0) && <section className="viz-card">
+            <h2>{gacha.name}{!gacha.open && <span className="viz-count">終了</span>}</h2>
+            <p className="viz-lead">引いた人 <b>{gacha.draws}人</b>／配った枠 <b>{gacha.givenDays}日</b>（上限 {gacha.capDays}日・うち掲載に使われた {gacha.usedDays}日）</p>
+            <ul className="admin-gacha">{gacha.prizes.map((prize) => <li key={prize.key}>
+              <span>{prize.label}</span><b>{prize.count}人</b>
+            </li>)}</ul>
+          </section>}
         </div>
       </div>
 

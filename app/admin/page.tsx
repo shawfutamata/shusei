@@ -1,6 +1,7 @@
 import { isAdminEmail } from '@/app/admin-auth';
 import { getAppAccess } from '@/app/app-auth';
 import { adminAds, adminFeedback, adminMembers, adminRequests, adminSummary } from '@/db/admin';
+import { gachaSummary } from '@/db/data';
 import { serviceName } from '@/app/brand';
 import AdminClient from './AdminClient';
 
@@ -35,9 +36,9 @@ export default async function AdminPage() {
     </main>;
   }
 
-  const [summary, members, requests, ads, feedback] = await Promise.all([
-    adminSummary(), adminMembers(), adminRequests(), adminAds(), adminFeedback(),
+  const [summary, members, requests, ads, feedback, gacha] = await Promise.all([
+    adminSummary(), adminMembers(), adminRequests(), adminAds(), adminFeedback(), gachaSummary(),
   ]);
   return <AdminClient adminName={admin.displayName} adminEmail={admin.email} serviceName={serviceName}
-    initial={{ summary, members, requests, ads, feedback }} />;
+    initial={{ summary, members, requests, ads, feedback, gacha }} />;
 }

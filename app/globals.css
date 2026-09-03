@@ -1951,3 +1951,47 @@ body { font-weight:600; }
 .search-page .section-title p { display:none; }
 .search-page .section-title h2 { font-size:21px; }
 .search-page .filters { margin-bottom:10px; }
+
+/* --- 広告の無料ガチャ ---------------------------------------------------------
+   期間中だけホームに出る入口と、引くところ。 */
+.gacha-banner { width:calc(100% - 32px); margin:16px; padding:14px 15px; display:flex; align-items:center; gap:12px;
+  border:0; border-radius:16px; background:linear-gradient(120deg,#b3132b,#e0384f 55%,#0f7a45);
+  color:#fff; text-align:left; cursor:pointer; }
+.gacha-banner.is-done { background:linear-gradient(120deg,#334f74,#4d6c96); }
+.gacha-banner-icon { flex:0 0 auto; width:42px; height:42px; display:grid; place-items:center; border-radius:12px;
+  background:rgba(255,255,255,.18); font-size:23px; }
+.gacha-banner-copy { min-width:0; flex:1 1 auto; }
+.gacha-banner-copy b { display:block; font-size:14px; font-weight:900; line-height:1.45; }
+.gacha-banner-copy small { display:block; margin-top:3px; color:#ffe8ec; font-size:11px; font-weight:800; }
+.gacha-banner.is-done .gacha-banner-copy small { color:#d6e4f7; }
+.gacha-banner-go { flex:0 0 auto; font-size:20px; font-weight:900; opacity:.8; }
+
+.gacha { text-align:center; }
+.gacha-box { width:104px; height:104px; margin:6px auto 0; display:grid; place-items:center; border-radius:24px;
+  background:linear-gradient(140deg,#fff1f3,#e8f6ee); font-size:52px; }
+.gacha-box.is-spinning { animation:gacha-shake .45s ease-in-out infinite; }
+.gacha-box.is-open { background:linear-gradient(140deg,#fff7e0,#ffe9c7); }
+@keyframes gacha-shake {
+  0%,100% { transform:rotate(-7deg) translateY(0); }
+  50% { transform:rotate(7deg) translateY(-5px); }
+}
+@media (prefers-reduced-motion:reduce) { .gacha-box.is-spinning { animation:none; } }
+.gacha-prizes { margin:15px 0 0; padding:0; list-style:none; display:grid; gap:7px; }
+.gacha-prizes li { padding:11px 13px; border:1px solid #f0d6c4; border-radius:11px; background:#fffaf5;
+  color:#a2500b; font-size:13px; font-weight:900; }
+.gacha-lead { margin:14px 0 0; color:#64748b; font-size:12px; font-weight:700; line-height:1.75; }
+.gacha .submit-button { margin-top:15px; }
+.gacha-result { margin:16px 0 0; color:#7b8598; font-size:20px; font-weight:900; }
+.gacha-result.is-win { color:#b4380f; font-size:25px; }
+.gacha-gift { margin:15px 0 0; padding:13px; border-radius:12px; background:#fff3e6; color:#8a4a12;
+  font-size:12px; font-weight:800; }
+.gacha-gift b { display:block; margin-top:4px; font-size:22px; font-weight:900; }
+.gacha-gift small { display:block; margin-top:3px; font-size:11px; font-weight:800; opacity:.8; }
+.ad-gift-hint { margin:9px 0 0; padding:11px 12px; border-radius:11px; background:#fff3e6; color:#8a4a12;
+  font-size:11px; font-weight:800; line-height:1.7; }
+
+/* 管理画面のガチャの結果。 */
+.admin-gacha { margin:12px 0 0; padding:0; list-style:none; display:grid; gap:7px; }
+.admin-gacha li { padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+  border-radius:10px; background:#f7f9fc; color:#3f4d63; font-size:12px; font-weight:800; }
+.admin-gacha b { color:#0f5fc4; font-size:14px; font-weight:900; }

@@ -12,6 +12,8 @@ import { budgetBandLabel, budgetBands } from './budget-options';
 import { UNLIMITED, can, plans, type BillingCycle, type Feature, type Plan } from './entitlements';
 import { feedbackCategories } from './feedback-options';
 import { campaignUntilLabel, freeCampaign } from './campaign';
+import { gachaDateLabel } from './gacha';
+import type { GachaView } from './gacha-view';
 import { adDailyPrice, adTotalPrice, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
 import LegalLinks from './LegalLinks';
@@ -284,7 +286,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [zoom, setZoom] = useState(1);
   const [croppedArea, setCroppedArea] = useState<Area | null>(null);
   const [cropping, setCropping] = useState(false);
-  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'thread' | 'responses' | 'ads' | 'perks' | 'categories' | 'upgrade' | 'adDetail' | 'member' | null>(null);
+  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'thread' | 'responses' | 'ads' | 'perks' | 'categories' | 'upgrade' | 'adDetail' | 'member' | 'gacha' | null>(null);
   /**
    * オファーの種類。**知り合いの紹介は無料、自社で請け負う（受注）は有料。**
    * 画面はここで出し分けるだけで、実際に止めているのは `createIntroduction()`。
@@ -323,6 +325,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // 出す流れは3つの手順に分ける。1画面に全部出すと、どこまでやったか分からなくなる。
   const [adFlow, setAdFlow] = useState(false);
   const [adStep, setAdStep] = useState(0);
+  /** 広告の無料ガチャ。読めていないうちは null。 */
+  const [gacha, setGacha] = useState<GachaView | null>(null);
+  const [gachaSpinning, setGachaSpinning] = useState(false);
   const [adPlacement, setAdPlacement] = useState<string>(DEFAULT_PLACEMENT);
   // 掲示板の上位に出すとき、どの大分類の一覧を狙うか。空なら全業種。
   const [adIndustry, setAdIndustry] = useState('');
@@ -578,6 +583,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   }, []);
 
   // 出稿枠はWebだけの機能。下のメニューからいつでも開けるので、タブに関係なく読む。
+  // ガチャは開いた時点で一度だけ読む。期間外なら open:false が返るだけで、
+  // 画面には何も出ない。
+  useEffect(() => { loadGacha(); }, []);
+
   // 設定を開いた時点でも読み直して、他の人に取られた枠が残って見えないようにする。
   useEffect(() => {
     if (activeTab === 'search' && modal !== 'ads') return;
@@ -859,6 +868,38 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     const inRange = adCalendarDays.filter((day) => day.date >= adStart && day.date <= last);
     return inRange.length === adDays && inRange.every((day) => day.remaining > 0);
   }, [adInfo, adCalendarDays, adStart, adDays]);
+  /**
+   * ガチャの無料券で、いま選んでいる日数を全部まかなえるか。
+   * **まかなえるときだけ無料になる。** 足りないぶんを値引きにすると、
+   * 支払いが途中で止まったときに券だけ消える（サーバー側も同じ線引き）。
+   */
+  const adGiftDays = gacha?.giftDays ?? 0;
+  const adFreeByGift = adGiftDays >= adDays;
+
+  async function loadAdInfo() {
+    const data = await fetch('/api/ads').then((response) => response.ok ? response.json() : null).catch(() => null);
+    if (data) setAdInfo(data as AdOffer);
+  }
+
+  async function loadGacha() {
+    const data = await fetch('/api/gacha').then((response) => response.ok ? response.json() : null).catch(() => null);
+    if (data) setGacha(data as GachaView);
+  }
+
+  /** ガチャを引く。**当たりを決めるのはサーバー。** 画面は結果を出すだけ。 */
+  async function spinGacha() {
+    if (gachaSpinning || !gacha || gacha.drawn || !gacha.open) return;
+    setGachaSpinning(true);
+    const response = await fetch('/api/gacha', { method: 'POST' }).catch(() => null);
+    const data = response ? await response.json().catch(() => null) as GachaView & { error?: string } | null : null;
+    // 回っているように見せる時間。結果はもう決まっているので、待つのは見た目だけ。
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setGachaSpinning(false);
+    if (!data) return showToast('通信に失敗しました。時間をおいてお試しください。');
+    if (data.key) setGacha(data);
+    if (data.error) showToast(data.error);
+  }
+
   function openAdSettings() {
     setEditingAd('');
     setOpenStats('');
@@ -919,8 +960,16 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       // 縮小は出す人の端末でやる。Workersでは変換しない。
       if (adDraft.image) body.set('image', await detailImage(adDraft.image));
       const response = await fetch('/api/ads/checkout', { method: 'POST', body });
-      const data = await response.json() as { url?: string; error?: string; stripeCode?: string; stripeParam?: string };
+      const data = await response.json() as { url?: string; free?: boolean; message?: string; error?: string; stripeCode?: string; stripeParam?: string };
       if (data.url) { window.location.assign(data.url); return; }
+      // 無料券で足りたときは、支払いを通さずその場で掲載が始まっている。
+      if (data.free) {
+        showToast(data.message || '掲載を始めました。');
+        closeAdSettings();
+        await Promise.all([loadAdInfo(), loadGacha()]);
+        setBusy(false);
+        return;
+      }
       // 断られた理由の印を、文言のうしろに小さく足す。運営が原因を持ち帰れる
       // ようにするため（鍵や本文は出ない。Stripeが付ける短い識別子だけ）。
       // 印は**文の先頭**に出す。うしろに付けると、文が長いときに見切れて
@@ -1282,6 +1331,22 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             : <img src={slide?.src} alt={slide?.alt ?? ''} />}</button>
           <div className="carousel-dots" aria-label="バナーを切り替える">{slides.map((entry, index) => <button key={index} aria-label={`${index + 1}枚目${entry.ad ? '（広告）' : ''}`} className={`${carouselIndex === index ? 'active' : ''}${entry.ad ? ' is-ad' : ''}`} onClick={() => { setCarouselPaused(true); setCarouselIndex(index); }} />)}</div>
         </section>
+
+        {/* ガチャの入口。**期間中だけ出る。** 終わったら何も残らないので、
+            引き忘れた人に「終わったもの」を見せ続けることにならない。 */}
+        {gacha?.open && <button className={`gacha-banner${gacha.drawn ? ' is-done' : ''}`} onClick={() => setModal('gacha')}>
+          <span className="gacha-banner-icon" aria-hidden="true">🎁</span>
+          <span className="gacha-banner-copy">
+            <b>{!gacha.drawn ? gacha.name
+              : gacha.giftDays > 0 ? `${gacha.prize?.label}が当たっています`
+              : gacha.prize?.days ? '無料券は使い切りました'
+              : 'ガチャは引き終わりました'}</b>
+            <small>{!gacha.drawn ? `${gacha.period}・お一人さま1回`
+              : gacha.giftDays > 0 ? `無料券 ${gacha.giftDays}日分・${gachaDateLabel(gacha.giftExpiresOn)}まで`
+              : '結果を見る'}</small>
+          </span>
+          <span className="gacha-banner-go" aria-hidden="true">›</span>
+        </button>}
 
         <HomeShelf title={recommendFallback ? '募集中の案件' : 'あなたにおすすめの案件'} count={recommended.length}
           note={!recommendFallback ? ''
@@ -1787,6 +1852,30 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </div>
       </Modal>}
 
+      {modal === 'gacha' && gacha && <Modal title={gacha.name} lead={`広告の無料券が当たります。お一人さま1回、${gacha.period}まで。`} onClose={() => setModal(null)}>
+        <div className="gacha">
+          <div className={`gacha-box${gachaSpinning ? ' is-spinning' : ''}${gacha.drawn && !gachaSpinning ? ' is-open' : ''}`} aria-hidden="true">🎁</div>
+          {!gacha.drawn
+            ? <>
+              {/* 何が当たるかは先に出す。中身を伏せたまま引かせない。 */}
+              <ul className="gacha-prizes">{gacha.prizes.filter((prize) => prize.days > 0).map((prize) => <li key={prize.key}><b>{prize.label}</b></li>)}</ul>
+              <p className="gacha-lead">当たった無料券は、そのまま広告のお申し込みに使えます。お支払いは要りません（{gachaDateLabel(gacha.giftExpiresOn)}まで有効）。</p>
+              <button className="submit-button" onClick={spinGacha} disabled={gachaSpinning || !gacha.open}>{gachaSpinning ? '引いています…' : 'ガチャを引く'}</button>
+            </>
+            : gachaSpinning ? <p className="gacha-lead">引いています…</p>
+            : <>
+              <p className={`gacha-result${gacha.prize?.days ? ' is-win' : ''}`}>{gacha.prize?.label}</p>
+              <p className="gacha-lead">{gacha.prize?.note}</p>
+              {gacha.giftDays > 0
+                ? <>
+                  <p className="gacha-gift">いま使える無料券 <b>{gacha.giftDays}日分</b><small>{gachaDateLabel(gacha.giftExpiresOn)}まで</small></p>
+                  <button className="submit-button" onClick={() => { setModal(null); openAdSettings(); }}>この券で広告を出す</button>
+                </>
+                : gacha.prize?.days ? <p className="gacha-lead">この無料券は掲載に使いました。掲載中の広告は「広告」から見られます。</p> : null}
+            </>}
+        </div>
+      </Modal>}
+
       {modal === 'perks' && <Modal title="ランクの特典" lead="招待して参加した仲間の人数でランクが上がり、できることが増えます。一度上がったランクは下がりません。" onClose={() => { setModal(null); setOpenPerk(''); }}>
         <div className="perk-panel">
           <ol className="perk-ladder" aria-label="ランクの段階">{rankNames.map((name, index) => {
@@ -1903,13 +1992,16 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               下に置くと、掲載中のカードと掲載レポートを越えないと届かない。
               スクロールに貼りつかせる形も試したが、掲載中の広告に重なって
               読めなくなるので、素直に先頭へ。 */}
-          {!adInfo.ready
+          {/* 無料券を持っている人は、お支払いの用意ができていなくても進める。
+              券は当たった時点で約束したもので、こちらの設定を理由に使えないのは
+              筋が違う（サーバー側も同じ線引き）。 */}
+          {!adInfo.ready && !adGiftDays
             ? <p className="ad-note">広告の受け付けは準備中です。ご希望の方は運営窓口までお問い合わせください。</p>
             : !nextOpenDay
             ? <p className="ad-note">ただいま{adInfo.daysAhead}日先まで、{placementName(adPlacement)}の{currentPlacement.slots}枠すべてが埋まっています。空きが出ましたらお申し込みいただけます。</p>
             : !adFlow
               ? <button className="ad-entry-open" onClick={() => startAdFlow()}>
-                  <span><b>新規のお申し込み</b><small>4ステップで完了します。掲載日数分のお支払いが1回のみ</small></span>
+                  <span><b>新規のお申し込み</b><small>{adGiftDays > 0 ? `4ステップで完了します。無料券が${adGiftDays}日分あります` : '4ステップで完了します。掲載日数分のお支払いが1回のみ'}</small></span>
                   <i aria-hidden="true">›</i>
                 </button>
               : null}
@@ -1935,7 +2027,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             </li>;
           })}</ul>}
 
-          {adInfo.ready && nextOpenDay && adFlow && <form className="ad-flow" onSubmit={buyAdSlot}>
+          {(adInfo.ready || adGiftDays > 0) && nextOpenDay && adFlow && <form className="ad-flow" onSubmit={buyAdSlot}>
                   <ol className="ad-steps" aria-label="出すまでの手順">
                     {['掲載枠', '掲載内容', '掲載期間', 'ご確認'].map((name, index) => <li key={name} className={`${index === adStep ? 'now' : ''}${index < adStep ? ' done' : ''}`.trim()}>
                       <b>{index < adStep ? '✓' : index + 1}</b><span>{name}</span>
@@ -1991,11 +2083,18 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                     </label>
                     {/* 動かした結果がいくらになるのか、その場で見えるようにする */}
                     <p className="ad-quote">
-                      {adInfo.discountRate > 0 && <s>{adTotalPrice(adPlacement, adDays)}</s>}
-                      <b>{adTotalPrice(adPlacement, adDays, adInfo.discountRate)}</b>
-                      <small>{adDailyPrice(adPlacement)} × {adDays}日（税込・1回のみ）
-                        {adInfo.discountRate > 0 && `／${adInfo.rank}の${Math.round(adInfo.discountRate * 100)}%OFF適用`}</small>
+                      {(adInfo.discountRate > 0 || adFreeByGift) && <s>{adTotalPrice(adPlacement, adDays)}</s>}
+                      <b>{adFreeByGift ? '0円' : adTotalPrice(adPlacement, adDays, adInfo.discountRate)}</b>
+                      <small>{adFreeByGift
+                        ? `ガチャの無料券（${gacha?.giftDays}日分）で、この${adDays}日間はお支払いが要りません`
+                        : <>{adDailyPrice(adPlacement)} × {adDays}日（税込・1回のみ）
+                          {adInfo.discountRate > 0 && `／${adInfo.rank}の${Math.round(adInfo.discountRate * 100)}%OFF適用`}</>}</small>
                     </p>
+                    {/* 券はあるが日数が足りないとき。**黙って全額にしない。**
+                        何日にすれば無料になるかを、その場で言う。 */}
+                    {!adFreeByGift && (gacha?.giftDays ?? 0) > 0 && <p className="ad-gift-hint">
+                      無料券が{gacha?.giftDays}日分あります。掲載日数を<b>{gacha?.giftDays}日以内</b>にすると、この期間はお支払いが要りません。
+                    </p>}
                     <p className={`ad-period${adStart && !periodOpen ? ' is-full' : ''}`}>{!adStart
                       ? 'カレンダーから掲載開始日をお選びください'
                       : periodOpen
@@ -2010,10 +2109,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                     <dl className="ad-check">
                       <div><dt>掲載枠</dt><dd>{placementName(adPlacement)}<small>{currentPlacement.slots}枠のうち1枠{adPlacement === 'list' && `／${adIndustry ? `${adIndustry}の一覧` : 'すべての業種の一覧'}`}</small></dd></div><div><dt>掲載期間</dt><dd>{adStart && formatRange(adStart, shiftDate(adStart, adDays - 1))}<small>{adDays}日間</small></dd></div>
                       <div><dt>リンク先</dt><dd>{adDraft.linkUrl ? adDraft.linkUrl.replace(/^https?:\/\//, '') : <em>設定なし</em>}</dd></div>
-                      <div className="ad-check-pay"><dt>お支払い額</dt><dd>{adTotalPrice(adPlacement, adDays, adInfo.discountRate)}<small>{adDailyPrice(adPlacement)}×{adDays}日{adInfo.discountRate > 0 && `・${adInfo.rank}の${Math.round(adInfo.discountRate * 100)}%OFF`}・税込・1回のみ</small></dd></div>
+                      <div className="ad-check-pay"><dt>お支払い額</dt><dd>{adFreeByGift ? '0円' : adTotalPrice(adPlacement, adDays, adInfo.discountRate)}<small>{adFreeByGift ? `ガチャの無料券 ${adDays}日分を使います` : <>{adDailyPrice(adPlacement)}×{adDays}日{adInfo.discountRate > 0 && `・${adInfo.rank}の${Math.round(adInfo.discountRate * 100)}%OFF`}・税込・1回のみ</>}</small></dd></div>
                     </dl>
-                    <div className="ad-step-actions"><button type="button" onClick={() => setAdStep(2)}>戻る</button><button className="submit-button" disabled={busy || !adStart || !periodOpen}>{busy ? '処理しています…' : 'お支払いへ進む'}</button></div>
-                    <p className="ad-note">お支払いは決済代行会社（Stripe）の画面で行います。掲載内容は掲載開始後も変更いただけます。</p>
+                    <div className="ad-step-actions"><button type="button" onClick={() => setAdStep(2)}>戻る</button><button className="submit-button" disabled={busy || !adStart || !periodOpen}>{busy ? '処理しています…' : adFreeByGift ? '無料で掲載を始める' : 'お支払いへ進む'}</button></div>
+                    <p className="ad-note">{adFreeByGift
+                      ? 'お支払いはありません。この場で掲載が始まります。掲載内容は掲載開始後も変更いただけます。'
+                      : 'お支払いは決済代行会社（Stripe）の画面で行います。掲載内容は掲載開始後も変更いただけます。'}</p>
                   </div>}
                 </form>}
         </div>

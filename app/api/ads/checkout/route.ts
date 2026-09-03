@@ -4,7 +4,7 @@ import { adSlotConfigured, stripeClient } from '@/app/stripe';
 import { AD_MIN_DAYS, DEFAULT_PLACEMENT, isAdPlacement, placementName } from '@/app/ad-options';
 import { industryGroups } from '@/app/industry-options';
 import { adSlotTotalYen } from '@/app/plan-catalog';
-import { canBuyAdSlot, getMemberRank, getStripeLink, releaseAdSlot, reserveAdSlot, saveAdSlotSession, saveStripeCustomer, shiftDate } from '@/db/data';
+import { activateAdSlot, availableAdGiftDays, canBuyAdSlot, getMemberRank, getStripeLink, releaseAdSlot, reserveAdSlot, saveAdSlotSession, saveStripeCustomer, shiftDate, spendAdGiftDays } from '@/db/data';
 import { AD_DAYS_AHEAD_ALL, AD_MAX_DAYS_ALL, adDiscountRate } from '@/app/rank-perks';
 import { readAdContent } from '@/app/ad-upload';
 
@@ -14,9 +14,9 @@ import { readAdContent } from '@/app/ad-upload';
 export async function POST(request: Request) {
   const gate = await requireActiveMember();
   if (gate.response) return gate.response;
-  if (!adSlotConfigured()) {
-    return NextResponse.json({ error: '出稿枠のお申し込みはまだ受け付けていません。運営窓口へお問い合わせください。' }, { status: 503 });
-  }
+  // お支払いの用意ができていなくても、**無料券だけで出せる申し込みは通す**。
+  // 券は当たった時点で約束したものなので、こちらの設定を理由に使えないのは筋が違う。
+  const payable = adSlotConfigured();
 
   const { level } = await getMemberRank(gate.user.userId);
   if (!canBuyAdSlot()) {
@@ -50,15 +50,40 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'その日はまだお申し込みいただけません。カレンダーに出ている日からお選びください。' }, { status: 400 });
   }
 
+  // ガチャで当たった無料券。**掲載日数を全部まかなえるときだけ使う。**
+  // 途中まで値引きにすると、支払いが途中で止まったときに券だけ消える。
+  const giftDays = await availableAdGiftDays(gate.user.userId);
+  const free = giftDays >= days;
+
   // 先に枠を押さえる。早い者勝ちなので、決済画面を開く前に取り合いを終わらせる。
   let reserved: { id: string; endDate: string };
   try {
     // 請求する額をここで決めて、そのまま枠にも記録する。**画面から受け取った
     // 額は使わない**（書き換えられるため）。分析の売上はこの値だけを使う。
+    // 無料券で出すぶんは0円として残す。売上に混ぜない。
     reserved = await reserveAdSlot(gate.user.userId, startDate, days, parsed.content, placement, industry,
-      adSlotTotalYen(placement, days, adDiscountRate(level)));
+      free ? 0 : adSlotTotalYen(placement, days, adDiscountRate(level)));
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : '枠を押さえられませんでした。' }, { status: 409 });
+  }
+
+  // 無料券で足りるときは、Stripeを通さずそのまま掲載を始める。
+  // **券を減らすのは掲載を始めたあと。** 先に減らして失敗すると券だけ消える。
+  if (free) {
+    try {
+      await activateAdSlot(reserved.id);
+      await spendAdGiftDays(gate.user.userId, days, reserved.id);
+      return NextResponse.json({ free: true, message: `無料券で${days}日間の掲載を始めました。` });
+    } catch (error) {
+      await releaseAdSlot(reserved.id).catch(() => undefined);
+      console.error('free ad slot failed', error);
+      return NextResponse.json({ error: '掲載を始められませんでした。時間をおいてお試しください。' }, { status: 502 });
+    }
+  }
+
+  if (!payable) {
+    await releaseAdSlot(reserved.id).catch(() => undefined);
+    return NextResponse.json({ error: '出稿枠のお申し込みはまだ受け付けていません。運営窓口へお問い合わせください。' }, { status: 503 });
   }
 
   try {
