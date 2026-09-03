@@ -71,6 +71,10 @@ export type GachaSeason = {
    * それを見せてから「はずれ」と言うのは裏切りなので、**まだ何も出ていない
    * ところ（ハンドルを回し終わったあたり）で止める。**
    *
+   * 実測では、止めたい秒数より0.2〜0.3秒ほど過ぎてから止まる（`timeupdate`
+   * が0.25秒おきにしか来ないため）。**その分を引いた値を入れること。**
+   * いまの動画では金のカプセルが2.5秒で出るので、2.1秒にしてある。
+   *
    * 0 にすると、はずれでも最後まで流す。
    */
   videoStopAt: number;
@@ -112,7 +116,7 @@ export const adGacha = {
       image: '/gacha/xmas.webp',
       machine: '/gacha/machine.webp',
       video: '/gacha/win.mp4',
-      videoStopAt: 1.85,
+      videoStopAt: 2.1,
       lead: '毎日1回、広告の無料券が当たります。',
       prizes: [
         { key: 'x3', tier: 'A賞', label: '大きなプレゼント', days: 3, weight: 8,
@@ -133,7 +137,7 @@ export const adGacha = {
       image: '/gacha/newyear.webp',
       machine: '/gacha/machine.webp',
       video: '/gacha/win.mp4',
-      videoStopAt: 1.85,
+      videoStopAt: 2.1,
       lead: '毎日1回、運だめし。大吉なら広告の無料券が3日分。',
       prizes: [
         { key: 'n-daikichi', tier: 'A賞', label: '大吉', days: 3, weight: 8,
@@ -159,7 +163,7 @@ export const adGacha = {
       image: '/gacha/daily.webp',
       machine: '/gacha/machine.webp',
       video: '/gacha/win.mp4',
-      videoStopAt: 1.85,
+      videoStopAt: 2.1,
       lead: '毎日1回、広告の無料券が当たります。',
       prizes: [
         { key: 'd3', tier: 'A賞', label: '広告の無料券 3日分', days: 3, weight: 8,

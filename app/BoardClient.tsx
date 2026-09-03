@@ -989,14 +989,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
    * 出る前で切る）。0 なら最後まで流す。
    *
    * 動画が流せない端末や壊れたファイルでも**必ず先へ進む**（止まったままに
-   * しない）。押せば飛ばせるし、時間切れは10秒。
+   * しない）。押せば飛ばせるし、時間切れは12秒。
    */
   function playGachaMotion(stopAt = 0) {
     const video = gachaVideo.current;
     if (!video) return new Promise((resolve) => setTimeout(resolve, 1500));
     return new Promise<void>((resolve) => {
       let done = false;
-      const guard = setTimeout(() => finish(), 10000);
+      const guard = setTimeout(() => finish(), 12000);
       function finish() {
         if (done) return;
         done = true;
