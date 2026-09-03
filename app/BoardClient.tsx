@@ -125,7 +125,14 @@ function matchesArea(item: BoardRequest, filter: string) {
   return areaMatchesRegion(area, filter);
 }
 
-/** 並びを毎回入れ替える。出稿した人へ順番が均等に回るようにするため。 */
+/**
+ * 並びを毎回入れ替える。出稿した人へ順番が均等に回るようにするため。
+ *
+ * **最初の描画では使わないこと。** サーバーで作ったHTMLと、ブラウザで
+ * 組み直したHTMLの並びが違ってしまい、Reactが「合わない」と言って
+ * 画面を丸ごと作り直す（hydration mismatch）。画面が出たあと（mounted）に
+ * だけ入れ替える。
+ */
 function shuffle<T>(items: T[]) {
   const list = [...items];
   for (let index = list.length - 1; index > 0; index -= 1) {
@@ -326,6 +333,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [adFlow, setAdFlow] = useState(false);
   const [adStep, setAdStep] = useState(0);
   /** 広告の無料ガチャ。読めていないうちは null。 */
+  /**
+   * 画面がブラウザ側で立ち上がったか。**広告の並び替えはここが true になってから。**
+   * 最初の描画で入れ替えると、サーバーが作ったHTMLと順番が食い違い、
+   * Reactが画面を丸ごと作り直す（hydration mismatch）。
+   */
+  const [mounted, setMounted] = useState(false);
   const [gacha, setGacha] = useState<GachaView | null>(null);
   const [gachaSpinning, setGachaSpinning] = useState(false);
   const [adPlacement, setAdPlacement] = useState<string>(DEFAULT_PLACEMENT);
@@ -586,6 +599,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // ガチャは開いた時点で一度だけ読む。期間外なら open:false が返るだけで、
   // 画面には何も出ない。
   useEffect(() => { loadGacha(); }, []);
+
+  // 画面が立ち上がったことを1回だけ記録する。広告の並び替えはこれを待つ。
+  useEffect(() => {
+    const id = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(id);
+  }, []);
 
   // 設定を開いた時点でも読み直して、他の人に取られた枠が残って見えないようにする。
   useEffect(() => {
@@ -1192,17 +1211,18 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // 普通はここに4件以上来ない。ただし**業種を狙った広告と全業種の広告が
   // 混ざる**ので、数え方が変わったときに一覧の先頭がPRだらけになりうる。
   // どの業種を見ていても、絞り込まなくても、出るのは先頭3件まで。
-  const listAds = useMemo(() => shuffle(ads.filter((ad) => ad.placement === 'list'
-    && (!ad.industry || ad.industry === (getIndustryGroup(industryFilter)?.name ?? industryFilter))))
-    .slice(0, placementSlots('list')),
-  [ads, industryFilter]);
+  const listAds = useMemo(() => {
+    const picked = ads.filter((ad) => ad.placement === 'list'
+      && (!ad.industry || ad.industry === (getIndustryGroup(industryFilter)?.name ?? industryFilter)));
+    return (mounted ? shuffle(picked) : picked).slice(0, placementSlots('list'));
+  }, [ads, industryFilter, mounted]);
 
   // 出稿された広告を先に置く。お金をいただいている枠なので、いちばん先に目に入る場所に出す。
   // 並びは開くたびに入れ替える。同じ月に出した人へ均等に順番が回るようにするため。
   const slides = useMemo(() => [
-    ...shuffle(bannerAds).map((ad) => ({ src: ad.imageUrl, alt: `${ad.memberName}さんの広告「${ad.title}」`, ad, to: '', sample: false })),
+    ...(mounted ? shuffle(bannerAds) : bannerAds).map((ad) => ({ src: ad.imageUrl, alt: `${ad.memberName}さんの広告「${ad.title}」`, ad, to: '', sample: false })),
     ...topBanners.map((banner) => ({ ...banner, ad: null as AdSlot | null })),
-  ], [bannerAds]);
+  ], [bannerAds, mounted]);
   const slide = slides[Math.min(carouselIndex, slides.length - 1)];
 
   // 広告は自分から送らないと見てもらえないので、一定の間隔で次へ送る。
@@ -1567,14 +1587,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             出す。あとから知ると不意打ちになるので、終わりの日は必ず添える。 */}
         {stats.campaignPlan && <section className="plan-campaign">
           <p className="plan-campaign-tag">{freeCampaign.name}</p>
-          <h2>いまは全員、スタンダードを無料でお使いいただけます</h2>
+          <h2>スタンダードが無料</h2>
           <p className="plan-campaign-until">{campaignUntilLabel(stats.campaignUntil)}まで</p>
-          <ul>
-            <li>案件の投稿が何件でもできます</li>
-            <li>届いたオファーの中身をすべて読めます</li>
-            <li>「自社で請け負う」オファーを送れます</li>
-          </ul>
-          <p className="plan-campaign-note">お申し込みもお支払いも要りません。期間が終わる前に、あらためてご案内します。終わったあとは無料プラン（案件の投稿は月1件まで）に戻ります。</p>
+          <p className="plan-campaign-note">お申し込みもお支払いも要りません。終わる前にご案内します。</p>
         </section>}
         <details className={`plan-card is-${stats.plan}`}>
           <summary>
@@ -2534,8 +2549,10 @@ function Avatar({ src, name, className }: { src: string; name: string; className
  * 別々に書くと、また片方だけ直して食い違う。
  */
 function planName(stats: { plan: Plan; adminPlan: boolean; campaignPlan: boolean }) {
+  // キャンペーン中でも名前に添え書きしない。すぐ上にキャンペーンの枠が
+  // 出ていて同じことを2回言うし、名前が長くなると右の「今月の投稿」が
+  // 縦積みに折り返して読めなくなる。
   if (stats.adminPlan) return `${planCatalog[stats.plan].name}（管理者特典）`;
-  if (stats.campaignPlan) return `${planCatalog[stats.plan].name}（キャンペーン中）`;
   return planCatalog[stats.plan].name;
 }
 

@@ -1866,14 +1866,13 @@ body { font-weight:600; }
    プラン欄のいちばん上。**いま無料であることと、いつまでかを同時に出す。**
    終わりの日を書かずに「無料」とだけ出すと、終わったときに約束を破ったように
    見える。日付は本文と同じ大きさにせず、ひと目で読める大きさにしてある。 */
-.plan-campaign { margin:16px 0 0; padding:18px 17px; border-radius:16px; background:linear-gradient(135deg,#0f5fc4,#1478d6); color:#fff; }
-.plan-campaign-tag { margin:0; font-size:11px; font-weight:900; letter-spacing:.12em; color:#bfdcff; }
-.plan-campaign h2 { margin:7px 0 0; font-size:18px; font-weight:900; line-height:1.5; letter-spacing:-.02em; }
-.plan-campaign-until { margin:10px 0 0; font-size:22px; font-weight:900; letter-spacing:-.02em; }
-.plan-campaign ul { margin:13px 0 0; padding:0; list-style:none; display:grid; gap:7px; }
-.plan-campaign li { padding-left:21px; position:relative; font-size:13px; font-weight:800; line-height:1.55; }
-.plan-campaign li::before { position:absolute; left:0; top:0; content:'✓'; color:#9fd0ff; font-weight:900; }
-.plan-campaign-note { margin:14px 0 0; padding-top:13px; border-top:1px solid rgba(255,255,255,.28); color:#dbeafe; font-size:11px; font-weight:700; line-height:1.7; }
+/* **横幅はプラン欄（.plan-card）と揃える。** 同じ話をしている2つの箱の
+   端がずれていると、別々のものに見える。 */
+.plan-campaign { margin:14px 14px 0; padding:15px 16px; border:1px solid #bfe3cd; border-radius:16px; background:#f2fbf5; }
+.plan-campaign-tag { margin:0; color:#0b7a43; font-size:11px; font-weight:900; letter-spacing:.1em; }
+.plan-campaign h2 { margin:6px 0 0; color:#0d3b24; font-size:19px; font-weight:900; letter-spacing:-.02em; }
+.plan-campaign-until { margin:5px 0 0; color:#0b7a43; font-size:15px; font-weight:900; }
+.plan-campaign-note { margin:10px 0 0; color:#4a6b58; font-size:11px; font-weight:700; line-height:1.7; }
 
 /* 招待ページの、いまなら無料という案内。参加を決める画面なので、
    会費の話は**入る前に**見えているほうがよい。 */
@@ -1995,3 +1994,9 @@ body { font-weight:600; }
 .admin-gacha li { padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px;
   border-radius:10px; background:#f7f9fc; color:#3f4d63; font-size:12px; font-weight:800; }
 .admin-gacha b { color:#0f5fc4; font-size:14px; font-weight:900; }
+
+/* プラン欄の見出し。名前が長くても、右の「今月の投稿」を縦積みに折り返さない。 */
+.plan-card > summary { grid-template-columns:minmax(0,1fr) auto auto; }
+.plan-now { min-width:0; }
+.plan-now b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.plan-usage { white-space:nowrap; }
