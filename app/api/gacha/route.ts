@@ -1,26 +1,32 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
-import { adGacha, gachaPeriodLabel, gachaPrize } from '@/app/gacha';
+import { adGacha, findPrize, gachaSeason, gachaWholePeriod } from '@/app/gacha';
 import { drawGacha, getGachaState } from '@/db/data';
 
-// **Web専用**。広告の無料ガチャ。
+// **Web専用**。1日1回のガチャ。
 // 引くのはサーバー。画面は結果を受け取って出すだけで、当たりを決めない。
-// 金額には触れないので、アプリから呼んでも審査の線は越えないが、
-// いまはWebだけで出している。
 
 function view(state: Awaited<ReturnType<typeof getGachaState>>) {
-  const prize = state.drawn ? gachaPrize(state.prizeKey) : null;
+  const season = gachaSeason();
+  const prize = state.drawnToday ? findPrize(state.prizeKey) : null;
+  const period = gachaWholePeriod();
   return {
     key: adGacha.key,
-    name: adGacha.name,
-    period: gachaPeriodLabel(),
-    open: state.open,
-    drawn: state.drawn,
+    period: period.label,
+    // 今日開いている回。期間外なら null で、画面には何も出ない。
+    season: season && {
+      key: season.key, name: season.name, theme: season.theme,
+      action: season.action, emoji: season.emoji, lead: season.lead,
+      // 何が当たるかは先に見せる。中身を伏せたまま引かせない。
+      prizes: season.prizes.map((item) => ({ key: item.key, label: item.label, days: item.days })),
+    },
+    drawnToday: state.drawnToday,
     prize: prize && { key: prize.key, label: prize.label, days: prize.days, note: prize.note },
+    streak: state.streak,
+    wonDays: state.wonDays,
+    memberCapDays: adGacha.memberCapDays,
     giftDays: state.giftDays,
     giftExpiresOn: state.giftExpiresOn,
-    // 何が当たるかは先に見せる。中身を伏せたまま引かせない。
-    prizes: adGacha.prizes.map((item) => ({ key: item.key, label: item.label, days: item.days })),
   };
 }
 
@@ -34,11 +40,11 @@ export async function POST() {
   const gate = await requireActiveMember();
   if (gate.response) return gate.response;
   const before = await getGachaState(gate.user.userId);
-  if (!before.open) {
-    return NextResponse.json({ error: `ガチャは${gachaPeriodLabel()}のあいだだけお引きいただけます。` }, { status: 409 });
+  if (!gachaSeason()) {
+    return NextResponse.json({ error: `ガチャは${gachaWholePeriod().label}のあいだだけお引きいただけます。` }, { status: 409 });
   }
-  if (before.drawn) {
-    return NextResponse.json({ error: 'ガチャはお一人さま1回までです。', ...view(before) }, { status: 409 });
+  if (before.drawnToday) {
+    return NextResponse.json({ error: '今日のぶんはもうお引きになりました。また明日どうぞ。', ...view(before) }, { status: 409 });
   }
   return NextResponse.json(view(await drawGacha(gate.user.userId)));
 }

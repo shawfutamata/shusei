@@ -1,79 +1,147 @@
-// 広告枠の無料ガチャ。クリスマスからお正月にかけての催し。
+// 広告枠のガチャ。**1日1回のログインボーナス**として置いてある。
 //
-// ねらいは2つ。**掲示板の上に出ているものを増やすこと**と、広告を出したことが
-// 無い会員に一度出してもらうこと。開いたばかりの掲示板は広告の枠が空いていて、
-// 空いた枠は売っても埋まらない。配って埋めたほうが、次に買う人の判断材料になる。
+// ねらいは2つ。**毎日ここを開く理由を作ること**と、**掲示板の上を埋めること**。
+// 開いたばかりの掲示板は広告の枠が空いていて、空いた枠は売っても埋まらない。
+// 誰も出していないところに最初に出すのは決心が要るので、配って埋めてしまえば、
+// 次に買う人は「こう出るのか」を見てから決められる。
 //
-// **抽選は必ずサーバーで引く。** 画面で引くと、当たるまで押し直せてしまう。
-// 1人1回で、引いた結果は gacha_draws に残る（同じ人が2回引けない）。
+// **抽選は必ずサーバーで引く**（db/data.ts の drawGacha）。画面で引くと、
+// 当たるまで押し直せてしまう。1人1日1回で、引いた記録は gacha_days に残る。
+//
+// 当たりは**小さい券を積み上げる**形にしてある。広告は7日からしか申し込めない
+// （AD_MIN_DAYS）ので、1日券だけでも7日ためれば1週間まるごと無料で出せる。
+// 毎日ちょっとずつ増えるほうが、毎日開く理由になる。
 
-/** 当たりの中身。日数は広告の無料券としてそのまま使える。 */
+/** 当たりの中身。日数は広告の無料券としてそのまま積み上がる。 */
 export type GachaPrize = {
   key: string;
+  /** 結果の名前。おみくじなら「大吉」など。 */
   label: string;
   /** もらえる広告の無料日数。0 は「はずれ」。 */
   days: number;
-  /** 当たりやすさ。全部の合計に対する割合で決まる。 */
+  /** 当たりやすさ。同じ回の合計に対する割合で決まる。 */
   weight: number;
-  /** 当たったときに出す一言。 */
+  /** 結果と一緒に出す一言。 */
   note: string;
 };
 
+/** 見た目の切り替え。中身（確率と日数）は同じで、包み紙だけ変える。 */
+export type GachaTheme = 'xmas' | 'newyear';
+
+export type GachaSeason = {
+  key: string;
+  name: string;
+  /** 日本時間の日付。両端を含む。 */
+  from: string;
+  until: string;
+  theme: GachaTheme;
+  /** 引くボタンの文言。 */
+  action: string;
+  /** 箱に出す絵。 */
+  emoji: string;
+  lead: string;
+  prizes: GachaPrize[];
+};
+
 export const adGacha = {
-  /** 引いた記録を分けるための名前。**やり直すときは必ず新しい名前にする。** */
-  key: 'xmas-2026',
-  name: 'クリスマス＆お正月 広告ガチャ',
-  /** この期間だけ引ける（日本時間の日付、両端を含む）。空にすると止まる。 */
-  from: '2026-12-20',
-  until: '2027-01-07',
+  /** 記録を分けるための名前。**やり直すときは必ず新しい名前にする。** */
+  key: 'winter-2026',
+  name: '毎日ガチャ',
   /** 当たった無料券が使える期限。これを過ぎると使えない。 */
   giftExpiresOn: '2027-03-31',
   /**
-   * 配る日数の上限（全員ぶんの合計）。ここに届いたら、以降は全員はずれになる。
+   * **1人がもらえる日数の上限。** 7日ためれば広告を1週間まるごと出せる。
    *
-   * **上限を置かないと、会員が増えたぶんだけ際限なく枠が消える。** バナーは
-   * 1日10枠なので、210日ぶんは延べ21日分の全枠にあたる。売る枠が無くなる
-   * ほどではなく、空いている枠を埋めるには十分な量。
+   * 毎日引ける以上、上限が無いと1人で何十日ぶんも持っていってしまう。
+   * 上限に届いたあとも引けるが、券は増えない（結果だけ出る）。
    */
-  capDays: 210,
+  memberCapDays: 7,
   /**
-   * 当たりの中身。**7日未満は作らない。** 広告は1回7日からしか申し込めないので
-   * （AD_MIN_DAYS）、それより短い券は使えないまま終わる。
+   * 全員ぶんを合わせた上限。ここに届いたら、以降は誰が引いても券は出ない。
+   *
+   * バナーは1日10枠。400日は延べ40日分の全枠にあたる。券の期限（3月末）まで
+   * 90日あって900枠日ぶんあるので、売る枠が無くなるほどではない。
    */
-  prizes: [
-    { key: 'banner30', label: 'バナー30日間 無料', days: 30, weight: 1,
-      note: '大当たりです。1ヶ月まるごと、ホームのいちばん上に出せます。' },
-    { key: 'banner14', label: 'バナー14日間 無料', days: 14, weight: 6,
-      note: '当たりです。2週間、ホームのいちばん上に出せます。' },
-    { key: 'banner7', label: 'バナー7日間 無料', days: 7, weight: 28,
-      note: '当たりです。1週間、ホームのいちばん上に出せます。' },
-    { key: 'miss', label: 'はずれ', days: 0, weight: 65,
-      note: '今回はご縁がありませんでした。広告は7日2,450円から出せます。' },
-  ] as GachaPrize[],
+  capDays: 400,
+  seasons: [
+    {
+      key: 'xmas',
+      name: 'クリスマスガチャ',
+      from: '2026-12-20',
+      until: '2026-12-25',
+      theme: 'xmas' as GachaTheme,
+      action: 'プレゼントを開ける',
+      emoji: '🎁',
+      lead: '毎日1回、広告の無料券が当たります。',
+      prizes: [
+        { key: 'x3', label: '大きなプレゼント', days: 3, weight: 8,
+          note: '広告の無料券が3日分。' },
+        { key: 'x1', label: 'プレゼント', days: 1, weight: 37,
+          note: '広告の無料券が1日分。7日ためると1週間まるごと出せます。' },
+        { key: 'x0', label: 'くつ下は空っぽ', days: 0, weight: 55,
+          note: '今日は何も入っていませんでした。また明日どうぞ。' },
+      ],
+    },
+    {
+      key: 'newyear',
+      name: 'お正月おみくじ',
+      from: '2026-12-26',
+      until: '2027-01-07',
+      theme: 'newyear' as GachaTheme,
+      action: 'おみくじを引く',
+      emoji: '🎍',
+      lead: '毎日1回、運だめし。大吉なら広告の無料券が3日分。',
+      prizes: [
+        { key: 'n-daikichi', label: '大吉', days: 3, weight: 8,
+          note: '広告の無料券が3日分。よい年になりますように。' },
+        { key: 'n-chukichi', label: '中吉', days: 1, weight: 20,
+          note: '広告の無料券が1日分。7日ためると1週間まるごと出せます。' },
+        { key: 'n-shokichi', label: '小吉', days: 1, weight: 17,
+          note: '広告の無料券が1日分。こつこついきましょう。' },
+        { key: 'n-kichi', label: '吉', days: 0, weight: 30,
+          note: '悪くない一日になりそうです。また明日どうぞ。' },
+        { key: 'n-suekichi', label: '末吉', days: 0, weight: 25,
+          note: 'あとになるほど良くなります。また明日どうぞ。' },
+      ],
+    },
+  ] as GachaSeason[],
 };
 
-export function gachaPrize(key: string) {
-  return adGacha.prizes.find((prize) => prize.key === key) ?? adGacha.prizes[adGacha.prizes.length - 1];
-}
-
-/**
- * いま引ける期間か。**日本時間で判定する。**
- * UTCで比べると、日本の0時〜8時59分がまだ前日として扱われ、
- * 開始日の朝に引けない・最終日の朝まで引ける、という食い違いが出る。
- */
-export function gachaOpen(now = new Date()) {
-  if (!adGacha.from || !adGacha.until) return false;
+/** その日に開いている回。期間の外なら null。 */
+export function gachaSeason(now = new Date()): GachaSeason | null {
   const today = jstDate(now);
-  return today >= adGacha.from && today <= adGacha.until;
+  return adGacha.seasons.find((season) => today >= season.from && today <= season.until) ?? null;
 }
 
+export function gachaOpen(now = new Date()) {
+  return gachaSeason(now) !== null;
+}
+
+/** すべての回を通した期間。案内文に使う。 */
+export function gachaWholePeriod() {
+  const from = adGacha.seasons.map((season) => season.from).sort()[0] ?? '';
+  const until = adGacha.seasons.map((season) => season.until).sort().pop() ?? '';
+  return { from, until, label: `${monthDay(from)}〜${monthDay(until)}` };
+}
+
+export function findPrize(prizeKey: string) {
+  for (const season of adGacha.seasons) {
+    const prize = season.prizes.find((item) => item.key === prizeKey);
+    if (prize) return prize;
+  }
+  return null;
+}
+
+/** 日本時間の「今日」。UTCで比べると、日本の0時〜8時59分が前日扱いになる。 */
 export function jstDate(now = new Date()) {
   return new Date(now.getTime() + 9 * 3600_000).toISOString().slice(0, 10);
 }
 
-/** 「12月20日〜1月7日」の形。画面に出す用。 */
-export function gachaPeriodLabel() {
-  return `${monthDay(adGacha.from)}〜${monthDay(adGacha.until)}`;
+/** その日の前日。連続日数を数えるのに使う。 */
+export function previousDay(day: string) {
+  const date = new Date(`${day}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
 }
 
 export function gachaDateLabel(value: string) {
@@ -90,7 +158,7 @@ function monthDay(value: string) {
  * 重みつきの抽選。**乱数は crypto から取る。** Math.random は種を推測できる
  * 実装があり、当たりを狙って引く余地を残したくない。
  */
-export function drawPrize(prizes: GachaPrize[] = adGacha.prizes): GachaPrize {
+export function drawPrize(prizes: GachaPrize[]): GachaPrize {
   const total = prizes.reduce((sum, prize) => sum + Math.max(0, prize.weight), 0);
   if (total <= 0) return prizes[prizes.length - 1];
   const bytes = new Uint32Array(1);
@@ -101,4 +169,13 @@ export function drawPrize(prizes: GachaPrize[] = adGacha.prizes): GachaPrize {
     if (point < 0) return prize;
   }
   return prizes[prizes.length - 1];
+}
+
+/**
+ * 券が出せないときに返す「はずれ」。上限に届いたときに使う。
+ * **その回の見た目に合わせた名前を返す**（おみくじの日に「くつ下」と出さない）。
+ */
+export function consolationPrize(season: GachaSeason) {
+  const zero = season.prizes.filter((prize) => prize.days === 0);
+  return zero[zero.length - 1] ?? season.prizes[season.prizes.length - 1];
 }

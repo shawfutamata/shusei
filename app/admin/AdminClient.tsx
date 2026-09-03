@@ -9,8 +9,9 @@ import BrandMark from '@/app/BrandMark';
 import { BarList, TrendChart } from './Charts';
 
 type GachaSummary = {
-  name: string; open: boolean; draws: number; givenDays: number; capDays: number; usedDays: number;
-  prizes: { key: string; label: string; count: number }[];
+  name: string; open: boolean; period: string; draws: number; people: number;
+  givenDays: number; capDays: number; memberCapDays: number; usedDays: number;
+  seasons: { key: string; name: string; draws: number; days: number }[];
 };
 
 type AdminData = {
@@ -330,10 +331,11 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
           {/* ガチャで配った枠。**引いた数より「何日配ったか」が大事。**
               配った日数のぶんだけ、売れる枠が減っている。 */}
           {gacha && (gacha.open || gacha.draws > 0) && <section className="viz-card">
-            <h2>{gacha.name}{!gacha.open && <span className="viz-count">終了</span>}</h2>
-            <p className="viz-lead">引いた人 <b>{gacha.draws}人</b>／配った枠 <b>{gacha.givenDays}日</b>（上限 {gacha.capDays}日・うち掲載に使われた {gacha.usedDays}日）</p>
-            <ul className="admin-gacha">{gacha.prizes.map((prize) => <li key={prize.key}>
-              <span>{prize.label}</span><b>{prize.count}人</b>
+            <h2>{gacha.name}{gacha.open ? <span className="viz-count">開催中</span> : <span className="viz-count">{gacha.period}</span>}</h2>
+            <p className="viz-lead">引いた人 <b>{gacha.people}人</b>／のべ <b>{gacha.draws}回</b>／配った枠 <b>{gacha.givenDays}日</b>
+              （上限 {gacha.capDays}日・1人{gacha.memberCapDays}日まで・うち掲載に使われた {gacha.usedDays}日）</p>
+            <ul className="admin-gacha">{gacha.seasons.map((season) => <li key={season.key}>
+              <span>{season.name}</span><b>{season.draws}回・{season.days}日</b>
             </li>)}</ul>
           </section>}
         </div>

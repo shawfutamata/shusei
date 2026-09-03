@@ -907,7 +907,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
   /** ガチャを引く。**当たりを決めるのはサーバー。** 画面は結果を出すだけ。 */
   async function spinGacha() {
-    if (gachaSpinning || !gacha || gacha.drawn || !gacha.open) return;
+    if (gachaSpinning || !gacha || gacha.drawnToday || !gacha.season) return;
     setGachaSpinning(true);
     const response = await fetch('/api/gacha', { method: 'POST' }).catch(() => null);
     const data = response ? await response.json().catch(() => null) as GachaView & { error?: string } | null : null;
@@ -1352,18 +1352,16 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div className="carousel-dots" aria-label="バナーを切り替える">{slides.map((entry, index) => <button key={index} aria-label={`${index + 1}枚目${entry.ad ? '（広告）' : ''}`} className={`${carouselIndex === index ? 'active' : ''}${entry.ad ? ' is-ad' : ''}`} onClick={() => { setCarouselPaused(true); setCarouselIndex(index); }} />)}</div>
         </section>
 
-        {/* ガチャの入口。**期間中だけ出る。** 終わったら何も残らないので、
-            引き忘れた人に「終わったもの」を見せ続けることにならない。 */}
-        {gacha?.open && <button className={`gacha-banner${gacha.drawn ? ' is-done' : ''}`} onClick={() => setModal('gacha')}>
-          <span className="gacha-banner-icon" aria-hidden="true">🎁</span>
+        {/* ガチャの入口。**その日に開いている回があるときだけ出る。**
+            終わったら何も残らないので、引き忘れた人に「終わったもの」を
+            見せ続けることにならない。 */}
+        {gacha?.season && <button className={`gacha-banner is-${gacha.season.theme}${gacha.drawnToday ? ' is-done' : ''}`} onClick={() => setModal('gacha')}>
+          <span className="gacha-banner-icon" aria-hidden="true">{gacha.season.emoji}</span>
           <span className="gacha-banner-copy">
-            <b>{!gacha.drawn ? gacha.name
-              : gacha.giftDays > 0 ? `${gacha.prize?.label}が当たっています`
-              : gacha.prize?.days ? '無料券は使い切りました'
-              : 'ガチャは引き終わりました'}</b>
-            <small>{!gacha.drawn ? `${gacha.period}・お一人さま1回`
-              : gacha.giftDays > 0 ? `無料券 ${gacha.giftDays}日分・${gachaDateLabel(gacha.giftExpiresOn)}まで`
-              : '結果を見る'}</small>
+            <b>{gacha.drawnToday ? `今日は${gacha.prize?.label ?? '引き終わりました'}` : gacha.season.name}</b>
+            <small>{gacha.drawnToday
+              ? [gacha.streak > 1 && `${gacha.streak}日つづけて`, gacha.giftDays > 0 && `無料券 ${gacha.giftDays}日分`, 'また明日'].filter(Boolean).join('・')
+              : '毎日1回・今日のぶんがまだです'}</small>
           </span>
           <span className="gacha-banner-go" aria-hidden="true">›</span>
         </button>}
@@ -1867,26 +1865,35 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </div>
       </Modal>}
 
-      {modal === 'gacha' && gacha && <Modal title={gacha.name} lead={`広告の無料券が当たります。お一人さま1回、${gacha.period}まで。`} onClose={() => setModal(null)}>
-        <div className="gacha">
-          <div className={`gacha-box${gachaSpinning ? ' is-spinning' : ''}${gacha.drawn && !gachaSpinning ? ' is-open' : ''}`} aria-hidden="true">🎁</div>
-          {!gacha.drawn
+      {modal === 'gacha' && gacha && gacha.season && <Modal title={gacha.season.name} lead={`${gacha.season.lead}（${gacha.period}）`} onClose={() => setModal(null)}>
+        <div className={`gacha is-${gacha.season.theme}`}>
+          <div className={`gacha-box${gachaSpinning ? ' is-spinning' : ''}${gacha.drawnToday && !gachaSpinning ? ' is-open' : ''}`} aria-hidden="true">{gacha.season.emoji}</div>
+
+          {/* 1日目に「1日つづけて」と出すと、続けている感じが出ないどころか
+              数え方が変に見える。2日目から出す。 */}
+          {gacha.streak > 1 && <p className="gacha-streak">{gacha.streak}日つづけて引いています</p>}
+
+          {!gacha.drawnToday
             ? <>
               {/* 何が当たるかは先に出す。中身を伏せたまま引かせない。 */}
-              <ul className="gacha-prizes">{gacha.prizes.filter((prize) => prize.days > 0).map((prize) => <li key={prize.key}><b>{prize.label}</b></li>)}</ul>
-              <p className="gacha-lead">当たった無料券は、そのまま広告のお申し込みに使えます。お支払いは要りません（{gachaDateLabel(gacha.giftExpiresOn)}まで有効）。</p>
-              <button className="submit-button" onClick={spinGacha} disabled={gachaSpinning || !gacha.open}>{gachaSpinning ? '引いています…' : 'ガチャを引く'}</button>
+              <ul className="gacha-prizes">{gacha.season.prizes.map((prize) => <li key={prize.key} className={prize.days ? 'is-win' : ''}>
+                <b>{prize.label}</b><span>{prize.days ? `広告の無料券 ${prize.days}日分` : 'はずれ'}</span>
+              </li>)}</ul>
+              <button className="submit-button" onClick={spinGacha} disabled={gachaSpinning}>{gachaSpinning ? '引いています…' : gacha.season.action}</button>
             </>
             : gachaSpinning ? <p className="gacha-lead">引いています…</p>
             : <>
               <p className={`gacha-result${gacha.prize?.days ? ' is-win' : ''}`}>{gacha.prize?.label}</p>
               <p className="gacha-lead">{gacha.prize?.note}</p>
-              {gacha.giftDays > 0
-                ? <>
-                  <p className="gacha-gift">いま使える無料券 <b>{gacha.giftDays}日分</b><small>{gachaDateLabel(gacha.giftExpiresOn)}まで</small></p>
-                  <button className="submit-button" onClick={() => { setModal(null); openAdSettings(); }}>この券で広告を出す</button>
-                </>
-                : gacha.prize?.days ? <p className="gacha-lead">この無料券は掲載に使いました。掲載中の広告は「広告」から見られます。</p> : null}
+              {gacha.giftDays > 0 && <p className="gacha-gift">たまっている無料券 <b>{gacha.giftDays}日分</b><small>{gachaDateLabel(gacha.giftExpiresOn)}まで</small></p>}
+              {/* 7日たまるまでは「あと何日で使えるか」を出す。広告は7日からしか
+                  申し込めないので、それを言わないと1日券の意味が伝わらない。 */}
+              {gacha.giftDays > 0 && gacha.giftDays < AD_MIN_DAYS
+                ? <p className="gacha-lead">広告は{AD_MIN_DAYS}日から出せます。あと{AD_MIN_DAYS - gacha.giftDays}日分ためると、1週間まるごと無料で出せます。</p>
+                : gacha.giftDays >= AD_MIN_DAYS
+                  ? <button className="submit-button" onClick={() => { setModal(null); openAdSettings(); }}>この券で広告を出す</button>
+                  : <p className="gacha-lead">また明日、引きにきてください。</p>}
+              {gacha.wonDays >= gacha.memberCapDays && <p className="gacha-note">おひとりぶんの上限（{gacha.memberCapDays}日分）に達しました。ここから先は結果だけのお楽しみです。</p>}
             </>}
         </div>
       </Modal>}
@@ -2106,9 +2113,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                           {adInfo.discountRate > 0 && `／${adInfo.rank}の${Math.round(adInfo.discountRate * 100)}%OFF適用`}</>}</small>
                     </p>
                     {/* 券はあるが日数が足りないとき。**黙って全額にしない。**
-                        何日にすれば無料になるかを、その場で言う。 */}
-                    {!adFreeByGift && (gacha?.giftDays ?? 0) > 0 && <p className="ad-gift-hint">
-                      無料券が{gacha?.giftDays}日分あります。掲載日数を<b>{gacha?.giftDays}日以内</b>にすると、この期間はお支払いが要りません。
+                        ただし券が7日に満たないときに「◯日以内にすれば無料」と
+                        書くと、選べない日数を指すことになる（広告は7日から）。
+                        その場合は「あと何日ためれば出せるか」を言う。 */}
+                    {!adFreeByGift && adGiftDays > 0 && <p className="ad-gift-hint">{adGiftDays >= AD_MIN_DAYS
+                      ? <>無料券が{adGiftDays}日分あります。掲載日数を<b>{adGiftDays}日以内</b>にすると、この期間はお支払いが要りません。</>
+                      : <>無料券が{adGiftDays}日分たまっています。<b>あと{AD_MIN_DAYS - adGiftDays}日分</b>で、{AD_MIN_DAYS}日間まるごと無料で出せます。</>}
                     </p>}
                     <p className={`ad-period${adStart && !periodOpen ? ' is-full' : ''}`}>{!adStart
                       ? 'カレンダーから掲載開始日をお選びください'
