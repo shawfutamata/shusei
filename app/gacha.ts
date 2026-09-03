@@ -1,4 +1,4 @@
-// 広告枠のガチャ。**1日1回のログインボーナス**として置いてある。
+// 広告枠のガチャ。**1日1回のログインボーナス**として、いつでも引ける。
 //
 // ねらいは2つ。**毎日ここを開く理由を作ること**と、**掲示板の上を埋めること**。
 // 開いたばかりの掲示板は広告の枠が空いていて、空いた枠は売っても埋まらない。
@@ -26,12 +26,15 @@ export type GachaPrize = {
 };
 
 /** 見た目の切り替え。中身（確率と日数）は同じで、包み紙だけ変える。 */
-export type GachaTheme = 'xmas' | 'newyear';
+export type GachaTheme = 'plain' | 'xmas' | 'newyear';
 
 export type GachaSeason = {
   key: string;
   name: string;
-  /** 日本時間の日付。両端を含む。 */
+  /**
+   * 日本時間の日付。両端を含む。**空にすると「いつでも」。**
+   * ふだんの回を空にして、季節の回だけ日付を入れる。
+   */
   from: string;
   until: string;
   theme: GachaTheme;
@@ -44,25 +47,28 @@ export type GachaSeason = {
 };
 
 export const adGacha = {
-  /** 記録を分けるための名前。**やり直すときは必ず新しい名前にする。** */
-  key: 'winter-2026',
+  /** 記録に残す名前。集計を分けるためのもので、引ける条件には関わらない。 */
+  key: 'daily',
   name: '毎日ガチャ',
-  /** 当たった無料券が使える期限。これを過ぎると使えない。 */
-  giftExpiresOn: '2027-03-31',
   /**
-   * **1人がもらえる日数の上限。** 7日ためれば広告を1週間まるごと出せる。
-   *
-   * 毎日引ける以上、上限が無いと1人で何十日ぶんも持っていってしまう。
-   * 上限に届いたあとも引けるが、券は増えない（結果だけ出る）。
+   * 当たった券が使える日数。**当たった日から数える。**
+   * 終わりの決まっていない催しなので、決め打ちの日付は置かない。
    */
-  memberCapDays: 7,
+  giftValidDays: 90,
   /**
-   * 全員ぶんを合わせた上限。ここに届いたら、以降は誰が引いても券は出ない。
+   * **上限は「月ごと」に置く。** 終わりの無い催しなので、通算で上限を置くと、
+   * 一度届いた人はそのあとずっと何ももらえなくなり、毎日引く意味が消える。
+   * 毎月1日（日本時間）に戻る。
    *
-   * バナーは1日10枠。400日は延べ40日分の全枠にあたる。券の期限（3月末）まで
-   * 90日あって900枠日ぶんあるので、売る枠が無くなるほどではない。
+   * - 1人 … 月7日分まで。7日ためれば広告を1週間まるごと出せる
+   * - 全員 … 月100日分まで。バナーは1日10枠なので、月300枠日のうち3分の1
    */
-  capDays: 400,
+  memberCapDaysPerMonth: 7,
+  capDaysPerMonth: 100,
+  /**
+   * 引ける回。**上から順に見て、最初に当てはまったものを使う。**
+   * 日付を入れていない回（ふだんの回）は必ずいちばん下に置くこと。
+   */
   seasons: [
     {
       key: 'xmas',
@@ -104,24 +110,65 @@ export const adGacha = {
           note: 'あとになるほど良くなります。また明日どうぞ。' },
       ],
     },
+    {
+      key: 'daily',
+      name: '毎日ガチャ',
+      // 日付なし＝いつでも。**必ずいちばん下に置く。**
+      from: '',
+      until: '',
+      theme: 'plain' as GachaTheme,
+      action: '今日のガチャを引く',
+      emoji: '🍀',
+      lead: '毎日1回、広告の無料券が当たります。',
+      prizes: [
+        { key: 'd3', label: '当たり', days: 3, weight: 8,
+          note: '広告の無料券が3日分。' },
+        { key: 'd1', label: '小当たり', days: 1, weight: 37,
+          note: '広告の無料券が1日分。7日ためると1週間まるごと出せます。' },
+        { key: 'd0', label: 'はずれ', days: 0, weight: 55,
+          note: '今日はご縁がありませんでした。また明日どうぞ。' },
+      ],
+    },
   ] as GachaSeason[],
 };
 
-/** その日に開いている回。期間の外なら null。 */
+/**
+ * その日の回。**上から順に見て、最初に当てはまったものを使う。**
+ * 日付の入っていない回（ふだんの回）が最後にあるので、ふつうは null にならない。
+ */
 export function gachaSeason(now = new Date()): GachaSeason | null {
   const today = jstDate(now);
-  return adGacha.seasons.find((season) => today >= season.from && today <= season.until) ?? null;
+  return adGacha.seasons.find((season) =>
+    (!season.from || today >= season.from) && (!season.until || today <= season.until)) ?? null;
 }
 
 export function gachaOpen(now = new Date()) {
   return gachaSeason(now) !== null;
 }
 
-/** すべての回を通した期間。案内文に使う。 */
-export function gachaWholePeriod() {
-  const from = adGacha.seasons.map((season) => season.from).sort()[0] ?? '';
-  const until = adGacha.seasons.map((season) => season.until).sort().pop() ?? '';
-  return { from, until, label: `${monthDay(from)}〜${monthDay(until)}` };
+/** 次の季節の回。「12月20日からクリスマス」と先に知らせるのに使う。 */
+export function nextSeason(now = new Date()) {
+  const today = jstDate(now);
+  return adGacha.seasons
+    .filter((season) => season.from && season.from > today)
+    .sort((a, b) => a.from.localeCompare(b.from))[0] ?? null;
+}
+
+/** 「12月20日」の形。画面に出す用。 */
+export function gachaMonthDay(value: string) {
+  return monthDay(value);
+}
+
+/** 当たった日から数えた券の期限。 */
+export function giftExpiryFrom(day: string) {
+  const date = new Date(`${day}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + adGacha.giftValidDays);
+  return date.toISOString().slice(0, 10);
+}
+
+/** その月の始まり（日本時間の YYYY-MM）。上限を数える単位。 */
+export function jstMonth(now = new Date()) {
+  return jstDate(now).slice(0, 7);
 }
 
 export function findPrize(prizeKey: string) {

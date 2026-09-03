@@ -9,8 +9,10 @@ import BrandMark from '@/app/BrandMark';
 import { BarList, TrendChart } from './Charts';
 
 type GachaSummary = {
-  name: string; open: boolean; period: string; draws: number; people: number;
-  givenDays: number; capDays: number; memberCapDays: number; usedDays: number;
+  name: string; open: boolean; seasonName: string; month: string;
+  monthDraws: number; monthPeople: number; monthDays: number;
+  capDaysPerMonth: number; memberCapDaysPerMonth: number;
+  totalDraws: number; totalPeople: number; totalDays: number; usedDays: number;
   seasons: { key: string; name: string; draws: number; days: number }[];
 };
 
@@ -330,13 +332,17 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
 
           {/* ガチャで配った枠。**引いた数より「何日配ったか」が大事。**
               配った日数のぶんだけ、売れる枠が減っている。 */}
-          {gacha && (gacha.open || gacha.draws > 0) && <section className="viz-card">
-            <h2>{gacha.name}{gacha.open ? <span className="viz-count">開催中</span> : <span className="viz-count">{gacha.period}</span>}</h2>
-            <p className="viz-lead">引いた人 <b>{gacha.people}人</b>／のべ <b>{gacha.draws}回</b>／配った枠 <b>{gacha.givenDays}日</b>
-              （上限 {gacha.capDays}日・1人{gacha.memberCapDays}日まで・うち掲載に使われた {gacha.usedDays}日）</p>
-            <ul className="admin-gacha">{gacha.seasons.map((season) => <li key={season.key}>
+          {/* ガチャで配った枠。**引いた回数より「何日配ったか」が大事。**
+              配った日数のぶんだけ、売れる枠が減っている。上限は月ごとなので、
+              今月ぶんを先に、通算をそのうしろに置く。 */}
+          {gacha && (gacha.open || gacha.totalDraws > 0) && <section className="viz-card">
+            <h2>{gacha.name}{gacha.seasonName !== gacha.name && <span className="viz-count">{gacha.seasonName}</span>}</h2>
+            <p className="viz-lead">今月（{`${Number(gacha.month.slice(0, 4))}年${Number(gacha.month.slice(5, 7))}月`}）引いた人 <b>{gacha.monthPeople}人</b>／のべ <b>{gacha.monthDraws}回</b>／
+              配った枠 <b>{gacha.monthDays}日</b>（今月の上限 {gacha.capDaysPerMonth}日・1人{gacha.memberCapDaysPerMonth}日まで）</p>
+            <ul className="admin-gacha">{gacha.seasons.filter((season) => season.draws > 0).map((season) => <li key={season.key}>
               <span>{season.name}</span><b>{season.draws}回・{season.days}日</b>
             </li>)}</ul>
+            <p className="viz-caption">通算 {gacha.totalPeople}人・{gacha.totalDraws}回・{gacha.totalDays}日ぶんを配り、うち {gacha.usedDays}日が実際の掲載に使われました。</p>
           </section>}
         </div>
       </div>

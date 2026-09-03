@@ -4,9 +4,7 @@ import type { GachaTheme } from './gacha';
 
 export type GachaView = {
   key: string;
-  /** すべての回を通した期間。「12月20日〜1月7日」の形。 */
-  period: string;
-  /** 今日開いている回。期間外なら null。 */
+  /** 今日の回。見た目と当たりの名前はここで変わる。 */
   season: {
     key: string;
     name: string;
@@ -16,13 +14,16 @@ export type GachaView = {
     lead: string;
     prizes: { key: string; label: string; days: number }[];
   } | null;
+  /** 次の季節の回。「12月20日からクリスマス」と先に知らせる。 */
+  coming: { name: string; from: string } | null;
   drawnToday: boolean;
   prize: { key: string; label: string; days: number; note: string } | null;
   /** 連続で引いている日数。 */
   streak: number;
-  /** この回でもらった日数の合計。 */
-  wonDays: number;
-  memberCapDays: number;
+  /** 今月もらった日数。 */
+  monthDays: number;
+  memberCapDaysPerMonth: number;
   giftDays: number;
+  /** 手持ちの券のうち、いちばん早い期限。無ければ空。 */
   giftExpiresOn: string;
 };

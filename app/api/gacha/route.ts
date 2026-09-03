@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
-import { adGacha, findPrize, gachaSeason, gachaWholePeriod } from '@/app/gacha';
+import { adGacha, findPrize, gachaMonthDay, gachaSeason, nextSeason } from '@/app/gacha';
 import { drawGacha, getGachaState } from '@/db/data';
 
 // **Web専用**。1日1回のガチャ。
@@ -8,23 +8,24 @@ import { drawGacha, getGachaState } from '@/db/data';
 
 function view(state: Awaited<ReturnType<typeof getGachaState>>) {
   const season = gachaSeason();
+  const coming = nextSeason();
   const prize = state.drawnToday ? findPrize(state.prizeKey) : null;
-  const period = gachaWholePeriod();
   return {
     key: adGacha.key,
-    period: period.label,
-    // 今日開いている回。期間外なら null で、画面には何も出ない。
+    // 今日の回。見た目（テーマ）と当たりの名前はここで変わる。
     season: season && {
       key: season.key, name: season.name, theme: season.theme,
       action: season.action, emoji: season.emoji, lead: season.lead,
       // 何が当たるかは先に見せる。中身を伏せたまま引かせない。
       prizes: season.prizes.map((item) => ({ key: item.key, label: item.label, days: item.days })),
     },
+    // 次の季節の回。「12月20日からクリスマス」と先に知らせる。
+    coming: coming && { name: coming.name, from: gachaMonthDay(coming.from) },
     drawnToday: state.drawnToday,
     prize: prize && { key: prize.key, label: prize.label, days: prize.days, note: prize.note },
     streak: state.streak,
-    wonDays: state.wonDays,
-    memberCapDays: adGacha.memberCapDays,
+    monthDays: state.monthDays,
+    memberCapDaysPerMonth: adGacha.memberCapDaysPerMonth,
     giftDays: state.giftDays,
     giftExpiresOn: state.giftExpiresOn,
   };
@@ -41,7 +42,7 @@ export async function POST() {
   if (gate.response) return gate.response;
   const before = await getGachaState(gate.user.userId);
   if (!gachaSeason()) {
-    return NextResponse.json({ error: `ガチャは${gachaWholePeriod().label}のあいだだけお引きいただけます。` }, { status: 409 });
+    return NextResponse.json({ error: 'ただいまガチャはお休みしています。' }, { status: 409 });
   }
   if (before.drawnToday) {
     return NextResponse.json({ error: '今日のぶんはもうお引きになりました。また明日どうぞ。', ...view(before) }, { status: 409 });

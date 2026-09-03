@@ -5,7 +5,7 @@ import { cleanFacebookUrl } from '@/app/social-links';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
 import { AD_DESCRIPTION_MAX, AD_RESERVATION_MINUTES, AD_TITLE_MAX, DEFAULT_PLACEMENT, placementSlots } from '@/app/ad-options';
 import { UNLIMITED, bonusPlan, campaignPlan, can, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
-import { adGacha, consolationPrize, drawPrize, gachaOpen, gachaSeason, gachaWholePeriod, jstDate, previousDay } from '@/app/gacha';
+import { adGacha, consolationPrize, drawPrize, gachaOpen, gachaSeason, giftExpiryFrom, jstDate, jstMonth, previousDay } from '@/app/gacha';
 import { EXTEND_DAYS, MAX_LEVEL, canExtendRequest, canPostVideo, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
 import { isAdminEmail } from '@/app/admin-emails';
 import { sampleRequests } from './sample-requests';
@@ -2272,19 +2272,20 @@ export async function getMemberRank(memberId: string) {
 // 画面で引くと、当たるまで押し直せてしまう。
 
 export type GachaState = {
-  /** いま開いている回（期間外なら空）。 */
+  /** いま開いている回（無ければ空）。 */
   seasonKey: string;
   /** 今日ぶんを引いたか。 */
   drawnToday: boolean;
   /** 今日引いた結果（引いていなければ空）。 */
   prizeKey: string;
   todayDays: number;
-  /** 連続で引いている日数。 */
+  /** 連続で引いている日数。**回に関係なく数える。** */
   streak: number;
-  /** この回でもらった日数の合計。 */
-  wonDays: number;
+  /** 今月もらった日数。上限はここで見る。 */
+  monthDays: number;
   /** いま使える無料券の合計日数。 */
   giftDays: number;
+  /** 手持ちの券のうち、いちばん早い期限。無ければ空。 */
   giftExpiresOn: string;
 };
 
@@ -2292,28 +2293,39 @@ export async function getGachaState(memberId: string): Promise<GachaState> {
   await ensureDatabase();
   const season = gachaSeason();
   const today = jstDate();
+  // 連続日数は**回に関係なく**数える。クリスマスから正月へ変わっただけで
+  // 連続が切れると、続けている人ほど損をする。
   const rows = await env.DB.prepare(`SELECT day, prize_key AS prizeKey, days FROM gacha_days
-    WHERE member_id = ? AND campaign_key = ? ORDER BY day DESC LIMIT 60`)
-    .bind(memberId, adGacha.key).all<{ day: string; prizeKey: string; days: number }>();
+    WHERE member_id = ? ORDER BY day DESC LIMIT 90`)
+    .bind(memberId).all<{ day: string; prizeKey: string; days: number }>();
   const list = rows.results;
   const todayRow = list.find((row) => row.day === today);
 
-  // 連続日数。今日ぶんがまだなら、昨日から数える（引く前に0に戻さない）。
+  // 今日ぶんがまだなら、昨日から数える（引く前に0に戻さない）。
   let cursor = todayRow ? today : previousDay(today);
   let streak = 0;
   const seen = new Set(list.map((row) => row.day));
   while (seen.has(cursor)) { streak += 1; cursor = previousDay(cursor); }
 
+  const month = jstMonth();
   return {
     seasonKey: season?.key ?? '',
     drawnToday: Boolean(todayRow),
     prizeKey: todayRow?.prizeKey ?? '',
     todayDays: Number(todayRow?.days ?? 0),
     streak,
-    wonDays: list.reduce((sum, row) => sum + Number(row.days), 0),
+    monthDays: list.filter((row) => row.day.startsWith(month)).reduce((sum, row) => sum + Number(row.days), 0),
     giftDays: await availableAdGiftDays(memberId),
-    giftExpiresOn: adGacha.giftExpiresOn,
+    giftExpiresOn: await nextGiftExpiry(memberId),
   };
+}
+
+/** 手持ちの券のうち、いちばん早い期限。無ければ空。 */
+export async function nextGiftExpiry(memberId: string) {
+  const row = await env.DB.prepare(`SELECT MIN(expires_on) AS expiresOn FROM ad_gifts
+    WHERE member_id = ? AND days_left > 0 AND (expires_on = '' OR expires_on >= ?)`)
+    .bind(memberId, jstDate()).first<{ expiresOn: string | null }>();
+  return row?.expiresOn ?? '';
 }
 
 /**
@@ -2333,15 +2345,17 @@ export async function drawGacha(memberId: string): Promise<GachaState> {
     .bind(memberId, today).first();
   if (already) return getGachaState(memberId);
 
-  // **上限は2つ。** 1人ぶんと、全員ぶん。どちらかに届いていたら券は出さない
-  // （引くことはできて、結果だけが出る）。上限が無いと、毎日引ける以上、
-  // 売る枠が際限なく消える。
-  const mine = await env.DB.prepare('SELECT COALESCE(SUM(days), 0) AS days FROM gacha_days WHERE member_id = ? AND campaign_key = ?')
-    .bind(memberId, adGacha.key).first<{ days: number }>();
-  const all = await env.DB.prepare('SELECT COALESCE(SUM(days), 0) AS days FROM gacha_days WHERE campaign_key = ?')
-    .bind(adGacha.key).first<{ days: number }>();
-  const myLeft = Math.max(0, adGacha.memberCapDays - Number(mine?.days ?? 0));
-  const allLeft = Math.max(0, adGacha.capDays - Number(all?.days ?? 0));
+  // **上限は「その月」で2つ。** 1人ぶんと、全員ぶん。どちらかに届いていたら
+  // 券は出さない（引くことはできて、結果だけが出る）。
+  // 通算で上限を置くと、一度届いた人はそのあとずっと何ももらえなくなり、
+  // 毎日引く意味が消える。毎月1日に戻る。
+  const month = `${jstMonth()}%`;
+  const mine = await env.DB.prepare("SELECT COALESCE(SUM(days), 0) AS days FROM gacha_days WHERE member_id = ? AND day LIKE ?")
+    .bind(memberId, month).first<{ days: number }>();
+  const all = await env.DB.prepare("SELECT COALESCE(SUM(days), 0) AS days FROM gacha_days WHERE day LIKE ?")
+    .bind(month).first<{ days: number }>();
+  const myLeft = Math.max(0, adGacha.memberCapDaysPerMonth - Number(mine?.days ?? 0));
+  const allLeft = Math.max(0, adGacha.capDaysPerMonth - Number(all?.days ?? 0));
   const left = Math.min(myLeft, allLeft);
 
   let prize = drawPrize(season.prizes);
@@ -2360,7 +2374,7 @@ export async function drawGacha(memberId: string): Promise<GachaState> {
   if (saved?.prizeKey === prize.key && prize.days > 0) {
     await env.DB.prepare(`INSERT INTO ad_gifts (id, member_id, source, days, days_left, expires_on, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .bind(crypto.randomUUID(), memberId, `gacha:${adGacha.key}`, prize.days, prize.days, adGacha.giftExpiresOn, now).run();
+      .bind(crypto.randomUUID(), memberId, `gacha:${adGacha.key}`, prize.days, prize.days, giftExpiryFrom(today), now).run();
   }
   return getGachaState(memberId);
 }
@@ -2396,30 +2410,41 @@ export async function spendAdGiftDays(memberId: string, days: number, adId: stri
   return days - rest;
 }
 
-/** 管理画面に出す、配った結果のまとめ。 */
+/** 管理画面に出す、配った結果のまとめ。**「今月」と「通算」の両方を出す。** */
 export async function gachaSummary() {
   await ensureDatabase();
-  const rows = await env.DB.prepare(`SELECT season, COUNT(*) AS draws, COUNT(DISTINCT member_id) AS people,
-    COALESCE(SUM(days), 0) AS days FROM gacha_days WHERE campaign_key = ? GROUP BY season`)
-    .bind(adGacha.key).all<{ season: string; draws: number; people: number; days: number }>();
-  const people = await env.DB.prepare('SELECT COUNT(DISTINCT member_id) AS count FROM gacha_days WHERE campaign_key = ?')
-    .bind(adGacha.key).first<{ count: number }>();
+  const month = `${jstMonth()}%`;
+  const bySeason = await env.DB.prepare(`SELECT season, COUNT(*) AS draws, COALESCE(SUM(days), 0) AS days
+    FROM gacha_days WHERE day LIKE ? GROUP BY season`)
+    .bind(month).all<{ season: string; draws: number; days: number }>();
+  const monthTotals = await env.DB.prepare(`SELECT COUNT(*) AS draws, COUNT(DISTINCT member_id) AS people,
+    COALESCE(SUM(days), 0) AS days FROM gacha_days WHERE day LIKE ?`)
+    .bind(month).first<{ draws: number; people: number; days: number }>();
+  const allTotals = await env.DB.prepare(`SELECT COUNT(*) AS draws, COUNT(DISTINCT member_id) AS people,
+    COALESCE(SUM(days), 0) AS days FROM gacha_days`)
+    .first<{ draws: number; people: number; days: number }>();
   const used = await env.DB.prepare(`SELECT COALESCE(SUM(days - days_left), 0) AS days FROM ad_gifts
-    WHERE source = ?`).bind(`gacha:${adGacha.key}`).first<{ days: number }>();
+    WHERE source LIKE 'gacha:%'`).first<{ days: number }>();
+  const season = gachaSeason();
   return {
     name: adGacha.name,
     open: gachaOpen(),
-    period: gachaWholePeriod().label,
-    draws: rows.results.reduce((sum, row) => sum + Number(row.draws), 0),
-    people: Number(people?.count ?? 0),
-    givenDays: rows.results.reduce((sum, row) => sum + Number(row.days), 0),
-    capDays: adGacha.capDays,
-    memberCapDays: adGacha.memberCapDays,
+    /** いま出ている回の名前。 */
+    seasonName: season?.name ?? '',
+    month: jstMonth(),
+    monthDraws: Number(monthTotals?.draws ?? 0),
+    monthPeople: Number(monthTotals?.people ?? 0),
+    monthDays: Number(monthTotals?.days ?? 0),
+    capDaysPerMonth: adGacha.capDaysPerMonth,
+    memberCapDaysPerMonth: adGacha.memberCapDaysPerMonth,
+    totalDraws: Number(allTotals?.draws ?? 0),
+    totalPeople: Number(allTotals?.people ?? 0),
+    totalDays: Number(allTotals?.days ?? 0),
     usedDays: Number(used?.days ?? 0),
-    seasons: adGacha.seasons.map((season) => ({
-      key: season.key, name: season.name,
-      draws: Number(rows.results.find((row) => row.season === season.key)?.draws ?? 0),
-      days: Number(rows.results.find((row) => row.season === season.key)?.days ?? 0),
+    seasons: adGacha.seasons.map((item) => ({
+      key: item.key, name: item.name,
+      draws: Number(bySeason.results.find((row) => row.season === item.key)?.draws ?? 0),
+      days: Number(bySeason.results.find((row) => row.season === item.key)?.days ?? 0),
     })),
   };
 }

@@ -1361,7 +1361,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             <b>{gacha.drawnToday ? `今日は${gacha.prize?.label ?? '引き終わりました'}` : gacha.season.name}</b>
             <small>{gacha.drawnToday
               ? [gacha.streak > 1 && `${gacha.streak}日つづけて`, gacha.giftDays > 0 && `無料券 ${gacha.giftDays}日分`, 'また明日'].filter(Boolean).join('・')
-              : '毎日1回・今日のぶんがまだです'}</small>
+              : gacha.streak > 0 ? `毎日1回・${gacha.streak}日つづいています` : '毎日1回・今日のぶんがまだです'}</small>
           </span>
           <span className="gacha-banner-go" aria-hidden="true">›</span>
         </button>}
@@ -1865,7 +1865,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </div>
       </Modal>}
 
-      {modal === 'gacha' && gacha && gacha.season && <Modal title={gacha.season.name} lead={`${gacha.season.lead}（${gacha.period}）`} onClose={() => setModal(null)}>
+      {modal === 'gacha' && gacha && gacha.season && <Modal title={gacha.season.name} lead={gacha.season.lead} onClose={() => setModal(null)}>
         <div className={`gacha is-${gacha.season.theme}`}>
           <div className={`gacha-box${gachaSpinning ? ' is-spinning' : ''}${gacha.drawnToday && !gachaSpinning ? ' is-open' : ''}`} aria-hidden="true">{gacha.season.emoji}</div>
 
@@ -1880,12 +1880,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 <b>{prize.label}</b><span>{prize.days ? `広告の無料券 ${prize.days}日分` : 'はずれ'}</span>
               </li>)}</ul>
               <button className="submit-button" onClick={spinGacha} disabled={gachaSpinning}>{gachaSpinning ? '引いています…' : gacha.season.action}</button>
+              {gacha.coming && <p className="gacha-note">{gacha.coming.from}から <b>{gacha.coming.name}</b> が始まります。</p>}
             </>
             : gachaSpinning ? <p className="gacha-lead">引いています…</p>
             : <>
               <p className={`gacha-result${gacha.prize?.days ? ' is-win' : ''}`}>{gacha.prize?.label}</p>
               <p className="gacha-lead">{gacha.prize?.note}</p>
-              {gacha.giftDays > 0 && <p className="gacha-gift">たまっている無料券 <b>{gacha.giftDays}日分</b><small>{gachaDateLabel(gacha.giftExpiresOn)}まで</small></p>}
+              {gacha.giftDays > 0 && <p className="gacha-gift">たまっている無料券 <b>{gacha.giftDays}日分</b>{gacha.giftExpiresOn && <small>いちばん早い券は{gachaDateLabel(gacha.giftExpiresOn)}まで</small>}</p>}
               {/* 7日たまるまでは「あと何日で使えるか」を出す。広告は7日からしか
                   申し込めないので、それを言わないと1日券の意味が伝わらない。 */}
               {gacha.giftDays > 0 && gacha.giftDays < AD_MIN_DAYS
@@ -1893,7 +1894,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 : gacha.giftDays >= AD_MIN_DAYS
                   ? <button className="submit-button" onClick={() => { setModal(null); openAdSettings(); }}>この券で広告を出す</button>
                   : <p className="gacha-lead">また明日、引きにきてください。</p>}
-              {gacha.wonDays >= gacha.memberCapDays && <p className="gacha-note">おひとりぶんの上限（{gacha.memberCapDays}日分）に達しました。ここから先は結果だけのお楽しみです。</p>}
+              {gacha.monthDays >= gacha.memberCapDaysPerMonth && <p className="gacha-note">今月ぶんの上限（{gacha.memberCapDaysPerMonth}日分）に達しました。来月1日にまた増やせます。それまでは結果だけのお楽しみです。</p>}
+              {gacha.coming && <p className="gacha-note">{gacha.coming.from}から <b>{gacha.coming.name}</b> が始まります。</p>}
             </>}
         </div>
       </Modal>}

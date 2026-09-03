@@ -1956,6 +1956,8 @@ body { font-weight:600; }
    クリスマスは赤と緑、お正月は紅白と金。 */
 .gacha-banner { width:calc(100% - 32px); margin:16px; padding:14px 15px; display:flex; align-items:center; gap:12px;
   border:0; border-radius:16px; color:#fff; text-align:left; cursor:pointer; }
+/* ふだんの回は、アプリの色そのまま。季節の回だけ服を着替える。 */
+.gacha-banner.is-plain { background:linear-gradient(120deg,#0f5fc4,#1478d6 60%,#12a06a); }
 .gacha-banner.is-xmas { background:linear-gradient(120deg,#a51228,#d13048 52%,#0d7a44); }
 .gacha-banner.is-newyear { background:linear-gradient(120deg,#b3122b,#e03a4f 46%,#c99a2e); }
 /* 今日ぶんを引き終わったら落ち着かせる。押せることに変わりはないが、
@@ -1970,6 +1972,7 @@ body { font-weight:600; }
 
 .gacha { text-align:center; }
 .gacha-box { width:104px; height:104px; margin:6px auto 0; display:grid; place-items:center; border-radius:24px; font-size:52px; }
+.gacha.is-plain .gacha-box { background:linear-gradient(140deg,#eef5ff,#e8f6ee); }
 .gacha.is-xmas .gacha-box { background:linear-gradient(140deg,#fff1f3,#e8f6ee); }
 .gacha.is-newyear .gacha-box { background:linear-gradient(140deg,#fff2f2,#fdf3dd); }
 .gacha-box.is-spinning { animation:gacha-shake .45s ease-in-out infinite; }
