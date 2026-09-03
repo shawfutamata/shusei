@@ -1953,69 +1953,145 @@ body { font-weight:600; }
 
 /* --- 毎日ガチャ ---------------------------------------------------------------
    期間中だけホームに出る入口と、引くところ。**中身は同じで包み紙だけ変える。**
-   クリスマスは赤と緑、お正月は紅白と金。 */
-.gacha-banner { width:calc(100% - 32px); margin:16px; padding:14px 15px; display:flex; align-items:center; gap:12px;
-  border:0; border-radius:16px; color:#fff; text-align:left; cursor:pointer; }
-/* ふだんの回は、アプリの色そのまま。季節の回だけ服を着替える。 */
-.gacha-banner.is-plain { background:linear-gradient(120deg,#0f5fc4,#1478d6 60%,#12a06a); }
-.gacha-banner.is-xmas { background:linear-gradient(120deg,#a51228,#d13048 52%,#0d7a44); }
-.gacha-banner.is-newyear { background:linear-gradient(120deg,#b3122b,#e03a4f 46%,#c99a2e); }
-/* 今日ぶんを引き終わったら落ち着かせる。押せることに変わりはないが、
-   まだ引いていない人と同じ強さで呼び続けない。 */
-.gacha-banner.is-done { filter:saturate(.45) brightness(.92); }
-.gacha-banner-icon { flex:0 0 auto; width:42px; height:42px; display:grid; place-items:center; border-radius:12px;
-  background:rgba(255,255,255,.18); font-size:23px; }
-.gacha-banner-copy { min-width:0; flex:1 1 auto; }
-.gacha-banner-copy b { display:block; font-size:14px; font-weight:900; line-height:1.45; }
-.gacha-banner-copy small { display:block; margin-top:3px; color:#ffe8ec; font-size:11px; font-weight:800; }
-.gacha-banner-go { flex:0 0 auto; font-size:20px; font-weight:900; opacity:.8; }
-
+   ふだんはアプリの青、クリスマスは赤と緑、お正月は紅白と金。 */
 .gacha { text-align:center; }
-/* ガチャ本体。回しているあいだ揺れる。**画像でも絵文字でも同じ動き**に
-   なるように、動かすのは中身ではなく外側の箱にしてある。 */
-/* 絵そのものに背景（光と紙吹雪）が入っているので、角を丸めて1枚の札に見せる。
-   まわりの白と地続きにすると、切り取り忘れのように見える。 */
-.gacha-machine { margin:4px auto 0; display:flex; justify-content:center; overflow:hidden;
-  border-radius:18px; transform-origin:50% 92%; }
-.gacha-machine img { height:210px; width:auto; display:block; }
+
+/* --- 舞台 -------------------------------------------------------------------
+   **モーダルの端まで色を伸ばす。** 白い紙の上に絵を置いただけだと、
+   催しをやっている感じが出ない。上は角を丸めず、下だけ丸めて紙に戻す。 */
+.gacha-stage { margin:0 -20px 4px; padding:14px 20px 18px; position:relative; overflow:hidden;
+  border-radius:0 0 22px 22px; }
+.gacha.is-plain .gacha-stage { background:linear-gradient(165deg,#0b4ea8,#1478d6 58%,#0f8f77); }
+.gacha.is-xmas .gacha-stage { background:linear-gradient(165deg,#8f0f22,#c92a41 55%,#0c7040); }
+.gacha.is-newyear .gacha-stage { background:linear-gradient(165deg,#9c0f24,#d43148 50%,#c2932c); }
+
+/* 後光。ガチャ本体の真うしろから放射させる。薄くしないと、絵より目立つ。 */
+.gacha-rays { position:absolute; left:50%; top:44%; width:150%; aspect-ratio:1; transform:translate(-50%,-50%);
+  background:repeating-conic-gradient(from 0deg, rgba(255,255,255,.08) 0deg 7deg, rgba(255,255,255,0) 7deg 14deg);
+  -webkit-mask-image:radial-gradient(closest-side, #000 20%, transparent 78%);
+  mask-image:radial-gradient(closest-side, #000 20%, transparent 78%); pointer-events:none; }
+
+/* 紙吹雪。**当たったときだけ降らせる。** ふだんから動いていると、
+   当たった手ごたえが出ない。 */
+.gacha-confetti { position:absolute; inset:0; pointer-events:none; }
+.gacha-confetti i { position:absolute; top:-14px; width:7px; height:11px; border-radius:2px; opacity:0; }
+.gacha-stage.is-win .gacha-confetti i { animation:gacha-fall 1.5s ease-in forwards; }
+@keyframes gacha-fall {
+  0% { transform:translateY(0) rotate(0deg); opacity:0; }
+  12% { opacity:1; }
+  100% { transform:translateY(330px) rotate(420deg); opacity:0; }
+}
+
+.gacha-stage-top { margin:0; position:relative; z-index:2; display:flex; flex-wrap:wrap; align-items:center;
+  justify-content:center; gap:7px; }
+.gacha-chip { padding:5px 12px; border-radius:99px; background:rgba(255,255,255,.2); color:#fff;
+  font-size:11px; font-weight:900; letter-spacing:.03em; }
+.gacha-streak { padding:5px 12px; border-radius:99px; background:#ffc53d; color:#5c3c00;
+  font-size:11px; font-weight:900; }
+
+/* ガチャ本体。回しているあいだ揺れる。絵そのものに背景が入っているので、
+   角を丸めて1枚の札に見せる。 */
+.gacha-machine { margin:10px auto 0; position:relative; z-index:2; display:flex; justify-content:center;
+  overflow:hidden; border-radius:18px; transform-origin:50% 92%;
+  box-shadow:0 14px 34px rgba(6,20,44,.28); }
+.gacha-machine img { height:212px; width:auto; display:block; }
 .gacha-machine.is-spinning { animation:gacha-shake .38s ease-in-out infinite; }
 @keyframes gacha-shake {
   0%,100% { transform:rotate(-4deg); }
   50% { transform:rotate(4deg); }
 }
-@media (prefers-reduced-motion:reduce) { .gacha-machine.is-spinning { animation:none; } }
-/* 連続日数。**ログインボーナスの本体はここ。** 続けている手ごたえを出す。 */
-.gacha-streak { margin:12px 0 0; display:inline-block; padding:6px 13px; border-radius:99px;
-  background:#fff3e6; color:#a2500b; font-size:12px; font-weight:900; }
-/* 賞の一覧。**等級・中身・もらえる日数の3列**にそろえる。 */
-.gacha-prizes { margin:15px 0 0; padding:0; list-style:none; display:grid; gap:7px; }
-.gacha-prizes li { padding:10px 12px; display:flex; align-items:center; gap:10px;
-  border:1px solid var(--line); border-radius:11px; background:#fff; color:#7b8598; font-size:11px; font-weight:800; text-align:left; }
-.gacha-prizes li i { min-width:38px; padding:4px 8px; border-radius:7px; background:#eef2f8; color:#8b97aa;
-  font-size:11px; font-style:normal; font-weight:900; text-align:center; }
-.gacha-prizes li b { flex:1 1 auto; min-width:0; overflow:hidden; font-size:13px; font-weight:900; text-overflow:ellipsis; white-space:nowrap; }
-.gacha-prizes li span { flex:0 0 auto; }
-.gacha-prizes li.is-win { border-color:#f0d6c4; background:#fffaf5; color:#a2500b; }
-.gacha-prizes li.is-win i { background:var(--accent); color:#fff; }
-.gacha.is-newyear .gacha-prizes li.is-win { border-color:#e8cf9a; background:#fdf7e8; color:#8a6d2f; }
-.gacha.is-newyear .gacha-prizes li.is-win i { background:#b8912f; }
-.gacha-lead { margin:14px 0 0; color:#64748b; font-size:12px; font-weight:700; line-height:1.75; }
-.gacha .submit-button { margin-top:15px; }
-/* 結果は「A賞　◯◯」。等級を先に、中身をそのうしろに。 */
-.gacha-result { margin:16px 0 0; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:9px;
-  color:#7b8598; font-size:21px; font-weight:900; }
-.gacha-result i { padding:5px 12px; border-radius:9px; background:#eef2f8; color:#8b97aa;
-  font-size:15px; font-style:normal; font-weight:900; letter-spacing:.04em; }
-.gacha-result b { font-weight:900; }
-.gacha-result.is-win { color:#b4380f; font-size:26px; }
-.gacha-result.is-win i { background:var(--accent); color:#fff; }
-.gacha.is-newyear .gacha-result.is-win { color:#a8102a; }
-.gacha.is-newyear .gacha-result.is-win i { background:#b8912f; }
-.gacha-gift { margin:15px 0 0; padding:13px; border-radius:12px; background:#fff3e6; color:#8a4a12;
+@media (prefers-reduced-motion:reduce) {
+  .gacha-machine.is-spinning { animation:none; }
+  .gacha-stage.is-win .gacha-confetti i { animation:none; }
+}
+
+.gacha-stage-note { margin:12px 0 0; position:relative; z-index:2; color:rgba(255,255,255,.86);
   font-size:12px; font-weight:800; }
-.gacha-gift b { display:block; margin-top:4px; font-size:22px; font-weight:900; }
-.gacha-gift small { display:block; margin-top:3px; font-size:11px; font-weight:800; opacity:.8; }
+
+/* 結果は「A賞　◯◯」。舞台の上に白抜きで出す。 */
+.gacha-result { margin:13px 0 0; position:relative; z-index:2; display:flex; flex-wrap:wrap; align-items:center;
+  justify-content:center; gap:9px; color:rgba(255,255,255,.85); font-size:19px; font-weight:900; }
+.gacha-result i { padding:5px 12px; border-radius:9px; background:rgba(255,255,255,.22); color:#fff;
+  font-size:14px; font-style:normal; font-weight:900; letter-spacing:.04em; }
+.gacha-result b { font-weight:900; }
+.gacha-result.is-win { color:#fff; font-size:25px; text-shadow:0 2px 12px rgba(6,20,44,.35); }
+.gacha-result.is-win i { background:#ffc53d; color:#5c3c00; }
+
+/* 賞の一覧。**等級・中身・もらえる日数の3つ**にそろえる。 */
+.gacha-prizes { margin:16px 0 0; padding:0; list-style:none; display:grid; gap:8px; }
+.gacha-prizes li { padding:11px 12px; display:flex; align-items:center; gap:10px;
+  border:1px solid var(--line); border-radius:12px; background:#fff; color:#7b8598;
+  font-size:11px; font-weight:800; text-align:left; }
+.gacha-prizes li i { min-width:40px; padding:5px 8px; border-radius:8px; background:#eef2f8; color:#8b97aa;
+  font-size:11px; font-style:normal; font-weight:900; text-align:center; }
+.gacha-prizes li b { flex:1 1 auto; min-width:0; overflow:hidden; font-size:13px; font-weight:900;
+  text-overflow:ellipsis; white-space:nowrap; }
+.gacha-prizes li span { flex:0 0 auto; }
+.gacha-prizes li.is-win { border-color:#f6d9bd; background:#fff8f1; color:#a2500b; }
+.gacha-prizes li.is-win i { background:var(--accent); color:#fff; }
+/* いちばん上の賞だけ金色にする。**どれが目玉かが一目で分かる。** */
+.gacha-prizes li.is-top { border-color:#e8c877; background:linear-gradient(120deg,#fff8e3,#fffdf6); color:#7a5a12; }
+.gacha-prizes li.is-top i { background:linear-gradient(135deg,#e0a51c,#f5cd53); color:#4d3400;
+  box-shadow:0 2px 8px rgba(190,140,20,.35); }
+.gacha-prizes li.is-top b { font-size:14px; }
+
+.gacha-lead { margin:14px 0 0; color:#64748b; font-size:12px; font-weight:700; line-height:1.75; }
+.gacha-lead b { color:var(--accent-ink); }
+
+/* 引くボタン。押したくなる大きさにする。 */
+.gacha-draw { min-height:56px; margin-top:16px; border-radius:14px; font-size:16px; font-weight:900;
+  box-shadow:0 10px 24px rgba(15,95,196,.28); }
+
+/* たまっている券。**回数券のかたち**にする。数字だけ書くより、持ちものとして
+   見えたほうが、ためる気になる。左右のへこみが切り取り線に見える。 */
+.gacha-gift { margin:16px 0 0; padding:14px 18px; position:relative; border:1px dashed #e8c877;
+  border-radius:14px; background:linear-gradient(120deg,#fffaf0,#fff7e8); color:#7a5a12; }
+.gacha-gift::before, .gacha-gift::after { position:absolute; top:50%; width:14px; height:14px;
+  transform:translateY(-50%); border-radius:50%; background:#fff; content:''; }
+.gacha-gift::before { left:-8px; }
+.gacha-gift::after { right:-8px; }
+.gacha-gift small { display:block; font-size:11px; font-weight:800; opacity:.85; }
+.gacha-gift b { display:block; margin:2px 0; font-size:30px; font-weight:900; letter-spacing:-.02em; }
+.gacha-gift b em { margin-left:3px; font-size:15px; font-style:normal; }
+
+/* あと何日でつかえるか。数字だけより、伸びていくほうが分かりやすい。 */
+.gacha-gauge { height:8px; margin:11px 0 0; overflow:hidden; border-radius:99px; background:#eef2f8; }
+.gacha-gauge span { height:100%; display:block; border-radius:99px;
+  background:linear-gradient(90deg,#f0a11f,#f0731f); }
+
 .gacha-note { margin:13px 0 0; color:#93a0b3; font-size:11px; font-weight:700; line-height:1.7; }
+.gacha-note b { color:#66758c; }
+
+/* 運営だけに出る「もう一度回す」。ふつうのボタンほど強くしない。 */
+.gacha-again { min-height:44px; margin-top:14px; padding:0 20px; border:1px solid #cfdcee; border-radius:11px;
+  background:#fff; color:#0f5fc4; font-size:13px; font-weight:900; cursor:pointer; }
+
+/* --- ガチャの入口（ジャンル別の下）---------------------------------------------
+   **横長のバナー（1200×400／3:1）を置ける枠。** 画像が無い・読めないときは
+   色と文字だけの帯になる。どちらでも成り立つ形にしてあるので、画像の差し替えで
+   画面が壊れることはない。 */
+.gacha-section { padding:6px 0 4px; }
+.gacha-wide { width:calc(100% - 32px); margin:0 16px; padding:0; position:relative; display:block;
+  overflow:hidden; border:0; border-radius:16px; color:#fff; text-align:left; cursor:pointer; }
+.gacha-wide.is-plain { background:linear-gradient(120deg,#0f5fc4,#1478d6 60%,#12a06a); }
+.gacha-wide.is-xmas { background:linear-gradient(120deg,#a51228,#d13048 52%,#0d7a44); }
+.gacha-wide.is-newyear { background:linear-gradient(120deg,#b3122b,#e03a4f 46%,#c99a2e); }
+/* 今日ぶんを引き終わったら落ち着かせる。押せることに変わりはないが、
+   まだ引いていない人と同じ強さで呼び続けない。 */
+.gacha-wide.is-done { filter:saturate(.5) brightness(.93); }
+/* 画像があるときは画像の高さ（3:1）に合わせる。無いときは文字ぶんだけ。 */
+.gacha-wide.has-art { aspect-ratio:3/1; }
+.gacha-wide img { width:100%; height:100%; display:block; object-fit:cover; }
+/* 画像があるときは、日ごとに変わるひとことだけ小さな札にして左下へ。
+   用意された絵の上に見出しを重ねると、絵の文字とぶつかって両方読めなくなる。 */
+.gacha-wide.has-art .gacha-wide-copy { position:absolute; left:11px; bottom:11px; padding:6px 11px;
+  border-radius:99px; background:rgba(11,26,48,.62); backdrop-filter:blur(3px); }
+.gacha-wide.has-art .gacha-wide-copy small { margin:0; font-size:11px; }
+.gacha-wide-copy { display:block; padding:15px 16px; }
+.gacha-wide-copy b { display:block; font-size:16px; font-weight:900; line-height:1.4;
+  text-shadow:0 1px 6px rgba(11,26,48,.35); }
+.gacha-wide-copy small { display:block; margin-top:4px; font-size:12px; font-weight:800; opacity:.92;
+  text-shadow:0 1px 6px rgba(11,26,48,.35); }
 .ad-gift-hint { margin:9px 0 0; padding:11px 12px; border-radius:11px; background:#fff3e6; color:#8a4a12;
   font-size:11px; font-weight:800; line-height:1.7; }
 

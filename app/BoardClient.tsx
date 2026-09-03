@@ -156,6 +156,26 @@ function trackAd(payload: { views?: string[]; clicks?: string[] }) {
  * 名前を変えると、全員がもう一度その日に自動で開かれる。
  */
 const GACHA_SEEN_KEY = 'tasuki-gacha-auto-open-v1';
+
+/**
+ * 舞台に散らす紙吹雪。**位置も色も決め打ちにする。**
+ * 毎回でたらめに置くと、開き直すたびに別の絵になり、サーバーで作った
+ * HTMLとも食い違う（hydration mismatch）。
+ */
+const GACHA_CONFETTI = [
+  { left: '6%', color: '#f0731f', delay: '0s' },
+  { left: '14%', color: '#1478d6', delay: '.14s' },
+  { left: '23%', color: '#ffc53d', delay: '.28s' },
+  { left: '31%', color: '#12a06a', delay: '.06s' },
+  { left: '42%', color: '#e0384f', delay: '.34s' },
+  { left: '52%', color: '#1478d6', delay: '.2s' },
+  { left: '61%', color: '#ffc53d', delay: '.4s' },
+  { left: '69%', color: '#12a06a', delay: '.1s' },
+  { left: '78%', color: '#f0731f', delay: '.3s' },
+  { left: '86%', color: '#1478d6', delay: '.44s' },
+  { left: '93%', color: '#e0384f', delay: '.18s' },
+  { left: '36%', color: '#ffc53d', delay: '.5s' },
+];
 const historyStorageKey = 'give-hub-request-history-v1';
 const favoriteStorageKey = 'give-hub-request-favorites-v1';
 
@@ -1904,23 +1924,39 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {modal === 'gacha' && gacha && gacha.season && <Modal title={gacha.season.name} lead={gacha.season.lead} onClose={() => setModal(null)}>
         <div className={`gacha is-${gacha.season.theme}`}>
-          {/* ガチャ本体。回しているあいだ揺れる。絵が無い・読めないときは
-              絵文字の箱に落とす（画像の差し替えで画面が壊れない）。 */}
-          <div className={`gacha-machine${gachaSpinning ? ' is-spinning' : ''}`}>
-            {gacha.season.machine && gachaMachineOk
-              && <img src={gacha.season.machine} alt="" onError={() => setGachaMachineOk(false)} />}
+          {/* 舞台。**モーダルの端まで色を伸ばす**（margin:0 -20px）。
+              白い紙の上に絵を置いただけだと、催しをやっている感じが出ない。
+              後光と紙吹雪は飾りなので、読み上げからは外す。 */}
+          <div className={`gacha-stage${gacha.drawnToday && !gachaSpinning && gacha.prize?.days ? ' is-win' : ''}`}>
+            <span className="gacha-rays" aria-hidden="true" />
+            <span className="gacha-confetti" aria-hidden="true">
+              {GACHA_CONFETTI.map((piece, index) => <i key={index} style={{ left: piece.left, background: piece.color, animationDelay: piece.delay }} />)}
+            </span>
+            <p className="gacha-stage-top">
+              <span className="gacha-chip">毎日1回・無料</span>
+              {/* 1日目に「1日つづけて」と出すと、続けている感じが出ないどころか
+                  数え方が変に見える。2日目から出す。 */}
+              {gacha.streak > 1 && <span className="gacha-streak">{gacha.streak}日つづけて</span>}
+            </p>
+            <div className={`gacha-machine${gachaSpinning ? ' is-spinning' : ''}`}>
+              {gacha.season.machine && gachaMachineOk
+                && <img src={gacha.season.machine} alt="" onError={() => setGachaMachineOk(false)} />}
+            </div>
+            {/* 結果は舞台の上に出す。引く前は、何が当たるかの見出しを置く。 */}
+            {gacha.drawnToday && !gachaSpinning
+              ? <p className={`gacha-result${gacha.prize?.days ? ' is-win' : ''}`}>
+                {gacha.prize?.tier && <i>{gacha.prize.tier}</i>}
+                <b>{gacha.prize?.label}</b>
+              </p>
+              : <p className="gacha-stage-note">{gachaSpinning ? '回しています…' : '今日のぶんを回せます'}</p>}
           </div>
-
-          {/* 1日目に「1日つづけて」と出すと、続けている感じが出ないどころか
-              数え方が変に見える。2日目から出す。 */}
-          {gacha.streak > 1 && <p className="gacha-streak">{gacha.streak}日つづけて引いています</p>}
 
           {!gacha.drawnToday
             ? <>
               {/* 何が当たるかは先に出す。中身を伏せたまま引かせない。 */}
               <ul className="gacha-prizes">{gacha.season.prizes.map((prize) => {
                 const reward = prize.days ? `無料券 ${prize.days}日分` : '';
-                return <li key={prize.key} className={prize.days ? 'is-win' : ''}>
+                return <li key={prize.key} className={prize.days >= 3 ? 'is-top' : prize.days ? 'is-win' : ''}>
                   {/* はずれの行に「はずれ」と2度書かない。等級の欄は線だけにする。 */}
                   <i>{prize.tier || '—'}</i><b>{prize.label}</b>
                   {/* 中身がそのまま名前になっている回（ふだんの回）では、
@@ -1929,24 +1965,24 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                   {reward && !prize.label.includes(`${prize.days}日分`) && <span>{reward}</span>}
                 </li>;
               })}</ul>
-              <button className="submit-button" onClick={spinGacha} disabled={gachaSpinning}>{gachaSpinning ? '回しています…' : gacha.season.action}</button>
+              <button className="submit-button gacha-draw" onClick={spinGacha} disabled={gachaSpinning}>{gachaSpinning ? '回しています…' : gacha.season.action}</button>
               {gacha.coming && <p className="gacha-note">{gacha.coming.from}から <b>{gacha.coming.name}</b> が始まります。</p>}
             </>
-            : gachaSpinning ? <p className="gacha-lead">回しています…</p>
+            : gachaSpinning ? null
             : <>
-              {/* 「A賞　◯◯」の形で出す。等級を先に、中身をそのうしろに。 */}
-              <p className={`gacha-result${gacha.prize?.days ? ' is-win' : ''}`}>
-                {gacha.prize?.tier && <i>{gacha.prize.tier}</i>}
-                <b>{gacha.prize?.label}</b>
-              </p>
               <p className="gacha-lead">{gacha.prize?.note}</p>
-              {gacha.giftDays > 0 && <p className="gacha-gift">たまっている無料券 <b>{gacha.giftDays}日分</b>{gacha.giftExpiresOn && <small>いちばん早い券は{gachaDateLabel(gacha.giftExpiresOn)}まで</small>}</p>}
+              {/* たまっている券は**回数券のかたち**にする。数字だけ書くより、
+                  持ちものとして見えたほうが、ためる気になる。 */}
+              {gacha.giftDays > 0 && <p className="gacha-gift"><small>たまっている無料券</small><b>{gacha.giftDays}<em>日分</em></b>{gacha.giftExpiresOn && <small>いちばん早い券は{gachaDateLabel(gacha.giftExpiresOn)}まで</small>}</p>}
               {/* 7日たまるまでは「あと何日で使えるか」を出す。広告は7日からしか
                   申し込めないので、それを言わないと1日券の意味が伝わらない。 */}
               {gacha.giftDays > 0 && gacha.giftDays < AD_MIN_DAYS
-                ? <p className="gacha-lead">広告は{AD_MIN_DAYS}日から出せます。あと{AD_MIN_DAYS - gacha.giftDays}日分ためると、1週間まるごと無料で出せます。</p>
+                ? <>
+                  <p className="gacha-gauge" aria-hidden="true"><span style={{ width: `${Math.round((gacha.giftDays / AD_MIN_DAYS) * 100)}%` }} /></p>
+                  <p className="gacha-lead">広告は{AD_MIN_DAYS}日から出せます。<b>あと{AD_MIN_DAYS - gacha.giftDays}日分</b>ためると、1週間まるごと無料で出せます。</p>
+                </>
                 : gacha.giftDays >= AD_MIN_DAYS
-                  ? <button className="submit-button" onClick={() => { setModal(null); openAdSettings(); }}>この券で広告を出す</button>
+                  ? <button className="submit-button gacha-draw" onClick={() => { setModal(null); openAdSettings(); }}>この券で広告を出す</button>
                   : <p className="gacha-lead">また明日、引きにきてください。</p>}
               {gacha.monthDays >= gacha.memberCapDaysPerMonth && <p className="gacha-note">今月ぶんの上限（{gacha.memberCapDaysPerMonth}日分）に達しました。来月1日にまた増やせます。それまでは結果だけのお楽しみです。</p>}
               {/* 運営だけ、何度でも回せる。2回目以降は記録も券も増えないことを
