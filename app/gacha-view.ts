@@ -14,8 +14,10 @@ export type GachaView = {
     action: string;
     /** ホームに置く横長のバナー（1200×400）。無ければ色と文字だけになる。 */
     image: string;
-    /** 引くところに出すガチャ本体の絵（縦長）。無ければ絵文字の箱になる。 */
+    /** 引くところに出すガチャ本体の絵（縦長）。動画の1枚目にもなる。 */
     machine: string;
+    /** 回すときに流す動画（縦長・音なし）。無ければ絵のまま揺れる。 */
+    video: string;
     lead: string;
     prizes: { key: string; tier: string; label: string; days: number }[];
   } | null;

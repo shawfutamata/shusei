@@ -370,6 +370,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [gachaArtOk, setGachaArtOk] = useState(true);
   /** ガチャ本体の絵を出せるか。読めなければ絵文字の箱に落とす。 */
   const [gachaMachineOk, setGachaMachineOk] = useState(true);
+  /** 回す動画を出せるか。読めなければ絵のまま揺らす。 */
+  const [gachaVideoOk, setGachaVideoOk] = useState(true);
+  const gachaVideo = useRef<HTMLVideoElement | null>(null);
   const [adPlacement, setAdPlacement] = useState<string>(DEFAULT_PLACEMENT);
   // 掲示板の上位に出すとき、どの大分類の一覧を狙うか。空なら全業種。
   const [adIndustry, setAdIndustry] = useState('');
@@ -958,14 +961,45 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     if (gachaSpinning || !gacha || !gacha.season) return;
     if (gacha.drawnToday && !gacha.master) return;
     setGachaSpinning(true);
-    const response = await fetch('/api/gacha', { method: 'POST' }).catch(() => null);
-    const data = response ? await response.json().catch(() => null) as GachaView & { error?: string } | null : null;
-    // 回っているように見せる時間。結果はもう決まっているので、待つのは見た目だけ。
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // **先に投げて、演出を流しているあいだに返事を受け取る。** 順番に待つと、
+    // 通信の遅い人ほど演出が終わってから固まる時間が増える。
+    const request = fetch('/api/gacha', { method: 'POST' })
+      .then((response) => response.json().catch(() => null) as Promise<(GachaView & { error?: string }) | null>)
+      .catch(() => null);
+    await playGachaMotion();
+    const data = await request;
     setGachaSpinning(false);
     if (!data) return showToast('通信に失敗しました。時間をおいてお試しください。');
     if (data.key) setGacha(data);
     if (data.error) showToast(data.error);
+  }
+
+  /**
+   * 回す演出。**動画があれば最後まで流し、無ければ揺れるぶんだけ待つ。**
+   *
+   * 結果はサーバーでもう決まっているので、ここで待つのは見た目のためだけ。
+   * 動画が流せない端末や壊れたファイルでも**必ず先へ進む**（止まったままに
+   * しない）。時間切れは6秒。
+   */
+  function playGachaMotion() {
+    const video = gachaVideo.current;
+    if (!video) return new Promise((resolve) => setTimeout(resolve, 1500));
+    return new Promise<void>((resolve) => {
+      let done = false;
+      const guard = setTimeout(() => finish(), 6000);
+      function finish() {
+        if (done) return;
+        done = true;
+        clearTimeout(guard);
+        video?.removeEventListener('ended', finish);
+        resolve();
+      }
+      video.addEventListener('ended', finish);
+      try {
+        video.currentTime = 0;
+        video.play()?.catch(() => finish());
+      } catch { finish(); }
+    });
   }
 
   function openAdSettings() {
@@ -1938,9 +1972,16 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                   数え方が変に見える。2日目から出す。 */}
               {gacha.streak > 1 && <span className="gacha-streak">{gacha.streak}日つづけて</span>}
             </p>
-            <div className={`gacha-machine${gachaSpinning ? ' is-spinning' : ''}`}>
-              {gacha.season.machine && gachaMachineOk
-                && <img src={gacha.season.machine} alt="" onError={() => setGachaMachineOk(false)} />}
+            {/* 動画があるときは動画を出す。**1枚目には絵を敷く**ので、
+                読み込みが終わるまで穴が空かない。動画が読めないときは絵に落ちる。
+                動画そのものが動くので、そのときは揺らさない。 */}
+            <div className={`gacha-machine${gachaSpinning ? ' is-spinning' : ''}${gacha.season.video && gachaVideoOk ? ' has-video' : ''}`}>
+              {gacha.season.video && gachaVideoOk
+                ? <video ref={gachaVideo} src={gacha.season.video} poster={gacha.season.machine}
+                  muted playsInline preload="auto" onError={() => setGachaVideoOk(false)} />
+                : gacha.season.machine && gachaMachineOk
+                  ? <img src={gacha.season.machine} alt="" onError={() => setGachaMachineOk(false)} />
+                  : null}
             </div>
             {/* 結果は舞台の上に出す。引く前は、何が当たるかの見出しを置く。 */}
             {gacha.drawnToday && !gachaSpinning

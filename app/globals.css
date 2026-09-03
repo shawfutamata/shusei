@@ -1994,14 +1994,16 @@ body { font-weight:600; }
 .gacha-machine { margin:10px auto 0; position:relative; z-index:2; display:flex; justify-content:center;
   overflow:hidden; border-radius:18px; transform-origin:50% 92%;
   box-shadow:0 14px 34px rgba(6,20,44,.28); }
-.gacha-machine img { height:212px; width:auto; display:block; }
-.gacha-machine.is-spinning { animation:gacha-shake .38s ease-in-out infinite; }
+.gacha-machine img,
+.gacha-machine video { height:212px; width:auto; display:block; background:#f4f7fb; }
+/* 動画そのものが動くので、そのときは揺らさない。二重に動くと酔う。 */
+.gacha-machine.is-spinning:not(.has-video) { animation:gacha-shake .38s ease-in-out infinite; }
 @keyframes gacha-shake {
   0%,100% { transform:rotate(-4deg); }
   50% { transform:rotate(4deg); }
 }
 @media (prefers-reduced-motion:reduce) {
-  .gacha-machine.is-spinning { animation:none; }
+  .gacha-machine.is-spinning:not(.has-video) { animation:none; }
   .gacha-stage.is-win .gacha-confetti i { animation:none; }
 }
 
