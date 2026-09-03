@@ -1013,16 +1013,38 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   }
 
   /** 掲示板のカード。**探す**と**おすすめ**で同じものを出すため、1か所に置く。 */
+  /**
+   * 一覧のカード。**1画面に4件入る高さに収めてある。**
+   *
+   * もとは1件で画面のほとんどを埋めていて、次の投稿があることに気づけなかった。
+   * 掲示板は「並んでいるものを見比べる」場所なので、1件を厚くするより
+   * **見比べられる数**のほうが大事。詳しい内容・年商・オファーのボタンは、
+   * 押して開いた先（詳細）に置いてある。
+   */
+  /** いま効いている絞り込みの数。閉じていても効いていることが分かるように出す。 */
+  const activeFilterCount = [statusFilter !== 'open', regionFilter !== 'all', industryFilter !== 'all', budgetFilter !== 'all']
+    .filter(Boolean).length;
+
   const needCard = (need: BoardRequest) => (
     <article className={isOpenRequest(need) ? 'need-card' : 'need-card closed'} key={need.id} onClick={() => openNeed(need)}>
-      <div className="card-topline"><span className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</span>{need.sample && <span className="kind is-sample">サンプル</span>}<span className="card-top-actions">{isOpenRequest(need) ? <span className="deadline">あと{daysLeft(need.deadline)}日</span> : <span className="deadline ended">募集終了</span>}<button className={favoriteIds.includes(need.id) ? 'card-heart active' : 'card-heart'} aria-label={favoriteIds.includes(need.id) ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={(event) => { event.stopPropagation(); toggleFavorite(need); }}>♥</button></span></div>
-      <h3>{need.title}</h3>{need.thumbUrl && <img className="need-thumb" src={need.thumbUrl} alt="" loading="lazy" decoding="async" />}<p className="need-body">{need.description}</p>
-      <div className="industry-tags" aria-label="関連業種">{need.industryTags.map((industry) => <span key={industry}>{industry}</span>)}</div>
-      <dl className="details"><div><dt>予算</dt><dd>{budgetText(need)}</dd></div><div><dt>エリア</dt><dd>{need.area || '指定なし'}</dd></div></dl>
-      <div className="card-person"><Avatar src={need.authorAvatarUrl} name={need.authorName} className="member-avatar" /><p><b>{need.authorName}</b><small>{need.authorPositionTitle && `${need.authorPositionTitle}｜`}{need.authorCompany || '会社名未設定'}</small></p></div>
-      <ActivityCounts need={need} />
-      <div className="member-context">{need.authorBusinessArea && <span>エリア {need.authorBusinessArea}</span>}{need.authorRevenueBand && <span>年商 {revenueBands[need.authorRevenueBand]}</span>}</div>
-      {!need.sample && <button className="intro-button" onClick={(event) => { event.stopPropagation(); openIntroduction(need); }}>この人にオファー <span>→</span></button>}
+      <div className="need-row">
+        <div className="need-main">
+          <div className="card-topline"><span className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</span>{need.sample && <span className="kind is-sample">サンプル</span>}<span className="card-top-actions">{isOpenRequest(need) ? <span className="deadline">あと{daysLeft(need.deadline)}日</span> : <span className="deadline ended">募集終了</span>}<button className={favoriteIds.includes(need.id) ? 'card-heart active' : 'card-heart'} aria-label={favoriteIds.includes(need.id) ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={(event) => { event.stopPropagation(); toggleFavorite(need); }}>♥</button></span></div>
+          <h3>{need.title}</h3>
+          {/* **本文は一覧に出さない。** 1行に切り詰めた説明はどれも似た書き出しに
+              なって読み分けられず、そのぶん高さだけが増える。見出しと予算で
+              選んでもらい、中身は開いた先で読む。
+              予算・エリア・業種も1行にまとめる。3つの箱に分けると、それだけで
+              カード1枚ぶんの高さになってしまう。あふれた業種は詳細で見られる。 */}
+          <p className="need-facts"><b>{budgetText(need)}</b><span>{need.area || 'エリア指定なし'}</span>{need.industryTags.slice(0, 2).map((industry) => <em key={industry}>{industry}</em>)}</p>
+        </div>
+        {need.thumbUrl && <img className="need-thumb-mini" src={need.thumbUrl} alt="" loading="lazy" decoding="async" />}
+      </div>
+      <div className="need-foot">
+        <Avatar src={need.authorAvatarUrl} name={need.authorName} className="member-avatar" />
+        <p><b>{need.authorName}</b><small>{need.authorCompany || '会社名未設定'}</small></p>
+        <ActivityCounts need={need} size="row" />
+      </div>
     </article>
   );
 
@@ -1340,8 +1362,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         {industryFilter !== 'all' && <button className="clear-industry" onClick={() => setIndustryFilter('all')}><IndustryIcon group={getIndustryGroup(industryFilter)?.name ?? 'その他'} />{industryFilter}で絞り込み中 <i>×</i></button>}
         {industryFilter !== 'all' && getIndustryGroup(industryFilter) && <div className="subindustry-filter" aria-label="詳細業種で絞り込む"><button className={industryFilter === getIndustryGroup(industryFilter)?.name ? 'selected' : ''} onClick={() => setIndustryFilter(getIndustryGroup(industryFilter)?.name ?? 'all')}>すべて</button>{getIndustryGroup(industryFilter)?.children.map((industry) => <button key={industry} className={industryFilter === industry ? 'selected' : ''} onClick={() => setIndustryFilter(industry)}>{industry}</button>)}</div>}
         <div className="filters" role="group" aria-label="投稿を絞り込む">{[['all','すべて'],['project','発注先'],['collaboration','協業先'],['consultation','相談']].map(([key,label]) => <button key={key} className={filter === key ? 'selected' : ''} onClick={() => setFilter(key)}>{label}<span>{count(key)}</span></button>)}</div>
-        <div className="member-filters">
-          <p>絞り込む</p>
+        {/* 絞り込みは畳んでおく。開いたままだと、それだけで画面の半分を占めて
+            肝心の投稿が1件も見えない。使う人は「まず並びを見て、合わなければ
+            絞る」ので、閉じているほうが順番に合う。使っている条件の数は
+            見出しに出すので、閉じていても効いていることは分かる。 */}
+        <details className="member-filters">
+          <summary>絞り込む{activeFilterCount > 0 && <i>{activeFilterCount}</i>}<span aria-hidden="true">▾</span></summary>
+          <div className="member-filters-body">
           <label className="wide"><span>募集状況</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'open' | 'closed' | 'all')}><option value="open">募集中</option><option value="closed">募集終了</option><option value="all">すべて</option></select></label>
           {/* 地方でも都道府県でも切れるようにする。地方だけだと「東京の人を
               探したい」に応えられず、都道府県だけだと47個から選ぶことになる。 */}
@@ -1354,7 +1381,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           </select></label>
           <label><span>業種</span><select value={getIndustryGroup(industryFilter)?.name ?? 'all'} onChange={(event) => setIndustryFilter(event.target.value)}><option value="all">すべての業種</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label>
           <label className={canFilterByBudget(stats.level) ? '' : 'is-locked'}><span>案件の予算 {!canFilterByBudget(stats.level) && <em>{rankNames[2]}から</em>}</span><select value={budgetFilter} disabled={!canFilterByBudget(stats.level)} onChange={(event) => setBudgetFilter(event.target.value)}><option value="all">すべての予算</option>{Object.entries(budgetBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-        </div>
+          </div>
+        </details>
         <div className="card-list">
           {/* お金をいただいている枠なので、絞り込みに関係なくいちばん上に出す */}
           {listAds.map((ad) => <article className="need-card is-ad" key={ad.id} onClick={() => openListAd(ad)}>
@@ -1499,8 +1527,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             </div>}
             <ul className="plan-list">
               {plans.map((plan) => <li key={plan} className={`plan-${plan}${plan === stats.plan ? ' current' : ''}`}>
-                <p className="plan-list-head"><b>{planCatalog[plan].name}</b>{plan === stats.contractedPlan && <em>契約中</em>}{plan !== stats.contractedPlan && plan === stats.bonusPlan && <em className="bonus">招待特典</em>}<span>{planPrice(plan, planCycle)}</span></p>
-                {planCycle === 'year' && plan !== 'free' && <p className="plan-list-per-month">{planPerMonthNote(plan)}</p>}
+                <p className="plan-list-head"><b>{planCatalog[plan].name}</b>{plan === stats.contractedPlan && <em>契約中</em>}{plan !== stats.contractedPlan && plan === stats.bonusPlan && <em className="bonus">招待特典</em>}
+                  {/* キャンペーン中は、もとの金額に線を引いて「いまは無料」と出す。
+                      金額を消してしまうと、終わったあとの値段が分からないまま
+                      使い始めることになり、終了のときに不意打ちになる。 */}
+                  <span>{stats.campaignPlan && plan !== 'free'
+                    ? <><s>{planPrice(plan, planCycle)}</s><em className="plan-free-now">無料キャンペーン中</em></>
+                    : planPrice(plan, planCycle)}</span></p>
+                {planCycle === 'year' && plan !== 'free' && !stats.campaignPlan && <p className="plan-list-per-month">{planPerMonthNote(plan)}</p>}
                 <p className="plan-list-what"><span>案件の投稿 {planPostLimit(plan)}</span></p>
                 {/* 3つに分ける。読み込めなかっただけの人に「準備中です」と
                     言ってしまうと、こちらの設定漏れだと思われるうえ、
@@ -2378,9 +2412,12 @@ function HomeRequestCard({ need, favorite, onOpen, onFavorite }: { need: BoardRe
  * 0件のときは「0」と書かない。数字の0は、動きが無いことを言うより先に
  * 「ここは寂れている」と読まれてしまう。かわりに、いちばんに動ける場だと伝える。
  */
-function ActivityCounts({ need, size = 'card' }: { need: BoardRequest; size?: 'card' | 'detail' }) {
+function ActivityCounts({ need, size = 'card' }: { need: BoardRequest; size?: 'card' | 'detail' | 'row' }) {
   if (need.offerCount + need.referralCount === 0) {
-    return <p className={`activity-counts is-quiet is-${size}`}>まだ誰も動いていません。いちばんに動けます。</p>;
+    // 一覧の行では、まだ動きが無いことを長い文で言わない。1行の高さが
+    // 増えるだけで、読み手が得るものが無い。
+    return size === 'row' ? <p className="activity-counts is-quiet is-row">オファー 0</p>
+      : <p className={`activity-counts is-quiet is-${size}`}>まだ誰も動いていません。いちばんに動けます。</p>;
   }
   return <p className={`activity-counts is-${size}`}
     aria-label={`オファー${need.offerCount}件、リファラル${need.referralCount}件`}>

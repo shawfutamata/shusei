@@ -24,7 +24,7 @@ export const freeCampaign = {
    * この日まで無料（この日を含む）。**空文字にするとキャンペーンは終わる。**
    * 日付の形は YYYY-MM-DD。
    */
-  until: '2027-03-31',
+  until: '2026-12-31',
 };
 
 /** キャンペーンが動いているか。日付の判定は entitlements 側で行う。 */
@@ -32,7 +32,7 @@ export function campaignPlan(): Plan {
   return freeCampaign.until ? freeCampaign.plan : 'free';
 }
 
-/** 「2027年3月31日」の形。画面に出す用。 */
+/** 「2026年12月31日」の形。画面に出す用。 */
 export function campaignUntilLabel(until = freeCampaign.until) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(until);
   if (!match) return '';

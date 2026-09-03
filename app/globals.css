@@ -1879,3 +1879,75 @@ body { font-weight:600; }
    会費の話は**入る前に**見えているほうがよい。 */
 .join-campaign { margin:14px 0 0; padding:12px 14px; border:1px solid #cfe3ff; border-radius:12px; background:#eef5ff; color:#0f4f9e; font-size:12px; font-weight:800; line-height:1.7; text-align:left; }
 .join-campaign b { display:block; font-size:14px; font-weight:900; }
+
+/* キャンペーン中の金額。もとの値段に線を引いて残す。**消さない。**
+   終わったあとの値段を知らないまま使い始めると、終了が不意打ちになる。 */
+.plan-list-head s { color:#9aa5b6; font-size:12px; font-weight:800; text-decoration-thickness:2px; }
+.plan-list-head em.plan-free-now { background:#0f9d58; color:#fff; letter-spacing:0; }
+
+/* --- 一覧のカードを1画面に4件 -------------------------------------------------
+   もとは1件で画面のほとんどを埋めていて、次の投稿があることに気づけなかった。
+   掲示板は並んでいるものを**見比べる**場所なので、1件を厚くするより
+   見比べられる数のほうが大事。詳しい内容・年商・オファーのボタンは、
+   押して開いた先（詳細）にある。 */
+.card-list { gap:9px; }
+.need-card { padding:12px 13px; border-radius:14px; }
+.need-row { display:grid; grid-template-columns:minmax(0,1fr); gap:11px; align-items:start; }
+.need-row:has(.need-thumb-mini) { grid-template-columns:minmax(0,1fr) 84px; }
+.need-main { min-width:0; }
+.need-thumb-mini { width:84px; height:84px; display:block; object-fit:cover; border-radius:10px; background:#eef2f8; }
+.need-card .card-topline { min-height:0; }
+.need-card h3 { margin:7px 0 0; display:-webkit-box; overflow:hidden; -webkit-box-orient:vertical; -webkit-line-clamp:2;
+  font-size:15px; font-weight:900; line-height:1.45; letter-spacing:-.02em; }
+.need-card .need-body { margin:5px 0 0; -webkit-line-clamp:1; font-size:11px; font-weight:600; line-height:1.5; }
+/* 予算・エリア・業種を1行に。あふれたら切る（詳細で全部見られる）。 */
+.need-facts { margin:7px 0 0; display:flex; align-items:center; gap:7px; overflow:hidden; white-space:nowrap; }
+.need-facts b { flex:0 0 auto; color:#0f5fc4; font-size:12px; font-weight:900; }
+.need-facts span { flex:0 0 auto; color:#7b899d; font-size:10px; font-weight:800; }
+.need-facts em { flex:0 1 auto; overflow:hidden; padding:3px 6px; border-radius:5px; background:#eef5ff; color:#446aab;
+  font-size:9px; font-style:normal; font-weight:900; text-overflow:ellipsis; }
+.need-foot { margin-top:9px; padding-top:9px; display:grid; grid-template-columns:28px minmax(0,1fr) auto;
+  align-items:center; gap:8px; border-top:1px solid #f1f4f8; }
+.need-foot .member-avatar { width:28px; height:28px; border-width:1px; font-size:11px; }
+.need-foot p { min-width:0; margin:0; display:flex; align-items:baseline; gap:6px; overflow:hidden; }
+.need-foot b { flex:0 0 auto; color:#243b5c; font-size:11px; font-weight:900; }
+.need-foot small { overflow:hidden; color:#8b97aa; font-size:10px; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
+.activity-counts.is-row { margin:0; flex-wrap:nowrap; gap:5px; }
+.activity-counts.is-row span { padding:3px 7px; font-size:9px; }
+.activity-counts.is-row span b { font-size:11px; }
+.activity-counts.is-row.is-quiet { color:#a4b0c1; font-size:10px; font-weight:800; white-space:nowrap; }
+
+/* 絞り込みは畳んでおく。開いたままだと画面の半分を占めて、投稿が1件も見えない。 */
+.member-filters { display:block; margin-bottom:10px; padding:0; }
+.member-filters > summary { min-height:46px; padding:0 13px; display:flex; align-items:center; gap:8px;
+  color:#334966; font-size:13px; font-weight:900; list-style:none; cursor:pointer; }
+.member-filters > summary::-webkit-details-marker { display:none; }
+.member-filters > summary i { min-width:19px; height:19px; display:grid; place-items:center; border-radius:99px;
+  background:#0f5fc4; color:#fff; font-size:10px; font-style:normal; font-weight:900; }
+.member-filters > summary > span { margin-left:auto; color:#8b97aa; font-size:12px; }
+.member-filters[open] > summary > span { transform:rotate(180deg); }
+.member-filters[open] > summary { border-bottom:1px solid var(--line); }
+.member-filters-body { padding:12px 13px 13px; display:grid; grid-template-columns:1fr 1fr; gap:11px; }
+.member-filters-body label { min-width:0; display:grid; gap:6px; }
+.member-filters-body label { color:#7c8a9e; font-size:11px; font-weight:800; }
+.member-filters-body label.wide { grid-column:1/-1; }
+.member-filters-body select { width:100%; min-height:46px; padding:0 10px; border:0; border-radius:9px;
+  background:#eff5ff; color:#315a9d; font-size:13px; font-weight:800; outline:none; }
+
+/* 4件入るまでの詰め。ここが効かないと1件ぶん足が出る。 */
+.need-card { padding:11px 13px 10px; }
+.need-card .card-heart { width:30px; height:30px; font-size:15px; }
+.need-card h3 { margin:6px 0 0; }
+.need-facts { margin:8px 0 0; }
+.need-foot { margin-top:8px; padding-top:8px; grid-template-columns:26px minmax(0,1fr) auto; gap:7px; }
+.need-foot .member-avatar { width:26px; height:26px; font-size:10px; }
+
+/* 探すページの上の飾りを詰める。タブ・見出し・チップ・絞り込みで画面の半分を
+   使っていて、開いた直後に投稿が2件しか見えなかった。 */
+.search-page .search-tabs { margin-bottom:10px; }
+.search-page .section-title { margin-bottom:10px; }
+/* 「REQUESTS」の飾り見出しは出さない。すぐ上のタブに「仕事を探す」と
+   書いてあり、同じことを2回言うぶん投稿が1件ぶん下がっていた。 */
+.search-page .section-title p { display:none; }
+.search-page .section-title h2 { font-size:21px; }
+.search-page .filters { margin-bottom:10px; }
