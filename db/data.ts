@@ -2281,6 +2281,10 @@ export type GachaState = {
   todayDays: number;
   /** 連続で引いている日数。**回に関係なく数える。** */
   streak: number;
+  /** 運営のアカウントか。何度でも回せる（見た目を確かめるため）。 */
+  master: boolean;
+  /** その結果が「お試し」か。運営の2回目以降は記録も券も増えない。 */
+  practice: boolean;
   /** 今月もらった日数。上限はここで見る。 */
   monthDays: number;
   /** いま使える無料券の合計日数。 */
@@ -2288,6 +2292,13 @@ export type GachaState = {
   /** 手持ちの券のうち、いちばん早い期限。無ければ空。 */
   giftExpiresOn: string;
 };
+
+/** 運営のアカウントか。ガチャを何度でも回せる人。 */
+async function isMasterMember(memberId: string) {
+  const row = await env.DB.prepare('SELECT email FROM members WHERE id = ?')
+    .bind(memberId).first<{ email: string }>();
+  return isPlanOverridden(row?.email ?? '');
+}
 
 export async function getGachaState(memberId: string): Promise<GachaState> {
   await ensureDatabase();
@@ -2314,6 +2325,8 @@ export async function getGachaState(memberId: string): Promise<GachaState> {
     prizeKey: todayRow?.prizeKey ?? '',
     todayDays: Number(todayRow?.days ?? 0),
     streak,
+    master: await isMasterMember(memberId),
+    practice: false,
     monthDays: list.filter((row) => row.day.startsWith(month)).reduce((sum, row) => sum + Number(row.days), 0),
     giftDays: await availableAdGiftDays(memberId),
     giftExpiresOn: await nextGiftExpiry(memberId),
@@ -2343,7 +2356,18 @@ export async function drawGacha(memberId: string): Promise<GachaState> {
   const today = jstDate();
   const already = await env.DB.prepare('SELECT 1 FROM gacha_days WHERE member_id = ? AND day = ?')
     .bind(memberId, today).first();
-  if (already) return getGachaState(memberId);
+  if (already) {
+    // **運営のアカウントは何度でも回せる。** 見た目や当たりの出かたを
+    // 確かめるためのもので、2回目以降は「お試し」。記録も券も増やさない。
+    // 増やすと、運営が回した数だけ配った枠の数字が膨らんで、
+    // 何日配ったかが分からなくなる。
+    if (await isMasterMember(memberId)) {
+      const prize = drawPrize(season.prizes);
+      const state = await getGachaState(memberId);
+      return { ...state, prizeKey: prize.key, todayDays: prize.days, practice: true };
+    }
+    return getGachaState(memberId);
+  }
 
   // **上限は「その月」で2つ。** 1人ぶんと、全員ぶん。どちらかに届いていたら
   // 券は出さない（引くことはできて、結果だけが出る）。

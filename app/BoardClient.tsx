@@ -934,7 +934,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
   /** ガチャを引く。**当たりを決めるのはサーバー。** 画面は結果を出すだけ。 */
   async function spinGacha() {
-    if (gachaSpinning || !gacha || gacha.drawnToday || !gacha.season) return;
+    // 運営のアカウントは、今日ぶんを引いたあとも回せる（見た目の確認用）。
+    if (gachaSpinning || !gacha || !gacha.season) return;
+    if (gacha.drawnToday && !gacha.master) return;
     setGachaSpinning(true);
     const response = await fetch('/api/gacha', { method: 'POST' }).catch(() => null);
     const data = response ? await response.json().catch(() => null) as GachaView & { error?: string } | null : null;
@@ -1419,7 +1421,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 ? [gacha.streak > 1 && `${gacha.streak}日つづけて`, gacha.giftDays > 0 && `無料券 ${gacha.giftDays}日分`, 'また明日'].filter(Boolean).join('・')
                 : gacha.streak > 0 ? `毎日1回・${gacha.streak}日つづいています` : '毎日1回・今日のぶんがまだです'}</small>
             </span>
-            {!gachaArtOk && <span className="gacha-wide-icon" aria-hidden="true">{gacha.season.emoji}</span>}
           </button>
         </section>}
 
@@ -1907,8 +1908,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               絵文字の箱に落とす（画像の差し替えで画面が壊れない）。 */}
           <div className={`gacha-machine${gachaSpinning ? ' is-spinning' : ''}`}>
             {gacha.season.machine && gachaMachineOk
-              ? <img src={gacha.season.machine} alt="" onError={() => setGachaMachineOk(false)} />
-              : <span className="gacha-box" aria-hidden="true">{gacha.season.emoji}</span>}
+              && <img src={gacha.season.machine} alt="" onError={() => setGachaMachineOk(false)} />}
           </div>
 
           {/* 1日目に「1日つづけて」と出すと、続けている感じが出ないどころか
@@ -1949,6 +1949,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                   ? <button className="submit-button" onClick={() => { setModal(null); openAdSettings(); }}>この券で広告を出す</button>
                   : <p className="gacha-lead">また明日、引きにきてください。</p>}
               {gacha.monthDays >= gacha.memberCapDaysPerMonth && <p className="gacha-note">今月ぶんの上限（{gacha.memberCapDaysPerMonth}日分）に達しました。来月1日にまた増やせます。それまでは結果だけのお楽しみです。</p>}
+              {/* 運営だけ、何度でも回せる。2回目以降は記録も券も増えないことを
+                  必ず書く。書かないと、配った枠の数字が合わないように見える。 */}
+              {gacha.master && <>
+                <button className="gacha-again" onClick={spinGacha} disabled={gachaSpinning}>もう一度回す</button>
+                <p className="gacha-note">運営のアカウントなので、何度でも回せます。{gacha.practice ? 'いまの結果はお試しで、記録も券も増えていません。' : '2回目からはお試しになり、記録も券も増えません。'}</p>
+              </>}
               {gacha.coming && <p className="gacha-note">{gacha.coming.from}から <b>{gacha.coming.name}</b> が始まります。</p>}
             </>}
         </div>

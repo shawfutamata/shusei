@@ -45,8 +45,6 @@ export type GachaSeason = {
   theme: GachaTheme;
   /** 引くボタンの文言。 */
   action: string;
-  /** 箱に出す絵。 */
-  emoji: string;
   /**
    * ホームに置く**横長のバナー画像**（1200×400／3:1）。
    * 置いていなければ、色と文字だけの帯になる（そのままでも成り立つ）。
@@ -92,7 +90,6 @@ export const adGacha = {
       until: '2026-12-25',
       theme: 'xmas' as GachaTheme,
       action: 'プレゼントを開ける',
-      emoji: '🎁',
       image: '/gacha/xmas.webp',
       machine: '/gacha/machine.webp',
       lead: '毎日1回、広告の無料券が当たります。',
@@ -112,7 +109,6 @@ export const adGacha = {
       until: '2027-01-07',
       theme: 'newyear' as GachaTheme,
       action: 'おみくじを引く',
-      emoji: '🎍',
       image: '/gacha/newyear.webp',
       machine: '/gacha/machine.webp',
       lead: '毎日1回、運だめし。大吉なら広告の無料券が3日分。',
@@ -137,7 +133,6 @@ export const adGacha = {
       until: '',
       theme: 'plain' as GachaTheme,
       action: '今日のガチャを引く',
-      emoji: '🍀',
       image: '/gacha/daily.webp',
       machine: '/gacha/machine.webp',
       lead: '毎日1回、広告の無料券が当たります。',

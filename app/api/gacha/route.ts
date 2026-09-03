@@ -19,13 +19,16 @@ function view(state: Awaited<ReturnType<typeof getGachaState>>) {
     // 今日の回。見た目（テーマ）と当たりの名前はここで変わる。
     season: season && {
       key: season.key, name: season.name, theme: season.theme,
-      action: season.action, emoji: season.emoji, image: season.image, machine: season.machine, lead: season.lead,
+      action: season.action, image: season.image, machine: season.machine, lead: season.lead,
       // 何が当たるかは先に見せる。中身を伏せたまま引かせない。
       prizes: season.prizes.map((item) => ({ key: item.key, tier: item.tier, label: item.label, days: item.days })),
     },
     // 次の季節の回。「12月20日からクリスマス」と先に知らせる。
     coming: coming && { name: coming.name, from: gachaMonthDay(coming.from) },
     drawnToday: state.drawnToday,
+    // 運営は何度でも回せる。2回目以降は「お試し」で、記録も券も増えない。
+    master: state.master,
+    practice: state.practice,
     prize: prize && { key: prize.key, tier: prize.tier, label: prize.label, days: prize.days, note: prize.note },
     streak: state.streak,
     monthDays: state.monthDays,
@@ -48,7 +51,8 @@ export async function POST() {
   if (!gachaSeason()) {
     return NextResponse.json({ error: 'ただいまガチャはお休みしています。' }, { status: 409 });
   }
-  if (before.drawnToday) {
+  // 運営のアカウントだけ、今日ぶんを引いたあとも回せる（見た目の確認用）。
+  if (before.drawnToday && !before.master) {
     return NextResponse.json({ error: '今日のぶんはもうお引きになりました。また明日どうぞ。', ...view(before) }, { status: 409 });
   }
   return NextResponse.json(view(await drawGacha(gate.user.userId)));
