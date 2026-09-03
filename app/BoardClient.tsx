@@ -944,6 +944,15 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
    * **まかなえるときだけ無料になる。** 足りないぶんを値引きにすると、
    * 支払いが途中で止まったときに券だけ消える（サーバー側も同じ線引き）。
    */
+  /**
+   * ガチャの入口に出す、日ごとに変わるひとこと。**1か所で作る。**
+   * バナーの上と下で別々に書くと、片方だけ直し忘れる。
+   */
+  const gachaStatusLine = !gacha ? ''
+    : gacha.drawnToday
+      ? [gacha.streak > 1 && `${gacha.streak}日つづけて`, gacha.giftDays > 0 && `無料券 ${gacha.giftDays}日分`, 'また明日'].filter(Boolean).join('・')
+      : gacha.streak > 0 ? `毎日1回・${gacha.streak}日つづいています` : '毎日1回・今日のぶんがまだです';
+
   const adGiftDays = gacha?.giftDays ?? 0;
   const adFreeByGift = adGiftDays >= adDays;
 
@@ -1491,16 +1500,15 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             onClick={() => setModal('gacha')}>
             {gacha.season.image && gachaArtOk && <img src={gacha.season.image} alt="" loading="lazy" decoding="async"
               onError={() => setGachaArtOk(false)} />}
-            {/* **画像があるときは、こちらの見出しを重ねない。** 用意された絵の上に
-                同じことを書くと、絵の文字とぶつかって両方読みにくくなる。
-                日ごとに変わるひとことだけ、小さな札にして下に置く。 */}
-            <span className="gacha-wide-copy">
-              {!gachaArtOk && <b>{gacha.drawnToday ? `今日は${gacha.prize?.label ?? '引き終わりました'}` : gacha.season.name}</b>}
-              <small>{gacha.drawnToday
-                ? [gacha.streak > 1 && `${gacha.streak}日つづけて`, gacha.giftDays > 0 && `無料券 ${gacha.giftDays}日分`, 'また明日'].filter(Boolean).join('・')
-                : gacha.streak > 0 ? `毎日1回・${gacha.streak}日つづいています` : '毎日1回・今日のぶんがまだです'}</small>
-            </span>
+            {/* **画像があるときは、絵の上に何も重ねない。** 用意されたバナーは
+                下の帯まで文字が入っていて、そこに札を重ねると隠れてしまう。
+                日ごとに変わるひとことは、バナーの下に置く。 */}
+            {!gachaArtOk && <span className="gacha-wide-copy">
+              <b>{gacha.drawnToday ? `今日は${gacha.prize?.label ?? '引き終わりました'}` : gacha.season.name}</b>
+              <small>{gachaStatusLine}</small>
+            </span>}
           </button>
+          {gachaArtOk && <p className="gacha-section-note">{gachaStatusLine}</p>}
         </section>}
 
         {!stats.avatarUrl && <button className="photo-required-banner" onClick={() => showProfileSettings()}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・オファーができます。</b><i>登録する →</i></button>}

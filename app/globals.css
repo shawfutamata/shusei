@@ -2084,11 +2084,9 @@ body { font-weight:600; }
 /* 画像があるときは画像の高さ（3:1）に合わせる。無いときは文字ぶんだけ。 */
 .gacha-wide.has-art { aspect-ratio:3/1; }
 .gacha-wide img { width:100%; height:100%; display:block; object-fit:cover; }
-/* 画像があるときは、日ごとに変わるひとことだけ小さな札にして左下へ。
-   用意された絵の上に見出しを重ねると、絵の文字とぶつかって両方読めなくなる。 */
-.gacha-wide.has-art .gacha-wide-copy { position:absolute; left:11px; bottom:11px; padding:6px 11px;
-  border-radius:99px; background:rgba(11,26,48,.62); backdrop-filter:blur(3px); }
-.gacha-wide.has-art .gacha-wide-copy small { margin:0; font-size:11px; }
+/* 画像があるときは、日ごとに変わるひとことをバナーの**下**に出す。
+   用意されたバナーは下の帯まで文字が入っていて、上に重ねると隠れてしまう。 */
+.gacha-section-note { margin:8px 16px 0; color:#66758c; font-size:11px; font-weight:800; }
 .gacha-wide-copy { display:block; padding:15px 16px; }
 .gacha-wide-copy b { display:block; font-size:16px; font-weight:900; line-height:1.4;
   text-shadow:0 1px 6px rgba(11,26,48,.35); }
@@ -2127,11 +2125,9 @@ body { font-weight:600; }
 .gacha-wide img { width:100%; height:100%; display:block; object-fit:cover; }
 /* 画像の上に文字を重ねる。**下half に影を敷いてから載せる。**
    明るい画像でも読めなくならないようにするため。 */
-/* 画像があるときは、日ごとに変わるひとことだけ小さな札にして左下へ。
-   用意された絵の上に見出しを重ねると、絵の文字とぶつかって両方読めなくなる。 */
-.gacha-wide.has-art .gacha-wide-copy { position:absolute; left:11px; bottom:11px; padding:6px 11px;
-  border-radius:99px; background:rgba(11,26,48,.62); backdrop-filter:blur(3px); }
-.gacha-wide.has-art .gacha-wide-copy small { margin:0; font-size:11px; }
+/* 画像があるときは、日ごとに変わるひとことをバナーの**下**に出す。
+   用意されたバナーは下の帯まで文字が入っていて、上に重ねると隠れてしまう。 */
+.gacha-section-note { margin:8px 16px 0; color:#66758c; font-size:11px; font-weight:800; }
 .gacha-wide-copy { display:block; padding:15px 16px; }
 .gacha-wide-copy b { display:block; font-size:16px; font-weight:900; line-height:1.4;
   text-shadow:0 1px 6px rgba(11,26,48,.35); }
