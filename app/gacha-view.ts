@@ -4,6 +4,8 @@ import type { GachaTheme } from './gacha';
 
 export type GachaView = {
   key: string;
+  /** 日本時間の今日。自動で開くのは1日1回にするための目印。 */
+  today: string;
   /** 今日の回。見た目と当たりの名前はここで変わる。 */
   season: {
     key: string;
@@ -11,6 +13,8 @@ export type GachaView = {
     theme: GachaTheme;
     action: string;
     emoji: string;
+    /** ホームに置く横長のバナー（1200×400）。無ければ色と文字だけになる。 */
+    image: string;
     lead: string;
     prizes: { key: string; label: string; days: number }[];
   } | null;

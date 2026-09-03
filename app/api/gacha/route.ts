@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
-import { adGacha, findPrize, gachaMonthDay, gachaSeason, nextSeason } from '@/app/gacha';
+import { adGacha, findPrize, gachaMonthDay, gachaSeason, jstDate, nextSeason } from '@/app/gacha';
 import { drawGacha, getGachaState } from '@/db/data';
 
 // **Web専用**。1日1回のガチャ。
@@ -12,10 +12,14 @@ function view(state: Awaited<ReturnType<typeof getGachaState>>) {
   const prize = state.drawnToday ? findPrize(state.prizeKey) : null;
   return {
     key: adGacha.key,
+    // 日本時間の今日。画面が「今日はもう自動で開いたか」を覚えるのに使う。
+    // **ブラウザ側で日付を作らない。** 端末の時計や時間帯がずれていると、
+    // 1日に何度も開いたり、まる1日開かなかったりする。
+    today: jstDate(),
     // 今日の回。見た目（テーマ）と当たりの名前はここで変わる。
     season: season && {
       key: season.key, name: season.name, theme: season.theme,
-      action: season.action, emoji: season.emoji, lead: season.lead,
+      action: season.action, emoji: season.emoji, image: season.image, lead: season.lead,
       // 何が当たるかは先に見せる。中身を伏せたまま引かせない。
       prizes: season.prizes.map((item) => ({ key: item.key, label: item.label, days: item.days })),
     },

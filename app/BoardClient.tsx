@@ -151,6 +151,11 @@ function trackAd(payload: { views?: string[]; clicks?: string[] }) {
   fetch('/api/ads/track', { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: true }).catch(() => {});
 }
 
+/**
+ * その日にガチャを自動で開いたか。**中身は日本時間の日付だけ。**
+ * 名前を変えると、全員がもう一度その日に自動で開かれる。
+ */
+const GACHA_SEEN_KEY = 'tasuki-gacha-auto-open-v1';
 const historyStorageKey = 'give-hub-request-history-v1';
 const favoriteStorageKey = 'give-hub-request-favorites-v1';
 
@@ -341,6 +346,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [mounted, setMounted] = useState(false);
   const [gacha, setGacha] = useState<GachaView | null>(null);
   const [gachaSpinning, setGachaSpinning] = useState(false);
+  /** バナー画像を出せるか。読めなければ色と文字だけの帯に落とす。 */
+  const [gachaArtOk, setGachaArtOk] = useState(true);
   const [adPlacement, setAdPlacement] = useState<string>(DEFAULT_PLACEMENT);
   // 掲示板の上位に出すとき、どの大分類の一覧を狙うか。空なら全業種。
   const [adIndustry, setAdIndustry] = useState('');
@@ -599,6 +606,24 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // ガチャは開いた時点で一度だけ読む。期間外なら open:false が返るだけで、
   // 画面には何も出ない。
   useEffect(() => { loadGacha(); }, []);
+
+  /**
+   * **その日はじめてホームを開いたときだけ、ガチャを自動で開く。**
+   *
+   * 「今日」はサーバーが返した日本時間の日付を使う（端末の時計や時間帯が
+   * ずれていると、1日に何度も開いたり、まる1日開かなかったりする）。
+   * 開いたことは端末に覚えさせる。引かずに閉じた人に、同じ日に何度も
+   * かぶせない。使い方の案内（チュートリアル）が出ているあいだは待つ。
+   */
+  useEffect(() => {
+    if (!gacha?.season || gacha.drawnToday || tutorial || modal || activeTab !== 'home') return;
+    let seen = '';
+    try { seen = localStorage.getItem(GACHA_SEEN_KEY) ?? ''; } catch { return; }
+    if (seen === gacha.today) return;
+    try { localStorage.setItem(GACHA_SEEN_KEY, gacha.today); } catch { /* 保存できなくても開く */ }
+    const timer = setTimeout(() => setModal('gacha'), 600);
+    return () => clearTimeout(timer);
+  }, [gacha, tutorial, modal, activeTab]);
 
   // 画面が立ち上がったことを1回だけ記録する。広告の並び替えはこれを待つ。
   useEffect(() => {
@@ -1352,20 +1377,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div className="carousel-dots" aria-label="バナーを切り替える">{slides.map((entry, index) => <button key={index} aria-label={`${index + 1}枚目${entry.ad ? '（広告）' : ''}`} className={`${carouselIndex === index ? 'active' : ''}${entry.ad ? ' is-ad' : ''}`} onClick={() => { setCarouselPaused(true); setCarouselIndex(index); }} />)}</div>
         </section>
 
-        {/* ガチャの入口。**その日に開いている回があるときだけ出る。**
-            終わったら何も残らないので、引き忘れた人に「終わったもの」を
-            見せ続けることにならない。 */}
-        {gacha?.season && <button className={`gacha-banner is-${gacha.season.theme}${gacha.drawnToday ? ' is-done' : ''}`} onClick={() => setModal('gacha')}>
-          <span className="gacha-banner-icon" aria-hidden="true">{gacha.season.emoji}</span>
-          <span className="gacha-banner-copy">
-            <b>{gacha.drawnToday ? `今日は${gacha.prize?.label ?? '引き終わりました'}` : gacha.season.name}</b>
-            <small>{gacha.drawnToday
-              ? [gacha.streak > 1 && `${gacha.streak}日つづけて`, gacha.giftDays > 0 && `無料券 ${gacha.giftDays}日分`, 'また明日'].filter(Boolean).join('・')
-              : gacha.streak > 0 ? `毎日1回・${gacha.streak}日つづいています` : '毎日1回・今日のぶんがまだです'}</small>
-          </span>
-          <span className="gacha-banner-go" aria-hidden="true">›</span>
-        </button>}
-
         <HomeShelf title={recommendFallback ? '募集中の案件' : 'あなたにおすすめの案件'} count={recommended.length}
           note={!recommendFallback ? ''
             : !stats.notifyIndustries.length ? 'マイページで「おすすめに出したい業種」を選ぶと、関係のありそうな案件が先に並びます。'
@@ -1386,6 +1397,29 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div className="home-section-heading"><div><p>業種から探す</p><h2>ジャンル別の案件検索</h2></div><button onClick={() => showSearch('all')}>すべて見る</button></div>
           <div className="industry-grid">{industryGroups.map((group) => <button key={group.name} onClick={() => showSearch(group.name)}><span><IndustryIcon group={group.name} /></span><b>{group.name}</b><small>{requests.filter((item) => matchesIndustry(item.industryTags, group.name)).length}件</small></button>)}</div>
         </section>
+
+        {/* ガチャの入口。**その日に開いている回があるときだけ出る。**
+            終わったら何も残らないので、引き忘れた人に「終わったもの」を
+            見せ続けることにならない。
+            横長の画像（1200×400）を置ける。画像が無い・読めないときは、
+            色と文字だけの帯になる（そのままでも成り立つ形にしてある）。 */}
+        {gacha?.season && <section className="gacha-section">
+          <button className={`gacha-wide is-${gacha.season.theme}${gacha.drawnToday ? ' is-done' : ''}${gachaArtOk ? ' has-art' : ''}`}
+            onClick={() => setModal('gacha')}>
+            {gacha.season.image && gachaArtOk && <img src={gacha.season.image} alt="" loading="lazy" decoding="async"
+              onError={() => setGachaArtOk(false)} />}
+            {/* **画像があるときは、こちらの見出しを重ねない。** 用意された絵の上に
+                同じことを書くと、絵の文字とぶつかって両方読みにくくなる。
+                日ごとに変わるひとことだけ、小さな札にして下に置く。 */}
+            <span className="gacha-wide-copy">
+              {!gachaArtOk && <b>{gacha.drawnToday ? `今日は${gacha.prize?.label ?? '引き終わりました'}` : gacha.season.name}</b>}
+              <small>{gacha.drawnToday
+                ? [gacha.streak > 1 && `${gacha.streak}日つづけて`, gacha.giftDays > 0 && `無料券 ${gacha.giftDays}日分`, 'また明日'].filter(Boolean).join('・')
+                : gacha.streak > 0 ? `毎日1回・${gacha.streak}日つづいています` : '毎日1回・今日のぶんがまだです'}</small>
+            </span>
+            {!gachaArtOk && <span className="gacha-wide-icon" aria-hidden="true">{gacha.season.emoji}</span>}
+          </button>
+        </section>}
 
         {!stats.avatarUrl && <button className="photo-required-banner" onClick={() => showProfileSettings()}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・オファーができます。</b><i>登録する →</i></button>}
       </div> : activeTab === 'search' ? <section className="mobile-board search-page" id="board">
