@@ -1971,31 +1971,50 @@ body { font-weight:600; }
 .gacha-banner-go { flex:0 0 auto; font-size:20px; font-weight:900; opacity:.8; }
 
 .gacha { text-align:center; }
-.gacha-box { width:104px; height:104px; margin:6px auto 0; display:grid; place-items:center; border-radius:24px; font-size:52px; }
+/* ガチャ本体。回しているあいだ揺れる。**画像でも絵文字でも同じ動き**に
+   なるように、動かすのは中身ではなく外側の箱にしてある。 */
+/* 絵そのものに背景（光と紙吹雪）が入っているので、角を丸めて1枚の札に見せる。
+   まわりの白と地続きにすると、切り取り忘れのように見える。 */
+.gacha-machine { margin:4px auto 0; display:flex; justify-content:center; overflow:hidden;
+  border-radius:18px; transform-origin:50% 92%; }
+.gacha-machine img { height:210px; width:auto; display:block; }
+.gacha-machine.is-spinning { animation:gacha-shake .38s ease-in-out infinite; }
+.gacha-box { width:104px; height:104px; display:grid; place-items:center; border-radius:24px; font-size:52px; }
 .gacha.is-plain .gacha-box { background:linear-gradient(140deg,#eef5ff,#e8f6ee); }
 .gacha.is-xmas .gacha-box { background:linear-gradient(140deg,#fff1f3,#e8f6ee); }
 .gacha.is-newyear .gacha-box { background:linear-gradient(140deg,#fff2f2,#fdf3dd); }
-.gacha-box.is-spinning { animation:gacha-shake .45s ease-in-out infinite; }
-.gacha-box.is-open { background:linear-gradient(140deg,#fff7e0,#ffe9c7); }
 @keyframes gacha-shake {
-  0%,100% { transform:rotate(-7deg) translateY(0); }
-  50% { transform:rotate(7deg) translateY(-5px); }
+  0%,100% { transform:rotate(-4deg); }
+  50% { transform:rotate(4deg); }
 }
-@media (prefers-reduced-motion:reduce) { .gacha-box.is-spinning { animation:none; } }
+@media (prefers-reduced-motion:reduce) { .gacha-machine.is-spinning { animation:none; } }
 /* 連続日数。**ログインボーナスの本体はここ。** 続けている手ごたえを出す。 */
 .gacha-streak { margin:12px 0 0; display:inline-block; padding:6px 13px; border-radius:99px;
   background:#fff3e6; color:#a2500b; font-size:12px; font-weight:900; }
+/* 賞の一覧。**等級・中身・もらえる日数の3列**にそろえる。 */
 .gacha-prizes { margin:15px 0 0; padding:0; list-style:none; display:grid; gap:7px; }
-.gacha-prizes li { padding:10px 13px; display:flex; align-items:center; justify-content:space-between; gap:10px;
-  border:1px solid var(--line); border-radius:11px; background:#fff; color:#7b8598; font-size:12px; font-weight:800; }
+.gacha-prizes li { padding:10px 12px; display:flex; align-items:center; gap:10px;
+  border:1px solid var(--line); border-radius:11px; background:#fff; color:#7b8598; font-size:11px; font-weight:800; text-align:left; }
+.gacha-prizes li i { min-width:38px; padding:4px 8px; border-radius:7px; background:#eef2f8; color:#8b97aa;
+  font-size:11px; font-style:normal; font-weight:900; text-align:center; }
+.gacha-prizes li b { flex:1 1 auto; min-width:0; overflow:hidden; font-size:13px; font-weight:900; text-overflow:ellipsis; white-space:nowrap; }
+.gacha-prizes li span { flex:0 0 auto; }
 .gacha-prizes li.is-win { border-color:#f0d6c4; background:#fffaf5; color:#a2500b; }
-.gacha-prizes li b { font-size:14px; font-weight:900; }
+.gacha-prizes li.is-win i { background:var(--accent); color:#fff; }
 .gacha.is-newyear .gacha-prizes li.is-win { border-color:#e8cf9a; background:#fdf7e8; color:#8a6d2f; }
+.gacha.is-newyear .gacha-prizes li.is-win i { background:#b8912f; }
 .gacha-lead { margin:14px 0 0; color:#64748b; font-size:12px; font-weight:700; line-height:1.75; }
 .gacha .submit-button { margin-top:15px; }
-.gacha-result { margin:16px 0 0; color:#7b8598; font-size:22px; font-weight:900; }
-.gacha-result.is-win { color:#b4380f; font-size:30px; }
+/* 結果は「A賞　◯◯」。等級を先に、中身をそのうしろに。 */
+.gacha-result { margin:16px 0 0; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:9px;
+  color:#7b8598; font-size:21px; font-weight:900; }
+.gacha-result i { padding:5px 12px; border-radius:9px; background:#eef2f8; color:#8b97aa;
+  font-size:15px; font-style:normal; font-weight:900; letter-spacing:.04em; }
+.gacha-result b { font-weight:900; }
+.gacha-result.is-win { color:#b4380f; font-size:26px; }
+.gacha-result.is-win i { background:var(--accent); color:#fff; }
 .gacha.is-newyear .gacha-result.is-win { color:#a8102a; }
+.gacha.is-newyear .gacha-result.is-win i { background:#b8912f; }
 .gacha-gift { margin:15px 0 0; padding:13px; border-radius:12px; background:#fff3e6; color:#8a4a12;
   font-size:12px; font-weight:800; }
 .gacha-gift b { display:block; margin-top:4px; font-size:22px; font-weight:900; }

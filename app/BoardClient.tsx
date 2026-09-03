@@ -348,6 +348,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [gachaSpinning, setGachaSpinning] = useState(false);
   /** バナー画像を出せるか。読めなければ色と文字だけの帯に落とす。 */
   const [gachaArtOk, setGachaArtOk] = useState(true);
+  /** ガチャ本体の絵を出せるか。読めなければ絵文字の箱に落とす。 */
+  const [gachaMachineOk, setGachaMachineOk] = useState(true);
   const [adPlacement, setAdPlacement] = useState<string>(DEFAULT_PLACEMENT);
   // 掲示板の上位に出すとき、どの大分類の一覧を狙うか。空なら全業種。
   const [adIndustry, setAdIndustry] = useState('');
@@ -1901,7 +1903,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {modal === 'gacha' && gacha && gacha.season && <Modal title={gacha.season.name} lead={gacha.season.lead} onClose={() => setModal(null)}>
         <div className={`gacha is-${gacha.season.theme}`}>
-          <div className={`gacha-box${gachaSpinning ? ' is-spinning' : ''}${gacha.drawnToday && !gachaSpinning ? ' is-open' : ''}`} aria-hidden="true">{gacha.season.emoji}</div>
+          {/* ガチャ本体。回しているあいだ揺れる。絵が無い・読めないときは
+              絵文字の箱に落とす（画像の差し替えで画面が壊れない）。 */}
+          <div className={`gacha-machine${gachaSpinning ? ' is-spinning' : ''}`}>
+            {gacha.season.machine && gachaMachineOk
+              ? <img src={gacha.season.machine} alt="" onError={() => setGachaMachineOk(false)} />
+              : <span className="gacha-box" aria-hidden="true">{gacha.season.emoji}</span>}
+          </div>
 
           {/* 1日目に「1日つづけて」と出すと、続けている感じが出ないどころか
               数え方が変に見える。2日目から出す。 */}
@@ -1910,15 +1918,27 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           {!gacha.drawnToday
             ? <>
               {/* 何が当たるかは先に出す。中身を伏せたまま引かせない。 */}
-              <ul className="gacha-prizes">{gacha.season.prizes.map((prize) => <li key={prize.key} className={prize.days ? 'is-win' : ''}>
-                <b>{prize.label}</b><span>{prize.days ? `広告の無料券 ${prize.days}日分` : 'はずれ'}</span>
-              </li>)}</ul>
-              <button className="submit-button" onClick={spinGacha} disabled={gachaSpinning}>{gachaSpinning ? '引いています…' : gacha.season.action}</button>
+              <ul className="gacha-prizes">{gacha.season.prizes.map((prize) => {
+                const reward = prize.days ? `無料券 ${prize.days}日分` : '';
+                return <li key={prize.key} className={prize.days ? 'is-win' : ''}>
+                  {/* はずれの行に「はずれ」と2度書かない。等級の欄は線だけにする。 */}
+                  <i>{prize.tier || '—'}</i><b>{prize.label}</b>
+                  {/* 中身がそのまま名前になっている回（ふだんの回）では、
+                      同じことを2度書かない。おみくじのように名前と中身が
+                      違う回だけ、もらえる日数を右に出す。 */}
+                  {reward && !prize.label.includes(`${prize.days}日分`) && <span>{reward}</span>}
+                </li>;
+              })}</ul>
+              <button className="submit-button" onClick={spinGacha} disabled={gachaSpinning}>{gachaSpinning ? '回しています…' : gacha.season.action}</button>
               {gacha.coming && <p className="gacha-note">{gacha.coming.from}から <b>{gacha.coming.name}</b> が始まります。</p>}
             </>
-            : gachaSpinning ? <p className="gacha-lead">引いています…</p>
+            : gachaSpinning ? <p className="gacha-lead">回しています…</p>
             : <>
-              <p className={`gacha-result${gacha.prize?.days ? ' is-win' : ''}`}>{gacha.prize?.label}</p>
+              {/* 「A賞　◯◯」の形で出す。等級を先に、中身をそのうしろに。 */}
+              <p className={`gacha-result${gacha.prize?.days ? ' is-win' : ''}`}>
+                {gacha.prize?.tier && <i>{gacha.prize.tier}</i>}
+                <b>{gacha.prize?.label}</b>
+              </p>
               <p className="gacha-lead">{gacha.prize?.note}</p>
               {gacha.giftDays > 0 && <p className="gacha-gift">たまっている無料券 <b>{gacha.giftDays}日分</b>{gacha.giftExpiresOn && <small>いちばん早い券は{gachaDateLabel(gacha.giftExpiresOn)}まで</small>}</p>}
               {/* 7日たまるまでは「あと何日で使えるか」を出す。広告は7日からしか

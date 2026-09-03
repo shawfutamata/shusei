@@ -15,6 +15,11 @@
 /** 当たりの中身。日数は広告の無料券としてそのまま積み上がる。 */
 export type GachaPrize = {
   key: string;
+  /**
+   * 賞の等級。「A賞」「B賞」など。**はずれは空にする。**
+   * 何が当たったかは `label` と `days` で言うので、ここは順位だけを表す。
+   */
+  tier: string;
   /** 結果の名前。おみくじなら「大吉」など。 */
   label: string;
   /** もらえる広告の無料日数。0 は「はずれ」。 */
@@ -47,6 +52,11 @@ export type GachaSeason = {
    * 置いていなければ、色と文字だけの帯になる（そのままでも成り立つ）。
    */
   image: string;
+  /**
+   * 引くところに出す**ガチャ本体の絵**（縦長）。回すあいだ揺れる。
+   * 置いていなければ、絵文字の箱になる。
+   */
+  machine: string;
   lead: string;
   prizes: GachaPrize[];
 };
@@ -84,13 +94,14 @@ export const adGacha = {
       action: 'プレゼントを開ける',
       emoji: '🎁',
       image: '/gacha/xmas.webp',
+      machine: '/gacha/machine.webp',
       lead: '毎日1回、広告の無料券が当たります。',
       prizes: [
-        { key: 'x3', label: '大きなプレゼント', days: 3, weight: 8,
+        { key: 'x3', tier: 'A賞', label: '大きなプレゼント', days: 3, weight: 8,
           note: '広告の無料券が3日分。' },
-        { key: 'x1', label: 'プレゼント', days: 1, weight: 37,
+        { key: 'x1', tier: 'B賞', label: 'プレゼント', days: 1, weight: 37,
           note: '広告の無料券が1日分。7日ためると1週間まるごと出せます。' },
-        { key: 'x0', label: 'くつ下は空っぽ', days: 0, weight: 55,
+        { key: 'x0', tier: '', label: 'くつ下は空っぽ', days: 0, weight: 55,
           note: '今日は何も入っていませんでした。また明日どうぞ。' },
       ],
     },
@@ -103,17 +114,18 @@ export const adGacha = {
       action: 'おみくじを引く',
       emoji: '🎍',
       image: '/gacha/newyear.webp',
+      machine: '/gacha/machine.webp',
       lead: '毎日1回、運だめし。大吉なら広告の無料券が3日分。',
       prizes: [
-        { key: 'n-daikichi', label: '大吉', days: 3, weight: 8,
+        { key: 'n-daikichi', tier: 'A賞', label: '大吉', days: 3, weight: 8,
           note: '広告の無料券が3日分。よい年になりますように。' },
-        { key: 'n-chukichi', label: '中吉', days: 1, weight: 20,
+        { key: 'n-chukichi', tier: 'B賞', label: '中吉', days: 1, weight: 20,
           note: '広告の無料券が1日分。7日ためると1週間まるごと出せます。' },
-        { key: 'n-shokichi', label: '小吉', days: 1, weight: 17,
+        { key: 'n-shokichi', tier: 'B賞', label: '小吉', days: 1, weight: 17,
           note: '広告の無料券が1日分。こつこついきましょう。' },
-        { key: 'n-kichi', label: '吉', days: 0, weight: 30,
+        { key: 'n-kichi', tier: '', label: '吉', days: 0, weight: 30,
           note: '悪くない一日になりそうです。また明日どうぞ。' },
-        { key: 'n-suekichi', label: '末吉', days: 0, weight: 25,
+        { key: 'n-suekichi', tier: '', label: '末吉', days: 0, weight: 25,
           note: 'あとになるほど良くなります。また明日どうぞ。' },
       ],
     },
@@ -127,13 +139,14 @@ export const adGacha = {
       action: '今日のガチャを引く',
       emoji: '🍀',
       image: '/gacha/daily.webp',
+      machine: '/gacha/machine.webp',
       lead: '毎日1回、広告の無料券が当たります。',
       prizes: [
-        { key: 'd3', label: '当たり', days: 3, weight: 8,
+        { key: 'd3', tier: 'A賞', label: '広告の無料券 3日分', days: 3, weight: 8,
           note: '広告の無料券が3日分。' },
-        { key: 'd1', label: '小当たり', days: 1, weight: 37,
+        { key: 'd1', tier: 'B賞', label: '広告の無料券 1日分', days: 1, weight: 37,
           note: '広告の無料券が1日分。7日ためると1週間まるごと出せます。' },
-        { key: 'd0', label: 'はずれ', days: 0, weight: 55,
+        { key: 'd0', tier: '', label: 'はずれ', days: 0, weight: 55,
           note: '今日はご縁がありませんでした。また明日どうぞ。' },
       ],
     },

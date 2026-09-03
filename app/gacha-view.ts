@@ -15,13 +15,15 @@ export type GachaView = {
     emoji: string;
     /** ホームに置く横長のバナー（1200×400）。無ければ色と文字だけになる。 */
     image: string;
+    /** 引くところに出すガチャ本体の絵（縦長）。無ければ絵文字の箱になる。 */
+    machine: string;
     lead: string;
-    prizes: { key: string; label: string; days: number }[];
+    prizes: { key: string; tier: string; label: string; days: number }[];
   } | null;
   /** 次の季節の回。「12月20日からクリスマス」と先に知らせる。 */
   coming: { name: string; from: string } | null;
   drawnToday: boolean;
-  prize: { key: string; label: string; days: number; note: string } | null;
+  prize: { key: string; tier: string; label: string; days: number; note: string } | null;
   /** 連続で引いている日数。 */
   streak: number;
   /** 今月もらった日数。 */

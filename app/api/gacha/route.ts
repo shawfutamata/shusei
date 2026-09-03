@@ -19,14 +19,14 @@ function view(state: Awaited<ReturnType<typeof getGachaState>>) {
     // 今日の回。見た目（テーマ）と当たりの名前はここで変わる。
     season: season && {
       key: season.key, name: season.name, theme: season.theme,
-      action: season.action, emoji: season.emoji, image: season.image, lead: season.lead,
+      action: season.action, emoji: season.emoji, image: season.image, machine: season.machine, lead: season.lead,
       // 何が当たるかは先に見せる。中身を伏せたまま引かせない。
-      prizes: season.prizes.map((item) => ({ key: item.key, label: item.label, days: item.days })),
+      prizes: season.prizes.map((item) => ({ key: item.key, tier: item.tier, label: item.label, days: item.days })),
     },
     // 次の季節の回。「12月20日からクリスマス」と先に知らせる。
     coming: coming && { name: coming.name, from: gachaMonthDay(coming.from) },
     drawnToday: state.drawnToday,
-    prize: prize && { key: prize.key, label: prize.label, days: prize.days, note: prize.note },
+    prize: prize && { key: prize.key, tier: prize.tier, label: prize.label, days: prize.days, note: prize.note },
     streak: state.streak,
     monthDays: state.monthDays,
     memberCapDaysPerMonth: adGacha.memberCapDaysPerMonth,
