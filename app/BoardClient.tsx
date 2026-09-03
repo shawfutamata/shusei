@@ -373,6 +373,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   /** 回す動画を出せるか。読めなければ絵のまま揺らす。 */
   const [gachaVideoOk, setGachaVideoOk] = useState(true);
   const gachaVideo = useRef<HTMLVideoElement | null>(null);
+  /** 流している演出を打ち切る手。押して飛ばすときに使う。 */
+  const gachaSkip = useRef<(() => void) | null>(null);
   const [adPlacement, setAdPlacement] = useState<string>(DEFAULT_PLACEMENT);
   // 掲示板の上位に出すとき、どの大分類の一覧を狙うか。空なら全業種。
   const [adIndustry, setAdIndustry] = useState('');
@@ -961,45 +963,68 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     if (gachaSpinning || !gacha || !gacha.season) return;
     if (gacha.drawnToday && !gacha.master) return;
     setGachaSpinning(true);
-    // **先に投げて、演出を流しているあいだに返事を受け取る。** 順番に待つと、
-    // 通信の遅い人ほど演出が終わってから固まる時間が増える。
-    const request = fetch('/api/gacha', { method: 'POST' })
+    // **結果を先に受け取る。** 動画は最後に「当たり」の札が出るところまで
+    // 入っているので、はずれた人にはその手前で止めなければならない。
+    // どこで止めるかは結果が分からないと決められない。
+    const data = await fetch('/api/gacha', { method: 'POST' })
       .then((response) => response.json().catch(() => null) as Promise<(GachaView & { error?: string }) | null>)
       .catch(() => null);
-    await playGachaMotion();
-    const data = await request;
+    if (!data) {
+      setGachaSpinning(false);
+      return showToast('通信に失敗しました。時間をおいてお試しください。');
+    }
+    const won = Number(data.prize?.days ?? 0) > 0;
+    await playGachaMotion(won ? 0 : (gacha.season.videoStopAt || 0));
     setGachaSpinning(false);
-    if (!data) return showToast('通信に失敗しました。時間をおいてお試しください。');
     if (data.key) setGacha(data);
     if (data.error) showToast(data.error);
   }
 
   /**
-   * 回す演出。**動画があれば最後まで流し、無ければ揺れるぶんだけ待つ。**
+   * 回す演出。**動画があれば流し、無ければ揺れるぶんだけ待つ。**
    *
    * 結果はサーバーでもう決まっているので、ここで待つのは見た目のためだけ。
+   *
+   * `stopAt` に秒数を渡すと、そこで止める（はずれのとき。当たりの札が
+   * 出る前で切る）。0 なら最後まで流す。
+   *
    * 動画が流せない端末や壊れたファイルでも**必ず先へ進む**（止まったままに
-   * しない）。時間切れは6秒。
+   * しない）。押せば飛ばせるし、時間切れは10秒。
    */
-  function playGachaMotion() {
+  function playGachaMotion(stopAt = 0) {
     const video = gachaVideo.current;
     if (!video) return new Promise((resolve) => setTimeout(resolve, 1500));
     return new Promise<void>((resolve) => {
       let done = false;
-      const guard = setTimeout(() => finish(), 6000);
+      const guard = setTimeout(() => finish(), 10000);
       function finish() {
         if (done) return;
         done = true;
         clearTimeout(guard);
+        gachaSkip.current = null;
         video?.removeEventListener('ended', finish);
+        video?.removeEventListener('timeupdate', watch);
+        video?.pause();
         resolve();
       }
+      function watch() {
+        if (stopAt > 0 && video && video.currentTime >= stopAt) finish();
+      }
+      // 押したら飛ばせるようにしておく。毎日見るものなので、
+      // 待たされるだけの時間にしない。
+      gachaSkip.current = finish;
       video.addEventListener('ended', finish);
+      video.addEventListener('timeupdate', watch);
       try {
         video.currentTime = 0;
         video.play()?.catch(() => finish());
       } catch { finish(); }
     });
+  }
+
+  /** 演出を飛ばす。流している最中に舞台を押したとき。 */
+  function skipGachaMotion() {
+    gachaSkip.current?.();
   }
 
   function openAdSettings() {
@@ -1961,7 +1986,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           {/* 舞台。**モーダルの端まで色を伸ばす**（margin:0 -20px）。
               白い紙の上に絵を置いただけだと、催しをやっている感じが出ない。
               後光と紙吹雪は飾りなので、読み上げからは外す。 */}
-          <div className={`gacha-stage${gacha.drawnToday && !gachaSpinning && gacha.prize?.days ? ' is-win' : ''}`}>
+          <div className={`gacha-stage${gacha.drawnToday && !gachaSpinning && gacha.prize?.days ? ' is-win' : ''}${gachaSpinning ? ' is-skippable' : ''}`}
+            onClick={gachaSpinning ? skipGachaMotion : undefined}>
             <span className="gacha-rays" aria-hidden="true" />
             <span className="gacha-confetti" aria-hidden="true">
               {GACHA_CONFETTI.map((piece, index) => <i key={index} style={{ left: piece.left, background: piece.color, animationDelay: piece.delay }} />)}
@@ -1989,7 +2015,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 {gacha.prize?.tier && <i>{gacha.prize.tier}</i>}
                 <b>{gacha.prize?.label}</b>
               </p>
-              : <p className="gacha-stage-note">{gachaSpinning ? '回しています…' : '今日のぶんを回せます'}</p>}
+              : <p className="gacha-stage-note">{gachaSpinning ? '押すと飛ばせます' : '今日のぶんを回せます'}</p>}
           </div>
 
           {!gacha.drawnToday

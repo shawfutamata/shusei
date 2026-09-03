@@ -2141,3 +2141,6 @@ body { font-weight:600; }
 /* 運営だけに出る「もう一度回す」。ふつうのボタンほど強くしない。 */
 .gacha-again { min-height:44px; margin-top:14px; padding:0 20px; border:1px solid #cfdcee; border-radius:11px;
   background:#fff; color:#0f5fc4; font-size:13px; font-weight:900; cursor:pointer; }
+
+/* 流している最中は、押すと飛ばせる。毎日見るものなので、待つだけの時間にしない。 */
+.gacha-stage.is-skippable { cursor:pointer; }

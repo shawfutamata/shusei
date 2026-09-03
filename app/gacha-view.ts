@@ -18,6 +18,8 @@ export type GachaView = {
     machine: string;
     /** 回すときに流す動画（縦長・音なし）。無ければ絵のまま揺れる。 */
     video: string;
+    /** はずれのときに動画を止める秒数。0なら最後まで流す。 */
+    videoStopAt: number;
     lead: string;
     prizes: { key: string; tier: string; label: string; days: number }[];
   } | null;

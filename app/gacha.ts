@@ -56,16 +56,24 @@ export type GachaSeason = {
    */
   machine: string;
   /**
-   * 回すときに流す**動画**（縦長・音なし）。押してから最後まで流し、
-   * 終わったところで結果を出す。
-   *
-   * 空にすると、絵のまま左右に揺れる。**どちらでも成り立つ。**
+   * 回すときに流す**動画**（縦長・音なし）。押してから流し、終わったところで
+   * 結果を出す。空にすると、絵のまま左右に揺れる。**どちらでも成り立つ。**
    *
    * **必ず H.264（avc1）の mp4 にすること。** webm や、H.264以外を包んだ
    * mp4 は iPhone の Safari で再生できず、絵に落ちる。会員のほとんどが
    * iPhone なので、そこで動かないものを既定にしない。
    */
   video: string;
+  /**
+   * **はずれのときに動画を止める秒数。**
+   *
+   * 動画は最後に「当たり」の札が出るところまで入っている。はずれた人に
+   * それを見せてから「はずれ」と言うのは裏切りなので、**まだ何も出ていない
+   * ところ（ハンドルを回し終わったあたり）で止める。**
+   *
+   * 0 にすると、はずれでも最後まで流す。
+   */
+  videoStopAt: number;
   lead: string;
   prizes: GachaPrize[];
 };
@@ -103,7 +111,8 @@ export const adGacha = {
       action: 'プレゼントを開ける',
       image: '/gacha/xmas.webp',
       machine: '/gacha/machine.webp',
-      video: '',
+      video: '/gacha/win.mp4',
+      videoStopAt: 1.85,
       lead: '毎日1回、広告の無料券が当たります。',
       prizes: [
         { key: 'x3', tier: 'A賞', label: '大きなプレゼント', days: 3, weight: 8,
@@ -123,7 +132,8 @@ export const adGacha = {
       action: 'おみくじを引く',
       image: '/gacha/newyear.webp',
       machine: '/gacha/machine.webp',
-      video: '',
+      video: '/gacha/win.mp4',
+      videoStopAt: 1.85,
       lead: '毎日1回、運だめし。大吉なら広告の無料券が3日分。',
       prizes: [
         { key: 'n-daikichi', tier: 'A賞', label: '大吉', days: 3, weight: 8,
@@ -148,7 +158,8 @@ export const adGacha = {
       action: '今日のガチャを引く',
       image: '/gacha/daily.webp',
       machine: '/gacha/machine.webp',
-      video: '',
+      video: '/gacha/win.mp4',
+      videoStopAt: 1.85,
       lead: '毎日1回、広告の無料券が当たります。',
       prizes: [
         { key: 'd3', tier: 'A賞', label: '広告の無料券 3日分', days: 3, weight: 8,
