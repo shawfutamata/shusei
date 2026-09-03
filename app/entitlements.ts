@@ -17,18 +17,27 @@ export function toBillingCycle(value: unknown): BillingCycle {
 }
 
 /**
- * プランは2本立てで持つ。
+ * プランは3本立てで持つ。
  * - plan / planPeriodEnd … 契約しているプラン（Stripeの購読、または運営が入れたもの）
  * - bonusPlan / bonusPeriodEnd … 招待特典で一時的に開いているプラン
+ * - campaignPlan / campaignPeriodEnd … 開設キャンペーンで全員に開いているプラン
  *
  * 別々に持つのは、契約すると特典が消える事故を防ぐため。実際に使えるのは
- * 「2つのうち上のほう」で、特典が切れたら契約しているプランに戻る。
+ * 「3つのうちいちばん上」で、特典やキャンペーンが切れたら契約しているプランに戻る。
  */
 export type PlanState = {
   plan: Plan;
   planPeriodEnd: string;
   bonusPlan?: Plan;
   bonusPeriodEnd?: string;
+  /**
+   * 開設キャンペーンで、全員に開いているプラン（app/campaign.ts）。
+   * 契約でも招待特典でもないので、**3本目として別に持つ**。
+   * 同じ列に混ぜると「契約している」と読めてしまい、招待の値引きが
+   * Stripeの請求に回るなど、別のところが狂う。
+   */
+  campaignPlan?: Plan;
+  campaignPeriodEnd?: string;
 };
 
 /** 無制限は -1 で表す。JSONに載せるので Infinity は使わない。 */
@@ -46,7 +55,7 @@ export const features = [
   // 消すと、この名前で保存されている古い設定や記録が読めなくなる。
   'comment',              // 使わない。すでに始まっているやり取りの続きだけ
   'receive_introductions',// 届いたオファーを見る
-  'post_request',         // 探しごとを投稿する（無料は月1件）
+  'post_request',         // 案件を投稿する（無料は月1件）
   // 会員を業種・エリアで探す。**全プラン**（ここに無い＝どのプランでも使える）。
   // 相手が見つからないと掲示板そのものが動かないので、入口として開けてある。
   'member_search',
@@ -84,11 +93,18 @@ export function bonusPlan(state: PlanState, today = new Date()): Plan {
   return plan;
 }
 
-/** 実際に使えるプラン。契約と特典の、上のほう。 */
+/** 開設キャンペーンで開いているプラン。期間が終わっていれば無料。 */
+export function campaignPlan(state: PlanState, today = new Date()): Plan {
+  const plan = state.campaignPlan ?? 'free';
+  if (plan === 'free') return 'free';
+  if (!state.campaignPeriodEnd || state.campaignPeriodEnd < isoDate(today)) return 'free';
+  return plan;
+}
+
+/** 実際に使えるプラン。契約・招待特典・キャンペーンの、いちばん上。 */
 export function currentPlan(state: PlanState, today = new Date()): Plan {
-  const contracted = contractedPlan(state, today);
-  const bonus = bonusPlan(state, today);
-  return rank(bonus) > rank(contracted) ? bonus : contracted;
+  return [contractedPlan(state, today), bonusPlan(state, today), campaignPlan(state, today)]
+    .reduce((best, plan) => (rank(plan) > rank(best) ? plan : best), 'free' as Plan);
 }
 
 /** 特典ではなく、自分で契約している有料プランがあるか。 */

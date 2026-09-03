@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { serviceName } from '../../brand';
+import { campaignUntilLabel, freeCampaign } from '../../campaign';
 import { findInviterByCode } from '@/db/data';
 import BrandMark from '../../BrandMark';
 import LegalLinks from '../../LegalLinks';
@@ -21,6 +22,9 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
     <p className="invite-from"><b>{inviter.displayName}</b>さん<small>{inviter.company}</small></p>
     <h2>からのご招待です。</h2>
     <p>会員同士で「こんな人を探しています」を共有し、信頼できるオファーを届ける会員向け掲示板です。</p>
+    {/* 会費の話は、参加を決める前に見えているほうがよい。あとから知ると
+        「無料だと思っていた」になる。終わりの日も一緒に出す。 */}
+    {!!freeCampaign.until && <p className="join-campaign"><b>いまは{freeCampaign.name}中です。</b>{campaignUntilLabel()}まで、すべての機能をお金をかけずにお使いいただけます。お申し込みもお支払いも要りません。</p>}
     <a className="primary-button google-button" href={`/api/auth/google/start?invite=${encodeURIComponent(code)}`}><GoogleMark />Googleで参加する</a>
     <small>ご登録後、運営が確認してからご利用いただけます。ふだんお使いのGoogleアカウントでどうぞ。</small>
   <LegalLinks /></div></main>;

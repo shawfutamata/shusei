@@ -4,7 +4,7 @@ import type { SessionUser } from '@/app/session-user';
 import { cleanFacebookUrl } from '@/app/social-links';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
 import { AD_DESCRIPTION_MAX, AD_RESERVATION_MINUTES, AD_TITLE_MAX, DEFAULT_PLACEMENT, placementSlots } from '@/app/ad-options';
-import { UNLIMITED, bonusPlan, can, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
+import { UNLIMITED, bonusPlan, campaignPlan, can, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
 import { EXTEND_DAYS, MAX_LEVEL, canExtendRequest, canPostVideo, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
 import { isAdminEmail } from '@/app/admin-emails';
 import { sampleRequests } from './sample-requests';
@@ -33,7 +33,7 @@ export type BoardRequest = {
   deadline: string;
   status: string;
   createdAt: string;
-  /** 自分がこの探しごとへ出した紹介の数。中身は出さない（本人と投稿者だけのもの）。 */
+  /** 自分がこの案件へ出した紹介の数。中身は出さない（本人と投稿者だけのもの）。 */
   myIntroCount: number;
   /** 注目ピンでいちばん上に出している期限。空なら普通の並び。 */
   pinnedUntil: string;
@@ -109,6 +109,10 @@ export type MemberStats = {
   bonusPlan: Plan;
   bonusPeriodEnd: string;
   planPeriodEnd: string;
+  /** 開設キャンペーン中か。画面はこれを見て、購入のボタンを出さない。 */
+  campaignPlan: boolean;
+  /** キャンペーンの終わり（YYYY-MM-DD）。動いていないときは空。 */
+  campaignUntil: string;
   requestsThisMonth: number;
   requestLimit: number;
 };
@@ -116,7 +120,7 @@ export type MemberStats = {
 export type OfferKind = 'referral' | 'self';
 
 /**
- * オファーの宛先。探しごとか、広告か。
+ * オファーの宛先。案件か、広告か。
  *
  * 表は分けてある（`ad_introductions`）が、**画面と型は同じもの**として扱う。
  * 受け取る人にとっては、どちらも「自分あてに届いたオファー」でしかない。
@@ -137,7 +141,7 @@ export type ReceivedIntroduction = {
   requestId: string;
   requestTitle: string;
   requestCategory: OfferTargetCategory;
-  /** 探しごとに届いたのか、広告に届いたのか。画面の言い回しを変えるのに使う。 */
+  /** 案件に届いたのか、広告に届いたのか。画面の言い回しを変えるのに使う。 */
   source: OfferSource;
   /** 知り合いの紹介か、自社で請け負う（受注）か。 */
   kind: OfferKind;
@@ -256,7 +260,7 @@ const statements = [
     facebook_url TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
   )`,
-  // 探しごとへのコメント。**最初のひとことだけ会員みんなに見える。**
+  // 案件へのコメント。**最初のひとことだけ会員みんなに見える。**
   // 2通目からは投稿者とその人だけの1本になる（thread_with で束ねる）。
   // 込み入った話や金額の話が公開の場に出てしまうのを避けつつ、掲示板が
   // にぎわって見える入口は残すため。
@@ -336,13 +340,13 @@ const statements = [
     created_at TEXT NOT NULL
   )`,
   // 紹介1件ごとの、投稿者と紹介者だけのやり取り。
-  // 探しごとのコメント欄（request_comments）は会員みんなが読めるが、
+  // 案件のコメント欄（request_comments）は会員みんなが読めるが、
   // こちらは**2人しか読めない**。紹介の中身は他の会員に見せないため。
-  // 広告へのオファー。**探しごとへのオファーと別の表にしてある。**
+  // 広告へのオファー。**案件へのオファーと別の表にしてある。**
   // introductions.request_id は requests への外部キーで、D1はこれを実際に
   // 強制する（広告のIDを入れると FOREIGN KEY constraint failed になる）。
   // 既存の表を作り替えると、いま入っているオファーを失う危険があるので、
-  // 足すほうを選んだ。画面と型は探しごとと共通のまま扱う。
+  // 足すほうを選んだ。画面と型は案件と共通のまま扱う。
   `CREATE TABLE IF NOT EXISTS ad_introductions (
     id TEXT PRIMARY KEY,
     ad_id TEXT NOT NULL REFERENCES ad_slots(id),
@@ -421,7 +425,7 @@ const statements = [
   // 1通ずつ既読の印を持つと行が増え続けるので、「いつまで読んだか」だけ持つ。
   `CREATE TABLE IF NOT EXISTS thread_reads (
     member_id TEXT NOT NULL REFERENCES members(id),
-    -- 'request:<探しごとID>:<相手の会員ID>' / 'intro:<オファーID>' / 'ad:<広告オファーID>'
+    -- 'request:<案件ID>:<相手の会員ID>' / 'intro:<オファーID>' / 'ad:<広告オファーID>'
     thread_key TEXT NOT NULL,
     last_read_at TEXT NOT NULL,
     PRIMARY KEY (member_id, thread_key)
@@ -817,7 +821,7 @@ export async function deleteMobileAccount(user: SessionUser) {
     .bind(user.userId).all<{ id: string }>();
   const statementsToDelete = [
     // 紹介のやり取りは、紹介より先に消す（外部キーで止まるため）。
-    // 自分が出した紹介ぶんと、自分の探しごとに届いた紹介ぶんの両方。
+    // 自分が出した紹介ぶんと、自分の案件に届いた紹介ぶんの両方。
     env.DB.prepare('DELETE FROM introduction_messages WHERE sender_id = ?').bind(user.userId),
     ...requestIds.results.map(({ id }) => env.DB.prepare('DELETE FROM introduction_messages WHERE introduction_id IN (SELECT id FROM introductions WHERE request_id = ?)').bind(id)),
     env.DB.prepare('DELETE FROM introduction_messages WHERE introduction_id IN (SELECT id FROM introductions WHERE introducer_id = ?)').bind(user.userId),
@@ -844,7 +848,7 @@ export async function deleteMobileAccount(user: SessionUser) {
     env.DB.prepare('DELETE FROM members WHERE id = ?').bind(user.userId),
   ];
   await env.DB.batch(statementsToDelete);
-  // R2に置いた画像も消す。探しごとの写真は一覧用と詳細用の2つある。
+  // R2に置いた画像も消す。案件の写真は一覧用と詳細用の2つある。
   const objectKeys = [
     member.avatarKey,
     ...requestIds.results.flatMap(({ id }) => [`request-thumbs/${id}`, `request-images/${id}`]),
@@ -1002,6 +1006,7 @@ export async function getBoardData(user: SessionUser) {
   const plan = await getPlanSummary(user.userId);
   const stats = calculateRank({ ...memberFields, memberId: user.userId, notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion),
     plan: plan.activePlan, paid: plan.paid, planPeriodEnd: plan.planPeriodEnd, adminPlan: plan.adminPlan,
+    campaignPlan: plan.campaign, campaignUntil: plan.campaignUntil,
     contractedPlan: plan.contracted, bonusPlan: plan.bonus, bonusPeriodEnd: plan.bonusPeriodEnd ?? '',
     requestsThisMonth: plan.requestsThisMonth, requestLimit: plan.requestLimit,
   }, isAdminEmail(user.email));
@@ -1060,7 +1065,7 @@ export async function createRequest(user: SessionUser, input: { category: string
   const requestPlan = await getPlanState(user.userId);
   const requestCap = limits(requestPlan).requestsPerMonth;
   if (requestCap !== UNLIMITED && await countRequestsThisMonth(user.userId) >= requestCap) {
-    throw new Error(`いまのプランで投稿できる探しごとは月${requestCap}件までです。今月分はすでに投稿済みです。`);
+    throw new Error(`いまのプランで投稿できる案件は月${requestCap}件までです。今月分はすでに投稿済みです。`);
   }
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
@@ -1101,7 +1106,7 @@ export async function createRequest(user: SessionUser, input: { category: string
 }
 
 /**
- * 自分が出した探しごとを、新しい順に返す。マイページの「自分の投稿」に出す。
+ * 自分が出した案件を、新しい順に返す。マイページの「自分の投稿」に出す。
  *
  * 掲示板の一覧とは別に引く。掲示板は募集中のものを他人に見せる場所で、
  * ここは**期限が切れたものも含めて自分の記録を全部見せる**場所だから。
@@ -1130,7 +1135,7 @@ export async function listMyRequests(user: SessionUser) {
 }
 
 /**
- * 自分の探しごとを直す。
+ * 自分の案件を直す。
  *
  * **他人の投稿を書き替えられないよう、WHERE に author_id を入れる。**
  * 画面側で編集ボタンを出し分けるだけでは、APIを直接叩かれたときに守れない。
@@ -1143,7 +1148,7 @@ export async function updateRequest(user: SessionUser, id: string, input: {
   await upsertMember(user);
   const own = await env.DB.prepare('SELECT image_count AS imageCount FROM requests WHERE id = ? AND author_id = ?')
     .bind(id, user.userId).first<{ imageCount: number }>();
-  if (!own) throw new Error('この探しごとは編集できません。');
+  if (!own) throw new Error('この案件は編集できません。');
 
   const { level } = await getMemberRank(user.userId);
   let imageSet = '';
@@ -1183,7 +1188,7 @@ export async function updateRequest(user: SessionUser, id: string, input: {
 }
 
 /**
- * 自分の探しごとを消す。ぶら下がっているやり取りと紹介も一緒に消す。
+ * 自分の案件を消す。ぶら下がっているやり取りと紹介も一緒に消す。
  *
  * 順番が要る。子（コメント・紹介）を先に消さないと外部キーで止まる。
  * D1に `ON DELETE CASCADE` は入っていないので、ここで面倒を見る。
@@ -1192,7 +1197,7 @@ export async function deleteRequest(user: SessionUser, id: string) {
   await upsertMember(user);
   const own = await env.DB.prepare('SELECT image_count AS imageCount, video_version AS videoVersion FROM requests WHERE id = ? AND author_id = ?')
     .bind(id, user.userId).first<{ imageCount: number; videoVersion: number }>();
-  if (!own) throw new Error('この探しごとは削除できません。');
+  if (!own) throw new Error('この案件は削除できません。');
 
   await env.DB.batch([
     env.DB.prepare('DELETE FROM request_comments WHERE request_id = ?').bind(id),
@@ -1264,7 +1269,7 @@ export const PAYWALL = '[plan]';
 /**
  * 広告へオファーを送る。
  *
- * 線引きは探しごとと同じ。**知り合いの紹介は無料、自社で請け負うのは有料。**
+ * 線引きは案件と同じ。**知り合いの紹介は無料、自社で請け負うのは有料。**
  * 宛先が広告になっただけで、送る人にとっての意味は変わらないため。
  */
 export async function createAdIntroduction(user: SessionUser, input: { adId: string; personName: string; personCompany: string; relationship: string; fitReason: string; kind?: OfferKind }) {
@@ -1397,7 +1402,7 @@ async function requireOfferChatAccess(userId: string, isAuthor: boolean) {
 /**
  * 広告へのオファーで、読み書きしてよい2人かを確かめる。
  *
- * 探しごとの `introductionPartner()` と同じ役目。**表が分かれているだけで、
+ * 案件の `introductionPartner()` と同じ役目。**表が分かれているだけで、
  * 守るものは同じ。** 広告を出した人とオファーした人しか読めない。
  */
 async function adIntroductionPartner(userId: string, adIntroductionId: string) {
@@ -1605,7 +1610,7 @@ function avatarUrl(memberId: string, avatarKey: string, avatarVersion: number) {
 }
 
 // 1枚目は番号なしのまま置く。以前に投稿された写真をそのまま読めるようにするため。
-/** 動画の置き場。1つの探しごとにつき1本。 */
+/** 動画の置き場。1つの案件につき1本。 */
 function requestVideoKey(id: string) {
   return `request-videos/${id}`;
 }
@@ -1626,7 +1631,7 @@ function requestImageKey(id: string, size: 'thumb' | 'full', index = 0) {
   return index === 0 ? `${folder}/${id}` : `${folder}/${id}/${index}`;
 }
 
-/** 探しごとの画像を返す。会員なら誰でも見られる（掲示板に出ているもの）。 */
+/** 案件の画像を返す。会員なら誰でも見られる（掲示板に出ているもの）。 */
 export async function getRequestImage(id: string, size: 'thumb' | 'full', index = 0) {
   await ensureDatabase();
   const row = await env.DB.prepare('SELECT image_version AS imageVersion, image_count AS imageCount FROM requests WHERE id = ?')
@@ -1636,7 +1641,7 @@ export async function getRequestImage(id: string, size: 'thumb' | 'full', index 
 }
 
 /**
- * 探しごとの画像。一覧用の小さい版と、詳細用の大きい版を別に持つ。
+ * 案件の画像。一覧用の小さい版と、詳細用の大きい版を別に持つ。
  * 一覧は1画面に何件も並ぶので、小さい版を分けておかないと読み出しが重くなる。
  * 版番号がURLに入るので、1年キャッシュしても差し替えは効く。
  */
@@ -1694,7 +1699,7 @@ async function sendMatchingPushNotifications(authorId: string, request: { id: st
     };
     const payload = await buildPushPayload({
       data: {
-        title: '関連する探しごとが投稿されました',
+        title: '関連する案件が投稿されました',
         body: request.title,
         url: `/?request=${encodeURIComponent(request.id)}`,
         tag: `request-${request.id}`,
@@ -1732,7 +1737,7 @@ async function sendMatchingMobileNotifications(authorId: string, request: { id: 
     body: JSON.stringify(targets.map(({ token }) => ({
       to: token,
       sound: 'default',
-      title: '関連する探しごとが投稿されました',
+      title: '関連する案件が投稿されました',
       body: request.title,
       data: { requestId: request.id, path: '/requests' },
     }))),
@@ -1774,8 +1779,8 @@ export async function extendRequest(memberId: string, requestId: string) {
 
   const row = await env.DB.prepare('SELECT deadline, extended_at AS extendedAt FROM requests WHERE id = ? AND author_id = ?')
     .bind(requestId, memberId).first<{ deadline: string; extendedAt: string }>();
-  if (!row) throw new Error('この探しごとは延長できません。');
-  if (row.extendedAt) throw new Error('この探しごとは、すでに1回延長しています。');
+  if (!row) throw new Error('この案件は延長できません。');
+  if (row.extendedAt) throw new Error('この案件は、すでに1回延長しています。');
 
   // 期限切れのものは今日から、まだ先のものはその期限から延ばす。
   const today = new Date().toISOString().slice(0, 10);
@@ -2098,7 +2103,7 @@ export type MemberProfile = {
   id: string; displayName: string; company: string; positionTitle: string; venue: string;
   businessArea: string; primaryIndustry: string; facebookUrl: string; avatarUrl: string;
   rank: string; level: number; introCount: number; joinedAt: string;
-  /** その人がいま出している、募集中の探しごと。 */
+  /** その人がいま出している、募集中の案件。 */
   requests: { id: string; title: string; category: string; deadline: string; budgetBand: string; budgetLabel: string; area: string; industryTags: string[]; thumbUrl: string }[];
 };
 
@@ -2107,7 +2112,7 @@ export type MemberCard = {
   id: string; displayName: string; company: string; positionTitle: string;
   businessArea: string; primaryIndustry: string; avatarUrl: string;
   rank: string; level: number;
-  /** いま出している募集中の探しごとの数。0でも出す（探せることが値打ちなので）。 */
+  /** いま出している募集中の案件の数。0でも出す（探せることが値打ちなので）。 */
   openRequests: number;
   mine: boolean;
 };
@@ -2270,7 +2275,7 @@ export async function countFeedback(memberId: string) {
 }
 // --- 機能改善の受け口 ここまで ------------------------------------------------
 
-// --- 探しごとへのコメント（廃止）------------------------------------------
+// --- 案件へのコメント（廃止）------------------------------------------
 // コメント欄はやめた。にぎわいは、実際に人が動いた数（オファーとリファラルの
 // 件数）で見せている。読み書きの経路は全部外してある。
 //
@@ -2283,7 +2288,7 @@ export async function countFeedback(memberId: string) {
 
 // --- 個別メッセージ ここから -------------------------------------------------
 // **2人だけのやり取りは2か所に分かれている。**
-//   1. 探しごとへのオファーのやり取り（introduction_messages）
+//   1. 案件へのオファーのやり取り（introduction_messages）
 //   2. 広告へのオファーのやり取り（ad_introduction_messages）
 // 会員から見ればどちらも「あの人とのやり取り」なので、1つの箱にまとめて出す。
 // 表を統合はしない。既に入っているやり取りを移す危険を負う値打ちがない。
@@ -2297,9 +2302,9 @@ export type MessageThread = {
    * （`listIntroductionMessages` が、その印で見に行く表を決める）。
    */
   chatId: string;
-  /** もとになった探しごと／広告のID。 */
+  /** もとになった案件／広告のID。 */
   requestId: string;
-  /** 何についてのやり取りか（探しごとや広告の題名）。 */
+  /** 何についてのやり取りか（案件や広告の題名）。 */
   title: string;
   /**
    * 中身を見せていないか。**無料プランのまま、届いたオファーの中身は読めない。**
@@ -2387,7 +2392,7 @@ export async function getMessageThreads(viewerId: string): Promise<MessageThread
   // 書いていないオファーが1件も出なかった。会員から見れば、オファーを
   // 出した時点でその人との話は始まっている。
   const [offers, adOffers] = await env.DB.batch<ThreadRow & Record<string, string>>([
-    // 1. 探しごとへのオファー
+    // 1. 案件へのオファー
     env.DB.prepare(`SELECT i.id AS introductionId, i.request_id AS requestId,
       i.created_at AS offerAt, i.introducer_id AS introducerId, i.kind AS kind, i.fit_reason AS fitReason,
       n.body AS lastBody, MAX(n.created_at) AS lastMessageAt,
@@ -2434,7 +2439,7 @@ export async function getMessageThreads(viewerId: string): Promise<MessageThread
       // 広告のぶんは `ad:` を付ける。やり取りを読む側が、この印で表を選ぶ。
       chatId: kind === 'ad' ? `${AD_OFFER_PREFIX}${row.introductionId}` : row.introductionId,
       requestId: row.requestId,
-      title: row.title || (kind === 'ad' ? '広告' : '探しごと'),
+      title: row.title || (kind === 'ad' ? '広告' : '案件'),
       locked,
       ...partnerOf(row, viewerId),
       lastBody: locked ? '' : started ? row.lastBody : openingLine(row.kind, row.fitReason, mine),
@@ -2490,6 +2495,10 @@ export type PlanSummary = PlanState & { activePlan: Plan; paid: boolean; source:
   requestsThisMonth: number; requestLimit: number; requestsLeft: number;
   /** 契約ではなく運営の特典で開いているか。画面の書き分けに使う。 */
   adminPlan: boolean;
+  /** 開設キャンペーンで開いているか。画面はこれを見て購入のボタンを引っ込める。 */
+  campaign: boolean;
+  /** キャンペーンの終わり（YYYY-MM-DD）。動いていないときは空。 */
+  campaignUntil: string;
 };
 
 export async function getPlanState(memberId: string): Promise<PlanState> {
@@ -2541,6 +2550,7 @@ export async function getPlanSummary(memberId: string): Promise<PlanSummary> {
   return {
     ...state, activePlan: currentPlan(state), paid: isPaid(state), source: row?.source ?? '',
     adminPlan: isPlanOverridden(row?.email ?? ''),
+    campaign: campaignPlan(state) !== 'free', campaignUntil: state.campaignPeriodEnd ?? '',
     contracted: contractedPlan(state), bonus: bonusPlan(state),
     requestsThisMonth, requestLimit: cap.requestsPerMonth, requestsLeft: remainingRequests(state, requestsThisMonth),
   };
@@ -2553,8 +2563,13 @@ export async function getPlanSummary(memberId: string): Promise<PlanSummary> {
  */
 async function grantProMonth(memberId: string) {
   const state = await getPlanState(memberId);
+  // **キャンペーン中にたまった分は、キャンペーンが終わってから始める。**
+  // 期間中は全員がスタンダードなので、そこで1ヶ月を消費させると、
+  // 招待しても何も増えないのと同じになる（招待する理由が無くなる）。
+  const startFrom = [state.bonusPeriodEnd ?? '', campaignPlan(state) !== 'free' ? (state.campaignPeriodEnd ?? '') : '']
+    .sort().pop() ?? '';
   await env.DB.prepare('UPDATE members SET bonus_plan = ?, bonus_period_end = ? WHERE id = ?')
-    .bind('standard', extendedPlanEnd(state.bonusPeriodEnd ?? ''), memberId).run();
+    .bind('standard', extendedPlanEnd(startFrom), memberId).run();
 }
 // --- プランここまで ---------------------------------------------------------
 

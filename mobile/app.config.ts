@@ -31,7 +31,7 @@ const appConfig = ({ config }: ConfigContext): ExpoConfig => ({
     },
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
-      NSPhotoLibraryUsageDescription: 'プロフィール写真や探しごとの写真を選ぶために写真を使用します。',
+      NSPhotoLibraryUsageDescription: 'プロフィール写真や案件の写真を選ぶために写真を使用します。',
     },
   },
   android: {
@@ -46,7 +46,7 @@ const appConfig = ({ config }: ConfigContext): ExpoConfig => ({
     'expo-router',
     'expo-secure-store',
     'expo-notifications',
-    ['expo-image-picker', { photosPermission: 'プロフィール写真や探しごとの写真を選ぶために写真を使用します。' }],
+    ['expo-image-picker', { photosPermission: 'プロフィール写真や案件の写真を選ぶために写真を使用します。' }],
     ['expo-splash-screen', { backgroundColor: '#2563EB', image: './assets/givehub/app-icon-v2.png', imageWidth: 116 }],
   ],
   experiments: { typedRoutes: true, reactCompiler: true },

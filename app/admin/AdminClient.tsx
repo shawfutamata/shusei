@@ -25,7 +25,7 @@ const tabs = [
 ] as const;
 
 const categoryNames: Record<string, string> = {
-  project: '案件', collaboration: '協業先', consultation: '相談',
+  project: '発注先', collaboration: '協業先', consultation: '相談',
 };
 
 export default function AdminClient({ adminName, adminEmail, serviceName, initial }: {
@@ -102,6 +102,13 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   const liveMembers = data.members.filter((member) => member.canUse);
   const stoppedMembers = data.members.filter((member) => !member.canUse);
   /** 会員1件の行。使っている人と止めた人で、同じ形で並べる。 */
+  // 実効プランが「なぜ」そうなっているか。キャンペーン中は全員が
+  // スタンダードになるので、これが無いと本当の課金者が見えなくなる。
+  const planWhy: Record<AdminMember['planSource'], string> = {
+    contract: '（ご契約）', bonus: '（招待特典）', campaign: '（キャンペーン）',
+    admin: '（管理者特典）', none: '',
+  };
+
   const memberRow = (member: AdminMember) => <li key={member.id} className={member.canUse ? '' : 'is-off'}>
     <div className="admin-row-top">
       <b>{member.displayName || '(名前なし)'}</b>
@@ -111,7 +118,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       <span>{member.company || '会社名なし'}</span><span>{member.email}</span>
     </p>
     <p className="admin-meta">
-      <span>プラン {member.plan === 'standard' ? 'スタンダード' : '無料'}{member.adminPlan && '（管理者特典）'}</span>
+      <span>プラン {member.plan === 'standard' ? 'スタンダード' : '無料'}{planWhy[member.planSource]}</span>
       <span>オファー {member.introCount}件</span>
       <span>投稿 {member.requestCount}件</span>
       <span>{member.createdAt.slice(0, 10).replace(/-/g, '/')} 登録</span>
@@ -266,7 +273,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
           <small>いまの契約が続いた場合の月あたり。年払いは12で割っています</small></div>
         <div><dt>広告の累計売上</dt><dd>{money(summary.adRevenueTotalYen)}</dd>
           <small>今月 {money(summary.adRevenueThisMonthYen)}・掲載中 {summary.liveAds}件</small></div>
-        <div><dt>累計の探しごと</dt><dd>{yen0(summary.requests)}<small>件</small></dd><small>募集中 {summary.openRequests}</small></div>
+        <div><dt>累計の案件</dt><dd>{yen0(summary.requests)}<small>件</small></dd><small>募集中 {summary.openRequests}</small></div>
         <div><dt>届いたオファー</dt><dd>{yen0(summary.introductions)}<small>件</small></dd><small>オファー {summary.offers}・リファラル {summary.referrals}・未読のご意見 {summary.newFeedback}</small></div>
       </dl>
 
@@ -287,7 +294,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       <div className="admin-columns">
         <section className="viz-card">
           <div className="viz-card-head">
-            <div><h2>動きの推移</h2><p className="viz-lead">この{range}日間で、会員・探しごと・オファーがどれだけ増えたか。</p></div>
+            <div><h2>動きの推移</h2><p className="viz-lead">この{range}日間で、会員・案件・オファーがどれだけ増えたか。</p></div>
             <div className="viz-range" role="group" aria-label="集計する期間">
               {[30, 90, 365].map((value) => <button key={value} className={range === value ? 'selected' : ''}
                 onClick={() => { setAnalytics(null); setRange(value); }} aria-pressed={range === value}>{value === 365 ? '1年' : `${value}日`}</button>)}
@@ -479,7 +486,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
         <div className="viz-card-head">
           <div>
             <h2>データの控え</h2>
-            <p className="viz-lead">会員の名簿、探しごと、オファーのやり取り、お支払いの記録。
+            <p className="viz-lead">会員の名簿、案件、オファーのやり取り、お支払いの記録。
               <b>一度消えると元に戻せないものです。</b>毎日いちど、自動で写しを取っています。</p>
           </div>
           <button className="viz-export" onClick={takeBackup} disabled={busy === 'backup'}>

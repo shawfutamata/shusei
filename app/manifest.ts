@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: `${serviceName}｜オファー掲示板`,
     short_name: serviceName,
-    description: '会員同士で、探しごとと信頼できるオファーをつなぐ会員向けアプリ。',
+    description: '会員同士で、案件と信頼できるオファーをつなぐ会員向けアプリ。',
     start_url: '/',
     scope: '/',
     display: 'standalone',

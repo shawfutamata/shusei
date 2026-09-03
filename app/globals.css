@@ -498,7 +498,7 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .plan-body { padding:2px 15px 15px; }
 .plan-card[open] .plan-body { display:grid; gap:11px; }
 .plan-until { margin:0; color:#8a6d2f; font-size:10px; font-weight:800; }
-/* 探しごとの写真。一覧は小さい版、詳細は大きい版を読む。 */
+/* 案件の写真。一覧は小さい版、詳細は大きい版を読む。 */
 .home-request-cover.has-photo { padding:0; display:block; overflow:hidden; background:#e8eef7; }
 .home-request-cover.has-photo img { width:100%; height:100%; display:block; object-fit:cover; }
 .home-request-card .home-request-cover { position:relative; }
@@ -1007,7 +1007,7 @@ body { font-weight:600; }
   .perk-ladder small { font-size:9px; }
 }
 
-/* 自分の探しごとに出る、ランクの特典を使うところ。 */
+/* 自分の案件に出る、ランクの特典を使うところ。 */
 .owner-tools { margin-top:6px; padding:14px; display:grid; gap:10px; border:1px solid var(--accent-line); border-radius:14px; background:linear-gradient(150deg,var(--accent-soft),#fff); }
 .owner-tools-head { margin:0; display:flex; align-items:baseline; justify-content:space-between; gap:9px; }
 .owner-tools-head b { color:var(--navy); font-size:13px; font-weight:900; }
@@ -1017,7 +1017,7 @@ body { font-weight:600; }
 .owner-tools-row button:disabled { border-color:var(--line); background:#f6f8fb; color:#9aa6b8; }
 .owner-tools-note { margin:0; color:#7b8ca4; font-size:10px; line-height:1.7; }
 
-/* 探しごとの写真。ランクが上がると複数枚つけられる。 */
+/* 案件の写真。ランクが上がると複数枚つけられる。 */
 .request-photos { display:grid; gap:9px; }
 .request-photos>p { margin:0; }
 .request-photos b { display:block; color:#34445d; font-size:12px; font-weight:900; }
@@ -1034,7 +1034,7 @@ body { font-weight:600; }
 .need-gallery { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:7px; }
 .need-gallery img { width:100%; aspect-ratio:4/3; display:block; object-fit:cover; border-radius:12px; background:#eef2f7; }
 
-/* 業種別プロモーション。自分の探しごとの詳細に出る。 */
+/* 業種別プロモーション。自分の案件の詳細に出る。 */
 .owner-promo { padding-top:10px; border-top:1px solid #f0e3dc; display:grid; gap:7px; }
 .owner-promo>p { margin:0; color:#62728a; font-size:10px; font-weight:800; line-height:1.6; }
 .owner-promo-row { display:flex; flex-wrap:wrap; gap:6px; }
@@ -1565,7 +1565,7 @@ body { font-weight:600; }
 
 .ad-file-now { display:block; margin-top:6px; color:#7b8a9e; font-size:10px; font-style:normal; font-weight:700; line-height:1.6; }
 
-/* 探しごとのやり取り。**最初のひとことだけ公開**で、そこから先は
+/* 案件のやり取り。**最初のひとことだけ公開**で、そこから先は
    投稿者とその人だけ。非公開だと分かる見た目にしておかないと、
    うっかり公開の場に書いたつもりで込み入った話をしてしまう。 */
 .comment-public-note,
@@ -1750,7 +1750,7 @@ body { font-weight:600; }
 .chat-opener-body { margin:8px 0 0; color:#25344c; font-size:13px; line-height:1.75; white-space:pre-wrap; }
 
 /* --- 棚の見出しを1行に収める -------------------------------------------------
-   「あなたにおすすめの探しごと」が折り返して、2行目に「と」だけが残っていた。
+   「あなたにおすすめの案件」が折り返して、2行目に「と」だけが残っていた。
    幅に合わせて字を少し詰め、折り返さない。長い題が来ても崩れないよう、
    はみ出すぶんは「…」で切る。 */
 .home-section-heading > div { min-width:0; }
@@ -1788,7 +1788,7 @@ body { font-weight:600; }
   font-size:11px; font-weight:900; letter-spacing:.04em; backdrop-filter:blur(6px); }
 @media(min-width:481px){ .sample-flag { left:16px; top:16px; padding:6px 14px; font-size:13px; } }
 
-/* --- 見本の探しごと -----------------------------------------------------------
+/* --- 見本の案件 -----------------------------------------------------------
    種類の札（案件・協業先・相談）の隣に並ぶので、同じ形で色だけ変える。
    本物と見間違えないことがいちばん大事なので、無彩色にして目立たせる。 */
 .kind.is-sample { background:#3b475c; color:#fff; }
@@ -1853,3 +1853,29 @@ body { font-weight:600; }
 .member-rank.rank-gold { background:#fdf3dd; color:#8a6d2f; }
 .member-rank.rank-platinum { background:#e9f0fb; color:#2f5b96; }
 .member-rank.rank-diamond { background:#e6f6fb; color:#136f8c; }
+
+/* お気に入りの棚をマイページに置いたときだけ、左右の余白を打ち消す。
+   マイページ（.profile-page）は14pxの内側余白を持っていて、棚が持つ
+   16pxの余白と足し算になり、カードが画面の端で切れずに中途半端に
+   止まって見えた。棚は**画面の端まで流れる**のが本来の形なので、
+   ここで親の余白ぶんだけ外へ広げる。 */
+.profile-page .home-shelf { margin:18px -14px 0; padding-top:0; }
+.profile-page .home-shelf .home-section-heading h2 { font-size:19px; }
+
+/* --- 開設キャンペーンの帯 ---------------------------------------------------
+   プラン欄のいちばん上。**いま無料であることと、いつまでかを同時に出す。**
+   終わりの日を書かずに「無料」とだけ出すと、終わったときに約束を破ったように
+   見える。日付は本文と同じ大きさにせず、ひと目で読める大きさにしてある。 */
+.plan-campaign { margin:16px 0 0; padding:18px 17px; border-radius:16px; background:linear-gradient(135deg,#0f5fc4,#1478d6); color:#fff; }
+.plan-campaign-tag { margin:0; font-size:11px; font-weight:900; letter-spacing:.12em; color:#bfdcff; }
+.plan-campaign h2 { margin:7px 0 0; font-size:18px; font-weight:900; line-height:1.5; letter-spacing:-.02em; }
+.plan-campaign-until { margin:10px 0 0; font-size:22px; font-weight:900; letter-spacing:-.02em; }
+.plan-campaign ul { margin:13px 0 0; padding:0; list-style:none; display:grid; gap:7px; }
+.plan-campaign li { padding-left:21px; position:relative; font-size:13px; font-weight:800; line-height:1.55; }
+.plan-campaign li::before { position:absolute; left:0; top:0; content:'✓'; color:#9fd0ff; font-weight:900; }
+.plan-campaign-note { margin:14px 0 0; padding-top:13px; border-top:1px solid rgba(255,255,255,.28); color:#dbeafe; font-size:11px; font-weight:700; line-height:1.7; }
+
+/* 招待ページの、いまなら無料という案内。参加を決める画面なので、
+   会費の話は**入る前に**見えているほうがよい。 */
+.join-campaign { margin:14px 0 0; padding:12px 14px; border:1px solid #cfe3ff; border-radius:12px; background:#eef5ff; color:#0f4f9e; font-size:12px; font-weight:800; line-height:1.7; text-align:left; }
+.join-campaign b { display:block; font-size:14px; font-weight:900; }

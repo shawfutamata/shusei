@@ -20,7 +20,7 @@ export async function registerForPushNotifications() {
   if (!Device.isDevice) throw new Error('通知の確認には実機が必要です。');
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('requests', {
-      name: '関連する探しごと',
+      name: '関連する案件',
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#2563EB',

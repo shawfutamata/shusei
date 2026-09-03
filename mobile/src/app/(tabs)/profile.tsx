@@ -36,7 +36,7 @@ export default function ProfileScreen() {
       if (enabled) {
         await registerForPushNotifications();
         setNotifications(true);
-        Alert.alert('通知を設定しました', '選んだ関連業種の探しごとが投稿されると通知します。');
+        Alert.alert('通知を設定しました', '選んだ関連業種の案件が投稿されると通知します。');
       } else {
         await unregisterPushNotifications();
         setNotifications(false);
@@ -74,7 +74,7 @@ export default function ProfileScreen() {
       })}</View>
     </View>}
 
-    <View style={commonStyles.card}><Text style={styles.sectionTitle}>通知設定</Text><View style={styles.settingRow}><View style={styles.settingIcon}><Ionicons name="notifications-outline" size={24} color={AppColors.blue} /></View><View style={{ flex: 1 }}><Text style={styles.settingTitle}>関連する探しごとの通知</Text><Text style={styles.settingText}>プロフィールで選んだ関連業種の新着だけ通知します。</Text></View>{busy ? <ActivityIndicator color={AppColors.blue} /> : <Switch value={notifications} onValueChange={toggleNotifications} trackColor={{ true: '#93C5FD' }} thumbColor={notifications ? AppColors.blue : '#fff'} />}</View></View>
+    <View style={commonStyles.card}><Text style={styles.sectionTitle}>通知設定</Text><View style={styles.settingRow}><View style={styles.settingIcon}><Ionicons name="notifications-outline" size={24} color={AppColors.blue} /></View><View style={{ flex: 1 }}><Text style={styles.settingTitle}>関連する案件の通知</Text><Text style={styles.settingText}>プロフィールで選んだ関連業種の新着だけ通知します。</Text></View>{busy ? <ActivityIndicator color={AppColors.blue} /> : <Switch value={notifications} onValueChange={toggleNotifications} trackColor={{ true: '#93C5FD' }} thumbColor={notifications ? AppColors.blue : '#fff'} />}</View></View>
     <View style={commonStyles.card}><Text style={styles.sectionTitle}>仲間を招待する</Text><Text style={styles.inviteLead}>招待リンクを送ると、その方も同じ掲示板に参加できます。運営が確認したうえでご利用いただけます。</Text>{invite ? <><Pressable style={styles.inviteLink} onPress={shareInvite}><Text style={styles.inviteUrl} numberOfLines={1}>{invite.url}</Text><Ionicons name="share-outline" size={20} color={AppColors.blue} /></Pressable><View style={styles.inviteStats}><InviteStat number={invite.invitedCount} label="招待した人" /><InviteStat number={invite.activeCount} label="利用中" /><InviteStat number={invite.waitingCount} label="確認待ち" /></View></> : <ActivityIndicator color={AppColors.blue} />}</View>
 
     <View style={commonStyles.card}><View style={styles.sectionHeading}><Text style={styles.sectionTitle}>会員情報</Text><Pressable onPress={() => router.push('/profile-edit')}><Text style={styles.edit}>編集する</Text></Pressable></View><Info label="氏名" value={stats?.displayName || user?.displayName || ''} /><Info label="メール" value={user?.email || ''} /><Info label="所属会場" value={stats?.venue || '未設定'} /><Info label="活動エリア" value={stats?.businessArea || '未設定'} /></View>

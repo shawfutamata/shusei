@@ -67,7 +67,7 @@ export default function InstallAndNotificationPanel({ onNotice }: { onNotice: (m
       });
       if (!response.ok) throw new Error('通知端末を登録できませんでした。');
       setPushState('on');
-      onNotice('関連する探しごとのプッシュ通知を有効にしました。');
+      onNotice('関連する案件のプッシュ通知を有効にしました。');
     } catch (error) {
       setPushState('off');
       onNotice(error instanceof Error ? error.message : '通知を有効にできませんでした。');
@@ -88,7 +88,7 @@ export default function InstallAndNotificationPanel({ onNotice }: { onNotice: (m
 
   return <section className="app-tools" aria-label="アプリと通知の設定">
     <div><p>APP MODE</p><h2>アプリのように使う</h2></div>
-    <p className="app-tools-lead">ホーム画面からすぐ開けて、関連する探しごとの通知を受け取れます。</p>
+    <p className="app-tools-lead">ホーム画面からすぐ開けて、関連する案件の通知を受け取れます。</p>
     <div className="app-tools-actions">
       <button className={pushState === 'on' ? 'enabled' : ''} onClick={enableNotifications} disabled={pushState === 'loading' || pushState === 'unsupported'}><span>●</span><b>{pushState === 'on' ? '通知オン' : pushState === 'denied' ? '通知を再設定' : '通知を受け取る'}</b><small>{pushState === 'on' ? '関連業種の新着をお知らせ' : '業種タグが一致した投稿だけ'}</small></button>
       <button className={installed ? 'enabled' : ''} onClick={installApp}><span>＋</span><b>{installed ? '追加済み' : 'ホーム画面に追加'}</b><small>ブラウザーを開かず起動</small></button>

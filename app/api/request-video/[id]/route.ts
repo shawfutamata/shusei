@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
 import { getRequestVideo } from '@/db/data';
 
-// 探しごとに付いた動画。URLに版番号が入るので1年キャッシュしてよい。
+// 案件に付いた動画。URLに版番号が入るので1年キャッシュしてよい。
 //
 // 動画は途中から再生されることがあるので、Rangeリクエストに応える。
 // 応えないと、iOSのSafariでシークができない（そもそも再生が始まらないことがある）。

@@ -4,7 +4,9 @@
 // 管理者かどうかを見ていない。API側で一度だけ確かめる作りにしてある。
 import { env } from 'cloudflare:workers';
 import { ensureDatabase } from './data';
+import { campaignPlan } from '../app/campaign';
 import { effectivePlan, isPlanOverridden } from '../app/effective-plan';
+import { bonusPlan, contractedPlan, type Plan } from '../app/entitlements';
 import { isAdminEmail } from '../app/admin-emails';
 import { MAX_LEVEL, levelFor, rankNames } from '../app/rank-perks';
 import { planCatalog, yearlyYen } from '../app/plan-catalog';
@@ -45,6 +47,12 @@ export type AdminMember = {
   plan: string;
   /** 契約ではなく運営の特典で開いているか。一覧に理由を出すために使う。 */
   adminPlan: boolean;
+  /**
+   * その実効プランが**どこから来ているか**。一覧に理由を出すために使う。
+   * キャンペーン中は全員が実効スタンダードになるので、これが無いと
+   * 「誰が本当にお金を払っているか」が管理画面から分からなくなる。
+   */
+  planSource: 'contract' | 'bonus' | 'campaign' | 'admin' | 'none';
   introCount: number; requestCount: number;
   createdAt: string; canUse: boolean;
 };
@@ -137,7 +145,7 @@ export async function adminMembers(keyword = '', limit = 200): Promise<AdminMemb
     (SELECT COUNT(*) FROM requests r WHERE r.author_id = m.id) AS requestCount
     FROM members m ${where} ORDER BY m.created_at DESC LIMIT ${Number(limit)}`);
   const rows = await (term ? statement.bind(like) : statement)
-    .all<Omit<AdminMember, 'canUse' | 'plan' | 'adminPlan'> & { storedPlan: string; planPeriodEnd: string; bonusPlan: string; bonusPeriodEnd: string }>();
+    .all<Omit<AdminMember, 'canUse' | 'plan' | 'adminPlan' | 'planSource'> & { storedPlan: string; planPeriodEnd: string; bonusPlan: string; bonusPeriodEnd: string }>();
   const now = new Date();
   return rows.results.map(({ storedPlan, planPeriodEnd, bonusPlan, bonusPeriodEnd, ...row }) => ({
     ...row,
@@ -147,8 +155,26 @@ export async function adminMembers(keyword = '', limit = 200): Promise<AdminMemb
       bonusPlan: bonusPlan === 'standard' ? 'standard' : 'free', bonusPeriodEnd: bonusPeriodEnd ?? '',
     }, now),
     adminPlan: isPlanOverridden(row.email),
+    planSource: planSourceOf(row.email, storedPlan, planPeriodEnd, bonusPlan, bonusPeriodEnd, now),
     canUse: row.status === 'active' || row.status === 'past_due',
   }));
+}
+
+/**
+ * その人がスタンダードを使えている理由。上から順に強いものを返す。
+ * 「実効プランは何か」ではなく「**なぜそうなっているか**」を出すためのもの。
+ */
+function planSourceOf(email: string, storedPlan: string, planPeriodEnd: string,
+  bonus: string, bonusPeriodEnd: string, now: Date): AdminMember['planSource'] {
+  if (isPlanOverridden(email)) return 'admin';
+  const state = {
+    plan: (storedPlan === 'standard' ? 'standard' : 'free') as Plan, planPeriodEnd: planPeriodEnd ?? '',
+    bonusPlan: (bonus === 'standard' ? 'standard' : 'free') as Plan, bonusPeriodEnd: bonusPeriodEnd ?? '',
+  };
+  if (contractedPlan(state, now) !== 'free') return 'contract';
+  if (bonusPlan(state, now) !== 'free') return 'bonus';
+  if (campaignPlan() !== 'free') return 'campaign';
+  return 'none';
 }
 
 /**
@@ -201,7 +227,7 @@ export async function adminDeleteRequest(requestId: string) {
   await ensureDatabase();
   const row = await env.DB.prepare('SELECT image_count AS imageCount FROM requests WHERE id = ?')
     .bind(requestId).first<{ imageCount: number }>();
-  if (!row) throw new Error('その探しごとは見つかりませんでした。');
+  if (!row) throw new Error('その案件は見つかりませんでした。');
   await env.DB.batch([
     env.DB.prepare('DELETE FROM request_comments WHERE request_id = ?').bind(requestId),
     // やり取りは紹介にぶら下がっている。**紹介より先に消す。**

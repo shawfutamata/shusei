@@ -19,7 +19,7 @@ const paths: Record<string, React.ReactNode> = {
   video: <><rect x="2.8" y="6" width="13.4" height="12" rx="2.4" /><path d="m16.2 11 4.8-2.8v7.6L16.2 13z" /></>,
   // 業種別プロモーション
   promo: <><path d="M4.2 9.4h3.2l7.6-4.2v13.6l-7.6-4.2H4.2z" /><path d="M4.2 9.4v5.2" /><path d="M18.4 9.2a4 4 0 0 1 0 5.6" /><path d="M8 14.6v4.6h3" /></>,
-  // 探しごとの写真
+  // 案件の写真
   photos: <><rect x="3.4" y="6.4" width="17.2" height="13.2" rx="2.4" /><path d="M6.6 6.4V4.6h10.8v1.8" /><circle cx="12" cy="13" r="3.4" /></>,
   // 広告期間の延長
   'ad-long': <><rect x="2.6" y="5.4" width="18.8" height="9.4" rx="2.2" /><path d="M6.2 9h6.4" /><path d="M6.2 18.8h9.2m0 0-2.6-2.4m2.6 2.4-2.6 2.4" /></>,

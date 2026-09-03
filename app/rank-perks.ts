@@ -37,11 +37,11 @@ export type RankPerk = {
 export const rankPerks: RankPerk[] = [
   {
     key: 'extend', label: '募集の延長', minLevel: 2,
-    detail: '期限が来た探しごとを、1件につき1回だけ2週間延ばせます。もう少し待てば見つかりそうなときに。',
+    detail: '期限が来た案件を、1件につき1回だけ2週間延ばせます。もう少し待てば見つかりそうなときに。',
   },
   {
     key: 'longtext', label: '掲載文章の上限なし', minLevel: 2,
-    detail: '探しごとの本文が600字までの制限から外れ、いくらでも書けるようになります。背景や条件を省かずに伝えられます。',
+    detail: '案件の本文が600字までの制限から外れ、いくらでも書けるようになります。背景や条件を省かずに伝えられます。',
   },
   {
     key: 'industries', label: 'おすすめ業種を10枠', minLevel: 2,
@@ -49,11 +49,11 @@ export const rankPerks: RankPerk[] = [
   },
   {
     key: 'photos', label: '写真の複数枚投稿', minLevel: 3,
-    detail: '探しごとに付けられる写真が1枚から5枚に増えます。現場や商品を何枚も見せられます。',
+    detail: '案件に付けられる写真が1枚から5枚に増えます。現場や商品を何枚も見せられます。',
   },
   {
     key: 'video', label: '動画を投稿できる', minLevel: 3,
-    detail: '探しごとに短い動画を付けられるようになります。大きい動画は送る前に端末側で自動的に縮めるので、通信量を気にせず選べます。',
+    detail: '案件に短い動画を付けられるようになります。大きい動画は送る前に端末側で自動的に縮めるので、通信量を気にせず選べます。',
   },
   {
     key: 'budget', label: '予算での絞り込み', minLevel: 3,
@@ -88,13 +88,13 @@ export function levelFor(inviteCount: number) {
 
 // --- 特典の中身。画面もAPIも、必ずここを通して判断する ---------------------
 
-/** 探しごとの本文を何字まで書けるか。GOLD以上は事実上の上限なし。 */
+/** 案件の本文を何字まで書けるか。GOLD以上は事実上の上限なし。 */
 export function descriptionLimit(level: number) {
   // 「上限なし」と言っても、壊れた入力から守る天井は要る。ここに当たる人はまずいない。
   return level >= 2 ? 20000 : 600;
 }
 
-/** 探しごとに付けられる写真の枚数。PLATINUM以上で複数枚。 */
+/** 案件に付けられる写真の枚数。PLATINUM以上で複数枚。 */
 /** いちばん上のランクで付けられる写真の枚数。鍵つきの空き枠を出すのに使う。 */
 export const PHOTO_LIMIT_TOP = 5;
 

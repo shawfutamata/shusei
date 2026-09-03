@@ -11,6 +11,7 @@ import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-op
 import { budgetBandLabel, budgetBands } from './budget-options';
 import { UNLIMITED, can, plans, type BillingCycle, type Feature, type Plan } from './entitlements';
 import { feedbackCategories } from './feedback-options';
+import { campaignUntilLabel, freeCampaign } from './campaign';
 import { adDailyPrice, adTotalPrice, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
 import LegalLinks from './LegalLinks';
@@ -30,7 +31,7 @@ import type { AdDay } from '@/db/data';
 import AdBanner from './AdBanner';
 
 const categories = {
-  project: { label: '案件', className: 'project' },
+  project: { label: '発注先', className: 'project' },
   collaboration: { label: '協業先', className: 'collab' },
   consultation: { label: '相談・情報', className: 'consultation' },
 };
@@ -39,13 +40,13 @@ const categories = {
  * 3つの区別。会員がいちばん迷うところなので、選ぶ言葉・違い・例をそろえて置く。
  *
  * 見分け方は「お金がどう動くか」。
- *   案件   … こちらが払う（発注する相手を探している）
+ *   発注先 … こちらが払う（発注する相手を探している）
  *   協業先 … 一緒に稼ぐ（組んで案件を取りにいく相手を探している）
  *   相談   … お金は動かない（やり方や事情を知っている人を探している）
  */
 const categoryGuide = [
   {
-    key: 'project', label: '案件', pick: '案件の発注先',
+    key: 'project', label: '発注先', pick: '案件の発注先',
     summary: 'こちらが発注する相手を探しています',
     detail: 'お金を払って仕事をお願いする相手を探すときに選びます。予算と納期が決まっている（またはおおよそ見えている）お話です。',
     example: '「採用動画を作りたい。20〜40万円で、来月中に撮影できる制作会社」',
@@ -110,7 +111,7 @@ const adSeenStorageKey = 'tasuki-ad-seen-v1';
 /**
  * エリアの絞り込みに当てはまるか。
  *
- * 見るのは**探しごとの希望エリア**。決めていない投稿は、投稿した人の
+ * 見るのは**案件の希望エリア**。決めていない投稿は、投稿した人の
  * 活動エリアで代わりに見る。「どこの人が出しているか」で探せるようにするため。
  */
 function matchesArea(item: BoardRequest, filter: string) {
@@ -289,7 +290,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
    * 画面はここで出し分けるだけで、実際に止めているのは `createIntroduction()`。
    */
   const [offerKind, setOfferKind] = useState<'referral' | 'self'>('referral');
-  /** オファーの宛先が広告のとき、その広告。探しごと宛のときは null。 */
+  /** オファーの宛先が広告のとき、その広告。案件宛のときは null。 */
   const [offerAd, setOfferAd] = useState<AdSlot | null>(null);
   /** バナーを押して開いた広告。中身をひととおり見せてから、下でオファーへ。 */
   const [adDetail, setAdDetail] = useState<AdSlot | null>(null);
@@ -717,12 +718,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       startAdFlow(adSeed);
       return showToast('投稿しました。続けて広告のお申し込みへ進みます。');
     }
-    showToast(editing ? '探しごとを保存しました。' : '探しごとを投稿しました。関連業種の会員へ通知します。');
+    showToast(editing ? '案件を保存しました。' : '案件を投稿しました。関連業種の会員へ通知します。');
   }
 
   async function submitIntroduction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    // 宛先は探しごとか広告のどちらか。どちらも無ければ送らない。
+    // 宛先は案件か広告のどちらか。どちらも無ければ送らない。
     if (!selected && !offerAd) return;
     setBusy(true);
     const form = event.currentTarget;
@@ -811,10 +812,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     if (!response.ok) return showToast(result.error ?? '削除できませんでした。');
     await refreshBoard();
     await loadMyRequests().catch(() => {});
-    showToast('探しごとを削除しました。');
+    showToast('案件を削除しました。');
   }
 
-  /** 広告あてにオファーする。入力も線引きも探しごとと同じで、宛先が違うだけ。 */
+  /** 広告あてにオファーする。入力も線引きも案件と同じで、宛先が違うだけ。 */
   /** ほかの会員のプロフィールを開く。掲示板の外へは出さない。 */
   async function openMember(memberId: string) {
     setMemberProfile(null); setMemberLoading(true); setModal('member');
@@ -1031,7 +1032,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  /** おすすめの探しごとだけを並べる画面。下のメニューの「おすすめ」。 */
+  /** おすすめの案件だけを並べる画面。下のメニューの「おすすめ」。 */
   function showRecommend() {
     setModal(null);
     setActiveTab('recommend');
@@ -1049,7 +1050,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   /**
    * 一覧から、そのやり取りをその場で開く。
    *
-   * **探しごとの詳細へは飛ばさない。** 見たいのは相手との話であって、
+   * **案件の詳細へは飛ばさない。** 見たいのは相手との話であって、
    * 案件の説明ではない。押したら会話がそのまま出る、という1つの動きにする。
    */
   function openThread(thread: MessageThread) {
@@ -1260,28 +1261,24 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div className="carousel-dots" aria-label="バナーを切り替える">{slides.map((entry, index) => <button key={index} aria-label={`${index + 1}枚目${entry.ad ? '（広告）' : ''}`} className={`${carouselIndex === index ? 'active' : ''}${entry.ad ? ' is-ad' : ''}`} onClick={() => { setCarouselPaused(true); setCarouselIndex(index); }} />)}</div>
         </section>
 
-        <HomeShelf title={recommendFallback ? '募集中の探しごと' : 'あなたにおすすめの探しごと'} count={recommended.length}
+        <HomeShelf title={recommendFallback ? '募集中の案件' : 'あなたにおすすめの案件'} count={recommended.length}
           note={!recommendFallback ? ''
-            : !stats.notifyIndustries.length ? 'マイページで「おすすめに出したい業種」を選ぶと、関係のありそうな探しごとが先に並びます。'
-            : ownMatching > 0 ? `選んだ業種（${stats.notifyIndustries.join('・')}）に合う探しごとは、いまはご自身の投稿だけです。ここにはオファーできる相手を並べるため、かわりに募集中のものを出しています。`
-            : `選んだ業種（${stats.notifyIndustries.join('・')}）の探しごとは、いまほかの会員から出ていません。かわりに募集中のものを並べています。`}
-          emptyTitle={ownMatching > 0 ? 'いまは、ご自身の投稿だけです' : 'まだ募集中の探しごとがありません'}
-          emptyText={ownMatching > 0 ? `選んだ業種に合う探しごとは${ownMatching}件ありますが、すべてご自身の投稿です。ここにはオファーできる相手だけを並べるため、ご自身の分は出しません。ほかの会員が投稿すると並びます。`
-            : 'ほかの会員が探しごとを投稿すると、ここに並びます。'}
+            : !stats.notifyIndustries.length ? 'マイページで「おすすめに出したい業種」を選ぶと、関係のありそうな案件が先に並びます。'
+            : ownMatching > 0 ? `選んだ業種（${stats.notifyIndustries.join('・')}）に合う案件は、いまはご自身の投稿だけです。ここにはオファーできる相手を並べるため、かわりに募集中のものを出しています。`
+            : `選んだ業種（${stats.notifyIndustries.join('・')}）の案件は、いまほかの会員から出ていません。かわりに募集中のものを並べています。`}
+          emptyTitle={ownMatching > 0 ? 'いまは、ご自身の投稿だけです' : 'まだ募集中の案件がありません'}
+          emptyText={ownMatching > 0 ? `選んだ業種に合う案件は${ownMatching}件ありますが、すべてご自身の投稿です。ここにはオファーできる相手だけを並べるため、ご自身の分は出しません。ほかの会員が投稿すると並びます。`
+            : 'ほかの会員が案件を投稿すると、ここに並びます。'}
           onMore={() => stats.notifyIndustries.length ? showSearch() : showProfileSettings('notify-industries')}>
           {recommended.map((need) => <HomeRequestCard key={need.id} need={need} favorite={favoriteIds.includes(need.id)} onOpen={() => openNeed(need)} onFavorite={() => toggleFavorite(need)} />)}
         </HomeShelf>
 
-        <HomeShelf title="閲覧履歴" count={viewedRequests.length} emptyTitle="まだ閲覧履歴がありません" emptyText="探しごとを開くと、ここからすぐ見返せます。" onMore={() => showSearch()}>
+        <HomeShelf title="閲覧履歴" count={viewedRequests.length} emptyTitle="まだ閲覧履歴がありません" emptyText="案件を開くと、ここからすぐ見返せます。" onMore={() => showSearch()}>
           {viewedRequests.map((need) => <HomeRequestCard key={need.id} need={need} favorite={favoriteIds.includes(need.id)} onOpen={() => openNeed(need)} onFavorite={() => toggleFavorite(need)} />)}
         </HomeShelf>
 
-        <HomeShelf title="お気に入り保存した探しごと" count={favoriteRequests.length} emptyTitle="気になる探しごとを保存できます" emptyText="カードのハートを押すと、ここにまとまります。" onMore={() => showSearch()}>
-          {favoriteRequests.map((need) => <HomeRequestCard key={need.id} need={need} favorite onOpen={() => openNeed(need)} onFavorite={() => toggleFavorite(need)} />)}
-        </HomeShelf>
-
         <section className="industry-home">
-          <div className="home-section-heading"><div><p>業種から探す</p><h2>ジャンル別の探しごと検索</h2></div><button onClick={() => showSearch('all')}>すべて見る</button></div>
+          <div className="home-section-heading"><div><p>業種から探す</p><h2>ジャンル別の案件検索</h2></div><button onClick={() => showSearch('all')}>すべて見る</button></div>
           <div className="industry-grid">{industryGroups.map((group) => <button key={group.name} onClick={() => showSearch(group.name)}><span><IndustryIcon group={group.name} /></span><b>{group.name}</b><small>{requests.filter((item) => matchesIndustry(item.industryTags, group.name)).length}件</small></button>)}</div>
         </section>
 
@@ -1298,7 +1295,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
         {searchMode === 'members' ? <>
           <div className="section-title"><div><p>MEMBERS</p><h2>人を探す</h2></div><span>{members ? `${members.length}人` : '…'}</span></div>
-          <p className="member-search-lead">業種とエリアで会員を探せます。押すと、その方のプロフィールと<b>いま出している探しごと</b>が見られます。</p>
+          <p className="member-search-lead">業種とエリアで会員を探せます。押すと、その方のプロフィールと<b>いま出している案件</b>が見られます。</p>
           <div className="member-filters">
             <p>絞り込む</p>
             <label className="wide"><span>名前・会社・業種で探す</span>
@@ -1334,7 +1331,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 <span className="member-card-side">
                   {/* 紋章は細かい絵なので、この大きさでは読めない。名前で出す。 */}
                   <i className={`member-rank rank-${member.rank.toLowerCase()}`}>{member.rank}</i>
-                  {member.openRequests > 0 && <em>探しごと {member.openRequests}件</em>}
+                  {member.openRequests > 0 && <em>案件 {member.openRequests}件</em>}
                 </span>
               </button>)}
           </div>
@@ -1342,7 +1339,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <div className="section-title"><div><p>REQUESTS</p><h2>{industryFilter === 'all' ? '仕事の掲示板' : industryFilter}<button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="案件・協業先・相談の違いを見る">i</button></h2></div><span>{shown.length}件</span></div>
         {industryFilter !== 'all' && <button className="clear-industry" onClick={() => setIndustryFilter('all')}><IndustryIcon group={getIndustryGroup(industryFilter)?.name ?? 'その他'} />{industryFilter}で絞り込み中 <i>×</i></button>}
         {industryFilter !== 'all' && getIndustryGroup(industryFilter) && <div className="subindustry-filter" aria-label="詳細業種で絞り込む"><button className={industryFilter === getIndustryGroup(industryFilter)?.name ? 'selected' : ''} onClick={() => setIndustryFilter(getIndustryGroup(industryFilter)?.name ?? 'all')}>すべて</button>{getIndustryGroup(industryFilter)?.children.map((industry) => <button key={industry} className={industryFilter === industry ? 'selected' : ''} onClick={() => setIndustryFilter(industry)}>{industry}</button>)}</div>}
-        <div className="filters" role="group" aria-label="投稿を絞り込む">{[['all','すべて'],['project','案件'],['collaboration','協業先'],['consultation','相談']].map(([key,label]) => <button key={key} className={filter === key ? 'selected' : ''} onClick={() => setFilter(key)}>{label}<span>{count(key)}</span></button>)}</div>
+        <div className="filters" role="group" aria-label="投稿を絞り込む">{[['all','すべて'],['project','発注先'],['collaboration','協業先'],['consultation','相談']].map(([key,label]) => <button key={key} className={filter === key ? 'selected' : ''} onClick={() => setFilter(key)}>{label}<span>{count(key)}</span></button>)}</div>
         <div className="member-filters">
           <p>絞り込む</p>
           <label className="wide"><span>募集状況</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'open' | 'closed' | 'all')}><option value="open">募集中</option><option value="closed">募集終了</option><option value="all">すべて</option></select></label>
@@ -1379,9 +1376,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             設定で直せることに気づけない。 */}
         <p className="recommend-lead">{recommendFallback
           ? stats.notifyIndustries.length
-            ? `選んだ業種（${stats.notifyIndustries.join('・')}）の探しごとは、いまほかの会員から出ていません。かわりに募集中のものを並べています。`
-            : 'おすすめに出したい業種を選ぶと、関係のありそうな探しごとが先に並びます。'
-          : `選んだ業種（${stats.notifyIndustries.join('・')}）に合う、ほかの会員の探しごとです。`}</p>
+            ? `選んだ業種（${stats.notifyIndustries.join('・')}）の案件は、いまほかの会員から出ていません。かわりに募集中のものを並べています。`
+            : 'おすすめに出したい業種を選ぶと、関係のありそうな案件が先に並びます。'
+          : `選んだ業種（${stats.notifyIndustries.join('・')}）に合う、ほかの会員の案件です。`}</p>
         {/* まだ選んでいない人には「選ぶ」と言い、その欄まで直に送る。
             長い設定ページの先頭に放り出すと、どこを直すのか分からない。 */}
         <button className="recommend-settings" onClick={() => showProfileSettings('notify-industries')}>
@@ -1389,24 +1386,24 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </button>
         <div className="card-list">
           {recommendedAll.length === 0
-            ? <div className="empty"><b>いまは募集中の探しごとがありません</b><span>ほかの会員が投稿すると、ここに並びます。</span></div>
+            ? <div className="empty"><b>いまは募集中の案件がありません</b><span>ほかの会員が投稿すると、ここに並びます。</span></div>
             : recommendedAll.map(needCard)}
         </div>
       </section> : activeTab === 'messages' ? <section className="profile-page messages-page" aria-labelledby="messages-title">
         <header className="profile-page-heading"><p>MESSAGES</p><h1 id="messages-title">個別メッセージ</h1></header>
-        {/* 探しごとへのオファーと広告へのオファーは置き場所が別々だが、会員から
+        {/* 案件へのオファーと広告へのオファーは置き場所が別々だが、会員から
             見ればどちらも「あの人との話」なので、1つの箱にまとめて新しい順に
-            並べる。押すとその場で会話が開く（探しごとの詳細へは飛ばさない）。 */}
+            並べる。押すとその場で会話が開く（案件の詳細へは飛ばさない）。 */}
         {threadsLoading ? <p className="messages-loading">読み込んでいます…</p>
           : threads.length === 0 ? <div className="received-empty"><span>✉</span><b>やり取りはまだありません</b>
             <p>オファーやリファラルを送ると、相手とおふたりだけのやり取りがここにまとまります。</p>
-            <button className="submit-button" onClick={() => showSearch()}>探しごとを見る</button></div>
+            <button className="submit-button" onClick={() => showSearch()}>案件を見る</button></div>
           : <ul className="message-list">{threads.map((thread) => <li key={thread.key}>
             <button className={thread.unread ? 'message-row is-unread' : 'message-row'} onClick={() => openThread(thread)}>
               <Avatar src={thread.partnerAvatarUrl} name={thread.partnerName} className="member-avatar" />
               <span className="message-main">
                 <b>{thread.partnerName}{thread.partnerCompany && <small>{thread.partnerCompany}</small>}</b>
-                <em>{thread.kind === 'ad' ? '広告' : '探しごと'}：{thread.title}</em>
+                <em>{thread.kind === 'ad' ? '広告' : '案件'}：{thread.title}</em>
                 {/* 中身を見せていないぶんは、本文のかわりに理由を出す。
                     空欄にすると「壊れている」と読まれてしまう。 */}
                 <p className={thread.locked ? 'is-locked' : ''}>
@@ -1457,6 +1454,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <span className="mypage-invite-go" aria-hidden="true">›</span>
         </button>
 
+        {/* お気に入りはマイページの下に置く。ホームの上のほうに出していたが、
+            開いた直後に見たいのは新しい案件で、保存したものは**あとから
+            見返すもの**なので、探しにくる場所に移した。 */}
+        <HomeShelf title="お気に入りした案件" count={favoriteRequests.length} emptyTitle="気になる案件を保存できます" emptyText="カードのハートを押すと、ここにまとまります。" onMore={() => showSearch()}>
+          {favoriteRequests.map((need) => <HomeRequestCard key={need.id} need={need} favorite onOpen={() => openNeed(need)} onFavorite={() => toggleFavorite(need)} />)}
+        </HomeShelf>
+
         <button className="mypage-howto" onClick={() => setTutorial(true)}>使い方をもう一度見る</button>
         <button className="mypage-signout" onClick={signOut} disabled={busy}>{busy ? '…' : 'ログアウト'}</button>
         <LegalLinks />
@@ -1466,6 +1470,19 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section> : activeTab === 'plan' ? <section className="profile-page" aria-labelledby="plan-title">
         <header className="profile-page-heading"><p>PLAN</p><h1 id="plan-title">プラン</h1><span>今のプランと、切り替え・お支払いの手続きです。</span></header>
+        {/* キャンペーン中は、いちばん先に「いま無料であること」と「いつまでか」を
+            出す。あとから知ると不意打ちになるので、終わりの日は必ず添える。 */}
+        {stats.campaignPlan && <section className="plan-campaign">
+          <p className="plan-campaign-tag">{freeCampaign.name}</p>
+          <h2>いまは全員、スタンダードを無料でお使いいただけます</h2>
+          <p className="plan-campaign-until">{campaignUntilLabel(stats.campaignUntil)}まで</p>
+          <ul>
+            <li>案件の投稿が何件でもできます</li>
+            <li>届いたオファーの中身をすべて読めます</li>
+            <li>「自社で請け負う」オファーを送れます</li>
+          </ul>
+          <p className="plan-campaign-note">お申し込みもお支払いも要りません。期間が終わる前に、あらためてご案内します。終わったあとは無料プラン（案件の投稿は月1件まで）に戻ります。</p>
+        </section>}
         <details className={`plan-card is-${stats.plan}`}>
           <summary>
             <span className="plan-now"><small>プラン</small><b>{planName(stats)}</b></span>
@@ -1475,7 +1492,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div className="plan-body">
             {stats.bonusPlan !== 'free' && stats.bonusPeriodEnd
               ? <p className="plan-until">招待特典で{planCatalog[stats.bonusPlan].name}を{stats.bonusPeriodEnd}までご利用いただけます。そのあとは{planCatalog[stats.contractedPlan].name}に戻ります。</p>
-              : stats.paid && stats.planPeriodEnd && <p className="plan-until">{stats.planPeriodEnd} までご利用いただけます</p>}
+              : stats.contractedPlan !== 'free' && stats.planPeriodEnd && <p className="plan-until">{stats.planPeriodEnd} までご利用いただけます</p>}
             {referral?.billing?.yearly && <div className="plan-cycle" role="group" aria-label="お支払いの周期">
               <button className={planCycle === 'month' ? 'active' : ''} onClick={() => setPlanCycle('month')}>月払い</button>
               <button className={planCycle === 'year' ? 'active' : ''} onClick={() => setPlanCycle('year')}>年払い <em>20%OFF</em></button>
@@ -1484,13 +1501,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               {plans.map((plan) => <li key={plan} className={`plan-${plan}${plan === stats.plan ? ' current' : ''}`}>
                 <p className="plan-list-head"><b>{planCatalog[plan].name}</b>{plan === stats.contractedPlan && <em>契約中</em>}{plan !== stats.contractedPlan && plan === stats.bonusPlan && <em className="bonus">招待特典</em>}<span>{planPrice(plan, planCycle)}</span></p>
                 {planCycle === 'year' && plan !== 'free' && <p className="plan-list-per-month">{planPerMonthNote(plan)}</p>}
-                <p className="plan-list-what"><span>探しごと {planPostLimit(plan)}</span></p>
+                <p className="plan-list-what"><span>案件の投稿 {planPostLimit(plan)}</span></p>
                 {/* 3つに分ける。読み込めなかっただけの人に「準備中です」と
                     言ってしまうと、こちらの設定漏れだと思われるうえ、
                     直し方（開き直す）も伝わらない。 */}
                 {/* 運営の特典で開いている人には、購入のボタンを出さない。
                     押しても買うものが無いうえ、特典が効いていないように見える。 */}
-                {plan !== 'free' && plan !== stats.contractedPlan && !stats.adminPlan && (referral?.billing?.ready
+                {plan !== 'free' && plan !== stats.contractedPlan && !stats.adminPlan && !stats.campaignPlan && (referral?.billing?.ready
                   ? <button className="plan-pick" onClick={() => startBilling(plan)} disabled={busy}>このプランにする</button>
                   : referralFailed
                     ? <p className="plan-not-ready">お支払いの情報を読み込めませんでした。画面を開き直してもう一度お試しください。</p>
@@ -1501,8 +1518,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             </ul>
             <PlanTable current={stats.plan} />
             {stats.adminPlan && <p className="plan-until">運営のアカウントとして、お支払いなしでスタンダードの機能をお使いいただけます。設定は Cloudflare の ADMIN_EMAILS です。</p>}
+            {stats.campaignPlan && !stats.adminPlan && <p className="plan-until">{freeCampaign.name}のため、{campaignUntilLabel(stats.campaignUntil)}まではお申し込みなしでスタンダードをお使いいただけます。{stats.contractedPlan !== 'free' && 'すでにご契約いただいている方は、そのままご契約が続きます（解約はいつでもできます）。'}</p>}
             {referral?.billing?.hasCustomer && !stats.adminPlan && <p className="plan-manage-note">お支払いカードの変更・領収書のダウンロード・解約は、<a href="/support#billing">サポートの「解約・お支払いの変更」</a>からお手続きいただけます。</p>}
-            <p className="plan-note">仲間を1人招待してご利用が{referral?.qualifyDays ?? 30}日続くと、{stats.contractedPlan === 'free' ? <><b>自動でスタンダードが1ヶ月使えるようになります</b>（お手続きは要りません）</> : <><b>次回の請求から1ヶ月分自動で引かれます</b></>}。{referral?.billing?.ready ? '有料プランへのお申し込みは、上のボタンからいつでもどうぞ。解約もいつでもできます。' : ''}</p>
+            <p className="plan-note">仲間を1人招待してご利用が{referral?.qualifyDays ?? 30}日続くと、{stats.contractedPlan === 'free' ? <><b>自動でスタンダードが1ヶ月使えるようになります</b>（お手続きは要りません）</> : <><b>次回の請求から1ヶ月分自動で引かれます</b></>}。{stats.campaignPlan ? 'いまたまった分は、キャンペーンが終わったあとにそのまま使えます。' : referral?.billing?.ready ? '有料プランへのお申し込みは、上のボタンからいつでもどうぞ。解約もいつでもできます。' : ''}</p>
           </div>
         </details>
 
@@ -1510,7 +1528,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       </section> : activeTab === 'invite' ? <section className="profile-page" aria-labelledby="invite-title">
         <header className="profile-page-heading"><p>INVITE</p><h1 id="invite-title">仲間を招待する</h1><span>あなたの招待リンク（または招待コード）から入会した方の人数で<b>ランクが上がります</b>。ご利用が続くと、会費も無料になります。</span></header>
         {referral && <section className="invite-card" aria-label="仲間を招待する">
-          <div className="invite-heading"><p>INVITE</p><h2>仲間を招待する</h2><span>あなたの招待リンクから入会して{referral.qualifyDays}日続いた方1人につき、{stats.paid ? '会費が1ヶ月無料になります' : 'スタンダードが1ヶ月使えます'}（合計{referral.capTotal}ヶ月まで）。</span></div>
+          <div className="invite-heading"><p>INVITE</p><h2>仲間を招待する</h2><span>あなたの招待リンクから入会して{referral.qualifyDays}日続いた方1人につき、{stats.contractedPlan !== 'free' ? '会費が1ヶ月無料になります' : 'スタンダードが1ヶ月使えます'}（合計{referral.capTotal}ヶ月まで）。</span></div>
           <button className="invite-link" onClick={copyInviteLink}><span>{referral.url.replace(/^https?:\/\//, '')}</span><i>{inviteCopied ? 'コピーしました' : 'リンクをコピー'}</i></button>
           {/* リンクを送れない場面のために、コードそのものも出しておく。
               例会で口頭で伝えたり、名刺に書いて渡したりできる。
@@ -1520,7 +1538,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <dl className="invite-stats">
             <div><dt>招待した人</dt><dd>{referral.invitedCount}<small>人</small></dd></div>
             <div><dt>利用中</dt><dd>{referral.activeCount}<small>人</small></dd></div>
-            <div><dt>{stats.paid ? '無料になった月' : '有料になった月'}</dt><dd>{referral.earnedMonths}<small>ヶ月</small></dd></div>
+            <div><dt>{stats.contractedPlan !== 'free' ? '無料になった月' : '有料になった月'}</dt><dd>{referral.earnedMonths}<small>ヶ月</small></dd></div>
           </dl>
           <ul className="invite-note">
             {referral.waitingCount > 0 && <li><b>{referral.waitingCount}人</b><span>いまご利用を停止しています</span></li>}
@@ -1555,7 +1573,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div className="feedback-heading"><p>YOUR VOICE</p><h2>こうしてほしい、を聞かせてください</h2><span>{serviceName}は作っている途中です。使ってみて足りないところ、使いにくいところを教えてください。いただいたご意見は運営が必ず読みます。</span></div>
           {feedbackSent ? <div className="feedback-done"><b>お送りいただきました</b><span>ありがとうございます。続けてお気づきの点があれば、また送ってください。</span><button onClick={() => setFeedbackSent(false)}>もう1件送る</button></div> : <form className="feedback-form" onSubmit={submitFeedback}>
             <label><span>種類</span><select name="category" defaultValue="feature">{feedbackCategories.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select></label>
-            <label><span>内容</span><textarea name="body" required maxLength={1000} rows={4} placeholder="例：業種ごとの探しごとをまとめて見たい／集まりの告知も出したい" /></label>
+            <label><span>内容</span><textarea name="body" required maxLength={1000} rows={4} placeholder="例：業種ごとの案件をまとめて見たい／集まりの告知も出したい" /></label>
             <button className="submit-button" disabled={busy}>{busy ? '送信しています…' : '送る'}</button>
           </form>}
         </section>
@@ -1564,7 +1582,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section> : activeTab === 'posts' ? <section className="profile-page" aria-labelledby="my-posts-title">
         {/* 自分の投稿。件数が増えるので、マイページの中ではなく1ページ取る。 */}
-        <header className="profile-page-heading"><p>MY POSTS</p><h1 id="my-posts-title">自分の投稿</h1><span>これまでに出した探しごとです。募集が終わったものも残ります。内容はあとから直せます。</span></header>
+        <header className="profile-page-heading"><p>MY POSTS</p><h1 id="my-posts-title">自分の投稿</h1><span>これまでに出した案件です。募集が終わったものも残ります。内容はあとから直せます。</span></header>
 
         <dl className="post-totals">
           <div><dt>投稿</dt><dd>{myRequests.length}<small>件</small></dd></div>
@@ -1607,7 +1625,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section> : <section className="profile-page" aria-labelledby="profile-settings-title">
         {/* プロフィール設定。入口は右上の顔写真と、マイページの「プロフィールを編集する」。 */}
-        <header className="profile-page-heading"><p>PROFILE</p><h1 id="profile-settings-title">プロフィール設定</h1><span>ここで登録した内容が、探しごとやオファーのときに相手に見えます。</span></header>
+        <header className="profile-page-heading"><p>PROFILE</p><h1 id="profile-settings-title">プロフィール設定</h1><span>ここで登録した内容が、案件やオファーのときに相手に見えます。</span></header>
         <div className="profile-form profile-page-form">
           <label className="photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />JPEG・PNG・WebP／5MBまで</small></span><i>{stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
           <label>お名前 <small className="req">必須</small><input value={profileName} onChange={(event) => setProfileName(event.target.value)} maxLength={40} placeholder="二俣 将" required /></label>
@@ -1618,7 +1636,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <label>会社名のふりがな <small>任意</small><input value={profileCompanyKana} onChange={(event) => setProfileCompanyKana(event.target.value)} maxLength={100} placeholder="かぶしきがいしゃ〇〇" /></label>
           <label>活動エリア <small>任意・検索に使われます</small><select value={profileArea} onChange={(event) => setProfileArea(event.target.value)}><option value="">選択しない</option>{prefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
           <div className="profile-industry-select"><p>自分の業種 <small>おすすめの設定に使われます</small></p><label>大分類<select value={profileIndustryGroup} onChange={(event) => { setProfileIndustryGroup(event.target.value); setProfileIndustry(''); }}><option value="">選択してください</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label><label>詳細業種<select value={profileIndustry} onChange={(event) => { const value = event.target.value; setProfileIndustry(value); if (value && !profileNotifyIndustries.includes(value)) setProfileNotifyIndustries((current) => [...current, value].slice(0, notifyIndustryLimit(stats.level))); }} disabled={!profileIndustryGroup}><option value="">詳細業種を選択</option>{profileIndustry === profileIndustryGroup && <option value={profileIndustryGroup}>大分類のみ（旧設定）</option>}{industryGroups.find((group) => group.name === profileIndustryGroup)?.children.map((industry) => <option value={industry} key={industry}>{industry}</option>)}</select></label></div>
-          <IndustryPicker id="notify-industries" legend="おすすめに出したい業種" note={`${notifyIndustryLimit(stats.level)}個まで`} description="選んだ詳細業種の探しごとが、ホームの「あなたにおすすめ」に出ます。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, notifyIndustryLimit(stats.level))} className="profile-tag-field" />
+          <IndustryPicker id="notify-industries" legend="おすすめに出したい業種" note={`${notifyIndustryLimit(stats.level)}個まで`} description="選んだ詳細業種の案件が、ホームの「あなたにおすすめ」に出ます。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, notifyIndustryLimit(stats.level))} className="profile-tag-field" />
           <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
           <label>Facebook <small>任意・オファーのあとに直接やり取りできます</small><input value={profileFacebook} onChange={(event) => setProfileFacebook(event.target.value)} maxLength={200} placeholder="https://www.facebook.com/your.name" inputMode="url" /></label>
           <button className="profile-save-button" onClick={saveProfile} disabled={busy || !profileName.trim() || !profileCompany.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
@@ -1635,7 +1653,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <button className={`nav-home${navHere === 'home' ? ' active' : ''}`} onClick={showHome}><span><HomeIcon /></span><small>ホーム</small></button>
         <button className={`nav-search${navHere === 'search' ? ' active' : ''}`} onClick={() => showSearch()}><span><SearchIcon /></span><small>探す</small></button>
         <button className={`nav-recommend${navHere === 'recommend' ? ' active' : ''}`} onClick={showRecommend}><span><RecommendIcon /></span><small>おすすめ</small></button>
-        <button className="nav-post" onClick={openRequest} aria-label="探しごとを投稿する"><span>＋</span></button>
+        <button className="nav-post" onClick={openRequest} aria-label="案件を投稿する"><span>＋</span></button>
         <button className={`nav-messages${navHere === 'messages' ? ' active' : ''}`} onClick={showMessages}
           aria-label={unreadMessages ? `メッセージ 未読${unreadMessages}件` : 'メッセージ'}>
           <span><MessageIcon />{unreadMessages > 0 && <i className="nav-badge">{unreadMessages > 99 ? '99+' : unreadMessages}</i>}</span>
@@ -1645,15 +1663,15 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <button className={`nav-mypage${navHere === 'mypage' ? ' active' : ''}`} onClick={showMyPage}><span><PersonIcon /></span><small>マイページ</small></button>
       </nav>
 
-      {modal === 'request' && !canPostRequest && !editingRequest && <Modal title="今月分の投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる探しごとは月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showMyPage(); }}>マイページを開く</button></div></Modal>}
+      {modal === 'request' && !canPostRequest && !editingRequest && <Modal title="今月分の投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる案件は月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showMyPage(); }}>マイページを開く</button></div></Modal>}
 
-      {modal === 'request' && (canPostRequest || editingRequest) && <Modal title={editingRequest ? '探しごとを編集' : '探しごとを投稿'} lead={editingRequest ? '直したいところを書き替えて、保存してください。' : 'どんな人にオファーしてほしいかを具体的に書きましょう。'} onClose={closeRequestModal}><form className="form" key={editingRequest?.id ?? 'new'} onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue={editingRequest?.category ?? ''}><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" defaultValue={editingRequest?.title ?? ''} /></label><label>詳しい内容 {descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" required maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人をオファーしてほしいか" defaultValue={editingRequest?.description ?? ''} /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算<select name="budgetBand" required defaultValue={editingRequest?.budgetBand ?? ''}><option value="" disabled>選択してください</option>{Object.entries(budgetBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>予算のくわしい書き方 <small>任意</small><input name="budgetLabel" maxLength={60} placeholder="例：月額20〜40万円／初回は50万円まで" defaultValue={editingRequest?.budgetLabel ?? ''} /></label><label>希望エリア <small>任意</small><select name="area" defaultValue={editingRequest?.area ?? ''}><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" defaultValue={editingRequest?.deadline ?? ''} /></label>{editingRequest && <label>募集状況<select name="status" defaultValue={editingRequest.status}><option value="open">募集中</option><option value="closed">募集を終了する</option></select></label>}{/* 写真と動画の枠は、**使えない人にも見せておく**。隠してしまうと
+      {modal === 'request' && (canPostRequest || editingRequest) && <Modal title={editingRequest ? '案件を編集' : '案件を投稿'} lead={editingRequest ? '直したいところを書き替えて、保存してください。' : 'どんな人にオファーしてほしいかを具体的に書きましょう。'} onClose={closeRequestModal}><form className="form" key={editingRequest?.id ?? 'new'} onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue={editingRequest?.category ?? ''}><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" defaultValue={editingRequest?.title ?? ''} /></label><label>詳しい内容 {descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" required maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人をオファーしてほしいか" defaultValue={editingRequest?.description ?? ''} /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算<select name="budgetBand" required defaultValue={editingRequest?.budgetBand ?? ''}><option value="" disabled>選択してください</option>{Object.entries(budgetBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>予算のくわしい書き方 <small>任意</small><input name="budgetLabel" maxLength={60} placeholder="例：月額20〜40万円／初回は50万円まで" defaultValue={editingRequest?.budgetLabel ?? ''} /></label><label>希望エリア <small>任意</small><select name="area" defaultValue={editingRequest?.area ?? ''}><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" defaultValue={editingRequest?.deadline ?? ''} /></label>{editingRequest && <label>募集状況<select name="status" defaultValue={editingRequest.status}><option value="open">募集中</option><option value="closed">募集を終了する</option></select></label>}{/* 写真と動画の枠は、**使えない人にも見せておく**。隠してしまうと
           「そんな機能がある」ことに気づかないので、上のランクへ上がる理由が
           伝わらない。掲示板の絞り込みと同じで、鍵の札を出して押せなくする。 */}
         <div className="request-photos"><p><b>写真を付ける <em>任意</em></b><small>{photoLimit(stats.level) > 1 ? `${stats.rank}は${photoLimit(stats.level)}枚まで付けられます` : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></p><div className="request-photo-grid">{requestPhotoPreviews.map((preview, index) => <span key={preview} className="request-photo-item"><img src={preview} alt={`添付する写真 ${index + 1}枚目`} /><button type="button" onClick={() => removeRequestPhoto(index)} aria-label={`${index + 1}枚目を削除`}>×</button></span>)}{requestPhotos.length < photoLimit(stats.level) && <label className="request-photo-add"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" multiple={photoLimit(stats.level) > 1} onChange={chooseRequestPhoto} /><b>＋</b><small>{requestPhotos.length ? 'もう1枚' : '写真を選ぶ'}</small></label>}{photoLimit(stats.level) < PHOTO_LIMIT_TOP && Array.from({ length: PHOTO_LIMIT_TOP - photoLimit(stats.level) }, (_, index) => <span className="request-photo-add is-locked" key={`locked-${index}`} aria-hidden="true"><b>＋</b><small>{rankNames[2]}から</small></span>)}</div>{photoLimit(stats.level) < PHOTO_LIMIT_TOP && <p className="request-locked-note"><em>{rankNames[2]}から</em>写真を{PHOTO_LIMIT_TOP}枚まで付けられます。仲間を{Math.max(0, rankThresholds[2] - stats.inviteCount)}人ご招待いただくと {rankNames[2]} です。</p>}</div><div className={canPostVideo(stats.level) ? 'request-video' : 'request-video is-locked'}><p><b>動画を付ける <em>任意</em></b><small>{VIDEO_MAX_SECONDS}秒まで。選ぶと端末の中で自動的に小さくします。</small></p>
         {!canPostVideo(stats.level)
           ? <><span className="request-video-add is-locked" aria-hidden="true"><b>＋</b><small>{rankNames[2]}から</small></span>
-            <p className="request-locked-note"><em>{rankNames[2]}から</em>探しごとに短い動画を付けられます。仲間を{Math.max(0, rankThresholds[2] - stats.inviteCount)}人ご招待いただくと {rankNames[2]} です。</p></>
+            <p className="request-locked-note"><em>{rankNames[2]}から</em>案件に短い動画を付けられます。仲間を{Math.max(0, rankThresholds[2] - stats.inviteCount)}人ご招待いただくと {rankNames[2]} です。</p></>
           : <>
         {videoProgress >= 0
           ? <div className="request-video-busy"><span style={{ width: `${Math.round(videoProgress * 100)}%` }} /><b>動画を小さくしています… {Math.round(videoProgress * 100)}%</b></div>
@@ -1672,10 +1690,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           </div>
         </div>}<button className="submit-button" disabled={busy || !requestIndustries.length || videoProgress >= 0}>{busy ? '保存しています…' : editingRequest ? '保存する' : postAsAd ? '投稿して広告の申し込みへ' : '投稿する'}</button></form></Modal>}
 
-      {deletingRequest && <Modal title="この探しごとを削除しますか" lead="削除すると元に戻せません。" onClose={() => setDeletingRequest(null)}>
+      {deletingRequest && <Modal title="この案件を削除しますか" lead="削除すると元に戻せません。" onClose={() => setDeletingRequest(null)}>
         <div className="quota-block">
           <p><b>{deletingRequest.title}</b></p>
-          <p>この探しごとに届いたオファーとリファラル {deletingRequest.introCount}件、それに付いたやり取りも一緒に消えます。写真や動画も消えます。</p>
+          <p>この案件に届いたオファーとリファラル {deletingRequest.introCount}件、それに付いたやり取りも一緒に消えます。写真や動画も消えます。</p>
           <p>募集を止めたいだけなら、削除ではなく<b>編集から「募集を終了する」</b>を選ぶと、記録とやり取りを残したまま新しいオファーを止められます。</p>
           <button className="submit-button is-danger" onClick={confirmDeleteRequest} disabled={busy}>{busy ? '削除しています…' : '削除する'}</button>
           <button className="quota-cancel" onClick={() => setDeletingRequest(null)} disabled={busy}>やめる</button>
@@ -1687,7 +1705,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           切り替えで入力そのものが変わるのは、自社の場合「あなたとの関係」に
           書きようがないため。 */}
       {modal === 'intro' && (selected || offerAd) && <Modal
-        title={offerAd ? 'この広告にオファー' : 'この探しごとにオファー'}
+        title={offerAd ? 'この広告にオファー' : 'この案件にオファー'}
         lead={offerAd ? `「${offerAd.title}」（${offerAd.memberCompany || offerAd.memberName}さま）へのオファーです。` : `「${selected?.title}」へのオファーです。`}
         onClose={() => { setModal(null); setOfferAd(null); }}>
         <div className="offer-kind" role="group" aria-label="オファーの種類">
@@ -1720,7 +1738,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {/* 無料のままオファーが届いた人への案内。数と日付までは受け箱で見えて
           いるので、ここは「開けます」の一言に絞る。 */}
-      {modal === 'upgrade' && <Modal title="オファーが届いています" lead={upgradeNote || (lockedIntros ? `あなたの探しごとに ${lockedIntros}件のオファーが届いています。` : '')} onClose={() => setModal(null)}>
+      {modal === 'upgrade' && <Modal title="オファーが届いています" lead={upgradeNote || (lockedIntros ? `あなたの案件に ${lockedIntros}件のオファーが届いています。` : '')} onClose={() => setModal(null)}>
         <div className="upgrade-panel">
           <p>スタンダードプランにすると、<b>オファーを受け取ることができます</b>。</p>
           <ul>
@@ -1827,7 +1845,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           </dl>
           {!!memberProfile.facebookUrl && <FacebookLink url={memberProfile.facebookUrl} name={memberProfile.displayName} />}
           <section className="member-requests">
-            <h3>いま出している探しごと<span>{memberProfile.requests.length}件</span></h3>
+            <h3>いま出している案件<span>{memberProfile.requests.length}件</span></h3>
             {!memberProfile.requests.length
               ? <p className="member-empty">いまは出していません。</p>
               : <ul>{memberProfile.requests.map((item) => {
@@ -1978,7 +1996,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {modal === 'responses' && <Modal title="オファーのやり取り" lead="届いたオファーと、あなたが出したオファーです。相手とそのままやり取りできます。" onClose={() => setModal(null)}><ReceivedIntroductions onUpgrade={() => { setModal(null); goTab('plan'); }} /></Modal>}
 
-      {modal === 'detail' && selected && <Modal title="探しごとの詳細" lead={`${selected.authorName}さんの探しごとです。`} onClose={() => setModal(null)}><article className="need-detail">
+      {modal === 'detail' && selected && <Modal title="案件の詳細" lead={`${selected.authorName}さんの案件です。`} onClose={() => setModal(null)}><article className="need-detail">
         <div className="card-topline"><span className={`kind ${categories[selected.category].className}`}>{categories[selected.category].label}</span>{selected.sample && <span className="kind is-sample">サンプル</span>}<button className={favoriteIds.includes(selected.id) ? 'detail-heart active' : 'detail-heart'} onClick={() => toggleFavorite(selected)}>♥ {favoriteIds.includes(selected.id) ? '保存済み' : 'お気に入り'}</button></div>
         <h3>{selected.title}</h3>
         {selected.imageUrls.length > 1
@@ -1992,7 +2010,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <div className="detail-author"><Avatar src={selected.authorAvatarUrl} name={selected.authorName} className="member-avatar" /><p><b>{selected.authorName}</b><span>{selected.authorPositionTitle && `${selected.authorPositionTitle}｜`}{selected.authorCompany || '会社名未設定'}</span>{!!selected.authorBusinessArea && <small>{selected.authorBusinessArea}</small>}</p><FacebookLink url={selected.authorFacebookUrl} name={selected.authorName} /></div>
         {selected.mine
           ? <div className="owner-tools">
-              <p className="owner-tools-head"><b>あなたの探しごと</b><span>{stats.rank}の特典が使えます</span></p>
+              <p className="owner-tools-head"><b>あなたの案件</b><span>{stats.rank}の特典が使えます</span></p>
               <div className="owner-tools-row">
                 <button disabled={busy || !canExtend(selected)} onClick={() => extendOwnRequest(selected)}>{selected.extendedAt ? '延長ずみ' : `期限を${EXTEND_DAYS}日のばす`}</button>
                 <button onClick={() => { setSelected(null); openAdSettings(); }}>広告で上位に出す</button>
@@ -2007,7 +2025,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <span aria-hidden="true">✓</span>
           {selected.mine
             ? <p><b>オファーが{selected.introCount}件届いています</b><small>オファーの中身は「届いたオファー」で読めます</small></p>
-            : <p><b>あなたはこの探しごとにオファーを{selected.myIntroCount}件送りました</b><small>中身は投稿者だけが読めます。ここには出ません</small></p>}
+            : <p><b>あなたはこの案件にオファーを{selected.myIntroCount}件送りました</b><small>中身は投稿者だけが読めます。ここには出ません</small></p>}
           {selected.mine && <button type="button" onClick={() => { setSelected(null); setModal('responses'); }}>届いたオファーを見る</button>}
         </div>}
       </article></Modal>}
@@ -2015,7 +2033,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       {/* メッセージの一覧から開くやり取り。**ここで完結する。**
           相手の名前を見出しに、何についての話かを下に添える。 */}
       {modal === 'thread' && openChat && <Modal title={`${openChat.partnerName}さんとのやり取り`}
-        lead={`${openChat.kind === 'ad' ? '広告' : '探しごと'}「${openChat.title}」でのおふたりだけのやり取りです。ほかの会員には見えません。`}
+        lead={`${openChat.kind === 'ad' ? '広告' : '案件'}「${openChat.title}」でのおふたりだけのやり取りです。ほかの会員には見えません。`}
         onClose={() => { setModal(null); setOpenChat(null); }}>
         {openChat.locked
           ? <div className="quota-block">
@@ -2075,7 +2093,7 @@ function AdFields({ offer, draft, onChange, onImage, imageName, keepImage }: {
  * 表だけ古いまま残る。実際に止めている判断と同じものを見せることで、
  * 「表ではできると書いてあるのに使えない」を起こさない。
  *
- * 「探しごとの投稿」だけは○×では足りない（月1件と無制限の差）ので、
+ * 「案件の投稿」だけは○×では足りない（月1件と無制限の差）ので、
  * 件数を出す行にしてある。
  */
 function PlanTable({ current }: { current: Plan }) {
@@ -2115,7 +2133,7 @@ const planRows: { label: string; note?: string; soon?: boolean; value: (plan: Pl
   { label: '掲示板を見る', value: (plan) => allows(plan, 'view_board') },
   { label: '会員を探す', note: '業種・エリア', value: (plan) => allows(plan, 'member_search') },
   { label: 'リファラルを送る', note: '知り合いの紹介', value: (plan) => allows(plan, 'introduce') },
-  { label: '探しごとの投稿', value: (plan) => planPostLimit(plan) },
+  { label: '案件の投稿', value: (plan) => planPostLimit(plan) },
   { label: 'オファーを受け取る', note: '中身を読む・返事する', value: (plan) => allows(plan, 'receive_introductions') },
   { label: 'オファーを送る', note: '自社で請け負う', value: (plan) => allows(plan, 'self_offer') },
 ];
@@ -2351,7 +2369,7 @@ function HomeRequestCard({ need, favorite, onOpen, onFavorite }: { need: BoardRe
 }
 
 /**
- * その探しごとに、どれだけ人が動いたか。
+ * その案件に、どれだけ人が動いたか。
  *
  * **中身は出さない。数だけ。** オファーとリファラルの中身は本人と投稿者だけの
  * ものだが、件数まで隠すと掲示板が止まって見える。実際に動いた数を出すほうが、
@@ -2377,8 +2395,10 @@ function Avatar({ src, name, className }: { src: string; name: string; className
  * 画面に出すプラン名。**管理画面の一覧と同じ言い方にそろえる。**
  * 別々に書くと、また片方だけ直して食い違う。
  */
-function planName(stats: { plan: Plan; adminPlan: boolean }) {
-  return stats.adminPlan ? `${planCatalog[stats.plan].name}（管理者特典）` : planCatalog[stats.plan].name;
+function planName(stats: { plan: Plan; adminPlan: boolean; campaignPlan: boolean }) {
+  if (stats.adminPlan) return `${planCatalog[stats.plan].name}（管理者特典）`;
+  if (stats.campaignPlan) return `${planCatalog[stats.plan].name}（キャンペーン中）`;
+  return planCatalog[stats.plan].name;
 }
 
 /**

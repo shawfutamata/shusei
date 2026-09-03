@@ -43,7 +43,7 @@ export async function POST(request: Request) {
   const area = clean(field('area'), 60);
   const industryTags = multipart ? parseIndustries(field('industryTags'), 3) : cleanIndustries(field('industryTags'), 3);
   const deadline = clean(field('deadline'), 10);
-  // 希望エリアは任意。指定しない探しごとがあってよい。
+  // 希望エリアは任意。指定しない案件があってよい。
   if (!['project', 'collaboration', 'consultation'].includes(category) || !title || !description || !budgetBand || !industryTags.length || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
     return NextResponse.json({ error: '入力内容を確認してください。' }, { status: 400 });
   }

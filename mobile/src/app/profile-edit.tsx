@@ -46,7 +46,7 @@ export default function ProfileEditScreen() {
     <Field label="役職（任意）" value={form.positionTitle} onChangeText={(value) => change('positionTitle', value)} placeholder="例：代表取締役" />
     <SelectBlock label="活動エリア（47都道府県）"><ChipList values={[...prefectures]} selected={[form.businessArea]} onPress={(value) => change('businessArea', value)} /></SelectBlock>
     <SelectBlock label="主な業種"><ChipList values={industryGroups.map(([name]) => name)} selected={[form.primaryIndustry]} onPress={(value) => change('primaryIndustry', value)} /></SelectBlock>
-    <SelectBlock label={`通知を受けたい関連業種（${form.notifyIndustries.length}/6）`}><Text style={styles.guideText}>選んだ業種の探しごとが投稿されると通知します。</Text><ChipList values={industryGroups.map(([name]) => name)} selected={form.notifyIndustries} onPress={toggleNotify} /></SelectBlock>
+    <SelectBlock label={`通知を受けたい関連業種（${form.notifyIndustries.length}/6）`}><Text style={styles.guideText}>選んだ業種の案件が投稿されると通知します。</Text><ChipList values={industryGroups.map(([name]) => name)} selected={form.notifyIndustries} onPress={toggleNotify} /></SelectBlock>
     <SelectBlock label="会社の年商（任意）"><ChipList values={revenues.map(([, label]) => label)} selected={revenues.filter(([value]) => value === form.annualRevenueBand).map(([, label]) => label)} onPress={(label) => change('annualRevenueBand', revenues.find(([, item]) => item === label)?.[0] ?? '')} /></SelectBlock>
     <Pressable style={[commonStyles.primaryButton, busy && { opacity: .55 }]} onPress={save} disabled={busy}><Text style={commonStyles.primaryButtonText}>{busy ? '保存中…' : 'プロフィールを保存する'}</Text></Pressable>
   </AppScreen>;

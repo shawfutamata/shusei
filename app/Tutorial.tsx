@@ -52,7 +52,7 @@ const steps: Step[] = [
     click: 'カードを開くと選べます',
   },
   {
-    eyebrow: 'STEP 4', title: '自分の探しごとを投稿する',
+    eyebrow: 'STEP 4', title: '自分の案件を投稿する',
     body: '抱えている案件や困りごとを投稿すると、関連する業種の仲間に届きます。',
     targets: ['.bottom-nav .nav-post'], click: 'ここをタップ',
   },

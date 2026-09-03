@@ -1,4 +1,5 @@
 import { isAdminEmail } from './admin-emails';
+import { campaignPlan as campaignPlanFor, freeCampaign } from './campaign';
 import { currentPlan, type Plan, type PlanState } from './entitlements';
 
 /**
@@ -15,10 +16,15 @@ export function isPlanOverridden(email: string) {
   return isAdminEmail(email);
 }
 
-/** 運営なら、契約に関係なくスタンダードの状態を返す。期限は空＝無期限。 */
+/**
+ * 運営なら、契約に関係なくスタンダードの状態を返す。期限は空＝無期限。
+ * 開設キャンペーンは**全員に**重ねる（app/campaign.ts）。契約や招待特典は
+ * そのまま残るので、キャンペーンが終われば元の状態に戻る。
+ */
 export function effectivePlanState(email: string, stored: PlanState): PlanState {
-  if (!isPlanOverridden(email)) return stored;
-  return { plan: 'standard', planPeriodEnd: '', bonusPlan: 'free', bonusPeriodEnd: '' };
+  const campaign = { campaignPlan: campaignPlanFor(), campaignPeriodEnd: freeCampaign.until };
+  if (!isPlanOverridden(email)) return { ...stored, ...campaign };
+  return { plan: 'standard', planPeriodEnd: '', bonusPlan: 'free', bonusPeriodEnd: '', ...campaign };
 }
 
 /** いま実際に効いているプラン。管理画面の一覧もマイページもこれを出す。 */

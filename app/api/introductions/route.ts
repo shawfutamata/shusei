@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   const user = gate.user;
   const body = await request.json() as Record<string, unknown>;
   const requestId = clean(body.requestId, 80);
-  // 宛先は探しごとか広告のどちらか。広告のときは adId が来る。
+  // 宛先は案件か広告のどちらか。広告のときは adId が来る。
   const adId = clean(body.adId, 80);
   const personName = clean(body.personName, 60);
   const personCompany = clean(body.personCompany, 80);

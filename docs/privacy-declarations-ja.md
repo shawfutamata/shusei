@@ -19,7 +19,7 @@
 | 氏名 | 会員氏名 | 必須 | アカウント管理、オファー機能 | サービス提供者のみ |
 | メールアドレス | ログインメール | 必須 | 認証、アカウント管理 | メール送信事業者 |
 | ユーザーID | 内部会員ID | 必須 | 認証、データ所有者の分離 | サービス提供者のみ |
-| 写真 | 顔写真、探しごとの写真 | 顔写真は必須、探しごとの写真は任意 | プロフィール確認、掲示板の表示 | 会員に公開 |
+| 写真 | 顔写真、案件の写真 | 顔写真は必須、案件の写真は任意 | プロフィール確認、掲示板の表示 | 会員に公開 |
 | 住所 | 活動エリア | 任意 | 絞り込み、オファー先の目安 | 会員に公開 |
 | ユーザーコンテンツ | 投稿、オファーの理由、コメント | 機能利用時 | 掲示板・オファー機能 | 投稿・オファー先の会員 |
 | デバイスID等 | Expo Push Token | 通知利用時 | プッシュ通知 | 通知配信事業者 |
@@ -49,7 +49,7 @@
 
 | API種別 | 理由コード | 該当箇所 |
 |---|---|---|
-| `NSPrivacyAccessedAPICategoryFileTimestamp` | `C617.1` | 利用者が選んだ顔写真・探しごとの写真を扱うため（expo-image-picker / expo-image-manipulator） |
+| `NSPrivacyAccessedAPICategoryFileTimestamp` | `C617.1` | 利用者が選んだ顔写真・案件の写真を扱うため（expo-image-picker / expo-image-manipulator） |
 | `NSPrivacyAccessedAPICategoryUserDefaults` | `CA92.1` | アプリ自身の設定保存（expo-modules-core） |
 
 `NSPrivacyTracking` は `false`、`NSPrivacyTrackingDomains` は空。

@@ -5,7 +5,7 @@ import { toBudgetBand } from '@/app/budget-options';
 import { isIndustry } from '@/app/industry-options';
 import { descriptionLimit } from '@/app/rank-perks';
 
-// 自分が出した探しごとを直す／消す。
+// 自分が出した案件を直す／消す。
 //
 // **持ち主かどうかは db/data.ts の中で見る**（UPDATE と DELETE の WHERE に
 // author_id を入れてある）。画面でボタンを出し分けるだけでは、ここを直接
