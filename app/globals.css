@@ -2052,14 +2052,11 @@ body { font-weight:600; }
   transform:translateY(-50%); border-radius:50%; background:#fff; content:''; }
 .gacha-gift::before { left:-8px; }
 .gacha-gift::after { right:-8px; }
-.gacha-gift small { display:block; font-size:11px; font-weight:800; opacity:.85; }
-.gacha-gift b { display:block; margin:2px 0; font-size:30px; font-weight:900; letter-spacing:-.02em; }
-.gacha-gift b em { margin-left:3px; font-size:15px; font-style:normal; }
+.gacha-gift > small { display:block; font-size:11px; font-weight:800; opacity:.85; }
+.gacha-gift > b { display:block; margin:2px 0; font-size:30px; font-weight:900; letter-spacing:-.02em; }
+.gacha-gift > b em { margin-left:3px; font-size:15px; font-style:normal; }
 
 /* あと何日でつかえるか。数字だけより、伸びていくほうが分かりやすい。 */
-.gacha-gauge { height:8px; margin:11px 0 0; overflow:hidden; border-radius:99px; background:#eef2f8; }
-.gacha-gauge span { height:100%; display:block; border-radius:99px;
-  background:linear-gradient(90deg,#f0a11f,#f0731f); }
 
 .gacha-note { margin:13px 0 0; color:#93a0b3; font-size:11px; font-weight:700; line-height:1.7; }
 .gacha-note b { color:#66758c; }
@@ -2190,20 +2187,26 @@ body { font-weight:600; }
   clip-path:polygon(50% 100%, 0 0, 100% 0);
   filter:drop-shadow(0 4px 6px rgba(4,16,38,.45)); }
 /* 押すところは真ん中のひとつ。回っていなければ回し、回っていれば止める。 */
-.gacha-wheel-go { position:absolute; left:50%; top:50%; z-index:3; width:33%; aspect-ratio:1;
-  transform:translate(-50%,-50%); border:0; border-radius:50%; cursor:pointer;
-  background:radial-gradient(circle at 50% 30%,#ffffff,#e6eef8); color:#0f5fc4;
-  font-family:inherit; font-size:15px; font-weight:900; letter-spacing:.06em;
-  box-shadow:0 6px 16px rgba(4,16,38,.38), inset 0 0 0 3px #fff;
+/* **押すところは、盤より目立たせる。** 白い丸を白い盤に置くと、飾りの
+   ハブに見えて、押せることが伝わらない。盤に無い色（アプリの橙）で塗り、
+   白い縁で盤から浮かせる。 */
+.gacha-wheel-go { position:absolute; left:50%; top:50%; z-index:3; width:37%; aspect-ratio:1;
+  transform:translate(-50%,-50%); border:5px solid #fff; border-radius:50%; cursor:pointer;
+  background:linear-gradient(160deg,#ff9a52,#f0731f 52%,#dd5a09); color:#fff;
+  font-family:inherit; font-size:17px; font-weight:900; letter-spacing:.07em;
+  box-shadow:0 8px 20px rgba(4,16,38,.42);
   -webkit-tap-highlight-color:transparent; }
-.gacha-wheel-go:disabled { color:#aab5c6; cursor:default; font-size:13px; letter-spacing:0; }
-/* 回っている最中だけ色を変える。**押せることが見えていないと、止められない。** */
+.gacha-wheel-go:disabled { border-color:#f2f5f9; cursor:default; font-size:13px; letter-spacing:0;
+  background:linear-gradient(160deg,#fdfefe,#e7edf5); color:#a7b2c2;
+  box-shadow:0 4px 12px rgba(4,16,38,.18); }
+/* 回っている最中は**止める色**にする。押せることが見えていないと、
+   止められない。同じ色のままだと、押すところが変わったと気づかない。 */
 .gacha-wheel.is-spinning .gacha-wheel-go:not(:disabled) {
-  background:radial-gradient(circle at 50% 30%,#fff6da,#ffd15c); color:#7a4b00; }
+  background:linear-gradient(160deg,#ff6d80,#e0384f 52%,#c31a33); color:#fff; }
 /* 止まっているあいだ、押すところに輪を広げる。**ボタン自体は動かさない。**
    ボタンごと脈打たせると、押そうとしたときに的が動く。 */
-.gacha-wheel-go::after { content:''; position:absolute; inset:-7px; border-radius:50%;
-  border:2px solid rgba(255,255,255,.92); opacity:0; pointer-events:none; }
+.gacha-wheel-go::after { content:''; position:absolute; inset:-6px; border-radius:50%;
+  border:3px solid rgba(240,115,31,.9); opacity:0; pointer-events:none; }
 .gacha-wheel:not(.is-spinning) .gacha-wheel-go:not(:disabled)::after { animation:gacha-go 1.7s ease-out infinite; }
 @keyframes gacha-go {
   0% { transform:scale(.92); opacity:.8; }
@@ -2261,3 +2264,25 @@ body { font-weight:600; }
 }
 /* 運営のアカウントの印。**出ていなければ ADMIN_EMAILS に入っていない。** */
 .gacha-chip.is-master { background:rgba(255,255,255,.34); box-shadow:inset 0 0 0 1px rgba(255,255,255,.6); }
+
+/* ── ガチャ：結果の下の文 ───────────────────────────────
+   同じ大きさの文が3行並ぶと、**どれが結果でどれがお知らせなのか分からない。**
+   結果の一言をいちばん大きくし、お知らせは線で区切って小さく置く。 */
+.modal.is-full .gacha-lead { margin-top:13px; color:#3f4d63; font-size:15px; line-height:1.7;
+  /* 2行になるときは**均等に割る。** 入れておかないと、最後の1文字だけが
+     2行目に落ちて、書き損じのように見える。 */
+  text-wrap:balance; }
+.modal.is-full .gacha-lead b { font-weight:900; }
+.modal.is-full .gacha-note { margin-top:13px; padding-top:11px; border-top:1px solid var(--line);
+  font-size:12px; line-height:1.7; }
+/* お知らせが続くときは、線を引くのは最初の1つだけ。 */
+.modal.is-full .gacha-note + .gacha-note { margin-top:6px; padding-top:0; border-top:0; }
+/* 券の箱は、結果の下に続くので少し詰める。数字は大きいままにする。 */
+.modal.is-full .gacha-gift { margin-top:13px; padding:12px 16px; }
+.modal.is-full .gacha-gift > b { font-size:28px; }
+/* 券の中の進み具合。**券の外に別の帯を置かない**（券の話は券の中で完結させる）。 */
+.gacha-gift-gauge { height:6px; margin:8px 0 5px; display:block; overflow:hidden;
+  border-radius:99px; background:rgba(122,90,18,.16); }
+.gacha-gift-gauge i { height:100%; display:block; border-radius:99px;
+  background:linear-gradient(90deg,#e0a51c,#f5cd53); }
+.gacha-gift small b { font-weight:900; }

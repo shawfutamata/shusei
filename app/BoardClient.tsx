@@ -2239,7 +2239,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                         <path d={wheelSlice(at, gacha.season!.segments.length, 100)} />
                         {/* 日本語は**縦に積む**。コマの幅は12分の1しかないので、
                             横に置くと2文字で外にはみ出す。 */}
-                        <text transform={`rotate(${mid}) translate(0 -68) rotate(${flip ? 180 : 0})`}>
+                        <text transform={`rotate(${mid}) translate(0 -72) rotate(${flip ? 180 : 0})`}>
                           {letters.map((letter, line) =>
                             <tspan key={line} x="0" y={(line - (letters.length - 1) / 2) * 16}>{letter}</tspan>)}
                         </text>
@@ -2303,11 +2303,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                   {reward && !prize.label.includes(`${prize.days}日分`) && <span>{reward}</span>}
                 </li>;
                 })}</ul>}
-              <button className="submit-button gacha-draw" onClick={tapGacha}
-                disabled={gachaSpinning && (gacha.season.motion !== 'wheel' || !gachaCanStop)}>
-                {!gachaSpinning ? gacha.season.action
-                  : gacha.season.motion === 'wheel' ? 'STOP' : '回しています…'}
-              </button>
+              {/* ルーレットは**盤の真ん中が押すところ**なので、下に同じボタンを
+                  置かない。回している最中に赤いSTOPと青いSTOPが並ぶと、
+                  どちらを押せばいいのか分からなくなる。 */}
+              {gacha.season.motion !== 'wheel'
+                && <button className="submit-button gacha-draw" onClick={tapGacha} disabled={gachaSpinning}>
+                  {gachaSpinning ? '回しています…' : gacha.season.action}
+                </button>}
               {gacha.coming && <p className="gacha-note">{gacha.coming.from}から <b>{gacha.coming.name}</b> が始まります。</p>}
             </>
             : gachaSpinning ? null
@@ -2315,17 +2317,23 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               <p className="gacha-lead">{gacha.prize?.note}</p>
               {/* たまっている券は**回数券のかたち**にする。数字だけ書くより、
                   持ちものとして見えたほうが、ためる気になる。 */}
-              {gacha.giftDays > 0 && <p className="gacha-gift"><small>たまっている無料券</small><b>{gacha.giftDays}<em>日分</em></b>{gacha.giftExpiresOn && <small>いちばん早い券は{gachaDateLabel(gacha.giftExpiresOn)}まで</small>}</p>}
-              {/* 7日たまるまでは「あと何日で使えるか」を出す。広告は7日からしか
-                  申し込めないので、それを言わないと1日券の意味が伝わらない。 */}
-              {gacha.giftDays > 0 && gacha.giftDays < AD_MIN_DAYS
-                ? <>
-                  <p className="gacha-gauge" aria-hidden="true"><span style={{ width: `${Math.round((gacha.giftDays / AD_MIN_DAYS) * 100)}%` }} /></p>
-                  <p className="gacha-lead">広告は{AD_MIN_DAYS}日から出せます。<b>あと{AD_MIN_DAYS - gacha.giftDays}日分</b>ためると、1週間まるごと無料で出せます。</p>
-                </>
-                : gacha.giftDays >= AD_MIN_DAYS
-                  ? <button className="submit-button gacha-draw" onClick={() => { setModal(null); openAdSettings(); }}>この券で広告を出す</button>
-                  : <p className="gacha-lead">また明日、引きにきてください。</p>}
+              {/* たまっている券は**1枚の回数券にまとめる。** あと何日で使えるかは
+                  券そのものの話なので、券の外に別の帯と別の文で並べない
+                  （同じ大きさの文が続くと、どれが結果でどれが説明か分からない）。
+                  7日たまるまで出すのは、広告が7日からしか申し込めないため。 */}
+              {gacha.giftDays > 0 && <p className="gacha-gift">
+                <small>たまっている無料券</small>
+                <b>{gacha.giftDays}<em>日分</em></b>
+                {gacha.giftDays < AD_MIN_DAYS && <>
+                  <span className="gacha-gift-gauge" aria-hidden="true">
+                    <i style={{ width: `${Math.round((gacha.giftDays / AD_MIN_DAYS) * 100)}%` }} />
+                  </span>
+                  <small>あと<b>{AD_MIN_DAYS - gacha.giftDays}日分</b>で1週間まるごと無料</small>
+                </>}
+                {gacha.giftExpiresOn && <small>いちばん早い券は{gachaDateLabel(gacha.giftExpiresOn)}まで</small>}
+              </p>}
+              {gacha.giftDays >= AD_MIN_DAYS
+                && <button className="submit-button gacha-draw" onClick={() => { setModal(null); openAdSettings(); }}>この券で広告を出す</button>}
               {gacha.monthDays >= gacha.memberCapDaysPerMonth && <p className="gacha-note">今月ぶんの上限（{gacha.memberCapDaysPerMonth}日分）に達しました。来月1日にまた増やせます。それまでは結果だけのお楽しみです。</p>}
               {/* 運営だけ、何度でも回せる。2回目以降は記録も券も増えないことを
                   必ず書く。書かないと、配った枠の数字が合わないように見える。 */}
