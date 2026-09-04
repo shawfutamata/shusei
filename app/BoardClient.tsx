@@ -2315,7 +2315,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 && <button className="submit-button gacha-draw" onClick={tapGacha} disabled={gachaSpinning}>
                   {gachaSpinning ? '回しています…' : gacha.season.action}
                 </button>}
-              {gacha.coming && <p className="gacha-note">{gacha.coming.from}から <b>{gacha.coming.name}</b> が始まります。</p>}
             </>
             : gachaSpinning ? null
             : <>
@@ -2346,7 +2345,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 <button className="gacha-again" onClick={tapGacha} disabled={gachaSpinning}>もう一度回す</button>
                 <p className="gacha-note">運営のアカウントなので、何度でも回せます。{gacha.practice ? 'いまの結果はお試しで、記録も券も増えていません。' : '2回目からはお試しになり、記録も券も増えません。'}</p>
               </>}
-              {gacha.coming && <p className="gacha-note">{gacha.coming.from}から <b>{gacha.coming.name}</b> が始まります。</p>}
             </>}
         </div>
       </Modal>}

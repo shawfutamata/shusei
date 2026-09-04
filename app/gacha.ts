@@ -221,19 +221,6 @@ export function gachaOpen(now = new Date()) {
   return gachaSeason(now) !== null;
 }
 
-/** 次の季節の回。「12月20日からクリスマス」と先に知らせるのに使う。 */
-export function nextSeason(now = new Date()) {
-  const today = jstDate(now);
-  return adGacha.seasons
-    .filter((season) => season.from && season.from > today)
-    .sort((a, b) => a.from.localeCompare(b.from))[0] ?? null;
-}
-
-/** 「12月20日」の形。画面に出す用。 */
-export function gachaMonthDay(value: string) {
-  return monthDay(value);
-}
-
 /** 当たった日から数えた券の期限。 */
 export function giftExpiryFrom(day: string) {
   const date = new Date(`${day}T00:00:00Z`);
@@ -269,11 +256,6 @@ export function previousDay(day: string) {
 export function gachaDateLabel(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   return match ? `${Number(match[1])}年${Number(match[2])}月${Number(match[3])}日` : '';
-}
-
-function monthDay(value: string) {
-  const match = /^\d{4}-(\d{2})-(\d{2})$/.exec(value);
-  return match ? `${Number(match[1])}月${Number(match[2])}日` : '';
 }
 
 /**

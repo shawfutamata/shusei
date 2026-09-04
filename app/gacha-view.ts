@@ -30,8 +30,6 @@ export type GachaView = {
     segments: string[];
     prizes: { key: string; tier: string; label: string; short: string; days: number }[];
   } | null;
-  /** 次の季節の回。「12月20日からクリスマス」と先に知らせる。 */
-  coming: { name: string; from: string } | null;
   drawnToday: boolean;
   /** 運営のアカウントか。何度でも回せる。 */
   master: boolean;

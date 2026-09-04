@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
-import { adGacha, findPrize, gachaMonthDay, gachaSeason, jstDate, nextSeason, wheelSegments } from '@/app/gacha';
+import { adGacha, findPrize, gachaSeason, jstDate, wheelSegments } from '@/app/gacha';
 import { drawGacha, getGachaState } from '@/db/data';
 
 // **Web専用**。1日1回のガチャ。
@@ -8,7 +8,6 @@ import { drawGacha, getGachaState } from '@/db/data';
 
 function view(state: Awaited<ReturnType<typeof getGachaState>>) {
   const season = gachaSeason();
-  const coming = nextSeason();
   const prize = state.drawnToday ? findPrize(state.prizeKey) : null;
   return {
     key: adGacha.key,
@@ -27,8 +26,6 @@ function view(state: Awaited<ReturnType<typeof getGachaState>>) {
       // 何が当たるかは先に見せる。中身を伏せたまま引かせない。
       prizes: season.prizes.map((item) => ({ key: item.key, tier: item.tier, label: item.label, short: item.short, days: item.days })),
     },
-    // 次の季節の回。「12月20日からクリスマス」と先に知らせる。
-    coming: coming && { name: coming.name, from: gachaMonthDay(coming.from) },
     drawnToday: state.drawnToday,
     // 運営は何度でも回せる。2回目以降は「お試し」で、記録も券も増えない。
     master: state.master,
