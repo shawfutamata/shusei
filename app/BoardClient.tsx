@@ -2251,9 +2251,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                     回っていれば止める。結果が届くまでは押せない。 */}
                 <button type="button" className="gacha-wheel-go" onClick={tapGacha}
                   disabled={gachaSpinning ? !gachaCanStop : gacha.drawnToday && !gacha.master}>
-                  {/* 引き終わったあとに START のままだと、押せば回ると思わせて
-                      しまう。**押せないときは、押せないと書く。** */}
-                  {gachaSpinning ? 'STOP' : gacha.drawnToday && !gacha.master ? 'またあす' : 'START'}
+                  {/* **その場で何ができるかを、そのまま書く。**
+                      - まだ引いていない … START
+                      - 引き終わった運営 … もう一度（何度でも回せる）
+                      - 引き終わった会員 … また明日（押しても回らない）
+                      引き終わっても START のままだと、押せば回ると思わせてしまう。 */}
+                  {gachaSpinning ? 'STOP'
+                    : !gacha.drawnToday ? 'START'
+                      : gacha.master ? 'もう一度' : 'また明日'}
                 </button>
               </div>
               /* 動画の回。**1枚目には絵を敷く**ので、読み込みが終わるまで穴が
