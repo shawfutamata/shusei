@@ -1700,7 +1700,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             横長の画像（1200×400）を置ける。画像が無い・読めないときは、
             色と文字だけの帯になる（そのままでも成り立つ形にしてある）。 */}
         {gacha?.season && <section className="gacha-section">
-          <button className={`gacha-wide is-${gacha.season.theme}${gacha.drawnToday ? ' is-done' : ''}${gachaArtOk ? ' has-art' : ''}`}
+          {/* 引き終わると帯を落ち着かせる。**運営は何度でも回せる**ので、
+              落とさない（回せるのに「終わった」見た目にしない）。 */}
+          <button className={`gacha-wide is-${gacha.season.theme}${gacha.drawnToday && !gacha.master ? ' is-done' : ''}${gachaArtOk ? ' has-art' : ''}`}
             onClick={() => setModal('gacha')}>
             {gacha.season.image && gachaArtOk && <img src={gacha.season.image} alt="" loading="lazy" decoding="async"
               onError={() => setGachaArtOk(false)} />}
@@ -2208,6 +2210,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             </span>
             <p className="gacha-stage-top">
               <span className="gacha-chip">毎日1回・無料</span>
+              {/* 運営のアカウントだと**一目で分かるようにする。** これが出て
+                  いなければ、そのメールは ADMIN_EMAILS に入っていない。
+                  出ていないのに「回せない」と悩むことがないように。 */}
+              {gacha.master && <span className="gacha-chip is-master">運営・何度でも</span>}
               {/* 1日目に「1日つづけて」と出すと、続けている感じが出ないどころか
                   数え方が変に見える。2日目から出す。 */}
               {gacha.streak > 1 && <span className="gacha-streak">{gacha.streak}日つづけて</span>}
@@ -2269,6 +2275,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               </p>
               : <p className="gacha-stage-note">{!gachaSpinning ? '今日のぶんを回せます'
                 : gacha.season.motion === 'wheel' ? 'STOPを押すと止まります' : '押すと飛ばせます'}</p>}
+            {/* 引き終わったあと、運営には**真ん中をまた押せる**と書く。
+                下の「もう一度回す」は画面の下のほうにあって目に入らない。 */}
+            {gacha.drawnToday && gacha.master && !gachaSpinning
+              && <p className="gacha-stage-note">真ん中を押すと、もう一度回せます</p>}
           </div>
 
           {!gacha.drawnToday

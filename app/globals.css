@@ -2259,3 +2259,5 @@ body { font-weight:600; }
      そのぶん盤を小さく見積もらないと、引くボタンが下に隠れる。 */
   .gacha-wheel { width:clamp(150px, min(74vw, calc(100dvh - 560px)), 268px); }
 }
+/* 運営のアカウントの印。**出ていなければ ADMIN_EMAILS に入っていない。** */
+.gacha-chip.is-master { background:rgba(255,255,255,.34); box-shadow:inset 0 0 0 1px rgba(255,255,255,.6); }
