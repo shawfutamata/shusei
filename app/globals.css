@@ -2153,3 +2153,58 @@ body { font-weight:600; }
 .card-topline .kind,
 .card-topline .deadline { flex:0 0 auto; white-space:nowrap; }
 .card-topline .card-top-actions { flex:0 0 auto; }
+
+/* ── ガチャ：ルーレット盤 ───────────────────────────────
+   **盤に見えているコマ数が、そのまま当たりやすさ**（並びはサーバーが作る）。
+   回すのは `.gacha-wheel-turn` ひとつだけ。針と真ん中のボタンを一緒に回すと、
+   どこで止まったのか分からなくなる。 */
+.gacha-wheel { width:min(268px,74vw); margin:12px auto 0; position:relative; z-index:2; aspect-ratio:1; }
+/* 角度はJSからこの箱の transform にあてる。CSSでは動かさない。 */
+.gacha-wheel-turn { width:100%; height:100%; border-radius:50%; will-change:transform;
+  box-shadow:0 10px 30px rgba(4,16,38,.34), 0 0 0 6px #fff, 0 0 0 10px rgba(255,255,255,.3); }
+.gacha-wheel-turn svg { width:100%; height:100%; display:block; }
+.gacha-wheel-turn path { stroke:#fff; stroke-width:1.5; }
+.gacha-wheel-turn text { font-size:15px; font-weight:900; text-anchor:middle;
+  dominant-baseline:central; letter-spacing:0; }
+/* はずれは薄く、当たりは濃く。**どれが目玉か一目で分かる**ように、
+   いちばん上の賞（A賞）だけ金色にしてある。 */
+.gacha-wheel-turn .is-miss path { fill:#eff3f9; }
+.gacha-wheel-turn .is-miss text { fill:#93a0b3; }
+.gacha-wheel-turn .is-win path { fill:#1478d6; }
+.gacha-wheel-turn .is-win text { fill:#fff; }
+.gacha-wheel-turn .is-top path { fill:#f0b429; }
+.gacha-wheel-turn .is-top text { fill:#4d3400; }
+.gacha.is-xmas .gacha-wheel-turn .is-win path { fill:#0d7a44; }
+.gacha.is-xmas .gacha-wheel-turn .is-top path { fill:#e0384f; }
+.gacha.is-xmas .gacha-wheel-turn .is-top text { fill:#fff; }
+.gacha.is-newyear .gacha-wheel-turn .is-win path { fill:#c1122b; }
+.gacha.is-newyear .gacha-wheel-turn .is-win text { fill:#fff; }
+.gacha.is-newyear .gacha-wheel-turn .is-top path { fill:#c99a2e; }
+/* 針。**盤の外に置いて動かさない。** ここに来たコマが当たり。 */
+.gacha-wheel-pin { position:absolute; left:50%; top:-7px; z-index:3; width:26px; height:30px;
+  transform:translateX(-50%); background:#fff;
+  clip-path:polygon(50% 100%, 0 0, 100% 0);
+  filter:drop-shadow(0 4px 6px rgba(4,16,38,.45)); }
+/* 押すところは真ん中のひとつ。回っていなければ回し、回っていれば止める。 */
+.gacha-wheel-go { position:absolute; left:50%; top:50%; z-index:3; width:33%; aspect-ratio:1;
+  transform:translate(-50%,-50%); border:0; border-radius:50%; cursor:pointer;
+  background:radial-gradient(circle at 50% 30%,#ffffff,#e6eef8); color:#0f5fc4;
+  font-family:inherit; font-size:15px; font-weight:900; letter-spacing:.06em;
+  box-shadow:0 6px 16px rgba(4,16,38,.38), inset 0 0 0 3px #fff;
+  -webkit-tap-highlight-color:transparent; }
+.gacha-wheel-go:disabled { color:#aab5c6; cursor:default; font-size:13px; letter-spacing:0; }
+/* 回っている最中だけ色を変える。**押せることが見えていないと、止められない。** */
+.gacha-wheel.is-spinning .gacha-wheel-go:not(:disabled) {
+  background:radial-gradient(circle at 50% 30%,#fff6da,#ffd15c); color:#7a4b00; }
+/* 止まっているあいだ、押すところに輪を広げる。**ボタン自体は動かさない。**
+   ボタンごと脈打たせると、押そうとしたときに的が動く。 */
+.gacha-wheel-go::after { content:''; position:absolute; inset:-7px; border-radius:50%;
+  border:2px solid rgba(255,255,255,.92); opacity:0; pointer-events:none; }
+.gacha-wheel:not(.is-spinning) .gacha-wheel-go:not(:disabled)::after { animation:gacha-go 1.7s ease-out infinite; }
+@keyframes gacha-go {
+  0% { transform:scale(.92); opacity:.8; }
+  100% { transform:scale(1.4); opacity:0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gacha-wheel-go::after { animation:none; }
+}

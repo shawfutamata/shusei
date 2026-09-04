@@ -22,10 +22,24 @@ export type GachaPrize = {
   tier: string;
   /** 結果の名前。おみくじなら「大吉」など。 */
   label: string;
+  /**
+   * ルーレットの盤に書く**短い名前**。コマは12分の1しか幅がないので、
+   * **4文字まで**にすること。長い名前を入れると盤の外にはみ出す。
+   *
+   * `label` と別に持っているのは、盤とお知らせで書き分けたいから。
+   * おみくじの日は盤に「大吉」と出したいが、クリスマスの
+   * 「くつ下は空っぽ」はそのままでは入らない。
+   */
+  short: string;
   /** もらえる広告の無料日数。0 は「はずれ」。 */
   days: number;
-  /** 当たりやすさ。同じ回の合計に対する割合で決まる。 */
-  weight: number;
+  /**
+   * ルーレット盤の**コマ数**。そのまま当たりやすさになる。
+   *
+   * **見えている通りの確率にする**ためにコマ数と重みを1つにまとめてある。
+   * 別々に持つと、盤面は「12分の1」なのに実際は8%、のように食い違う。
+   */
+  slots: number;
   /** 結果と一緒に出す一言。 */
   note: string;
 };
@@ -45,6 +59,12 @@ export type GachaSeason = {
   theme: GachaTheme;
   /** 引くボタンの文言。 */
   action: string;
+  /**
+   * 回すときの演出。
+   * - `wheel` … ルーレット盤。押すと回り出し、STOPで止まる
+   * - `video` … 動画を流す（`video` に入れたもの）
+   */
+  motion: 'wheel' | 'video';
   /**
    * ホームに置く**横長のバナー画像**（1200×400／3:1）。
    * 置いていなければ、色と文字だけの帯になる（そのままでも成り立つ）。
@@ -113,17 +133,18 @@ export const adGacha = {
       until: '2026-12-25',
       theme: 'xmas' as GachaTheme,
       action: 'プレゼントを開ける',
+      motion: 'wheel' as const,
       image: '/gacha/xmas.webp',
       machine: '/gacha/machine.webp',
       video: '/gacha/win.mp4',
       videoStopAt: 2.1,
       lead: '毎日1回、広告の無料券が当たります。',
       prizes: [
-        { key: 'x3', tier: 'A賞', label: '大きなプレゼント', days: 3, weight: 8,
+        { key: 'x3', tier: 'A賞', label: '大きなプレゼント', short: 'A賞', days: 3, slots: 1,
           note: '広告の無料券が3日分。' },
-        { key: 'x1', tier: 'B賞', label: 'プレゼント', days: 1, weight: 37,
+        { key: 'x1', tier: 'B賞', label: 'プレゼント', short: 'B賞', days: 1, slots: 4,
           note: '広告の無料券が1日分。7日ためると1週間まるごと出せます。' },
-        { key: 'x0', tier: '', label: 'くつ下は空っぽ', days: 0, weight: 55,
+        { key: 'x0', tier: '', label: 'くつ下は空っぽ', short: '空っぽ', days: 0, slots: 7,
           note: '今日は何も入っていませんでした。また明日どうぞ。' },
       ],
     },
@@ -134,21 +155,22 @@ export const adGacha = {
       until: '2027-01-07',
       theme: 'newyear' as GachaTheme,
       action: 'おみくじを引く',
+      motion: 'wheel' as const,
       image: '/gacha/newyear.webp',
       machine: '/gacha/machine.webp',
       video: '/gacha/win.mp4',
       videoStopAt: 2.1,
       lead: '毎日1回、運だめし。大吉なら広告の無料券が3日分。',
       prizes: [
-        { key: 'n-daikichi', tier: 'A賞', label: '大吉', days: 3, weight: 8,
+        { key: 'n-daikichi', tier: 'A賞', label: '大吉', short: '大吉', days: 3, slots: 1,
           note: '広告の無料券が3日分。よい年になりますように。' },
-        { key: 'n-chukichi', tier: 'B賞', label: '中吉', days: 1, weight: 20,
+        { key: 'n-chukichi', tier: 'B賞', label: '中吉', short: '中吉', days: 1, slots: 2,
           note: '広告の無料券が1日分。7日ためると1週間まるごと出せます。' },
-        { key: 'n-shokichi', tier: 'B賞', label: '小吉', days: 1, weight: 17,
+        { key: 'n-shokichi', tier: 'B賞', label: '小吉', short: '小吉', days: 1, slots: 2,
           note: '広告の無料券が1日分。こつこついきましょう。' },
-        { key: 'n-kichi', tier: '', label: '吉', days: 0, weight: 30,
+        { key: 'n-kichi', tier: '', label: '吉', short: '吉', days: 0, slots: 4,
           note: '悪くない一日になりそうです。また明日どうぞ。' },
-        { key: 'n-suekichi', tier: '', label: '末吉', days: 0, weight: 25,
+        { key: 'n-suekichi', tier: '', label: '末吉', short: '末吉', days: 0, slots: 3,
           note: 'あとになるほど良くなります。また明日どうぞ。' },
       ],
     },
@@ -160,17 +182,18 @@ export const adGacha = {
       until: '',
       theme: 'plain' as GachaTheme,
       action: '今日のガチャを引く',
+      motion: 'wheel' as const,
       image: '/gacha/daily.webp',
       machine: '/gacha/machine.webp',
       video: '/gacha/win.mp4',
       videoStopAt: 2.1,
       lead: '毎日1回、広告の無料券が当たります。',
       prizes: [
-        { key: 'd3', tier: 'A賞', label: '広告の無料券 3日分', days: 3, weight: 8,
+        { key: 'd3', tier: 'A賞', label: '広告の無料券 3日分', short: 'A賞', days: 3, slots: 1,
           note: '広告の無料券が3日分。' },
-        { key: 'd1', tier: 'B賞', label: '広告の無料券 1日分', days: 1, weight: 37,
+        { key: 'd1', tier: 'B賞', label: '広告の無料券 1日分', short: 'B賞', days: 1, slots: 4,
           note: '広告の無料券が1日分。7日ためると1週間まるごと出せます。' },
-        { key: 'd0', tier: '', label: 'はずれ', days: 0, weight: 55,
+        { key: 'd0', tier: '', label: 'はずれ', short: 'はずれ', days: 0, slots: 7,
           note: '今日はご縁がありませんでした。また明日どうぞ。' },
       ],
     },
@@ -247,17 +270,51 @@ function monthDay(value: string) {
 }
 
 /**
+ * ルーレット盤のコマの並び。**上（12時）から時計回りに1周ぶん。**
+ *
+ * コマ数はそのまま `slots` を使う。**盤に見えている数がそのまま確率**に
+ * なるようにしてあり、「12分の1に見えるのに実際は8%」という食い違いが
+ * 起きない。
+ *
+ * 並べ方は**同じ賞が隣り合わないように散らす**。当たりのコマを固めて置くと、
+ * 止まる場所が偏って見えて、回す前から結果が読めてしまう。
+ *
+ * **毎回同じ並びを返す**（乱数を使わない）。サーバーが作ったHTMLと画面側で
+ * 並びが変わると、Reactが画面を丸ごと作り直す。
+ */
+export function wheelSegments(season: GachaSeason): string[] {
+  const prizes = season.prizes.filter((prize) => prize.slots > 0);
+  const total = prizes.reduce((sum, prize) => sum + prize.slots, 0);
+  if (total <= 0) return [];
+  // 置いたコマ数が「持ちぶん」からいちばん遅れている賞を、1つずつ置いていく。
+  // 選挙の議席配分と同じやり方で、多い賞ほど間隔が空いて散らばる。
+  const placed = prizes.map(() => 0);
+  const out: string[] = [];
+  for (let index = 0; index < total; index += 1) {
+    let best = 0;
+    let behind = -Infinity;
+    prizes.forEach((prize, at) => {
+      const owed = ((index + 1) * prize.slots) / total - placed[at];
+      if (owed > behind + 1e-9) { behind = owed; best = at; }
+    });
+    out.push(prizes[best].key);
+    placed[best] += 1;
+  }
+  return out;
+}
+
+/**
  * 重みつきの抽選。**乱数は crypto から取る。** Math.random は種を推測できる
  * 実装があり、当たりを狙って引く余地を残したくない。
  */
 export function drawPrize(prizes: GachaPrize[]): GachaPrize {
-  const total = prizes.reduce((sum, prize) => sum + Math.max(0, prize.weight), 0);
+  const total = prizes.reduce((sum, prize) => sum + Math.max(0, prize.slots), 0);
   if (total <= 0) return prizes[prizes.length - 1];
   const bytes = new Uint32Array(1);
   crypto.getRandomValues(bytes);
   let point = (bytes[0] / 2 ** 32) * total;
   for (const prize of prizes) {
-    point -= Math.max(0, prize.weight);
+    point -= Math.max(0, prize.slots);
     if (point < 0) return prize;
   }
   return prizes[prizes.length - 1];

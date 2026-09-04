@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
-import { adGacha, findPrize, gachaMonthDay, gachaSeason, jstDate, nextSeason } from '@/app/gacha';
+import { adGacha, findPrize, gachaMonthDay, gachaSeason, jstDate, nextSeason, wheelSegments } from '@/app/gacha';
 import { drawGacha, getGachaState } from '@/db/data';
 
 // **Web専用**。1日1回のガチャ。
@@ -19,9 +19,13 @@ function view(state: Awaited<ReturnType<typeof getGachaState>>) {
     // 今日の回。見た目（テーマ）と当たりの名前はここで変わる。
     season: season && {
       key: season.key, name: season.name, theme: season.theme,
-      action: season.action, image: season.image, machine: season.machine, video: season.video, videoStopAt: season.videoStopAt, lead: season.lead,
+      action: season.action, motion: season.motion, image: season.image, machine: season.machine,
+      video: season.video, videoStopAt: season.videoStopAt, lead: season.lead,
+      // ルーレット盤のコマの並び。**サーバーで作って渡す。**
+      // 画面側で並べ直すと、サーバーが作ったHTMLと食い違う。
+      segments: wheelSegments(season),
       // 何が当たるかは先に見せる。中身を伏せたまま引かせない。
-      prizes: season.prizes.map((item) => ({ key: item.key, tier: item.tier, label: item.label, days: item.days })),
+      prizes: season.prizes.map((item) => ({ key: item.key, tier: item.tier, label: item.label, short: item.short, days: item.days })),
     },
     // 次の季節の回。「12月20日からクリスマス」と先に知らせる。
     coming: coming && { name: coming.name, from: gachaMonthDay(coming.from) },

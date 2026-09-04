@@ -176,6 +176,38 @@ const GACHA_CONFETTI = [
   { left: '93%', color: '#e0384f', delay: '.18s' },
   { left: '36%', color: '#ffc53d', delay: '.5s' },
 ];
+/** 回っているときの速さ（1秒あたりの度数）。2周ちょっと。 */
+const WHEEL_SPEED = 900;
+/** 押してから STOP を出せるようになるまで（ミリ秒）。回した手ごたえのぶん。 */
+const WHEEL_MIN_SPIN = 900;
+/**
+ * STOP が押されなくても止まるまで（ミリ秒）。**回りっぱなしにしない。**
+ * 止まるまでの動きを足すと、押さずに見ているだけでも8秒ほどで結果が出る。
+ */
+const WHEEL_AUTO_STOP = 5000;
+/** 止めるときに回す周回数と、かける時間。 */
+const WHEEL_LAND_TURNS = 4;
+const WHEEL_LAND_MS = 2600;
+
+/**
+ * ルーレット盤の1コマぶんの形。**上（12時）から時計回り**に数える。
+ * 中心が (0,0)、外周が半径 `radius` の扇形。
+ */
+function wheelSlice(index: number, count: number, radius: number) {
+  const span = (Math.PI * 2) / count;
+  const from = index * span;
+  const to = (index + 1) * span;
+  // 12時を0度にして時計回り。画面のy軸は下向きなので、縦だけ符号を返す。
+  const x0 = radius * Math.sin(from), y0 = -radius * Math.cos(from);
+  const x1 = radius * Math.sin(to), y1 = -radius * Math.cos(to);
+  return `M0 0L${x0.toFixed(2)} ${y0.toFixed(2)}A${radius} ${radius} 0 0 1 ${x1.toFixed(2)} ${y1.toFixed(2)}Z`;
+}
+
+/** 盤の何もかもが止まる設定か（動きを減らす端末）。 */
+function stillWanted() {
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; }
+}
+
 const historyStorageKey = 'give-hub-request-history-v1';
 const favoriteStorageKey = 'give-hub-request-favorites-v1';
 
@@ -375,6 +407,21 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const gachaVideo = useRef<HTMLVideoElement | null>(null);
   /** 流している演出を打ち切る手。押して飛ばすときに使う。 */
   const gachaSkip = useRef<(() => void) | null>(null);
+  /**
+   * ルーレット盤。**角度はDOMに直接あてる**（毎コマ setState すると、
+   * 回っているあいだじゅう画面を作り直すことになる）。
+   */
+  const gachaWheel = useRef<HTMLDivElement | null>(null);
+  /** いまの角度（度）。回している最中も、止まったあとも、ここが正。 */
+  const gachaAngle = useRef(0);
+  /** 動かしているコマ送りの番号。止めるときに使う。 */
+  const gachaFrame = useRef(0);
+  /** STOPが押されたら呼ぶ手。結果がまだ届いていないときは null のまま。 */
+  const gachaStopAsk = useRef<(() => void) | null>(null);
+  /** STOPが押されたか。**結果が届く前に押されることがある。** */
+  const gachaStopped = useRef(false);
+  /** STOPを出せる状態か（結果が届いたか）。ボタンの文字を変えるのに使う。 */
+  const [gachaCanStop, setGachaCanStop] = useState(false);
   const [adPlacement, setAdPlacement] = useState<string>(DEFAULT_PLACEMENT);
   // 掲示板の上位に出すとき、どの大分類の一覧を狙うか。空なら全業種。
   const [adIndustry, setAdIndustry] = useState('');
@@ -651,6 +698,33 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     const timer = setTimeout(() => setModal('gacha'), 600);
     return () => clearTimeout(timer);
   }, [gacha, tutorial, modal, activeTab]);
+
+
+  /**
+   * 引き終わったあとに開き直したときの、盤の止め位置。**結果と合わせる。**
+   * 上を向いているコマと、下に出ている結果が食い違うと、どちらが本当なのか
+   * 分からなくなる。ここは動かさず、いきなりその向きにする。
+   */
+  useEffect(() => {
+    if (modal !== 'gacha' || gachaSpinning) return;
+    const season = gacha?.season;
+    if (!season || season.motion !== 'wheel' || !gacha?.drawnToday || !gacha.prize) return;
+    const node = gachaWheel.current;
+    const segments = season.segments;
+    if (!node || !segments.length) return;
+    // **もう向きが決まっているなら動かさない。** 回して止めた直後もここへ
+    // 戻ってくるので、置き直すと、止まったばかりの盤がカクッと跳ぶ。
+    // 開き直したときは盤ごと作り直されていて、向きは空になっている。
+    if (node.style.transform) return;
+    const span = 360 / segments.length;
+    // 開き直すたびに向きが変わらないよう、**いちばん手前のコマ**に決め打ちする。
+    const spot = Math.max(0, segments.indexOf(gacha.prize.key));
+    gachaAngle.current = ((360 - (spot + 0.5) * span) % 360 + 360) % 360;
+    node.style.transform = `rotate(${gachaAngle.current}deg)`;
+  }, [modal, gachaSpinning, gacha]);
+
+  /** 画面を離れるときは、回しているコマ送りを止める。 */
+  useEffect(() => () => cancelAnimationFrame(gachaFrame.current), []);
 
   // 画面が立ち上がったことを1回だけ記録する。広告の並び替えはこれを待つ。
   useEffect(() => {
@@ -966,27 +1040,157 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     if (data) setGacha(data as GachaView);
   }
 
+  /**
+   * 盤や真ん中のボタンを押したとき。
+   * **回っていなければ回し、回っていれば止める。** 押すところは1つにする。
+   */
+  function tapGacha() {
+    if (!gacha?.season) return;
+    if (!gachaSpinning) { void spinGacha(); return; }
+    // 動画のときは「飛ばす」、ルーレットのときは「止める」。
+    if (gacha.season.motion !== 'wheel') { skipGachaMotion(); return; }
+    // 結果がまだ届いていなくても、押したことは覚えておく。
+    gachaStopped.current = true;
+    gachaStopAsk.current?.();
+  }
+
   /** ガチャを引く。**当たりを決めるのはサーバー。** 画面は結果を出すだけ。 */
   async function spinGacha() {
     // 運営のアカウントは、今日ぶんを引いたあとも回せる（見た目の確認用）。
     if (gachaSpinning || !gacha || !gacha.season) return;
     if (gacha.drawnToday && !gacha.master) return;
+    const season = gacha.season;
+    const wheel = season.motion === 'wheel';
     setGachaSpinning(true);
-    // **結果を先に受け取る。** 動画は最後に「当たり」の札が出るところまで
-    // 入っているので、はずれた人にはその手前で止めなければならない。
-    // どこで止めるかは結果が分からないと決められない。
+    setGachaCanStop(false);
+    gachaStopped.current = false;
+    const pressedAt = Date.now();
+    // **押した瞬間から回し始める。** 結果を待ってから回すと、押しても
+    // 何も起きない時間ができて、押せていないように見える。
+    if (wheel) runWheel();
+    // **結果を先に受け取る。** ルーレットは結果のコマに止めるので、どこで
+    // 止めるかは結果が分からないと決まらない。動画も同じで、最後に「当たり」
+    // の札が出るところまで入っているため、はずれた人には手前で切る。
     const data = await fetch('/api/gacha', { method: 'POST' })
       .then((response) => response.json().catch(() => null) as Promise<(GachaView & { error?: string }) | null>)
       .catch(() => null);
     if (!data) {
+      stopWheelLoop();
       setGachaSpinning(false);
+      setGachaCanStop(false);
       return showToast('通信に失敗しました。時間をおいてお試しください。');
     }
-    const won = Number(data.prize?.days ?? 0) > 0;
-    await playGachaMotion(won ? 0 : (gacha.season.videoStopAt || 0));
+    if (wheel) {
+      // 結果が届いても、少しは回っているところを見せる。押した直後に
+      // 止められると、回した手ごたえが出ない。
+      const left = WHEEL_MIN_SPIN - (Date.now() - pressedAt);
+      if (left > 0) await new Promise((resolve) => setTimeout(resolve, left));
+      setGachaCanStop(true);
+      await waitForWheelStop();
+      await landWheel(data.prize?.key ?? '', data.season?.segments ?? season.segments);
+    } else {
+      const won = Number(data.prize?.days ?? 0) > 0;
+      await playGachaMotion(won ? 0 : (season.videoStopAt || 0));
+    }
     setGachaSpinning(false);
+    setGachaCanStop(false);
     if (data.key) setGacha(data);
     if (data.error) showToast(data.error);
+  }
+
+  /**
+   * ルーレットを回し始める。だんだん速くして、そのまま回し続ける。
+   *
+   * **角度はDOMに直接あてる。** 毎コマ setState すると、回っているあいだ
+   * じゅう画面を作り直すことになり、下に出ている一覧まで巻き込む。
+   */
+  function runWheel() {
+    const node = gachaWheel.current;
+    if (!node) return;
+    cancelAnimationFrame(gachaFrame.current);
+    // 動きを止める設定の端末では回さない。結果は変わらず、止まる場所だけ出す。
+    if (stillWanted()) return;
+    let last = performance.now();
+    let speed = 0;
+    const step = (now: number) => {
+      // タブを離れて戻ったときに一気に飛ばないよう、1コマの間隔を抑える。
+      const gap = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      speed = Math.min(WHEEL_SPEED, speed + (WHEEL_SPEED / 0.45) * gap);
+      gachaAngle.current = (gachaAngle.current + speed * gap) % 360;
+      node.style.transform = `rotate(${gachaAngle.current}deg)`;
+      gachaFrame.current = requestAnimationFrame(step);
+    };
+    gachaFrame.current = requestAnimationFrame(step);
+  }
+
+  function stopWheelLoop() {
+    cancelAnimationFrame(gachaFrame.current);
+    gachaStopAsk.current = null;
+  }
+
+  /**
+   * STOPが押されるのを待つ。**押されなくても止まる。**
+   * 席を立たれたまま回りっぱなしにしない。
+   */
+  function waitForWheelStop() {
+    return new Promise<void>((resolve) => {
+      if (gachaStopped.current) return resolve();
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        gachaStopAsk.current = null;
+        resolve();
+      };
+      const timer = setTimeout(finish, WHEEL_AUTO_STOP);
+      gachaStopAsk.current = finish;
+    });
+  }
+
+  /**
+   * 結果のコマまで回して止める。
+   *
+   * **止める場所を決めるのは結果のほうで、押した瞬間ではない。**
+   * 押した位置で当たりが決まる作りにすると、狙って止められてしまう。
+   * ルーレットの類はどれもこの作りになっている。
+   */
+  function landWheel(prizeKey: string, segments: string[]) {
+    stopWheelLoop();
+    const node = gachaWheel.current;
+    if (!node || !segments.length) return Promise.resolve();
+    const span = 360 / segments.length;
+    // 同じ賞のコマが何枚もあるので、そのうちの1枚に止める。どれに止めても
+    // 出る結果は変わらない（見た目だけの話）。
+    const spots = segments.map((key, at) => key === prizeKey ? at : -1).filter((at) => at >= 0);
+    const spot = spots.length ? spots[Math.floor(Math.random() * spots.length)] : 0;
+    // 毎回きっちり真ん中で止まると作り物に見えるので、コマの中で少しずらす。
+    // ずらす幅はコマの半分より内側にして、隣に食い込ませない。
+    const slip = (Math.random() - 0.5) * span * 0.56;
+    const from = gachaAngle.current;
+    const want = (360 - (spot + 0.5) * span - slip) % 360;
+    const turns = stillWanted() ? 0 : WHEEL_LAND_TURNS;
+    const to = from + turns * 360 + ((((want - from) % 360) + 360) % 360);
+    if (!turns) {
+      gachaAngle.current = ((to % 360) + 360) % 360;
+      node.style.transform = `rotate(${gachaAngle.current}deg)`;
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => {
+      const startedAt = performance.now();
+      const step = (now: number) => {
+        const done = Math.min(1, (now - startedAt) / WHEEL_LAND_MS);
+        // 最後にゆっくり近づける。等速のまま止めると、ぶつかったように見える。
+        const eased = 1 - Math.pow(1 - done, 3);
+        gachaAngle.current = from + (to - from) * eased;
+        node.style.transform = `rotate(${gachaAngle.current}deg)`;
+        if (done < 1) { gachaFrame.current = requestAnimationFrame(step); return; }
+        gachaAngle.current = ((to % 360) + 360) % 360;
+        resolve();
+      };
+      gachaFrame.current = requestAnimationFrame(step);
+    });
   }
 
   /**
@@ -1995,7 +2199,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               白い紙の上に絵を置いただけだと、催しをやっている感じが出ない。
               後光と紙吹雪は飾りなので、読み上げからは外す。 */}
           <div className={`gacha-stage${gacha.drawnToday && !gachaSpinning && gacha.prize?.days ? ' is-win' : ''}${gachaSpinning ? ' is-skippable' : ''}`}
-            onClick={gachaSpinning ? skipGachaMotion : undefined}>
+            onClick={gachaSpinning ? tapGacha : undefined}>
             <span className="gacha-rays" aria-hidden="true" />
             <span className="gacha-confetti" aria-hidden="true">
               {GACHA_CONFETTI.map((piece, index) => <i key={index} style={{ left: piece.left, background: piece.color, animationDelay: piece.delay }} />)}
@@ -2006,24 +2210,63 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                   数え方が変に見える。2日目から出す。 */}
               {gacha.streak > 1 && <span className="gacha-streak">{gacha.streak}日つづけて</span>}
             </p>
-            {/* 動画があるときは動画を出す。**1枚目には絵を敷く**ので、
-                読み込みが終わるまで穴が空かない。動画が読めないときは絵に落ちる。
-                動画そのものが動くので、そのときは揺らさない。 */}
-            <div className={`gacha-machine${gachaSpinning ? ' is-spinning' : ''}${gacha.season.video && gachaVideoOk ? ' has-video' : ''}`}>
-              {gacha.season.video && gachaVideoOk
-                ? <video ref={gachaVideo} src={gacha.season.video} poster={gacha.season.machine}
-                  muted playsInline preload="auto" onError={() => setGachaVideoOk(false)} />
-                : gacha.season.machine && gachaMachineOk
-                  ? <img src={gacha.season.machine} alt="" onError={() => setGachaMachineOk(false)} />
-                  : null}
-            </div>
+            {/* ルーレットの回。**盤に見えているコマ数が、そのまま当たりやすさ**
+                になっている（サーバーが並びを作って渡している）。針と真ん中の
+                ボタンは動かさず、盤だけを回す。 */}
+            {gacha.season.motion === 'wheel'
+              ? <div className={`gacha-wheel${gachaSpinning ? ' is-spinning' : ''}`}>
+                <span className="gacha-wheel-pin" aria-hidden="true" />
+                <div className="gacha-wheel-turn" ref={gachaWheel}>
+                  <svg viewBox="-104 -104 208 208" role="img" aria-label={`${gacha.season.name}の盤`}>
+                    {gacha.season.segments.map((key, at) => {
+                      const prize = gacha.season?.prizes.find((item) => item.key === key);
+                      const rank = !prize?.days ? 'is-miss' : prize.days >= 3 ? 'is-top' : 'is-win';
+                      const span = 360 / gacha.season!.segments.length;
+                      const mid = (at + 0.5) * span;
+                      // 下半分のコマは**文字だけ180度返す。** 返さないと、
+                      // 盤の下側の名前が全部さかさまになって読めない。
+                      const flip = mid > 90 && mid < 270;
+                      const letters = [...(prize?.short ?? '')];
+                      return <g key={at} className={rank}>
+                        <path d={wheelSlice(at, gacha.season!.segments.length, 100)} />
+                        {/* 日本語は**縦に積む**。コマの幅は12分の1しかないので、
+                            横に置くと2文字で外にはみ出す。 */}
+                        <text transform={`rotate(${mid}) translate(0 -68) rotate(${flip ? 180 : 0})`}>
+                          {letters.map((letter, line) =>
+                            <tspan key={line} x="0" y={(line - (letters.length - 1) / 2) * 16}>{letter}</tspan>)}
+                        </text>
+                      </g>;
+                    })}
+                  </svg>
+                </div>
+                {/* 押すところは真ん中のひとつ。回っていなければ回し、
+                    回っていれば止める。結果が届くまでは押せない。 */}
+                <button type="button" className="gacha-wheel-go" onClick={tapGacha}
+                  disabled={gachaSpinning ? !gachaCanStop : gacha.drawnToday && !gacha.master}>
+                  {/* 引き終わったあとに START のままだと、押せば回ると思わせて
+                      しまう。**押せないときは、押せないと書く。** */}
+                  {gachaSpinning ? 'STOP' : gacha.drawnToday && !gacha.master ? 'またあす' : 'START'}
+                </button>
+              </div>
+              /* 動画の回。**1枚目には絵を敷く**ので、読み込みが終わるまで穴が
+                 空かない。動画が読めないときは絵に落ちる。動画そのものが動くので、
+                 そのときは揺らさない。 */
+              : <div className={`gacha-machine${gachaSpinning ? ' is-spinning' : ''}${gacha.season.video && gachaVideoOk ? ' has-video' : ''}`}>
+                {gacha.season.video && gachaVideoOk
+                  ? <video ref={gachaVideo} src={gacha.season.video} poster={gacha.season.machine}
+                    muted playsInline preload="auto" onError={() => setGachaVideoOk(false)} />
+                  : gacha.season.machine && gachaMachineOk
+                    ? <img src={gacha.season.machine} alt="" onError={() => setGachaMachineOk(false)} />
+                    : null}
+              </div>}
             {/* 結果は舞台の上に出す。引く前は、何が当たるかの見出しを置く。 */}
             {gacha.drawnToday && !gachaSpinning
               ? <p className={`gacha-result${gacha.prize?.days ? ' is-win' : ''}`}>
                 {gacha.prize?.tier && <i>{gacha.prize.tier}</i>}
                 <b>{gacha.prize?.label}</b>
               </p>
-              : <p className="gacha-stage-note">{gachaSpinning ? '押すと飛ばせます' : '今日のぶんを回せます'}</p>}
+              : <p className="gacha-stage-note">{!gachaSpinning ? '今日のぶんを回せます'
+                : gacha.season.motion === 'wheel' ? 'STOPを押すと止まります' : '押すと飛ばせます'}</p>}
           </div>
 
           {!gacha.drawnToday
@@ -2040,7 +2283,11 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                   {reward && !prize.label.includes(`${prize.days}日分`) && <span>{reward}</span>}
                 </li>;
               })}</ul>
-              <button className="submit-button gacha-draw" onClick={spinGacha} disabled={gachaSpinning}>{gachaSpinning ? '回しています…' : gacha.season.action}</button>
+              <button className="submit-button gacha-draw" onClick={tapGacha}
+                disabled={gachaSpinning && (gacha.season.motion !== 'wheel' || !gachaCanStop)}>
+                {!gachaSpinning ? gacha.season.action
+                  : gacha.season.motion === 'wheel' ? 'STOP' : '回しています…'}
+              </button>
               {gacha.coming && <p className="gacha-note">{gacha.coming.from}から <b>{gacha.coming.name}</b> が始まります。</p>}
             </>
             : gachaSpinning ? null
@@ -2063,7 +2310,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               {/* 運営だけ、何度でも回せる。2回目以降は記録も券も増えないことを
                   必ず書く。書かないと、配った枠の数字が合わないように見える。 */}
               {gacha.master && <>
-                <button className="gacha-again" onClick={spinGacha} disabled={gachaSpinning}>もう一度回す</button>
+                <button className="gacha-again" onClick={tapGacha} disabled={gachaSpinning}>もう一度回す</button>
                 <p className="gacha-note">運営のアカウントなので、何度でも回せます。{gacha.practice ? 'いまの結果はお試しで、記録も券も増えていません。' : '2回目からはお試しになり、記録も券も増えません。'}</p>
               </>}
               {gacha.coming && <p className="gacha-note">{gacha.coming.from}から <b>{gacha.coming.name}</b> が始まります。</p>}

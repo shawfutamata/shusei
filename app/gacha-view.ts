@@ -12,6 +12,8 @@ export type GachaView = {
     name: string;
     theme: GachaTheme;
     action: string;
+    /** 回すときの演出。ルーレット盤か、動画か。 */
+    motion: 'wheel' | 'video';
     /** ホームに置く横長のバナー（1200×400）。無ければ色と文字だけになる。 */
     image: string;
     /** 引くところに出すガチャ本体の絵（縦長）。動画の1枚目にもなる。 */
@@ -21,7 +23,12 @@ export type GachaView = {
     /** はずれのときに動画を止める秒数。0なら最後まで流す。 */
     videoStopAt: number;
     lead: string;
-    prizes: { key: string; tier: string; label: string; days: number }[];
+    /**
+     * ルーレット盤のコマの並び。上（12時）から時計回りに1周ぶんの `prize.key`。
+     * **サーバーが作ったものをそのまま使う**（画面側で並べ直さない）。
+     */
+    segments: string[];
+    prizes: { key: string; tier: string; label: string; short: string; days: number }[];
   } | null;
   /** 次の季節の回。「12月20日からクリスマス」と先に知らせる。 */
   coming: { name: string; from: string } | null;
