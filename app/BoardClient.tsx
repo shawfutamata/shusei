@@ -2193,7 +2193,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </div>
       </Modal>}
 
-      {modal === 'gacha' && gacha && gacha.season && <Modal title={gacha.season.name} lead={gacha.season.lead} onClose={() => setModal(null)}>
+      {/* ルーレットは**画面いっぱい**にする。盤・結果・ボタンが縦に並ぶので、
+          いつもの高さだと結果を見るのにスクロールが要る。 */}
+      {modal === 'gacha' && gacha && gacha.season && <Modal title={gacha.season.name} lead={gacha.season.lead} full onClose={() => setModal(null)}>
         <div className={`gacha is-${gacha.season.theme}`}>
           {/* 舞台。**モーダルの端まで色を伸ばす**（margin:0 -20px）。
               白い紙の上に絵を置いただけだと、催しをやっている感じが出ない。
@@ -2271,8 +2273,16 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
           {!gacha.drawnToday
             ? <>
-              {/* 何が当たるかは先に出す。中身を伏せたまま引かせない。 */}
-              <ul className="gacha-prizes">{gacha.season.prizes.map((prize) => {
+              {/* 何が当たるかは先に出す。中身を伏せたまま引かせない。
+                  ルーレットのときは**盤の名前とそろえた一列**にする。盤に
+                  「A賞」と書いてあるのだから、下でもう一度長い名前を縦に
+                  並べると、同じことを二度言ったうえで画面がはみ出す。 */}
+              {gacha.season.motion === 'wheel'
+                ? <ul className="gacha-legend">{gacha.season.prizes.map((prize) =>
+                  <li key={prize.key} className={prize.days >= 3 ? 'is-top' : prize.days ? 'is-win' : ''}>
+                    <i>{prize.short}</i><b>{prize.days ? `${prize.days}日分` : '—'}</b>
+                  </li>)}</ul>
+                : <ul className="gacha-prizes">{gacha.season.prizes.map((prize) => {
                 const reward = prize.days ? `無料券 ${prize.days}日分` : '';
                 return <li key={prize.key} className={prize.days >= 3 ? 'is-top' : prize.days ? 'is-win' : ''}>
                   {/* はずれの行に「はずれ」と2度書かない。等級の欄は線だけにする。 */}
@@ -2282,7 +2292,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                       違う回だけ、もらえる日数を右に出す。 */}
                   {reward && !prize.label.includes(`${prize.days}日分`) && <span>{reward}</span>}
                 </li>;
-              })}</ul>
+                })}</ul>}
               <button className="submit-button gacha-draw" onClick={tapGacha}
                 disabled={gachaSpinning && (gacha.season.motion !== 'wheel' || !gachaCanStop)}>
                 {!gachaSpinning ? gacha.season.action
@@ -2972,7 +2982,14 @@ function ActivityCounts({ need, size = 'card' }: { need: BoardRequest; size?: 'c
   </p>;
 }
 
-function Modal({ title, lead, onClose, children }: { title: string; lead: string; onClose: () => void; children: React.ReactNode }) { return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div className="modal-top"><span className="sheet-handle" /><button className="modal-close" onClick={onClose} aria-label="閉じる">×</button></div><h2 id="modal-title">{title}</h2><p className="modal-lead">{lead}</p>{children}</section></div>; }
+/**
+ * 下から出るシート。
+ *
+ * `full` を渡すと**画面いっぱいの高さ**になる。ルーレットのように、
+ * 絵と結果とボタンが縦に並んで初めて成り立つものは、いつもの高さ（画面の
+ * 9割）だと中身が見切れて、回した結果を見るのにスクロールが要る。
+ */
+function Modal({ title, lead, onClose, children, full = false }: { title: string; lead: string; onClose: () => void; children: React.ReactNode; full?: boolean }) { return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className={`modal${full ? ' is-full' : ''}`} role="dialog" aria-modal="true" aria-labelledby="modal-title"><div className="modal-top"><span className="sheet-handle" /><button className="modal-close" onClick={onClose} aria-label="閉じる">×</button></div><h2 id="modal-title">{title}</h2><p className="modal-lead">{lead}</p>{children}</section></div>; }
 function Avatar({ src, name, className }: { src: string; name: string; className: string }) { return <span className={className}>{src ? <img src={src} alt={`${name}さんの顔写真`} /> : <span>{name.slice(0, 1)}</span>}</span>; }
 /**
  * 画面に出すプラン名。**管理画面の一覧と同じ言い方にそろえる。**

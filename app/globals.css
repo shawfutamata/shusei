@@ -2158,7 +2158,11 @@ body { font-weight:600; }
    **盤に見えているコマ数が、そのまま当たりやすさ**（並びはサーバーが作る）。
    回すのは `.gacha-wheel-turn` ひとつだけ。針と真ん中のボタンを一緒に回すと、
    どこで止まったのか分からなくなる。 */
-.gacha-wheel { width:min(268px,74vw); margin:12px auto 0; position:relative; z-index:2; aspect-ratio:1; }
+.gacha-wheel { width:min(268px,74vw); margin:11px auto 0; position:relative; z-index:2; aspect-ratio:1; }
+/* **画面の高さでも縮める。** 盤の下には当たりの一覧と引くボタンが続くので、
+   幅だけで決めると、背の低い端末（iPhone SE など）でボタンが画面の外に出る。
+   上の1行を残してあるのは、この書き方を読めない古い端末のため。 */
+.gacha-wheel { width:clamp(150px, min(74vw, calc(100dvh - 514px)), 268px); }
 /* 角度はJSからこの箱の transform にあてる。CSSでは動かさない。 */
 .gacha-wheel-turn { width:100%; height:100%; border-radius:50%; will-change:transform;
   box-shadow:0 10px 30px rgba(4,16,38,.34), 0 0 0 6px #fff, 0 0 0 10px rgba(255,255,255,.3); }
@@ -2207,4 +2211,51 @@ body { font-weight:600; }
 }
 @media (prefers-reduced-motion: reduce) {
   .gacha-wheel-go::after { animation:none; }
+}
+
+/* ── 画面いっぱいのシート ───────────────────────────────
+   ルーレットのように、絵と結果とボタンが縦に並んで初めて成り立つものは、
+   いつもの高さ（画面の9割）だと中身が見切れて、**回した結果を見るのに
+   スクロールが要る。** そういうものだけ画面いっぱいにする。
+   下の余白（メニューのぶん）はそのまま。メニューはシートより手前に出る。 */
+.modal.is-full { height:100vh; height:100dvh; max-height:100vh; max-height:100dvh;
+  border-radius:0; }
+@media (min-width:481px) {
+  /* パソコンの幅では、外枠が角の丸いカードになっている。そこだけ角を戻し、
+     高さも外枠に合わせる（外枠からはみ出すと、角の外に白が出る）。 */
+  .modal.is-full { height:calc(100vh - 32px); height:calc(100dvh - 32px);
+    max-height:calc(100vh - 32px); max-height:calc(100dvh - 32px); border-radius:28px; }
+}
+
+/* ── ガチャ：ルーレットのときの当たり一覧 ─────────────────
+   盤に「A賞」と書いてあるのだから、下でもう一度長い名前を縦に並べると、
+   同じことを二度言ったうえで画面がはみ出す。**盤の名前とそろえた一列**にして、
+   もらえる日数だけを添える。何の日数かは、上の一文で言っている。 */
+.gacha-legend { margin:13px 0 0; padding:0; list-style:none; display:grid; gap:7px;
+  grid-template-columns:repeat(auto-fit,minmax(0,1fr)); }
+.gacha-legend li { padding:8px 4px; display:grid; gap:4px; justify-items:center;
+  border:1px solid var(--line); border-radius:12px; background:#fff; }
+.gacha-legend i { padding:3px 8px; border-radius:7px; background:#eef2f8; color:#8b97aa;
+  font-size:11px; font-style:normal; font-weight:900; white-space:nowrap; }
+.gacha-legend b { color:#66758c; font-size:10px; font-weight:800; white-space:nowrap; }
+.gacha-legend li.is-win { border-color:#f6d9bd; background:#fff8f1; }
+.gacha-legend li.is-win i { background:var(--accent); color:#fff; }
+.gacha-legend li.is-win b { color:#a2500b; }
+.gacha-legend li.is-top { border-color:#e8c877; background:linear-gradient(120deg,#fff8e3,#fffdf6); }
+.gacha-legend li.is-top i { background:linear-gradient(135deg,#e0a51c,#f5cd53); color:#4d3400; }
+.gacha-legend li.is-top b { color:#7a5a12; }
+
+/* 画面いっぱいのシートでは、上下の余白を詰める。**盤・当たりの一覧・引く
+   ボタンが一度に見えることのほうが、余白より大事。** */
+.modal.is-full h2 { font-size:20px; }
+.modal.is-full .modal-lead { margin:6px 0 12px; }
+.modal.is-full .gacha-stage { padding:11px 20px 13px; }
+.modal.is-full .gacha-stage-note { margin-top:9px; }
+.modal.is-full .gacha-legend { margin-top:11px; }
+.modal.is-full .gacha-draw { min-height:52px; margin-top:12px; }
+.modal.is-full .gacha-note { margin-top:10px; }
+@media (min-width:481px) {
+  /* パソコンの幅では、シートが外枠より32px低く、文字も一回り大きい。
+     そのぶん盤を小さく見積もらないと、引くボタンが下に隠れる。 */
+  .gacha-wheel { width:clamp(150px, min(74vw, calc(100dvh - 560px)), 268px); }
 }
