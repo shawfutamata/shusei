@@ -19,7 +19,7 @@ const OUT = 'public/gacha/daily.webp';
 const work = tmpdir();
 // 盤はアプリと同じ並び（A賞1・B賞4・はずれ7）。見た目と本当の確率をそろえる。
 const SEGMENTS = ['d0','d1','d0','d3','d0','d1','d0','d1','d0','d0','d1','d0'];
-const PRIZE = { d3: { short: 'A賞', cls: 'top' }, d1: { short: 'B賞', cls: 'win' }, d0: { short: 'はずれ', cls: 'miss' } };
+const PRIZE = { d3: { short: 'A賞', cls: 'top' }, d1: { short: 'B賞', cls: 'win' }, d0: { short: 'C賞', cls: 'miss' } };
 const R = 100;
 function slice(i, n) {
   const span = (Math.PI * 2) / n, a0 = i * span, a1 = (i + 1) * span;

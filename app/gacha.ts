@@ -16,8 +16,11 @@
 export type GachaPrize = {
   key: string;
   /**
-   * 賞の等級。「A賞」「B賞」など。**はずれは空にする。**
-   * 何が当たったかは `label` と `days` で言うので、ここは順位だけを表す。
+   * 賞の等級。「A賞」「B賞」「C賞」。**順位だけを表す。**
+   * 何が当たったかは `label` と `days` で言う（C賞の label は「はずれ」）。
+   *
+   * 空にすると等級の欄が「—」になる。おみくじのように、名前そのものが
+   * 順位を表している回（大吉・中吉…）で使う。
    */
   tier: string;
   /** 結果の名前。おみくじなら「大吉」など。 */
@@ -151,7 +154,7 @@ export const adGacha = {
           note: '大きな箱が当たりました。' },
         { key: 'x1', tier: 'B賞', label: 'プレゼント', short: 'B賞', days: 1, slots: 4,
           note: '箱の中に無料券が入っていました。' },
-        { key: 'x0', tier: '', label: 'くつ下は空っぽ', short: '空っぽ', days: 0, slots: 7,
+        { key: 'x0', tier: 'C賞', label: 'くつ下は空っぽ', short: 'C賞', days: 0, slots: 7,
           note: '今日は何も入っていませんでした。また明日どうぞ。' },
       ],
     },
@@ -200,7 +203,7 @@ export const adGacha = {
           note: 'いちばん大きい当たりです。' },
         { key: 'd1', tier: 'B賞', label: '広告の無料券 1日分', short: 'B賞', days: 1, slots: 4,
           note: 'こつこつためていきましょう。' },
-        { key: 'd0', tier: '', label: 'はずれ', short: 'はずれ', days: 0, slots: 7,
+        { key: 'd0', tier: 'C賞', label: 'はずれ', short: 'C賞', days: 0, slots: 7,
           note: '今日はご縁がありませんでした。また明日どうぞ。' },
       ],
     },

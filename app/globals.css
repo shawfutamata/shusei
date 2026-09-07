@@ -2155,7 +2155,9 @@ body { font-weight:600; }
    **盤に見えているコマ数が、そのまま当たりやすさ**（並びはサーバーが作る）。
    回すのは `.gacha-wheel-turn` ひとつだけ。針と真ん中のボタンを一緒に回すと、
    どこで止まったのか分からなくなる。 */
-.gacha-wheel { width:min(268px,74vw); margin:11px auto 0; position:relative; z-index:2; aspect-ratio:1; }
+.gacha-wheel { width:min(268px,74vw); margin:11px auto 0; position:relative; z-index:2; aspect-ratio:1;
+  /* 真ん中のボタンの文字を、盤の大きさに合わせて縮められるようにする。 */
+  container-type:inline-size; }
 /* **画面の高さでも縮める。** 盤の下には当たりの一覧と引くボタンが続くので、
    幅だけで決めると、背の低い端末（iPhone SE など）でボタンが画面の外に出る。
    上の1行を残してあるのは、この書き方を読めない古い端末のため。 */
@@ -2190,31 +2192,27 @@ body { font-weight:600; }
 /* **押すところは、盤より目立たせる。** 白い丸を白い盤に置くと、飾りの
    ハブに見えて、押せることが伝わらない。盤に無い色（アプリの橙）で塗り、
    白い縁で盤から浮かせる。 */
-.gacha-wheel-go { position:absolute; left:50%; top:50%; z-index:3; width:37%; aspect-ratio:1;
+.gacha-wheel-go { position:absolute; left:50%; top:50%; z-index:3; width:40%; aspect-ratio:1;
   transform:translate(-50%,-50%); border:5px solid #fff; border-radius:50%; cursor:pointer;
   background:linear-gradient(160deg,#ff9a52,#f0731f 52%,#dd5a09); color:#fff;
-  font-family:inherit; font-size:17px; font-weight:900; letter-spacing:.07em;
+  font-family:inherit; font-size:14px; font-weight:900; letter-spacing:.02em;
+  /* **丸から文字がはみ出さない大きさにする。**
+     盤は画面の大きさで縮むので、文字を決め打ちにすると小さい端末で溢れる。
+     端末によって字の幅も違う（iPhone のほうが太く広い）ので、余裕を持たせて
+     盤の幅に対する割合で決める。上の1行は、この書き方を読めない端末向け。 */
+  padding:0 4px; white-space:nowrap;
   box-shadow:0 8px 20px rgba(4,16,38,.42);
   -webkit-tap-highlight-color:transparent; }
-.gacha-wheel-go:disabled { border-color:#f2f5f9; cursor:default; font-size:13px; letter-spacing:0;
+.gacha-wheel-go { font-size:max(11px, 5.2cqw); }
+.gacha-wheel-go:disabled { border-color:#f2f5f9; cursor:default; letter-spacing:-.01em;
   background:linear-gradient(160deg,#fdfefe,#e7edf5); color:#a7b2c2;
   box-shadow:0 4px 12px rgba(4,16,38,.18); }
 /* 回っている最中は**止める色**にする。押せることが見えていないと、
    止められない。同じ色のままだと、押すところが変わったと気づかない。 */
 .gacha-wheel.is-spinning .gacha-wheel-go:not(:disabled) {
   background:linear-gradient(160deg,#ff6d80,#e0384f 52%,#c31a33); color:#fff; }
-/* 止まっているあいだ、押すところに輪を広げる。**ボタン自体は動かさない。**
-   ボタンごと脈打たせると、押そうとしたときに的が動く。 */
-.gacha-wheel-go::after { content:''; position:absolute; inset:-6px; border-radius:50%;
-  border:3px solid rgba(240,115,31,.9); opacity:0; pointer-events:none; }
-.gacha-wheel:not(.is-spinning) .gacha-wheel-go:not(:disabled)::after { animation:gacha-go 1.7s ease-out infinite; }
-@keyframes gacha-go {
-  0% { transform:scale(.92); opacity:.8; }
-  100% { transform:scale(1.4); opacity:0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .gacha-wheel-go::after { animation:none; }
-}
+/* 「押すところ」の合図に輪を広げていたが、やめた。ボタンを大きく橙にした
+   いま、輪は賞の名前の上を横切るだけの飾りになっていた。 */
 
 /* ── 画面いっぱいのシート ───────────────────────────────
    ルーレットのように、絵と結果とボタンが縦に並んで初めて成り立つものは、
@@ -2230,23 +2228,6 @@ body { font-weight:600; }
     max-height:calc(100vh - 32px); max-height:calc(100dvh - 32px); border-radius:28px; }
 }
 
-/* ── ガチャ：ルーレットのときの当たり一覧 ─────────────────
-   盤に「A賞」と書いてあるのだから、下でもう一度長い名前を縦に並べると、
-   同じことを二度言ったうえで画面がはみ出す。**盤の名前とそろえた一列**にして、
-   もらえる日数だけを添える。何の日数かは、上の一文で言っている。 */
-.gacha-legend { margin:13px 0 0; padding:0; list-style:none; display:grid; gap:7px;
-  grid-template-columns:repeat(auto-fit,minmax(0,1fr)); }
-.gacha-legend li { padding:8px 4px; display:grid; gap:4px; justify-items:center;
-  border:1px solid var(--line); border-radius:12px; background:#fff; }
-.gacha-legend i { padding:3px 8px; border-radius:7px; background:#eef2f8; color:#8b97aa;
-  font-size:11px; font-style:normal; font-weight:900; white-space:nowrap; }
-.gacha-legend b { color:#66758c; font-size:10px; font-weight:800; white-space:nowrap; }
-.gacha-legend li.is-win { border-color:#f6d9bd; background:#fff8f1; }
-.gacha-legend li.is-win i { background:var(--accent); color:#fff; }
-.gacha-legend li.is-win b { color:#a2500b; }
-.gacha-legend li.is-top { border-color:#e8c877; background:linear-gradient(120deg,#fff8e3,#fffdf6); }
-.gacha-legend li.is-top i { background:linear-gradient(135deg,#e0a51c,#f5cd53); color:#4d3400; }
-.gacha-legend li.is-top b { color:#7a5a12; }
 
 /* 画面いっぱいのシートでは、上下の余白を詰める。**盤・当たりの一覧・引く
    ボタンが一度に見えることのほうが、余白より大事。** */
@@ -2254,7 +2235,6 @@ body { font-weight:600; }
 .modal.is-full .modal-lead { margin:6px 0 12px; }
 .modal.is-full .gacha-stage { padding:11px 20px 13px; }
 .modal.is-full .gacha-stage-note { margin-top:9px; }
-.modal.is-full .gacha-legend { margin-top:11px; }
 .modal.is-full .gacha-draw { min-height:52px; margin-top:12px; }
 .modal.is-full .gacha-note { margin-top:10px; }
 @media (min-width:481px) {
@@ -2286,3 +2266,17 @@ body { font-weight:600; }
 .gacha-gift-gauge i { height:100%; display:block; border-radius:99px;
   background:linear-gradient(90deg,#e0a51c,#f5cd53); }
 .gacha-gift small b { font-weight:900; }
+
+/* ── ガチャ：当たりの一覧（画面いっぱいのシート） ─────────────
+   **上から順に良い賞。** 横に3つ並べると対等に見えて、どれが上なのか
+   伝わらない。縦に積み、左の帯と札の色で順位を出す。 */
+.modal.is-full .gacha-prizes { margin-top:14px; gap:7px; }
+.modal.is-full .gacha-prizes li { padding:9px 13px 9px 10px; gap:10px; border-left-width:5px; }
+.modal.is-full .gacha-prizes li i { min-width:46px; padding:4px 6px; font-size:12px; }
+.modal.is-full .gacha-prizes li b { font-size:13px; }
+.modal.is-full .gacha-prizes li span { font-size:11px; font-weight:800; }
+/* 左の帯。順位が上の賞ほど濃い。 */
+.modal.is-full .gacha-prizes li { border-left-color:#cdd7e4; }
+.modal.is-full .gacha-prizes li.is-win { border-left-color:var(--accent); }
+.modal.is-full .gacha-prizes li.is-top { border-left-color:#e0a51c; }
+.modal.is-full .gacha-prizes li.is-top b { font-size:14.5px; }

@@ -2289,25 +2289,19 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           {!gacha.drawnToday
             ? <>
               {/* 何が当たるかは先に出す。中身を伏せたまま引かせない。
-                  ルーレットのときは**盤の名前とそろえた一列**にする。盤に
-                  「A賞」と書いてあるのだから、下でもう一度長い名前を縦に
-                  並べると、同じことを二度言ったうえで画面がはみ出す。 */}
-              {gacha.season.motion === 'wheel'
-                ? <ul className="gacha-legend">{gacha.season.prizes.map((prize) =>
-                  <li key={prize.key} className={prize.days >= 3 ? 'is-top' : prize.days ? 'is-win' : ''}>
-                    <i>{prize.short}</i><b>{prize.days ? `${prize.days}日分` : '—'}</b>
-                  </li>)}</ul>
-                : <ul className="gacha-prizes">{gacha.season.prizes.map((prize) => {
+                  **上から順に良い賞**にして、等級の札を先頭にそろえる。
+                  横に並べると3つが対等に見えて、どれが上なのか伝わらない。 */}
+              <ul className="gacha-prizes">{gacha.season.prizes.map((prize) => {
                 const reward = prize.days ? `無料券 ${prize.days}日分` : '';
                 return <li key={prize.key} className={prize.days >= 3 ? 'is-top' : prize.days ? 'is-win' : ''}>
-                  {/* はずれの行に「はずれ」と2度書かない。等級の欄は線だけにする。 */}
+                  {/* 等級の名前が無い回（おみくじ）は、欄を線だけにする。 */}
                   <i>{prize.tier || '—'}</i><b>{prize.label}</b>
                   {/* 中身がそのまま名前になっている回（ふだんの回）では、
                       同じことを2度書かない。おみくじのように名前と中身が
                       違う回だけ、もらえる日数を右に出す。 */}
                   {reward && !prize.label.includes(`${prize.days}日分`) && <span>{reward}</span>}
                 </li>;
-                })}</ul>}
+              })}</ul>
               {/* ルーレットは**盤の真ん中が押すところ**なので、下に同じボタンを
                   置かない。回している最中に赤いSTOPと青いSTOPが並ぶと、
                   どちらを押せばいいのか分からなくなる。 */}
