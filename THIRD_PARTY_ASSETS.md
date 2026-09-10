@@ -35,3 +35,8 @@ ICOOON MONO の作品は含まれていない。
 （線ではなく面で塗る、角は丸く、抜きは穴で作る、256の枠）。
 ICOOON MONO はアイコンそのものの再配布を認めていないため、絵は借りずに
 トンマナだけ揃えた。
+
+## TASUKI landing page (2026-09-10)
+
+- `public/lp/antonio-bold.ttf`: Antonio by Vernon Adams, Google Fonts, SIL Open Font License 1.1. License: `public/lp/antonio-OFL.txt`. Source: https://github.com/google/fonts/tree/main/ofl/antonio
+- `public/lp/tasuki-ribbon.png`: original AI-generated decorative inflatable blue ribbon created for this LP. It contains no product screenshots or user information.
