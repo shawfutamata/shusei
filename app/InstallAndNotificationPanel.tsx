@@ -117,8 +117,8 @@ export default function InstallAndNotificationPanel({ onNotice }: { onNotice: (m
   }
 
   return <section className="app-tools" aria-label="アプリと通知の設定">
-    <div><p>APP MODE</p><h2>アプリのように使う</h2></div>
-    <p className="app-tools-lead">ホーム画面からすぐ開けて、関連する案件の通知を受け取れます。</p>
+    <div><p>APP &amp; NOTIFICATIONS</p><h2>アプリと通知</h2></div>
+    <p className="app-tools-lead">ホーム画面からすぐ開けます。新着案件のプッシュ通知と、メッセージ内容を確認できるメール通知を設定できます。</p>
     <div className="app-tools-actions">
       <button className={pushState === 'on' ? 'enabled' : ''} onClick={enableNotifications} disabled={pushState === 'loading' || pushState === 'unsupported'}><span>●</span><b>{pushState === 'on' ? '通知オン' : pushState === 'denied' ? '通知を再設定' : '通知を受け取る'}</b><small>{pushState === 'on' ? '関連業種の新着をお知らせ' : '業種タグが一致した投稿だけ'}</small></button>
       <button className={installed ? 'enabled' : ''} onClick={installApp}><span>＋</span><b>{installed ? '追加済み' : 'ホーム画面に追加'}</b><small>ブラウザーを開かず起動</small></button>
@@ -126,11 +126,11 @@ export default function InstallAndNotificationPanel({ onNotice }: { onNotice: (m
           プッシュとは別に置いてある。 */}
       <button className={mailOn ? 'enabled' : ''} onClick={toggleMail} disabled={mailOn === null}>
         <span>✉</span>
-        <b>{mailOn === null ? '読み込み中' : mailOn ? 'メール通知オン' : 'メールで受け取る'}</b>
-        <small>{mailOn ? 'メッセージが届いたらお知らせ' : 'ご登録のメールアドレスへ'}</small>
+        <b>{mailOn === null ? '読み込み中' : mailOn ? 'メッセージ通知オン' : 'メールで受け取る'}</b>
+        <small>{mailOn ? '内容をメールでも確認できます' : 'ご登録のメールアドレスへ通知'}</small>
       </button>
     </div>
-    <small className="app-tools-note">iPhoneはホーム画面へ追加した後に通知を有効にしてください。</small>
+    <small className="app-tools-note">通知はいつでもこの画面から変更できます。iPhoneのプッシュ通知は、ホーム画面へ追加した後に有効にしてください。</small>
   </section>;
 }
 
