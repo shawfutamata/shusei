@@ -1593,9 +1593,12 @@ async function listDirectMessages(user: SessionUser, partnerId: string): Promise
 /**
  * 会員どうしのじかのやり取りを1つ送る。
  *
- * **話しかけ始めるのはスタンダードから。** 「自社で請け負う」オファーと同じ
- * 線引きにしてある。誰にでもただで売り込める道を開けると、有料にしている
- * 意味が無くなる（`docs/pricing-plan-ja.md`）。
+ * **話しかけ始めるのはスタンダードから**（`direct_message`）。「自社で請け負う」
+ * オファーと同じ線引きにしてある。誰にでもただで売り込める道を開けると、
+ * 有料にしている意味が無くなる（`docs/pricing-plan-ja.md`）。
+ *
+ * 線引きは `app/entitlements.ts` の1か所にある。プラン表（マイページ）も
+ * 同じところを見ているので、片方だけ直して食い違うことがない。
  *
  * **返事は無料のまま。** 話しかけられた人が返せないと、送った側にも何も
  * 返ってこない。無料の人を黙らせるのは、場そのものを止めることになる。
@@ -1612,7 +1615,7 @@ async function addDirectMessage(user: SessionUser, partnerId: string, body: stri
   const already = await env.DB.prepare('SELECT id FROM direct_messages WHERE pair_key = ? LIMIT 1')
     .bind(pairKey).first<{ id: string }>();
   // 1通目だけ関所を置く。始まっている話への返事は止めない。
-  if (!already && !can(await getPlanState(user.userId), 'self_offer')) {
+  if (!already && !can(await getPlanState(user.userId), 'direct_message')) {
     throw new Error(`${PAYWALL}会員へじかにメッセージを送るのは、スタンダードプランからです。案件へのリファラルは無料でお送りいただけます。`);
   }
   const text = body.trim().slice(0, INTRODUCTION_MESSAGE_MAX);

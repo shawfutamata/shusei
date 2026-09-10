@@ -2864,6 +2864,10 @@ const planRows: { label: string; note?: string; soon?: boolean; value: (plan: Pl
   { label: '案件の投稿', value: (plan) => planPostLimit(plan) },
   { label: 'オファーを受け取る', note: '中身を読む・返事する', value: (plan) => allows(plan, 'receive_introductions') },
   { label: 'オファーを送る', note: '自社で請け負う', value: (plan) => allows(plan, 'self_offer') },
+  { label: 'メッセージを送る', note: '会員へじかに・1通目', value: (plan) => allows(plan, 'direct_message') },
+  // 届いたメッセージは、どのプランでも読めるし返せる。話しかけられた人が
+  // 返せないと、送った側にも何も返ってこない。
+  { label: 'メッセージに返事する', note: '届いたぶん', value: () => true },
 ];
 
 /** そのプラン単体で使えるか。期限や招待特典は絡めず、プランの素の力を見る。 */
