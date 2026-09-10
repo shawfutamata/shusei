@@ -86,3 +86,13 @@
 @media(max-width:800px){.heroCopy>.eyebrow{font-size:10px;padding:7px 10px}.story{padding:24px 20px}.story h3{font-size:23px}}
 @media(max-width:600px){.hero{background:radial-gradient(ellipse at 70% 66%,#a5d8ff 0,transparent 54%),linear-gradient(165deg,#fff 4%,#edf7ff 40%,#d8edff 100%)}.heroInner{padding-top:32px}.hero h1{font-size:clamp(38px,10.8vw,58px)}.heroCopy>.eyebrow{font-size:9px;padding:7px 9px;gap:6px}.heroLead{font-size:14px}.productEvidence,.about,.how,.plans{padding-top:64px;padding-bottom:64px}.productEvidence .productShowcase:before{inset:50px -4px 22px;border-radius:28px}.story{padding:28px}.story h3{font-size:26px}.lavenderBand{padding:60px 24px}.faq{padding:16px 24px 64px}.faq h2{font-size:28px}.faq summary{font-size:15px}.faq details p{font-size:14px}.startCopy h2{font-size:34px}}
 @media(prefers-reduced-motion:reduce){.primary:hover,.headerCta:hover{transform:none}}
+
+/* Give the real product UI room to breathe on narrow screens. */
+@media(max-width:600px){
+  .productEvidence .productShowcase{width:min(100%,300px);min-height:400px}
+  .productEvidence .productShowcase:before{inset:46px 8px 28px;border-radius:24px}
+  .productEvidence .productScreenBack{top:82px;left:12px;width:40%}
+  .productEvidence .productScreenFront{top:52px;right:12px;width:55%}
+  .productEvidence .productCaption{left:8px;padding:8px 11px;font-size:8px;letter-spacing:.1em}
+  .productEvidence .productNote{left:14px;bottom:8px;padding:9px 12px;font-size:8px}
+}
