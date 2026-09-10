@@ -22,3 +22,25 @@
 :global(body):has(> .page){padding:0;background:#fff}
 @media(prefers-reduced-motion:reduce){:global(html):has(.page){scroll-behavior:auto}}
 @media(min-width:1101px){.productShowcase{min-height:720px}}
+/* A continuous studio canvas lets the live sculpture sit inside the page. */
+.hero{background:#efefec;color:var(--ink);overflow:visible;min-height:185svh}
+.heroInner{position:sticky;top:76px;grid-template-columns:1fr 1.12fr;gap:24px;min-height:calc(100svh - 76px);padding:24px}
+.hero h1{font-size:clamp(44px,5.1vw,74px);letter-spacing:-.035em;line-height:1.2}
+.heroLead{color:#444c52}
+.hero .secondary{color:var(--action)}
+.hero .fine{color:#626b73}
+.productEvidence{max-width:1200px;margin:auto;padding:80px 24px;display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
+.productEvidence h2{font-size:44px;line-height:1.35;margin:20px 0}
+.productEvidence>div>p:not(.eyebrow){color:var(--muted);line-height:1.9;margin-bottom:20px}
+.productEvidence .productShowcase{min-height:630px;max-width:500px;margin:auto}
+.productEvidence .productScreenBack{top:88px;left:4px;width:43%;animation:none}
+.productEvidence .productScreenFront{top:40px;right:4px;width:58%;animation:none}
+.productEvidence .productCaption{left:0;color:var(--muted);background:#f0f1f2;border:0;backdrop-filter:none}
+.productEvidence .productCaption b{color:var(--muted);border-color:#ccc}
+.productEvidence .productNote{bottom:0}
+.start{background:#efefec;color:var(--ink)}
+.start>.confetti{display:none}
+@media(max-width:1100px){.heroInner{padding:24px 40px;gap:12px}.hero h1{font-size:54px}.hero .actions{flex-wrap:wrap}.productEvidence{gap:32px}.productEvidence .productShowcase{min-height:590px}}
+@media(max-width:800px){.heroInner{padding:24px;gap:0}.hero h1{font-size:44px}.heroLead{font-size:14px}.productEvidence h2{font-size:32px}.productEvidence .productShowcase{min-height:440px}}
+@media(max-width:600px){.hero{min-height:0}.heroInner{position:relative;top:auto;display:block;padding:40px 24px 0;min-height:0}.hero h1{font-size:clamp(40px,10.8vw,58px);margin:22px 0}.heroLead{font-size:14px}.hero .actions{gap:12px;flex-wrap:wrap}.heroCopy{padding:0 4px 16px}.hero .fine{font-size:11px}.productEvidence{grid-template-columns:1fr;padding:48px 24px;gap:30px}.productEvidence h2{font-size:32px}.productEvidence .productShowcase{width:100%;max-width:340px;min-height:460px}.productEvidence .productScreenFront{width:59%}.productEvidence .productNote{font-size:9px}.startInner{padding:48px 24px}}
+@media(prefers-reduced-motion:reduce){.hero{min-height:0}.heroInner{position:relative;top:auto;min-height:0;padding-top:48px;padding-bottom:48px}}
