@@ -8,10 +8,20 @@ import { campaignPlan } from './entitlements';
 import { AD_MIN_DAYS, AD_MAX_DAYS, placementSlots } from './ad-options';
 import styles from './LandingPage.module.css';
 
-function Confetti() {
+function SaaSEdgeWidgets() {
   return <div className={styles.confetti} aria-hidden="true">
-    <svg viewBox="0 0 160 640" preserveAspectRatio="none"><path fill="#bf63f3" d="M0 0h95l-20 55 48 32-35 52 33 25-52 39-69-22Z"/><path fill="#1868db" d="m0 205 69-16 44 68-55 16 32 73-90 19Z"/><path fill="#fca700" d="m0 366 58-28 51 82-38 25 34 63-105 24Z"/><path fill="#6a9a23" d="m0 530 88-39 42 82-53 32 21 35H0Z"/></svg>
-    <svg viewBox="0 0 160 640" preserveAspectRatio="none"><path fill="#1868db" d="m160 0-92 0 32 69-48 36 46 72 62-23Z"/><path fill="#fca700" d="m160 157-70 15-34 70 46 28-17 47 75 23Z"/><path fill="#bf63f3" d="m160 335-91-32-31 85 55 27-34 47 101 35Z"/><path fill="#6a9a23" d="m160 508-60-20-47 82 48 30-14 40h73Z"/></svg>
+    <svg viewBox="0 0 160 640" data-motion="saas-float">
+      <path className={styles.signalLine} d="M35 110C104 151 48 237 111 283S56 426 118 493"/>
+      <g className={styles.floatA}><rect className={styles.widgetSurface} x="8" y="42" width="128" height="92" rx="20"/><rect x="22" y="57" width="38" height="38" rx="11" fill="#bf63f3"/><path d="M31 83V72m10 11V65m10 18V75" stroke="#fff" strokeWidth="4" strokeLinecap="round"/><path d="M72 66h44M72 80h31M72 94h38" stroke="#fff" strokeOpacity=".72" strokeWidth="5" strokeLinecap="round"/></g>
+      <g className={styles.floatB}><rect x="38" y="242" width="112" height="52" rx="26" fill="#1868db"/><circle cx="62" cy="268" r="9" fill="#fff"/><path d="m58 268 3 3 6-7" fill="none" stroke="#1868db" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/><path d="M82 261h45M82 274h30" stroke="#fff" strokeOpacity=".75" strokeWidth="5" strokeLinecap="round"/></g>
+      <g className={styles.floatC}><rect className={styles.widgetSurface} x="5" y="421" width="132" height="104" rx="20"/><circle cx="33" cy="449" r="12" fill="#fca700"/><path d="M25 491v-14M44 491v-27M63 491v-19M82 491v-39" stroke="#bf63f3" strokeWidth="10" strokeLinecap="round"/><circle cx="111" cy="482" r="18" fill="none" stroke="#6a9a23" strokeWidth="8" strokeDasharray="76 38" transform="rotate(-65 111 482)"/></g>
+    </svg>
+    <svg viewBox="0 0 160 640" data-motion="saas-float">
+      <path className={styles.signalLine} d="M127 78C62 135 118 211 51 264s57 151-13 213"/>
+      <g className={styles.floatB}><rect className={styles.widgetSurface} x="25" y="48" width="130" height="86" rx="20"/><circle cx="51" cy="75" r="11" fill="#1868db"/><path d="M73 69h58M73 82h38" stroke="#fff" strokeOpacity=".75" strokeWidth="5" strokeLinecap="round"/><rect x="41" y="102" width="92" height="10" rx="5" fill="#bf63f3"/><rect x="41" y="102" width="57" height="10" rx="5" fill="#fca700"/></g>
+      <g className={styles.floatC}><rect x="4" y="250" width="112" height="52" rx="26" fill="#bf63f3"/><circle cx="30" cy="276" r="9" fill="#fff"/><path d="M51 269h43M51 282h29" stroke="#fff" strokeOpacity=".74" strokeWidth="5" strokeLinecap="round"/></g>
+      <g className={styles.floatA}><rect className={styles.widgetSurface} x="23" y="426" width="132" height="105" rx="20"/><path d="M43 504V477l22-16 20 12 28-29 23 11" fill="none" stroke="#1868db" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round"/><circle cx="43" cy="504" r="7" fill="#6a9a23"/><circle cx="85" cy="473" r="7" fill="#fca700"/><circle cx="113" cy="444" r="7" fill="#bf63f3"/><path d="M43 449h31M43 516h88" stroke="#fff" strokeOpacity=".58" strokeWidth="5" strokeLinecap="round"/></g>
+    </svg>
   </div>;
 }
 
@@ -45,7 +55,7 @@ export default function LandingPage({ error = '', pending = false }: { error?: s
       </div>
     </header>
     <section className={styles.hero} aria-labelledby="lp-title">
-      <Confetti/>
+      <SaaSEdgeWidgets/>
       <div className={styles.heroInner}>
         <div className={styles.heroCopy}>
           <p className={styles.eyebrow}>守成クラブ会員向け・招待制マッチングサービス</p>
@@ -89,7 +99,7 @@ export default function LandingPage({ error = '', pending = false }: { error?: s
       </div>
       <div className={styles.ads} id="advertising"><div><span className={styles.smallLabel}>LET YOUR BUSINESS BE SEEN</span><h3>あなたの商売を、<br/>会員に届ける広告枠。</h3><p>掲載日数に応じた日割り料金。<br/>最短{AD_MIN_DAYS}日〜最長{AD_MAX_DAYS}日で掲載できます。</p></div><div className={styles.adPrices}><div><span>バナー広告 · {placementSlots('banner')}枠</span><b>{AD_DAILY_YEN.banner}円<small> / 日</small></b></div><div><span>掲示板上位 · {placementSlots('list')}枠</span><b>{AD_DAILY_YEN.list}円<small> / 日</small></b></div><p>出稿条件・空き枠は、ログイン後の広告申込画面でご確認ください。</p></div></div>
     </section>
-    <section className={styles.start} id="start" aria-labelledby="start-title"><Confetti/><div className={styles.startInner}><div className={styles.startCopy}><p className={styles.eyebrow}>LET’S CONNECT</p><h2 id="start-title">次のご縁は、<br/>あなたの<br/>つながりから。</h2><p>仲間からの招待を受け取ったら、<br/>TASUKIで最初の一歩を。</p></div><div className={styles.startCard}><p className={styles.smallLabel}>INVITATION ONLY</p><h3>TASUKIを始める</h3><LandingInvite/><a className={styles.memberLogin} href="/api/auth/google/start">登録済みの方：Googleでログイン ↗</a></div></div></section>
+    <section className={styles.start} id="start" aria-labelledby="start-title"><SaaSEdgeWidgets/><div className={styles.startInner}><div className={styles.startCopy}><p className={styles.eyebrow}>LET’S CONNECT</p><h2 id="start-title">次のご縁は、<br/>あなたの<br/>つながりから。</h2><p>仲間からの招待を受け取ったら、<br/>TASUKIで最初の一歩を。</p></div><div className={styles.startCard}><p className={styles.smallLabel}>INVITATION ONLY</p><h3>TASUKIを始める</h3><LandingInvite/><a className={styles.memberLogin} href="/api/auth/google/start">登録済みの方：Googleでログイン ↗</a></div></div></section>
     <footer className={styles.footer}><a className={styles.brand} href="#top"><BrandMark/><b>{serviceName}</b></a><p>人から人へ。商売のたすきをつなぐ。</p><nav aria-label="規約とお問い合わせ"><a href="/terms">利用規約</a><a href="/privacy">プライバシーポリシー</a><a href="/refund">返金・キャンセル</a><a href="/tokushoho">特定商取引法に基づく表記</a><a href="/support">お問い合わせ</a></nav><small>運営：株式会社ColourJam</small></footer>
   </main>;
 }

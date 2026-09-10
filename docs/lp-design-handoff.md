@@ -10,7 +10,7 @@ The user replaced the Slush brief with their full Atlassian style reference and 
 |---|---|
 | White enterprise canvas, dark #101214 hero and closing panel | User Atlassian reference; dark editorial moments within a mostly light page |
 | #1868db primary buttons, links, focus and functional icons | User action color; no violet/yellow/green in functional controls |
-| Geometric violet/yellow/blue/green fragments | Decorative edges of dark panels only; never overlap content |
+| Floating violet/yellow/blue/green SaaS widgets | Decorative edges of dark panels only; mini analytics cards, status pills and chart panels move independently without overlapping content |
 | 1200px content, 64–80px sections, 20px cards, 28px buttons | User spacing and shape tokens |
 | Manrope display / Inter text, locally hosted with OFL licenses | User-approved substitutions; Japanese system sans fallback at readable weight and line height |
 | Lavender editorial band | User section rhythm; dark text, no functional card fills |
@@ -33,6 +33,6 @@ The old inflatable assets and font remain available for rollback but are no long
 
 Use `npm run preflight` and `node scripts/check-lp.mjs` with the local dev server on localhost:4173. Review screenshots in `review/`. Check 1440, 768, 430, 390, 375 and 320 widths, mobile menu open/close and navigation, invitation normalization and mocked destination, login errors, local fonts, both product screenshot dimensions and absence of the old ribbon.
 
-Responsive edge treatment: on widths up to 600px, the two confetti SVGs sit fully inside the viewport instead of using negative offsets. The content inset grows to 46px (34px at 360px and below), and the edge art scales from 36px to 26px. Browser QA checks 430, 390, 375 and 320px and asserts both decorations have non-negative left positions, remain within the viewport, and do not create horizontal overflow.
+Responsive edge treatment: on widths up to 600px, the two decorative SVGs sit fully inside the viewport. The content inset grows to 46px (34px at 360px and below), and the widgets scale to 58px (50px at 360px and below). At tablet width they shift toward the outer edge so they do not overlap the headline. Three widget groups float at different speeds and the dotted signal line moves continuously; `prefers-reduced-motion: reduce` disables every decorative animation. Browser QA checks 430, 390, 375 and 320px and asserts both decorations have non-negative left positions, remain within the viewport, and do not create horizontal overflow.
 
 Production evidence is kept in `review/deployment-checks.json`, `review/production-check.json` and production screenshots after publication. Google redirect is verified without completing registration; live member transactions and payments are not exercised.

@@ -14,6 +14,9 @@ assert.equal(await productScreens.count(),2);
 for (const screen of await productScreens.all()) {
  assert.ok(await screen.evaluate(image=>image.complete&&image.naturalWidth===960&&image.naturalHeight===1880));
 }
+const floatingWidgets = page.locator('section').first().locator('[data-motion="saas-float"] g');
+assert.equal(await page.locator('section').first().locator('[data-motion="saas-float"]').count(),2);
+assert.ok((await floatingWidgets.evaluateAll(nodes=>nodes.map(node=>getComputedStyle(node).animationName))).some(name=>name!=='none'));
 await page.screenshot({path:'review/desktop.png',fullPage:true});
 await page.screenshot({path:'review/hero.png'});
 for(const width of [1440,768,430,390,375,320]){
@@ -55,7 +58,9 @@ assert.equal(await page.locator('a[href="/api/auth/google/start"]').count(),2);
 assert.equal(errors.length,0,errors.join('\n'));
 assert.equal(await page.locator('img[src="/lp/tasuki-ribbon.png"]').count(),0);
 assert.equal(await page.locator('section').first().evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(16, 18, 20)');
+await page.emulateMedia({reducedMotion:'reduce'});
+assert.ok((await floatingWidgets.evaluateAll(nodes=>nodes.map(node=>getComputedStyle(node).animationName))).every(name=>name==='none'));
 await page.close();
 await Promise.race([browser.close(), new Promise(resolve=>setTimeout(resolve,2000))]);
-console.log('PASS: desktop/mobile/no overflow, actual product UI screenshots, invitation normalization and destination (intercepted), root LP, login error, Google link, no browser errors');
+console.log('PASS: desktop/mobile/no overflow, animated SaaS edge widgets with reduced-motion fallback, actual product UI screenshots, invitation normalization and destination (intercepted), root LP, login error, Google link, no browser errors');
 process.exit(0);
