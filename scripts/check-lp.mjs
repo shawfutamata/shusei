@@ -9,11 +9,14 @@ const page=await browser.newPage({viewport:{width:1440,height:1000},deviceScaleF
 page.on('pageerror',e=>errors.push(e.message));
 await page.goto(`${BASE}/lp`,{waitUntil:'networkidle'});
 await page.evaluate(()=>document.fonts.ready);
-const productScreens = page.locator('figure[aria-label="TASUKIの実際の画面"] img');
+const productScreens = page.locator('figure[aria-label="TASUKIの実際の画面"] img[data-product-screen]');
 assert.equal(await productScreens.count(),2);
 for (const screen of await productScreens.all()) {
  assert.ok(await screen.evaluate(image=>image.complete&&image.naturalWidth===960&&image.naturalHeight===1880));
 }
+const connectionVisual = page.locator('img[src="/lp/tasuki-connection-hero-v1.webp"]');
+assert.equal(await connectionVisual.count(),1);
+assert.ok(await connectionVisual.evaluate(image=>image.complete&&image.naturalWidth===960&&image.naturalHeight===1200));
 const floatingWidgets = page.locator('section').first().locator('[data-motion="saas-float"] g');
 assert.equal(await page.locator('section').first().locator('[data-motion="saas-float"]').count(),2);
 assert.ok((await floatingWidgets.evaluateAll(nodes=>nodes.map(node=>getComputedStyle(node).animationName))).some(name=>name!=='none'));
@@ -25,12 +28,15 @@ for(const width of [1440,768,430,390,375,320]){
  const dims=await page.evaluate(()=>({
   w:innerWidth,
   scroll:document.documentElement.scrollWidth,
+  hero:document.querySelector('section:first-of-type').getBoundingClientRect().toJSON(),
+  productVisuals:[...document.querySelectorAll('figure[aria-label="TASUKIの実際の画面"] img')].map((element)=>element.getBoundingClientRect().toJSON()),
   confetti:[...document.querySelectorAll('section:first-of-type svg')].slice(0,2).map((element)=>{
    const box=element.getBoundingClientRect();
    return {left:box.left,right:box.right,width:box.width};
   }),
  }));
  assert.ok(dims.scroll<=dims.w,JSON.stringify(dims));
+ assert.ok(dims.productVisuals.every(({left,right,bottom})=>left>=0&&right<=dims.w&&bottom<=dims.hero.bottom),JSON.stringify(dims));
  if(width<=430){
   assert.equal(dims.confetti.length,2,JSON.stringify(dims));
   assert.ok(dims.confetti.every(({left,right,width})=>left>=0&&right<=dims.w&&width>=26),JSON.stringify(dims));
@@ -60,6 +66,7 @@ assert.equal(await page.locator('img[src="/lp/tasuki-ribbon.png"]').count(),0);
 assert.equal(await page.locator('section').first().evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(16, 18, 20)');
 await page.emulateMedia({reducedMotion:'reduce'});
 assert.ok((await floatingWidgets.evaluateAll(nodes=>nodes.map(node=>getComputedStyle(node).animationName))).every(name=>name==='none'));
+assert.equal(await page.locator('[class*="connectionVisual"]').evaluate(node=>getComputedStyle(node).animationName),'none');
 await page.close();
 await Promise.race([browser.close(), new Promise(resolve=>setTimeout(resolve,2000))]);
 console.log('PASS: desktop/mobile/no overflow, animated SaaS edge widgets with reduced-motion fallback, actual product UI screenshots, invitation normalization and destination (intercepted), root LP, login error, Google link, no browser errors');

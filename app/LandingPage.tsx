@@ -32,11 +32,17 @@ function FeatureIcon({ kind }: { kind: 'search' | 'people' | 'message' }) {
 function ProductShowcase() {
   return <figure className={styles.productShowcase} aria-label="TASUKIの実際の画面">
     <figcaption className={styles.productCaption}><span aria-hidden="true"/>ACTUAL PRODUCT UI <b>デモデータ</b></figcaption>
+    <div className={styles.connectionVisual} aria-hidden="true">
+      <img src="/lp/tasuki-connection-hero-v1.webp" width="960" height="1200" alt=""/>
+      <span className={`${styles.connectionPiece} ${styles.connectionPieceBlue}`}/>
+      <span className={`${styles.connectionPiece} ${styles.connectionPieceOrange}`}/>
+      <span className={`${styles.connectionPiece} ${styles.connectionPieceNavy}`}/>
+    </div>
     <div className={`${styles.productScreen} ${styles.productScreenBack}`}>
-      <img src="/lp/tasuki-ui-mypage.jpg" width="960" height="1880" alt="TASUKIのマイページ画面"/>
+      <img data-product-screen src="/lp/tasuki-ui-mypage.jpg" width="960" height="1880" alt="TASUKIのマイページ画面"/>
     </div>
     <div className={`${styles.productScreen} ${styles.productScreenFront}`}>
-      <img src="/lp/tasuki-ui-requests.jpg" width="960" height="1880" alt="TASUKIの仕事の掲示板画面"/>
+      <img data-product-screen src="/lp/tasuki-ui-requests.jpg" width="960" height="1880" alt="TASUKIの仕事の掲示板画面"/>
     </div>
     <p className={styles.productNote}><span aria-hidden="true">●</span> 掲示板も会員情報も、ひとつの場所に。</p>
   </figure>;
