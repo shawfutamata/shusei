@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
-import { adCalendar, canBuyAdSlot, getMemberRank, listMemberAds } from '@/db/data';
+import { adCalendar, canBuyAdSlot, getMemberRank, listAdGifts, listMemberAds } from '@/db/data';
 import { AD_DESCRIPTION_MAX, AD_TITLE_MAX, adPlacements } from '@/app/ad-options';
 import { AD_DAYS_AHEAD_ALL, AD_MAX_DAYS_ALL, adDiscountRate } from '@/app/rank-perks';
 import { adSlotConfigured } from '@/app/stripe';
@@ -35,5 +35,8 @@ export async function GET() {
     daysAhead,
     calendars,
     slots: await listMemberAds(gate.user.userId),
+    // 手持ちの無料券。**枚ごとに返す。** 合計だけだと「いつまでに使えばよいか」
+    // が分からず、気づいたら切れている、が起きる。
+    gifts: await listAdGifts(gate.user.userId),
   });
 }

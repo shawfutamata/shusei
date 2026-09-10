@@ -2280,3 +2280,42 @@ body { font-weight:600; }
 .modal.is-full .gacha-prizes li.is-win { border-left-color:var(--accent); }
 .modal.is-full .gacha-prizes li.is-top { border-left-color:#e0a51c; }
 .modal.is-full .gacha-prizes li.is-top b { font-size:14.5px; }
+
+/* ── 無料券（クーポン）の一覧 ───────────────────────────
+   合計だけだと「いつまでに使えばよいか」が分からず、気づいたら切れている。
+   **1枚ずつ、期限つきで出す。** 使い切った券も残して履歴として読めるようにする。 */
+.gift-wallet { margin:14px 0 0; padding:14px 15px; border:1px dashed #e8c877; border-radius:16px;
+  background:linear-gradient(160deg,#fffaf0,#fffdf8); }
+.gift-wallet-head { margin:0; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.gift-wallet-head span { color:#7a5a12; font-size:13px; font-weight:900; }
+.gift-wallet-head small { display:block; margin-top:2px; color:#a08a55; font-size:10px; font-weight:700; }
+.gift-wallet-head b { flex:0 0 auto; color:#7a5a12; font-size:26px; font-weight:900; letter-spacing:-.02em; }
+.gift-wallet-head b em { margin-left:2px; font-size:13px; font-style:normal; }
+.gift-wallet ul { margin:12px 0 0; padding:0; list-style:none; display:grid; gap:7px; }
+/* 1枚＝回数券のかたち。左に日数、右に状態と期限。 */
+.gift-wallet li { padding:9px 12px; display:flex; align-items:center; gap:12px;
+  border:1px solid #f0e2c0; border-radius:11px; background:#fff; }
+.gift-wallet li b { flex:0 0 auto; min-width:58px; color:#7a5a12; font-size:19px; font-weight:900; letter-spacing:-.02em; }
+.gift-wallet li b em { margin-left:1px; font-size:11px; font-style:normal; }
+.gift-wallet li span { flex:1 1 auto; min-width:0; }
+.gift-wallet li i { display:inline-block; padding:2px 8px; border-radius:99px;
+  background:#f0e2c0; color:#7a5a12; font-size:10px; font-style:normal; font-weight:900; }
+.gift-wallet li small { display:block; margin-top:3px; color:#9aa6b8; font-size:10.5px; font-weight:700; }
+/* 使えるものだけ色を持たせる。終わった券まで金色だと、どれが使えるのか分からない。 */
+.gift-wallet li.is-open i { background:linear-gradient(135deg,#e0a51c,#f5cd53); color:#4d3400; }
+.gift-wallet li.is-held i { background:#dbeafe; color:#0f5fc4; }
+.gift-wallet li.is-expired, .gift-wallet li.is-used { border-color:#e6ebf3; background:#fafbfd; }
+.gift-wallet li.is-expired b, .gift-wallet li.is-used b { color:#a8b4c6; }
+.gift-wallet li.is-expired i, .gift-wallet li.is-used i { background:#eef2f8; color:#8b97aa; }
+.gift-wallet-note { margin:11px 0 0; color:#a08a55; font-size:11px; font-weight:700; line-height:1.7; }
+.gift-wallet-note b { color:#7a5a12; }
+
+/* ── 無料券を使うかどうかの選択 ─────────────────────────
+   黙って減らすと、まるごと無料にできる日まで取っておきたい人の券が消える。 */
+.ad-gift-use { margin:12px 0 0; padding:12px 14px; display:flex; align-items:flex-start; gap:11px;
+  border:1px solid #e8c877; border-radius:12px; background:#fffaf0; cursor:pointer; }
+.ad-gift-use input { width:20px; height:20px; margin:1px 0 0; flex:0 0 auto; accent-color:#e0a51c; }
+.ad-gift-use span { flex:1 1 auto; min-width:0; }
+.ad-gift-use b { display:block; color:#7a5a12; font-size:13px; font-weight:900; }
+.ad-gift-use small { display:block; margin-top:3px; color:#a08a55; font-size:11px; font-weight:700; line-height:1.7; }
+.ad-gift-use small b { display:inline; color:#7a5a12; font-size:11px; }

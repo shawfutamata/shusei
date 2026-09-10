@@ -4,7 +4,7 @@ import { adSlotConfigured, stripeClient } from '@/app/stripe';
 import { AD_MIN_DAYS, DEFAULT_PLACEMENT, isAdPlacement, placementName } from '@/app/ad-options';
 import { industryGroups } from '@/app/industry-options';
 import { adSlotTotalYen } from '@/app/plan-catalog';
-import { activateAdSlot, availableAdGiftDays, canBuyAdSlot, getMemberRank, getStripeLink, releaseAdSlot, reserveAdSlot, saveAdSlotSession, saveStripeCustomer, shiftDate, spendAdGiftDays } from '@/db/data';
+import { activateAdSlot, availableAdGiftDays, canBuyAdSlot, commitAdGiftDays, getMemberRank, getStripeLink, holdAdGiftDays, releaseAdSlot, reserveAdSlot, saveAdSlotSession, saveStripeCustomer, shiftDate } from '@/db/data';
 import { AD_DAYS_AHEAD_ALL, AD_MAX_DAYS_ALL, adDiscountRate } from '@/app/rank-perks';
 import { readAdContent } from '@/app/ad-upload';
 
@@ -50,29 +50,55 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'その日はまだお申し込みいただけません。カレンダーに出ている日からお選びください。' }, { status: 400 });
   }
 
-  // ガチャで当たった無料券。**掲載日数を全部まかなえるときだけ使う。**
-  // 途中まで値引きにすると、支払いが途中で止まったときに券だけ消える。
-  const giftDays = await availableAdGiftDays(gate.user.userId);
-  const free = giftDays >= days;
+  // ガチャで当たった無料券。**足りないぶんは払ってもらう。**
+  // 全部まかなえるときだけ使う形にしていたが、7日ためるまで1枚も使えず、
+  // 当たった実感が出なかった。2日券で7日出すなら、5日ぶんを請求する。
+  //
+  // 使うかどうかは会員が選べる。まるごと無料にできる日まで取っておきたい人が
+  // いるので、黙って減らさない。既定は「使う」。
+  const useGift = String(form.get('useGift') ?? '1') !== '0';
+  const giftAvailable = useGift ? await availableAdGiftDays(gate.user.userId) : 0;
+  const giftDays = Math.min(giftAvailable, days);
+  const chargeDays = days - giftDays;
+  const free = chargeDays <= 0;
 
   // 先に枠を押さえる。早い者勝ちなので、決済画面を開く前に取り合いを終わらせる。
   let reserved: { id: string; endDate: string };
   try {
     // 請求する額をここで決めて、そのまま枠にも記録する。**画面から受け取った
     // 額は使わない**（書き換えられるため）。分析の売上はこの値だけを使う。
-    // 無料券で出すぶんは0円として残す。売上に混ぜない。
+    // 無料券で消したぶんは請求に入らないので、売上にも乗らない。
     reserved = await reserveAdSlot(gate.user.userId, startDate, days, parsed.content, placement, industry,
-      free ? 0 : adSlotTotalYen(placement, days, adDiscountRate(level)));
+      free ? 0 : adSlotTotalYen(placement, chargeDays, adDiscountRate(level)), giftDays);
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : '枠を押さえられませんでした。' }, { status: 409 });
   }
 
-  // 無料券で足りるときは、Stripeを通さずそのまま掲載を始める。
-  // **券を減らすのは掲載を始めたあと。** 先に減らして失敗すると券だけ消える。
+  // **券は枠と同じように取り置く。** ここで減らしておかないと、決済画面を
+  // 開いている間に同じ券で別の広告を申し込めてしまう。やめたときは戻す
+  // （releaseAdSlot が一緒に戻す）。
+  let held = 0;
+  if (giftDays > 0) {
+    try {
+      held = await holdAdGiftDays(gate.user.userId, giftDays, reserved.id);
+    } catch (error) {
+      await releaseAdSlot(reserved.id).catch(() => undefined);
+      console.error('ad gift hold failed', error);
+      return NextResponse.json({ error: 'お申し込みを進められませんでした。時間をおいてお試しください。' }, { status: 502 });
+    }
+    // 取れた券が足りないときは、そのぶん請求が変わってしまう。押さえ直させる。
+    if (held < giftDays) {
+      await releaseAdSlot(reserved.id).catch(() => undefined);
+      return NextResponse.json({ error: '無料券の残りが変わりました。もう一度お確かめのうえお申し込みください。' }, { status: 409 });
+    }
+  }
+
+  // 券だけで足りるときは、Stripeを通さずそのまま掲載を始める。
+  // **券を使用済みにするのは掲載を始めたあと。**
   if (free) {
     try {
       await activateAdSlot(reserved.id);
-      await spendAdGiftDays(gate.user.userId, days, reserved.id);
+      await commitAdGiftDays(reserved.id);
       return NextResponse.json({ free: true, message: `無料券で${days}日間の掲載を始めました。` });
     } catch (error) {
       await releaseAdSlot(reserved.id).catch(() => undefined);
@@ -87,7 +113,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    return await createCheckout(gate.user.userId, gate.user.email, gate.user.displayName, reserved.id, startDate, reserved.endDate, placement, days, level, new URL(request.url).origin);
+    return await createCheckout(gate.user.userId, gate.user.email, gate.user.displayName, reserved.id, startDate, reserved.endDate, placement, days, chargeDays, giftDays, level, new URL(request.url).origin);
   } catch (error) {
     // 決済画面を開けなかったのに枠を押さえたままにしない。次の人がすぐ買える。
     await releaseAdSlot(reserved.id).catch(() => undefined);
@@ -96,7 +122,7 @@ export async function POST(request: Request) {
   }
 }
 
-async function createCheckout(memberId: string, userEmail: string, userName: string, slotId: string, startDate: string, endDate: string, placement: string, days: number, level: number, origin: string) {
+async function createCheckout(memberId: string, userEmail: string, userName: string, slotId: string, startDate: string, endDate: string, placement: string, days: number, chargeDays: number, giftDays: number, level: number, origin: string) {
   const stripe = stripeClient();
   const link = await getStripeLink(memberId);
 
@@ -120,10 +146,15 @@ async function createCheckout(memberId: string, userEmail: string, userName: str
     line_items: [{
       price_data: {
         currency: 'jpy',
-        unit_amount: adSlotTotalYen(placement, days, adDiscountRate(level)),
+        // **請求するのは券で消せなかった日数ぶんだけ。**
+        unit_amount: adSlotTotalYen(placement, chargeDays, adDiscountRate(level)),
         product_data: {
           name: `TASUKI ${placementName(placement)} ${days}日間`,
-          description: `${startDate} 〜 ${endDate}`,
+          // 無料券を使ったときは、明細にもそう書く。あとで請求書を見たときに
+          // 「なぜこの額なのか」が分からないと問い合わせになる。
+          description: giftDays > 0
+            ? `${startDate} 〜 ${endDate}（無料券 ${giftDays}日分を差し引き、${chargeDays}日分のご請求）`
+            : `${startDate} 〜 ${endDate}`,
         },
       },
       quantity: 1,
@@ -134,7 +165,9 @@ async function createCheckout(memberId: string, userEmail: string, userName: str
     invoice_creation: {
       enabled: true,
       invoice_data: {
-        description: `TASUKI ${placementName(placement)}（${startDate} 〜 ${endDate}）`,
+        description: giftDays > 0
+          ? `TASUKI ${placementName(placement)}（${startDate} 〜 ${endDate}／無料券 ${giftDays}日分を差し引き）`
+          : `TASUKI ${placementName(placement)}（${startDate} 〜 ${endDate}）`,
         metadata: { memberId, adSlotId: slotId },
       },
     },

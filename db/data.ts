@@ -458,8 +458,14 @@ const statements = [
     PRIMARY KEY (member_id, campaign_key)
   )`,
   // 広告の無料券。当たった日数ぶん、広告の申し込みが無料になる。
-  // **使うのは「掲載日数を全部まかなえるとき」だけ**（app/api/ads/checkout）。
-  // 途中まで値引きにすると、支払いが途中で止まったときに券だけ消える。
+  //
+  // **足りないぶんは払ってもらう形にしてある**（2日券で7日出すなら5日ぶん払う）。
+  // 全部まかなえるときだけ使う形にしていたが、7日ためるまで1枚も使えず、
+  // 当たった実感が出ないため。
+  //
+  // 途中まで値引きにすると「支払いが止まったのに券だけ消える」事故が起きるので、
+  // **券は枠と同じように取り置きしてから使う。** 申し込みで held_days に移し、
+  // 支払いが済んだら used_ad_id を立て、やめたら days_left に戻す。
   `CREATE TABLE IF NOT EXISTS ad_gifts (
     id TEXT PRIMARY KEY,
     member_id TEXT NOT NULL REFERENCES members(id),
@@ -590,8 +596,21 @@ export async function ensureDatabase() {
     // 実際に請求した税込額。あとから日数×単価で計算し直すと、ランク割引の
     // かかり方が分からず実際とずれる。押さえた時点の額をそのまま残す。
     ['amount_yen', 'ALTER TABLE ad_slots ADD COLUMN amount_yen INTEGER NOT NULL DEFAULT 0'],
+    // 無料券で無料にした日数。請求額（amount_yen）は残りの日数ぶんだけなので、
+    // 「何日ぶん配ったか」はここを見ないと分からない。売上には混ぜない。
+    ['gift_days', 'ALTER TABLE ad_slots ADD COLUMN gift_days INTEGER NOT NULL DEFAULT 0'],
   ] as const) {
     if (!adColumnNames.has(columnName)) await env.DB.prepare(sql).run();
+  }
+  // 無料券に「取り置き」の列を足す。支払いが終わるまで券を減らしたままにして
+  // おき、払い終わったら使用済みに、やめたら戻す（下の holdAdGiftDays 参照）。
+  const giftColumns = await env.DB.prepare('PRAGMA table_info(ad_gifts)').all<{ name: string }>();
+  const giftColumnNames = new Set(giftColumns.results.map((column) => column.name));
+  for (const [columnName, sql] of [
+    ['held_ad_id', "ALTER TABLE ad_gifts ADD COLUMN held_ad_id TEXT NOT NULL DEFAULT ''"],
+    ['held_days', 'ALTER TABLE ad_gifts ADD COLUMN held_days INTEGER NOT NULL DEFAULT 0'],
+  ] as const) {
+    if (!giftColumnNames.has(columnName)) await env.DB.prepare(sql).run();
   }
   // 月で持っていた枠を、その月の初日〜末日に移す。1回だけ効く。
   await env.DB.prepare(`UPDATE ad_slots SET start_date = month || '-01',
@@ -1901,6 +1920,14 @@ export function shiftDate(date: string, days: number) {
 /** 決済されないまま押さえられている枠を解放する。呼ばれるたびに掃除する。 */
 async function releaseStaleAdReservations() {
   const limit = new Date(Date.now() - AD_RESERVATION_MINUTES * 60000).toISOString();
+  // **券を先に戻してから枠を消す。** 順番が逆だと、どの枠のぶんだったのかが
+  // 分からなくなり、取り置いたままの券が残る。
+  const stale = await env.DB.prepare("SELECT id FROM ad_slots WHERE status = 'reserved' AND created_at < ?")
+    .bind(limit).all<{ id: string }>();
+  for (const slot of stale.results) {
+    await env.DB.prepare(`UPDATE ad_gifts SET days_left = days_left + held_days, held_days = 0, held_ad_id = ''
+      WHERE held_ad_id = ?`).bind(slot.id).run();
+  }
   await env.DB.prepare("DELETE FROM ad_slots WHERE status = 'reserved' AND created_at < ?").bind(limit).run();
 }
 
@@ -1947,7 +1974,7 @@ export async function adCalendar(daysAhead: number, placement: string = DEFAULT_
  * 枠を1つ押さえる。決済が終わるまでは reserved で、放置すると自動で解放される。
  * 期間のどこか1日でも満枠なら断る。早い者勝ちなので、押さえた順に確定する。
  */
-export async function reserveAdSlot(memberId: string, startDate: string, days: number, content: AdContent, placement: string = DEFAULT_PLACEMENT, industry = '', amountYen = 0) {
+export async function reserveAdSlot(memberId: string, startDate: string, days: number, content: AdContent, placement: string = DEFAULT_PLACEMENT, industry = '', amountYen = 0, giftDays = 0) {
   await ensureDatabase();
   await releaseStaleAdReservations();
   const endDate = shiftDate(startDate, days - 1);
@@ -1961,10 +1988,11 @@ export async function reserveAdSlot(memberId: string, startDate: string, days: n
   // 支払いのあとに「まだ何も出ていない枠」ができない。
   const imageVersion = content.image ? await putAdImage(id, memberId, content.image) : 0;
   await env.DB.prepare(`INSERT INTO ad_slots (id, member_id, month, start_date, end_date, status, created_at,
-      placement, industry, title, description, link_url, image_version, amount_yen)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      placement, industry, title, description, link_url, image_version, amount_yen, gift_days)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(id, memberId, startDate.slice(0, 7), startDate, endDate, 'reserved', new Date().toISOString(), placement, industry,
-      cleanAdTitle(content.title), cleanAdDescription(content.description), cleanAdLink(content.linkUrl), imageVersion, Math.max(0, Math.round(amountYen))).run();
+      cleanAdTitle(content.title), cleanAdDescription(content.description), cleanAdLink(content.linkUrl), imageVersion,
+      Math.max(0, Math.round(amountYen)), Math.max(0, Math.round(giftDays))).run();
 
   // 押さえたあとにもう一度数えて、競り負けていたら取り消す。
   const lost = remainingByDay(await overlappingSlots(startDate, endDate, placement), startDate, days, limit).find((day) => day.remaining < 0);
@@ -1983,6 +2011,8 @@ function formatDay(date: string) {
 /** 決済画面を開けなかったときに、押さえた枠をすぐ返す。放置で待たせないため。 */
 export async function releaseAdSlot(id: string) {
   await env.DB.prepare("DELETE FROM ad_slots WHERE id = ? AND status = 'reserved'").bind(id).run();
+  // 取り置いた無料券も一緒に戻す。枠だけ返して券を握ったままにしない。
+  await releaseAdGiftDays(id);
 }
 
 export async function saveAdSlotSession(id: string, sessionId: string) {
@@ -2413,25 +2443,78 @@ export async function availableAdGiftDays(memberId: string) {
 }
 
 /**
- * 無料券を古いものから使う。使えた日数を返す。
+ * 無料券を**取り置く**。古いものから、期限が近いものを先に使う。取れた日数を返す。
  *
- * **お金を取らずに掲載を始めるときにだけ呼ぶ。** 値引きとして途中まで使うと、
- * 支払いが完了しないまま券だけ消える事故が起きる。
+ * 枠と同じ扱いにしてある。申し込んだ時点で減らし、
+ *
+ * - 支払いが済んだら `commitAdGiftDays` で使用済みにする
+ * - やめた・止まったら `releaseAdGiftDays` で戻す
+ *
+ * **先に減らすのは、二重に使われないため。** 減らさずに決済画面へ送ると、
+ * その間に同じ券で別の広告を申し込めてしまう。
  */
-export async function spendAdGiftDays(memberId: string, days: number, adId: string) {
+export async function holdAdGiftDays(memberId: string, days: number, adId: string) {
   await ensureDatabase();
+  if (days <= 0) return 0;
+  // 期限の近いものから使う。あとから当たった券のほうが長く持てるので、
+  // 古いほうを残すと、使わないまま切れる券が出る。
   const rows = await env.DB.prepare(`SELECT id, days_left AS daysLeft FROM ad_gifts
     WHERE member_id = ? AND days_left > 0 AND (expires_on = '' OR expires_on >= ?)
-    ORDER BY created_at`).bind(memberId, jstDate()).all<{ id: string; daysLeft: number }>();
+    ORDER BY CASE WHEN expires_on = '' THEN 1 ELSE 0 END, expires_on, created_at`)
+    .bind(memberId, jstDate()).all<{ id: string; daysLeft: number }>();
   let rest = days;
   for (const gift of rows.results) {
     if (rest <= 0) break;
     const take = Math.min(rest, Number(gift.daysLeft));
-    await env.DB.prepare('UPDATE ad_gifts SET days_left = days_left - ?, used_ad_id = ? WHERE id = ?')
-      .bind(take, adId, gift.id).run();
+    await env.DB.prepare(`UPDATE ad_gifts SET days_left = days_left - ?,
+        held_days = held_days + ?, held_ad_id = ? WHERE id = ?`)
+      .bind(take, take, adId, gift.id).run();
     rest -= take;
   }
   return days - rest;
+}
+
+/** 取り置いた券を使用済みにする。**支払いが済んだあとだけ呼ぶ。** */
+export async function commitAdGiftDays(adId: string) {
+  await ensureDatabase();
+  await env.DB.prepare(`UPDATE ad_gifts SET used_ad_id = held_ad_id, held_days = 0, held_ad_id = ''
+    WHERE held_ad_id = ?`).bind(adId).run();
+}
+
+/** 取り置いた券を戻す。申し込みをやめた・決済画面を開けなかったときに呼ぶ。 */
+export async function releaseAdGiftDays(adId: string) {
+  await ensureDatabase();
+  if (!adId) return;
+  await env.DB.prepare(`UPDATE ad_gifts SET days_left = days_left + held_days, held_days = 0, held_ad_id = ''
+    WHERE held_ad_id = ?`).bind(adId).run();
+}
+
+/** 手持ちの券の一覧。マイページの「無料券」に出す。**期限が近い順。** */
+export async function listAdGifts(memberId: string) {
+  await ensureDatabase();
+  const today = jstDate();
+  const rows = await env.DB.prepare(`SELECT id, source, days, days_left AS daysLeft,
+      held_days AS heldDays, expires_on AS expiresOn, used_ad_id AS usedAdId, created_at AS createdAt
+    FROM ad_gifts WHERE member_id = ?
+    ORDER BY CASE WHEN expires_on = '' THEN 1 ELSE 0 END, expires_on, created_at`)
+    .bind(memberId).all<{ id: string; source: string; days: number; daysLeft: number;
+      heldDays: number; expiresOn: string; usedAdId: string; createdAt: string }>();
+  // 並びは**使えるものが先**。期限切れを先頭に出すと、使える券がどれなのか
+  // 分からない。同じ状態のなかでは期限の近い順（＝先に使われる順）。
+  const order: Record<string, number> = { open: 0, held: 1, expired: 2, used: 3 };
+  return rows.results.map((gift) => ({
+    id: gift.id,
+    days: Number(gift.days),
+    daysLeft: Number(gift.daysLeft),
+    heldDays: Number(gift.heldDays),
+    expiresOn: gift.expiresOn,
+    createdAt: gift.createdAt.slice(0, 10),
+    // 券がいまどうなっているか。**画面で判定させない**（同じ判定が2か所に散る）。
+    state: Number(gift.daysLeft) > 0 && (!gift.expiresOn || gift.expiresOn >= today) ? 'open'
+      : Number(gift.heldDays) > 0 ? 'held'
+      : Number(gift.daysLeft) > 0 ? 'expired'
+      : 'used',
+  })).sort((a, b) => (order[a.state] ?? 9) - (order[b.state] ?? 9));
 }
 
 /** 管理画面に出す、配った結果のまとめ。**「今月」と「通算」の両方を出す。** */

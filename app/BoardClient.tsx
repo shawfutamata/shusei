@@ -224,11 +224,45 @@ type AdOffer = {
   /** 空きは場所ごとに違うので、場所をキーにして持つ。 */
   calendars: Record<string, AdCalendarDay[]>;
   slots: AdSlot[];
+  /** 手持ちの無料券。1枚＝1行。 */
+  gifts: AdGift[];
+};
+
+/**
+ * ガチャで当たった広告の無料券。
+ * `state` はサーバーが決める（同じ判定を画面でもう一度書くと、必ず食い違う）。
+ */
+type AdGift = {
+  id: string;
+  /** 当たったときの日数。 */
+  days: number;
+  /** まだ使える日数。 */
+  daysLeft: number;
+  /** 申し込み中の広告に取り置かれている日数。 */
+  heldDays: number;
+  expiresOn: string;
+  createdAt: string;
+  /** open＝使える／held＝申し込み中／expired＝期限切れ／used＝使い切り */
+  state: string;
 };
 
 /** 出稿する人が入れる内容。画像は送る前の状態で持っておく。 */
 type AdDraft = { title: string; description: string; linkUrl: string; image: File | null; imagePreview: string };
 const emptyAdDraft: AdDraft = { title: '', description: '', linkUrl: '', image: null, imagePreview: '' };
+
+/**
+ * 無料券がいまどうなっているか。**呼び名はここだけで決める。**
+ * どの状態かの判定はサーバー（listAdGifts）がしているので、ここは名前だけ。
+ */
+const giftStates: Record<string, { label: string; tone: string }> = {
+  open: { label: '使えます', tone: 'open' },
+  held: { label: 'お申し込み中', tone: 'held' },
+  expired: { label: '期限切れ', tone: 'expired' },
+  used: { label: '使用済み', tone: 'used' },
+};
+function giftState(state: string) {
+  return giftStates[state] ?? giftStates.used;
+}
 
 /** その枠がいまどういう状態か。掲載前・掲載中・終わった、を1か所で決める。 */
 function adState(ad: AdSlot) {
@@ -427,6 +461,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [adIndustry, setAdIndustry] = useState('');
   const [adStart, setAdStart] = useState('');
   const [adDays, setAdDays] = useState(30);
+  /** 無料券を使うか。既定は使う。取っておきたい人だけ外す。 */
+  const [adUseGift, setAdUseGift] = useState(true);
 
   const [openStats, setOpenStats] = useState('');
   const [adStats, setAdStats] = useState<{ slot: AdSlot; days: AdDay[] } | null>(null);
@@ -1028,7 +1064,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       : gacha.streak > 0 ? `毎日1回・${gacha.streak}日つづいています` : '毎日1回・今日のぶんがまだです';
 
   const adGiftDays = gacha?.giftDays ?? 0;
-  const adFreeByGift = adGiftDays >= adDays;
+  /**
+   * この申し込みで無料券を何日ぶん使うか。**足りないぶんは払ってもらう。**
+   * まるごと無料にできる日まで取っておきたい人がいるので、外せるようにしてある。
+   */
+  const adGiftUse = adUseGift ? Math.min(adGiftDays, adDays) : 0;
+  const adChargeDays = adDays - adGiftUse;
+  const adFreeByGift = adChargeDays <= 0;
 
   async function loadAdInfo() {
     const data = await fetch('/api/ads').then((response) => response.ok ? response.json() : null).catch(() => null);
@@ -1255,6 +1297,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
   function startAdFlow(draft?: Partial<AdDraft>) {
     setAdFileName('');
+    // 券を使うかどうかは、申し込みごとに決め直す。前回「使わない」にした人が、
+    // 次の申し込みでも黙って使わないままになるのを避ける。
+    setAdUseGift(true);
     // 投稿から来たときは、見出しと本文を写しておく。
     // 打ち直させない。文言はあとから直せる。
     setAdDraft({ ...emptyAdDraft, ...draft });
@@ -1297,6 +1342,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       body.set('industry', adPlacement === 'list' ? adIndustry : '');
       body.set('startDate', adStart);
       body.set('days', String(adDays));
+      // 券を使うかどうかは会員が決める。**日数はサーバーが数え直す**ので、
+      // ここでは「使う／使わない」だけを渡す。
+      body.set('useGift', adUseGift ? '1' : '0');
       // 縮小は出す人の端末でやる。Workersでは変換しない。
       if (adDraft.image) body.set('image', await detailImage(adDraft.image));
       const response = await fetch('/api/ads/checkout', { method: 'POST', body });
@@ -2473,6 +2521,34 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 </button>
               : null}
 
+          {/* 手持ちの無料券。**枚ごとに、期限つきで出す。**
+              合計だけだと「いつまでに使えばよいか」が分からず、気づいたら
+              切れている、が起きる。使い切った券も残して、履歴として読めるようにする。 */}
+          {adInfo.gifts.length > 0 && !adFlow && <section className="gift-wallet">
+            <p className="gift-wallet-head">
+              <span>無料券<small>ガチャで当たった広告の無料日数</small></span>
+              <b>{adGiftDays}<em>日分</em></b>
+            </p>
+            <ul>{adInfo.gifts.map((gift) => {
+              const state = giftState(gift.state);
+              // 出す日数は状態で変わる。使い切った券に「0日分」と出しても意味が無い。
+              const days = gift.state === 'held' ? gift.heldDays : gift.state === 'used' ? gift.days : gift.daysLeft;
+              // 期限は**まだ使える券にだけ**添える。使い切った券に「12月9日まで」と
+              // 出しても、もう関係がない。切れた券は、いつ切れたかを言う。
+              const when = gift.state === 'used' ? `${gachaDateLabel(gift.createdAt)}に当たりました`
+                : gift.state === 'expired' ? `${gachaDateLabel(gift.expiresOn)}で期限切れ`
+                : gift.expiresOn ? `${gachaDateLabel(gift.expiresOn)}まで` : '期限なし';
+              return <li key={gift.id} className={`is-${state.tone}`}>
+                <b>{days}<em>日分</em></b>
+                <span>
+                  <i>{state.label}</i>
+                  <small>{when}</small>
+                </span>
+              </li>;
+            })}</ul>
+            <p className="gift-wallet-note">広告のお申し込みで、<b>期限の近い券から</b>使います。掲載日数に足りないぶんは、そのままお支払いいただけます。</p>
+          </section>}
+
           {/* いま持っている枠。ここは見るところで、申し込みは上の入口から。 */}
           {adInfo.slots.length > 0 && !adFlow && <ul className="ad-slot-list">{adInfo.slots.map((ad) => {
             const state = adState(ad);
@@ -2550,21 +2626,26 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                     </label>
                     {/* 動かした結果がいくらになるのか、その場で見えるようにする */}
                     <p className="ad-quote">
-                      {(adInfo.discountRate > 0 || adFreeByGift) && <s>{adTotalPrice(adPlacement, adDays)}</s>}
-                      <b>{adFreeByGift ? '0円' : adTotalPrice(adPlacement, adDays, adInfo.discountRate)}</b>
+                      {(adInfo.discountRate > 0 || adGiftUse > 0) && <s>{adTotalPrice(adPlacement, adDays)}</s>}
+                      <b>{adFreeByGift ? '0円' : adTotalPrice(adPlacement, adChargeDays, adInfo.discountRate)}</b>
                       <small>{adFreeByGift
-                        ? `ガチャの無料券（${gacha?.giftDays}日分）で、この${adDays}日間はお支払いが要りません`
-                        : <>{adDailyPrice(adPlacement)} × {adDays}日（税込・1回のみ）
+                        ? `無料券 ${adGiftUse}日分で、この${adDays}日間はお支払いが要りません`
+                        : <>{adDailyPrice(adPlacement)} × {adChargeDays}日（税込・1回のみ）
+                          {adGiftUse > 0 && `／無料券 ${adGiftUse}日分を差し引き`}
                           {adInfo.discountRate > 0 && `／${adInfo.rank}の${Math.round(adInfo.discountRate * 100)}%OFF適用`}</>}</small>
                     </p>
-                    {/* 券はあるが日数が足りないとき。**黙って全額にしない。**
-                        ただし券が7日に満たないときに「◯日以内にすれば無料」と
-                        書くと、選べない日数を指すことになる（広告は7日から）。
-                        その場合は「あと何日ためれば出せるか」を言う。 */}
-                    {!adFreeByGift && adGiftDays > 0 && <p className="ad-gift-hint">{adGiftDays >= AD_MIN_DAYS
-                      ? <>無料券が{adGiftDays}日分あります。掲載日数を<b>{adGiftDays}日以内</b>にすると、この期間はお支払いが要りません。</>
-                      : <>無料券が{adGiftDays}日分たまっています。<b>あと{AD_MIN_DAYS - adGiftDays}日分</b>で、{AD_MIN_DAYS}日間まるごと無料で出せます。</>}
-                    </p>}
+                    {/* 券を持っている人には、**使うかどうかをその場で選ばせる。**
+                        黙って減らすと、まるごと無料にできる日まで取っておきたい人の
+                        券が消える。既定は使う（当てたものは使えたほうが嬉しい）。 */}
+                    {adGiftDays > 0 && <label className="ad-gift-use">
+                      <input type="checkbox" checked={adUseGift} onChange={(event) => setAdUseGift(event.target.checked)} />
+                      <span>
+                        <b>無料券を使う</b>
+                        <small>{adUseGift
+                          ? <>この申し込みで<b>{adGiftUse}日分</b>を使います{adGiftDays > adGiftUse && `（残り${adGiftDays - adGiftUse}日分）`}</>
+                          : <>手持ちは{adGiftDays}日分。使わずに取っておきます</>}</small>
+                      </span>
+                    </label>}
                     <p className={`ad-period${adStart && !periodOpen ? ' is-full' : ''}`}>{!adStart
                       ? 'カレンダーから掲載開始日をお選びください'
                       : periodOpen
@@ -2579,7 +2660,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                     <dl className="ad-check">
                       <div><dt>掲載枠</dt><dd>{placementName(adPlacement)}<small>{currentPlacement.slots}枠のうち1枠{adPlacement === 'list' && `／${adIndustry ? `${adIndustry}の一覧` : 'すべての業種の一覧'}`}</small></dd></div><div><dt>掲載期間</dt><dd>{adStart && formatRange(adStart, shiftDate(adStart, adDays - 1))}<small>{adDays}日間</small></dd></div>
                       <div><dt>リンク先</dt><dd>{adDraft.linkUrl ? adDraft.linkUrl.replace(/^https?:\/\//, '') : <em>設定なし</em>}</dd></div>
-                      <div className="ad-check-pay"><dt>お支払い額</dt><dd>{adFreeByGift ? '0円' : adTotalPrice(adPlacement, adDays, adInfo.discountRate)}<small>{adFreeByGift ? `ガチャの無料券 ${adDays}日分を使います` : <>{adDailyPrice(adPlacement)}×{adDays}日{adInfo.discountRate > 0 && `・${adInfo.rank}の${Math.round(adInfo.discountRate * 100)}%OFF`}・税込・1回のみ</>}</small></dd></div>
+                      {adGiftUse > 0 && <div><dt>無料券</dt><dd>{adGiftUse}日分を使用<small>{adFreeByGift ? '掲載期間ぶんをすべて無料券でまかないます' : `残り${adChargeDays}日分をお支払いいただきます`}</small></dd></div>}
+                      <div className="ad-check-pay"><dt>お支払い額</dt><dd>{adFreeByGift ? '0円' : adTotalPrice(adPlacement, adChargeDays, adInfo.discountRate)}<small>{adFreeByGift ? `無料券 ${adGiftUse}日分を使います` : <>{adDailyPrice(adPlacement)}×{adChargeDays}日{adInfo.discountRate > 0 && `・${adInfo.rank}の${Math.round(adInfo.discountRate * 100)}%OFF`}・税込・1回のみ</>}</small></dd></div>
                     </dl>
                     <div className="ad-step-actions"><button type="button" onClick={() => setAdStep(2)}>戻る</button><button className="submit-button" disabled={busy || !adStart || !periodOpen}>{busy ? '処理しています…' : adFreeByGift ? '無料で掲載を始める' : 'お支払いへ進む'}</button></div>
                     <p className="ad-note">{adFreeByGift
