@@ -1560,7 +1560,7 @@ export async function addIntroductionMessage(user: SessionUser, introductionId: 
     .bind(crypto.randomUUID(), introductionId, user.userId, text, new Date().toISOString()).run();
   // 相手に知らせる。届かなくてもやり取りは残るので、失敗は握りつぶす。
   await sendIntroductionMessageNotice(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
-  await sendMessageMail(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
+  await sendMessageMail(access.partnerId, user.displayName, access.requestTitle, text).catch(() => undefined);
   return listIntroductionMessages(user, introductionId);
 }
 
@@ -1645,7 +1645,7 @@ async function addDirectMessage(user: SessionUser, partnerId: string, body: stri
     VALUES (?, ?, ?, ?, ?, ?)`)
     .bind(crypto.randomUUID(), pairKey, user.userId, partnerId, text, new Date().toISOString()).run();
   await sendDirectMessageNotice(partnerId, user.displayName).catch(() => undefined);
-  await sendMessageMail(partnerId, user.displayName, '').catch(() => undefined);
+  await sendMessageMail(partnerId, user.displayName, '', text).catch(() => undefined);
   return listDirectMessages(user, partnerId);
 }
 
@@ -1660,7 +1660,7 @@ async function addAdIntroductionMessage(user: SessionUser, id: string, body: str
     .bind(crypto.randomUUID(), id, user.userId, text, new Date().toISOString()).run();
   // 相手に知らせる。届かなくてもやり取りは残るので、失敗は握りつぶす。
   await sendIntroductionMessageNotice(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
-  await sendMessageMail(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
+  await sendMessageMail(access.partnerId, user.displayName, access.requestTitle, text).catch(() => undefined);
   return listAdIntroductionMessages(user, id);
 }
 
@@ -1832,21 +1832,23 @@ function requestImageUrl(id: string, version: number, size: 'thumb' | 'full', in
 /**
  * メッセージが届いたことを、登録のメールアドレスに知らせる。
  *
- * **本文は載せない。** 1対1のやり取りは、当人2人だけが読むもの。メールは
- * 転送も共有も簡単で、届いた先が本人の手元とは限らない。誰から届いたかと、
- * 開く場所だけを伝える。
+ * **本文をプレビューできる。** 改行を保ったままメール本文に載せ、メールを
+ * 開くだけで内容が分かるようにする。HTMLとして解釈されないようエスケープする。
  *
  * **保存したメッセージごとに送る。** 相手がまだ会話を開いていなくても、
  * 新しいメッセージを見落とさないようにする。不要な人はマイページで止められる。
  *
  * 送れなくてもやり取りは残る。**失敗しても止めない。**
  */
-async function sendMessageMail(recipientId: string, senderName: string, about: string) {
+async function sendMessageMail(recipientId: string, senderName: string, about: string, message: string) {
   if (!env.RESEND_API_KEY || !env.AUTH_FROM_EMAIL) return;
   const row = await env.DB.prepare(`SELECT email, mail_on_message AS mailOn FROM members WHERE id = ?`)
     .bind(recipientId).first<{ email: string; mailOn: number }>();
   if (!row?.email || !Number(row.mailOn)) return;
-  const line = about ? `「${about}」でのやり取りです。` : '';
+  const safeSenderName = escapeMailHtml(senderName);
+  const safeAbout = escapeMailHtml(about);
+  const safeMessage = escapeMailHtml(message).replace(/\r?\n/g, '<br>');
+  const line = about ? `「${safeAbout}」でのやり取りです。` : '';
   await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
@@ -1855,13 +1857,21 @@ async function sendMessageMail(recipientId: string, senderName: string, about: s
       to: [row.email],
       subject: `${senderName}さんからメッセージが届きました`,
       html: `<div style="font-family:Arial,sans-serif;color:#15213a;line-height:1.8">`
-        + `<h2 style="font-size:18px">${senderName}さんからメッセージが届きました</h2>`
-        + `<p>${line}内容は${serviceName}を開いてご確認ください。</p>`
+        + `<h2 style="font-size:18px">${safeSenderName}さんからメッセージが届きました</h2>`
+        + (line ? `<p>${line}</p>` : '')
+        + `<div style="margin:20px 0;padding:16px 18px;border:1px solid #dbe5f3;border-radius:12px;background:#f6f9fd;color:#15213a;white-space:normal">${safeMessage}</div>`
         + `<p><a href="${serviceUrl}/?intro=1" style="display:inline-block;padding:12px 22px;border-radius:10px;background:#0f5fc4;color:#fff;text-decoration:none;font-weight:700">メッセージを開く</a></p>`
         + `<p style="color:#6b7d95;font-size:12px">このお知らせを止めたいときは、${serviceName}のマイページ →「アプリと通知」からオフにできます。</p>`
         + `</div>`,
+      text: `${senderName}さんからメッセージが届きました\n\n${about ? `「${about}」でのやり取りです。\n\n` : ''}${message}\n\nメッセージを開く: ${serviceUrl}/?intro=1`,
     }),
   });
+}
+
+function escapeMailHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[character] || character);
 }
 
 /** メールで知らせてよいか。**既定は送る**（列の既定値が1）。 */
