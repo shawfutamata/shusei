@@ -19,9 +19,9 @@ Generated transparent PNG ribbon is decorative and included under public/lp/. Al
 - Member login uses existing `/api/auth/google/start`.
 - Existing legal and support routes linked in footer.
 
-## Commercial discrepancy awaiting user response
+## Commercial terms confirmed against current implementation
 
-User handoff says 5 banner slots; `app/ad-options.ts` currently says 10. Do not mutate ad capacity as part of LP work. Draft follows the explicit user handoff of 5 slots; daily price is 350 yen. This conflicts with the live-capacity source and must be confirmed before publication. Board top: 3 slots / 600 yen per day. Dates: 7–30 days. Subscription: 1,200 yen monthly / 11,520 yen annually (20% off).
+User delegated completion after reviewing the first draft. History commit `586e749` explicitly restores banner capacity to 10 slots. LP now reads both capacities from `placementSlots` in `app/ad-options.ts`, keeping advertising behavior unchanged. Banner: 10 slots / 350 yen per day. Board top: 3 slots / 600 yen per day. Dates: 7–30 days. Subscription: 1,200 yen monthly / 11,520 yen annually (20% off).
 
 The handoff document in repository root dates to August and includes stale authentication and deployment descriptions. Current implementation and September pricing docs were used instead. Claude artifact could not be fetched; user-supplied summary and repository are the evidence.
 
@@ -35,4 +35,4 @@ The handoff document in repository root dates to August and includes stale authe
 
 ## Publication
 
-No remote push or deployment performed. User says push triggers production deployment. Review locally before any push, including to a new branch until the deployment branch rules are confirmed.
+User delegated proceeding through publication. Existing production branch is `claude/codex-chat-handoff-dbw0m2` (Cloudflare Workers build succeeded for c77a971). Apply only LP commits by fast-forward to that branch after preflight; preserve the older main branch. Deployment and production verification results will be recorded after completion.

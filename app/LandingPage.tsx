@@ -4,7 +4,7 @@ import { serviceName } from './brand';
 import { planCatalog, yearlyYen, YEARLY_DISCOUNT, AD_DAILY_YEN } from './plan-catalog';
 import { freeCampaign, campaignUntilLabel } from './campaign';
 import { campaignPlan } from './entitlements';
-import { AD_MIN_DAYS, AD_MAX_DAYS } from './ad-options';
+import { AD_MIN_DAYS, AD_MAX_DAYS, placementSlots } from './ad-options';
 import styles from './LandingPage.module.css';
 
 function Ribbon({ className = '' }: { className?: string }) {
@@ -62,7 +62,7 @@ export default function LandingPage({ error = '', pending = false }: { error?: s
         <article className={styles.planCard}><span className={styles.smallLabel}>FREE</span><h3>まずは、つながる。</h3><div className={styles.price}>0<span>円</span></div><p>無料プラン</p><ul><li>掲示板の閲覧・会員検索</li><li>知り合いを紹介するオファー</li><li>案件の投稿は月1件まで</li></ul><p className={styles.planNote}>通常、届いたオファーの内容確認・返信と、自社で請け負うオファーにはスタンダードが必要です。</p><a href="#start" className={styles.secondary}>招待コードで始める ↗</a></article>
         <article className={`${styles.planCard} ${styles.standard}`}><span className={styles.smallLabel}>STANDARD</span><h3>もっと、商売につなぐ。</h3><div className={styles.price}>{planCatalog.standard.monthlyYen.toLocaleString('ja-JP')}<span>円 / 月</span></div><p>年払い {yearlyYen('standard').toLocaleString('ja-JP')}円 / 年 <b className={styles.discount}>{YEARLY_DISCOUNT * 100}%OFF</b></p><ul><li>無料プランの機能すべて</li><li>案件の投稿は何件でも</li><li>届いたオファーの内容確認・返信</li><li>自社で請け負うオファー</li></ul><a href="#start" className={styles.primary}>{activeCampaign ? '招待を受けて無料で試す' : '招待コードで始める'} ↗</a></article>
       </div>
-      <div className={styles.ads}><div><span className={styles.smallLabel}>LET YOUR BUSINESS BE SEEN</span><h3>あなたの商売を、<br/>会員に届ける広告枠。</h3><p>掲載日数に応じた日割り料金。<br/>最短{AD_MIN_DAYS}日〜最長{AD_MAX_DAYS}日で掲載できます。</p></div><div className={styles.adPrices}><div><span>バナー広告 · 5枠</span><b>{AD_DAILY_YEN.banner}円<small> / 日</small></b></div><div><span>掲示板上位 · 3枠</span><b>{AD_DAILY_YEN.list}円<small> / 日</small></b></div><p>出稿条件・空き枠は、ログイン後の広告申込画面でご確認ください。</p></div></div>
+      <div className={styles.ads}><div><span className={styles.smallLabel}>LET YOUR BUSINESS BE SEEN</span><h3>あなたの商売を、<br/>会員に届ける広告枠。</h3><p>掲載日数に応じた日割り料金。<br/>最短{AD_MIN_DAYS}日〜最長{AD_MAX_DAYS}日で掲載できます。</p></div><div className={styles.adPrices}><div><span>バナー広告 · {placementSlots('banner')}枠</span><b>{AD_DAILY_YEN.banner}円<small> / 日</small></b></div><div><span>掲示板上位 · {placementSlots('list')}枠</span><b>{AD_DAILY_YEN.list}円<small> / 日</small></b></div><p>出稿条件・空き枠は、ログイン後の広告申込画面でご確認ください。</p></div></div>
     </section>
     <section className={styles.start} id="start" aria-labelledby="start-title"><div className={styles.sectionTop}><span>04 / YOUR NEXT CONNECTION</span><span>さあ、たすきをつなごう。</span></div><Ribbon/><Sticker kind="link"/><h2 id="start-title">次のご縁は、<br/>あなたのつながりから。</h2><div className={styles.startCard}><p className={styles.smallLabel}>INVITATION ONLY</p><h3>TASUKIを始める</h3><LandingInvite/><a className={styles.memberLogin} href="/api/auth/google/start">登録済みの方：Googleでログイン ↗</a></div></section>
     <footer className={styles.footer}><a className={styles.brand} href="#top"><BrandMark/><b>{serviceName}</b></a><p>人から人へ。商売のたすきをつなぐ。</p><nav aria-label="規約とお問い合わせ"><a href="/terms">利用規約</a><a href="/privacy">プライバシーポリシー</a><a href="/refund">返金・キャンセル</a><a href="/tokushoho">特定商取引法に基づく表記</a><a href="/support">お問い合わせ</a></nav><small>運営：株式会社ColourJam</small></footer>
