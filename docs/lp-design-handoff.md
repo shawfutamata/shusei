@@ -1,38 +1,35 @@
-# TASUKI LP review
+# TASUKI LP — Atlassian direction
 
-Base: `claude/codex-chat-handoff-dbw0m2`, commit `c77a97128d0ee35d27fce59d07bb88e3276677f9`.
-Local implementation branch: `codex/tasuki-slush-lp`.
+## Current target
 
-## Reference lock
+The user replaced the Slush brief with their full Atlassian style reference and asked to switch the published LP. Continue through production verification under the existing publication authorization. Base commit: a7fdd5a. Work branch: codex/tasuki-atlassian-lp. Production: claude/codex-chat-handoff-dbw0m2, deployed by Cloudflare Workers Builds.
 
-User's Slush reference owns sky/white/gray paper panels, enormous condensed black lettering at 0.78 line height, electric-blue inflatable ribbons, rainbow sticker accents, black 1px outlines, rounded cards, pill controls, and no CSS gradients or box shadows. Refero Slush (4b2938dc-7a56-488e-8fe3-3f8a212def34) checked against the supplied description. Fictional (5f5fd099-866e-4681-917b-0254a3883980) contributes only the speech bubble and asymmetric collage treatment; its fonts, colors, corner radii and CTAs are not adopted.
+## Reference lock / decision ledger
 
-Antonio 700 is the brief's permitted display substitute, locally hosted with OFL license. Japanese text uses the existing system Japanese font stack at readable line heights. BrandMark continues using the repository's adopted public/mark.svg. No unadopted historic logo draft used.
+| Decision | Source and role |
+|---|---|
+| White enterprise canvas, dark #101214 hero and closing panel | User Atlassian reference; dark editorial moments within a mostly light page |
+| #1868db primary buttons, links, focus and functional icons | User action color; no violet/yellow/green in functional controls |
+| Geometric violet/yellow/blue/green fragments | Decorative edges of dark panels only; never overlap content |
+| 1200px content, 64–80px sections, 20px cards, 28px buttons | User spacing and shape tokens |
+| Manrope display / Inter text, locally hosted with OFL licenses | User-approved substitutions; Japanese system sans fallback at readable weight and line height |
+| Lavender editorial band | User section rhythm; dark text, no functional card fills |
+| Referral diagram with explicitly labeled sample | Service flow from code + user imagery guidance for flat engineering diagrams; not represented as a real screenshot or member data |
+| Restrained navigation and lower weight editorial hierarchy | Refero Atlassian 827c26bc-d922-4123-9526-4280d497eea2; user-provided details take precedence over broader retrieved style |
 
-Generated transparent PNG ribbon is decorative and included under public/lp/. All informative text remains accessible HTML. Most content is a server component; only invitation entry is interactive client code. Pricing and campaign derive from existing source modules. Campaign expiry follows existing entitlement logic.
+The old inflatable assets and font remain available for rollback but are no longer loaded by this LP. No Atlassian logo, third-party product UI, member data or fabricated testimonial is used. Existing TASUKI BrandMark is retained.
 
-## Changes and routes
+## Behavior and commercial content
 
-- `/`: unauthenticated users see LP, with existing login-error messaging. Admin-host redirect, authorization gate, member board and ad return behavior retain their previous control flow.
-- `/lp`: marketing-only review route, available without DB queries, with noindex metadata. No member data or auth bypass.
-- Primary CTA scrolls to invitation entry; normalized eight-character code navigates to existing `/join/<code>` for server validation.
-- Member login uses existing `/api/auth/google/start`.
-- Existing legal and support routes linked in footer.
+- Root unauthenticated branch shows the LP; admin redirect, member authorization, authenticated board and ad return logic are unchanged.
+- `/lp` remains a noindex marketing preview accessible to signed-in users.
+- Invitation form normalizes 8 alphanumeric characters and uses existing `/join/<code>` server validation.
+- Google login uses `/api/auth/google/start`. No authentication or payment implementation changes.
+- Prices, campaign date and ad capacity derive from existing modules: standard 1,200 yen/month, 11,520 yen/year; 20% annual discount; banner 10 slots at 350 yen/day; board top 3 slots at 600 yen/day; 7–30 days.
+- The code history confirmed the handoff's 5-slot statement was outdated. Ad capacity was not modified.
 
-## Commercial terms confirmed against current implementation
+## QA
 
-User delegated completion after reviewing the first draft. History commit `586e749` explicitly restores banner capacity to 10 slots. LP now reads both capacities from `placementSlots` in `app/ad-options.ts`, keeping advertising behavior unchanged. Banner: 10 slots / 350 yen per day. Board top: 3 slots / 600 yen per day. Dates: 7–30 days. Subscription: 1,200 yen monthly / 11,520 yen annually (20% off).
+Use `npm run preflight` and `node scripts/check-lp.mjs` with the local dev server on localhost:4173. Review screenshots in `review/`. Check 1440, 768, 390 and 320 widths, mobile menu open/close and navigation, invitation normalization and mocked destination, login errors, local fonts and absence of the old ribbon.
 
-The handoff document in repository root dates to August and includes stale authentication and deployment descriptions. Current implementation and September pricing docs were used instead. Claude artifact could not be fetched; user-supplied summary and repository are the evidence.
-
-## Checks
-
-- TypeScript, eslint (zero errors; 16 warnings in unchanged app files), vinext production build passed.
-- Browser: 1440/768/390/320 widths without document overflow, desktop/mobile screenshots, root login-error state, no page errors.
-- Invitation field normalizes to uppercase; submission reaches `/join/AB12CD34` (destination intercepted, no live signup performed).
-- Google auth link destination verified; no Google login or live member transaction performed.
-- Authenticated board behavior retained in source; not tested with a real member session.
-
-## Publication
-
-User delegated proceeding through publication. Existing production branch is `claude/codex-chat-handoff-dbw0m2` (Cloudflare Workers build succeeded for c77a971). Apply only LP commits by fast-forward to that branch after preflight; preserve the older main branch. Deployment and production verification results will be recorded after completion.
+Production evidence is kept in `review/deployment-checks.json`, `review/production-check.json` and production screenshots after publication. Google redirect is verified without completing registration; live member transactions and payments are not exercised.

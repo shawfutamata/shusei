@@ -40,3 +40,9 @@ ICOOON MONO はアイコンそのものの再配布を認めていないため�
 
 - `public/lp/antonio-bold.ttf`: Antonio by Vernon Adams, Google Fonts, SIL Open Font License 1.1. License: `public/lp/antonio-OFL.txt`. Source: https://github.com/google/fonts/tree/main/ofl/antonio
 - `public/lp/tasuki-ribbon.png`: original AI-generated decorative inflatable blue ribbon created for this LP. It contains no product screenshots or user information.
+
+## TASUKI LP — Atlassian direction (2026-09-10)
+
+- `public/lp/inter-{400,500,700}.ttf`: Inter, Google Fonts, SIL OFL 1.1; license `public/lp/inter-OFL.txt`; https://github.com/google/fonts/tree/main/ofl/inter
+- `public/lp/manrope-{400,500,700}.ttf`: Manrope, Google Fonts, SIL OFL 1.1; license `public/lp/manrope-OFL.txt`; https://github.com/google/fonts/tree/main/ofl/manrope
+- Confetti and functional diagram are original inline SVG/HTML primitives. No external imagery.
