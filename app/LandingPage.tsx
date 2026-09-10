@@ -59,7 +59,7 @@ export default function LandingPage({ error = '', pending = false }: { error?: s
     </section>
     <section className={styles.about} id="about" aria-labelledby="about-title">
       <div className={styles.sectionTop}><span>01 / ABOUT TASUKI</span><span>会いたい人に、つながろう。</span></div>
-      <div className={styles.aboutIntro}><h2 id="about-title">名刺交換の、その先へ。</h2><p>「お願いできる会社を探している」<br/>「この相談、あの人なら力になれそう」<br/>そんなきっかけを、例会のあともつなげる場所です。</p></div>
+      <div className={styles.aboutIntro}><h2 id="about-title">名刺交換の、その先へ。</h2><p>「お願いできる会社を探している」<br/>「この相談、あの人なら力になれそう」<br/>そんなきっかけを、出会ったあともつなげる場所です。</p></div>
       <div className={styles.collage}>
 
         <article className={`${styles.story} ${styles.seek}`}><FeatureIcon kind="search"/><span className={styles.smallLabel}>探す・頼む</span><h3>こんな人、<br/>いませんか？</h3><p>案件や困りごとを投稿。<br/>会員のつながりに、相談してみよう。</p><span className={styles.sample}>たとえば：店舗の内装を相談したい</span></article>

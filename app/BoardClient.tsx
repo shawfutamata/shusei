@@ -434,7 +434,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
   /**
    * ログアウト。**会員側にも入口が無かった。**
-   * 例会でスマホを見せ合うような場面もあるので、自分で切れる口は要る。
+   * 外出先でスマホを見せる場面もあるので、自分で切れる口は要る。
    */
   async function signOut() {
     if (busy) return;
@@ -1973,7 +1973,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div className="invite-heading"><p>INVITE</p><h2>仲間を招待する</h2><span>あなたの招待リンクから入会して{referral.qualifyDays}日続いた方1人につき、{stats.contractedPlan !== 'free' ? '会費が1ヶ月無料になります' : 'スタンダードが1ヶ月使えます'}（合計{referral.capTotal}ヶ月まで）。</span></div>
           <button className="invite-link" onClick={copyInviteLink}><span>{referral.url.replace(/^https?:\/\//, '')}</span><i>{inviteCopied ? 'コピーしました' : 'リンクをコピー'}</i></button>
           {/* リンクを送れない場面のために、コードそのものも出しておく。
-              例会で口頭で伝えたり、名刺に書いて渡したりできる。
+              対面で口頭で伝えたり、名刺に書いて渡したりできる。
               受け取った人はログイン画面の「招待コードをお持ちの方」から入れる。 */}
           <p className="invite-code"><small>あなたの招待コード</small><b>{referral.code}</b>
             <em>リンクを送れないときは、このコードをお伝えください。相手はログイン画面（tasuki.club）の「招待コードをお持ちの方はこちら」から入力して参加できます。</em></p>
