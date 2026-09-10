@@ -60,9 +60,12 @@
 .productEvidence{padding-top:96px;padding-bottom:96px}
 .productEvidence h2,.aboutIntro h2,.planHeading h2,.steps h2,.faq h2{font-weight:700;letter-spacing:-.025em}
 .productEvidence .productShowcase{isolation:isolate}
-.productEvidence .productShowcase:before{content:'';position:absolute;inset:50px -12px 22px;border-radius:40px;background:linear-gradient(145deg,#edf8ff,#cbe5ff 60%,#e5f1ff);z-index:-1}
+.productEvidence .productShowcase:before{display:none}
 .productEvidence .productCaption{background:#fff;border:1px solid #e2edf7;padding:10px 14px}
 .productScreen{box-shadow:0 18px 44px #1b518a20,0 2px 8px #1b518a10;border:1px solid #dbe8f3}
+.productEvidence .productScreenBack,.productEvidence .productScreenFront{width:46%}
+.productEvidence .productScreenBack{top:92px;left:4px;transform:rotate(-2deg)}
+.productEvidence .productScreenFront{top:54px;right:4px;transform:rotate(2deg)}
 .about,.how,.plans{padding-top:96px;padding-bottom:96px}
 .story{background:#f6faff;border:1px solid #e1edf7;padding:32px 28px}
 .story>.featureIcon{color:#1671d7;background:#e4f1ff;box-sizing:content-box;padding:12px;border-radius:16px}
@@ -89,10 +92,10 @@
 
 /* Give the real product UI room to breathe on narrow screens. */
 @media(max-width:600px){
-  .productEvidence .productShowcase{width:min(100%,300px);min-height:400px}
-  .productEvidence .productShowcase:before{inset:46px 8px 28px;border-radius:24px}
-  .productEvidence .productScreenBack{top:82px;left:12px;width:40%}
-  .productEvidence .productScreenFront{top:52px;right:12px;width:55%}
-  .productEvidence .productCaption{left:8px;padding:8px 11px;font-size:8px;letter-spacing:.1em}
-  .productEvidence .productNote{left:14px;bottom:8px;padding:9px 12px;font-size:8px}
+  .productEvidence .productShowcase{width:min(100%,280px);min-height:365px}
+  .productEvidence .productScreenBack,.productEvidence .productScreenFront{width:44%}
+  .productEvidence .productScreenBack{top:82px;left:8px}
+  .productEvidence .productScreenFront{top:52px;right:8px}
+  .productEvidence .productCaption{left:0;padding:8px 11px;font-size:8px;letter-spacing:.1em}
+  .productEvidence .productNote{left:6px;bottom:6px;padding:9px 12px;font-size:8px}
 }
