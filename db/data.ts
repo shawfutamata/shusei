@@ -564,7 +564,16 @@ export async function ensureDatabase() {
     ['mail_on_message', 'ALTER TABLE members ADD COLUMN mail_on_message INTEGER NOT NULL DEFAULT 1'],
   ];
   for (const [columnName, sql] of missingColumns) {
-    if (!existingColumns.has(columnName)) await env.DB.prepare(sql).run();
+    if (existingColumns.has(columnName)) continue;
+    try {
+      await env.DB.prepare(sql).run();
+    } catch (error) {
+      // Worker が同時に立ち上がると、どちらも「列がない」と読んだあとで
+      // 同じ ALTER TABLE を実行することがある。片方が先に追加済みなら成功扱いにする。
+      const current = await env.DB.prepare('PRAGMA table_info(members)').all<{ name: string }>();
+      if (!current.results.some((column) => column.name === columnName)) throw error;
+    }
+    existingColumns.add(columnName);
   }
   const requestColumns = await env.DB.prepare('PRAGMA table_info(requests)').all<{ name: string }>();
   const requestColumnNames = new Set(requestColumns.results.map((column) => column.name));
