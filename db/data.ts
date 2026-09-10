@@ -1560,11 +1560,7 @@ export async function addIntroductionMessage(user: SessionUser, introductionId: 
     .bind(crypto.randomUUID(), introductionId, user.userId, text, new Date().toISOString()).run();
   // 相手に知らせる。届かなくてもやり取りは残るので、失敗は握りつぶす。
   await sendIntroductionMessageNotice(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
-  // メールは**相手が読んだあとの最初の1通だけ**。往復のたびに飛ばさない。
-  const unread = await unreadInThread(access.partnerId, `intro:${introductionId}`,
-    `SELECT COUNT(*) AS count FROM introduction_messages
-      WHERE introduction_id = ? AND sender_id != ? AND created_at > ?`, introductionId).catch(() => 99);
-  if (unread <= 1) await sendMessageMail(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
+  await sendMessageMail(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
   return listIntroductionMessages(user, introductionId);
 }
 
@@ -1649,10 +1645,7 @@ async function addDirectMessage(user: SessionUser, partnerId: string, body: stri
     VALUES (?, ?, ?, ?, ?, ?)`)
     .bind(crypto.randomUUID(), pairKey, user.userId, partnerId, text, new Date().toISOString()).run();
   await sendDirectMessageNotice(partnerId, user.displayName).catch(() => undefined);
-  const unread = await unreadInThread(partnerId, `${DIRECT_PREFIX}${pairKey}`,
-    `SELECT COUNT(*) AS count FROM direct_messages
-      WHERE pair_key = ? AND sender_id != ? AND created_at > ?`, pairKey).catch(() => 99);
-  if (unread <= 1) await sendMessageMail(partnerId, user.displayName, '').catch(() => undefined);
+  await sendMessageMail(partnerId, user.displayName, '').catch(() => undefined);
   return listDirectMessages(user, partnerId);
 }
 
@@ -1667,10 +1660,7 @@ async function addAdIntroductionMessage(user: SessionUser, id: string, body: str
     .bind(crypto.randomUUID(), id, user.userId, text, new Date().toISOString()).run();
   // 相手に知らせる。届かなくてもやり取りは残るので、失敗は握りつぶす。
   await sendIntroductionMessageNotice(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
-  const unread = await unreadInThread(access.partnerId, `${AD_OFFER_PREFIX}${id}`,
-    `SELECT COUNT(*) AS count FROM ad_introduction_messages
-      WHERE ad_introduction_id = ? AND sender_id != ? AND created_at > ?`, id).catch(() => 99);
-  if (unread <= 1) await sendMessageMail(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
+  await sendMessageMail(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
   return listAdIntroductionMessages(user, id);
 }
 
@@ -1846,9 +1836,8 @@ function requestImageUrl(id: string, version: number, size: 'thumb' | 'full', in
  * 転送も共有も簡単で、届いた先が本人の手元とは限らない。誰から届いたかと、
  * 開く場所だけを伝える。
  *
- * **たまっているぶんには送らない。** 送るのは「その人が読んだあと、最初の
- * 1通」だけ。往復するたびにメールが飛ぶと、通知そのものが読まれなくなる。
- * 次に送るのは、相手が一度開いてからになる。
+ * **保存したメッセージごとに送る。** 相手がまだ会話を開いていなくても、
+ * 新しいメッセージを見落とさないようにする。不要な人はマイページで止められる。
  *
  * 送れなくてもやり取りは残る。**失敗しても止めない。**
  */
@@ -1889,14 +1878,6 @@ export async function setMailOnMessage(memberId: string, on: boolean) {
   await env.DB.prepare('UPDATE members SET mail_on_message = ? WHERE id = ?')
     .bind(on ? 1 : 0, memberId).run();
   return on;
-}
-
-/** その人が、そのやり取りでまだ読んでいない通数。メールを出すかの判断に使う。 */
-async function unreadInThread(recipientId: string, threadKey: string, countSql: string, ...binds: unknown[]) {
-  const read = await env.DB.prepare('SELECT last_read_at AS lastReadAt FROM thread_reads WHERE member_id = ? AND thread_key = ?')
-    .bind(recipientId, threadKey).first<{ lastReadAt: string }>();
-  const row = await env.DB.prepare(countSql).bind(...binds, recipientId, read?.lastReadAt ?? '').first<{ count: number }>();
-  return Number(row?.count ?? 0);
 }
 
 /** じかのやり取りが届いたことを知らせる。案件名が無いので、そこだけ文が違う。 */
