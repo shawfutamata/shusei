@@ -1513,9 +1513,30 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
    * 案件の説明ではない。押したら会話がそのまま出る、という1つの動きにする。
    */
   function openThread(thread: MessageThread) {
-    markRead(thread.key);
+    // まだ1通も無いやり取り（これから話しかけるとき）は key が空。
+    // 読んだ記録を書くものが無いので、そのまま開くだけにする。
+    if (thread.key) markRead(thread.key);
     setOpenChat(thread);
     setModal('thread');
+  }
+
+  /**
+   * その会員にじかに話しかける。**すでに話しているなら、その続きを開く。**
+   * 新しく作ると、同じ相手との話が2本に見えてしまう。
+   */
+  function messageMember(member: { id: string; displayName: string; company: string; avatarUrl: string }) {
+    const chatId = `dm:${member.id}`;
+    const existing = threads.find((thread) => thread.chatId === chatId);
+    setModal(null);
+    setMemberProfile(null);
+    openThread(existing ?? {
+      // まだ1通も無いので、読んだ記録に使う名前は要らない（送れば付く）。
+      key: '', kind: 'dm', chatId, requestId: '', title: '', locked: false,
+      partnerId: member.id, partnerName: member.displayName,
+      partnerCompany: member.company, partnerAvatarUrl: member.avatarUrl,
+      lastBody: '', lastAt: '', unread: 0,
+      offer: { kind: 'referral', body: '', at: '', mine: false },
+    });
   }
 
   function showSearch(industry = industryFilter) {
@@ -1892,7 +1913,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               <Avatar src={thread.partnerAvatarUrl} name={thread.partnerName} className="member-avatar" />
               <span className="message-main">
                 <b>{thread.partnerName}{thread.partnerCompany && <small>{thread.partnerCompany}</small>}</b>
-                <em>{thread.kind === 'ad' ? '広告' : '案件'}：{thread.title}</em>
+                {/* 何についての話か。**じかのやり取りには元の話が無い**ので、
+                    「案件：」と書けない。そこだけ言い方を変える。 */}
+                <em>{thread.kind === 'dm' ? 'メッセージ' : `${thread.kind === 'ad' ? '広告' : '案件'}：${thread.title}`}</em>
                 {/* 中身を見せていないぶんは、本文のかわりに理由を出す。
                     空欄にすると「壊れている」と読まれてしまう。 */}
                 <p className={thread.locked ? 'is-locked' : ''}>
@@ -2481,6 +2504,11 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             <div><dt>活動エリア</dt><dd>{memberProfile.businessArea || '指定なし'}</dd></div>
             <div><dt>オファー</dt><dd>{memberProfile.introCount}件</dd></div>
           </dl>
+          {/* **その場で話しかけられるようにする。** 案件を出していない相手には、
+              これまで声をかける道が無かった。押すとやり取りの画面が開く。 */}
+          <button className="submit-button member-message" onClick={() => messageMember(memberProfile)}>
+            {memberProfile.displayName}さんにメッセージを送る
+          </button>
           {!!memberProfile.facebookUrl && <FacebookLink url={memberProfile.facebookUrl} name={memberProfile.displayName} />}
           <section className="member-requests">
             <h3>いま出している案件<span>{memberProfile.requests.length}件</span></h3>
@@ -2720,7 +2748,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       {/* メッセージの一覧から開くやり取り。**ここで完結する。**
           相手の名前を見出しに、何についての話かを下に添える。 */}
       {modal === 'thread' && openChat && <Modal title={`${openChat.partnerName}さんとのやり取り`}
-        lead={`${openChat.kind === 'ad' ? '広告' : '案件'}「${openChat.title}」でのおふたりだけのやり取りです。ほかの会員には見えません。`}
+        lead={openChat.kind === 'dm'
+          ? 'おふたりだけのやり取りです。ほかの会員には見えません。'
+          : `${openChat.kind === 'ad' ? '広告' : '案件'}「${openChat.title}」でのおふたりだけのやり取りです。ほかの会員には見えません。`}
         onClose={() => { setModal(null); setOpenChat(null); }}>
         {openChat.locked
           ? <div className="quota-block">
@@ -2731,15 +2761,16 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             </div>
           : <>
             {/* きっかけになったオファーを、会話の1通目として先頭に置く。
-                何の話か分からないまま返事だけ並んでいても、答えようがない。 */}
-            <div className={`chat-opener${openChat.offer.mine ? ' is-mine' : ''}`}>
+                何の話か分からないまま返事だけ並んでいても、答えようがない。
+                **じかのやり取りには、きっかけのオファーが無い**ので出さない。 */}
+            {openChat.kind !== 'dm' && <div className={`chat-opener${openChat.offer.mine ? ' is-mine' : ''}`}>
               <p className="chat-opener-kind">
                 <b>{openChat.offer.kind === 'self' ? 'オファー' : 'リファラル'}</b>
                 <span>{openChat.offer.mine ? 'あなたが送りました' : `${openChat.partnerName}さんから届きました`}</span>
                 <time dateTime={openChat.offer.at}>{openChat.offer.at.slice(0, 10).replace(/-/g, '/')}</time>
               </p>
               {openChat.offer.body && <p className="chat-opener-body">{openChat.offer.body}</p>}
-            </div>
+            </div>}
             <IntroductionChat introductionId={openChat.chatId} partnerName={openChat.partnerName} heading={false} />
           </>}
       </Modal>}

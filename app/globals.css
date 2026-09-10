@@ -2319,3 +2319,7 @@ body { font-weight:600; }
 .ad-gift-use b { display:block; color:#7a5a12; font-size:13px; font-weight:900; }
 .ad-gift-use small { display:block; margin-top:3px; color:#a08a55; font-size:11px; font-weight:700; line-height:1.7; }
 .ad-gift-use small b { display:inline; color:#7a5a12; font-size:11px; }
+
+/* 会員のプロフィールから、その場で話しかけるボタン。
+   案件を出していない相手には、これまで声をかける道が無かった。 */
+.member-message { width:100%; margin-top:16px; }

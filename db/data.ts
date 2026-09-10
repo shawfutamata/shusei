@@ -137,6 +137,18 @@ export type OfferTargetCategory = 'project' | 'collaboration' | 'consultation' |
  */
 export const AD_OFFER_PREFIX = 'ad:';
 
+/**
+ * 会員どうしのじかのやり取りの印。**やり取りの相手のIDを続けて書く**
+ * （`dm:<相手のID>`）。オファーのように1件ごとのIDを持たないので、
+ * 「誰と話しているか」がそのまま宛先になる。
+ */
+export const DIRECT_PREFIX = 'dm:';
+
+/** 2人ぶんの鍵。**どちらから始めても同じ値**になるよう、小さい順に並べる。 */
+export function directPairKey(a: string, b: string) {
+  return [a, b].sort().join('|');
+}
+
 export type ReceivedIntroduction = {
   id: string;
   requestId: string;
@@ -373,6 +385,23 @@ const statements = [
     body TEXT NOT NULL,
     created_at TEXT NOT NULL
   )`,
+  // 会員どうしの**じかのやり取り**。案件にも広告にもぶら下がらない。
+  //
+  // 「会員を探す」で見つけた相手に、その場で話しかけられるようにするためのもの。
+  // 案件を出していない相手には、これまで話しかける道が無かった。
+  //
+  // **相手ごとに1本**。`pair_key` は2人のIDを並べて小さい順につないだもので、
+  // どちらから始めても同じ値になる（`directPairKey`）。始めた人・受けた人の
+  // 区別は持たない。持つと「どちらが先か」で行が2本に割れる。
+  `CREATE TABLE IF NOT EXISTS direct_messages (
+    id TEXT PRIMARY KEY,
+    pair_key TEXT NOT NULL,
+    sender_id TEXT NOT NULL REFERENCES members(id),
+    recipient_id TEXT NOT NULL REFERENCES members(id),
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS idx_direct_messages_pair ON direct_messages(pair_key, created_at)',
   `CREATE TABLE IF NOT EXISTS push_subscriptions (
     endpoint TEXT PRIMARY KEY,
     member_id TEXT NOT NULL REFERENCES members(id),
@@ -1485,6 +1514,7 @@ async function adIntroductionPartner(userId: string, adIntroductionId: string) {
 export async function listIntroductionMessages(user: SessionUser, introductionId: string): Promise<IntroductionMessage[]> {
   await upsertMember(user);
   if (introductionId.startsWith(AD_OFFER_PREFIX)) return listAdIntroductionMessages(user, introductionId.slice(AD_OFFER_PREFIX.length));
+  if (introductionId.startsWith(DIRECT_PREFIX)) return listDirectMessages(user, introductionId.slice(DIRECT_PREFIX.length));
   const access = await introductionPartner(user.userId, introductionId);
   if (!access) throw new Error('このやり取りは表示できません。');
   await requireOfferChatAccess(user.userId, access.isAuthor);
@@ -1507,6 +1537,7 @@ export const INTRODUCTION_MESSAGE_MAX = 1000;
 export async function addIntroductionMessage(user: SessionUser, introductionId: string, body: string) {
   await upsertMember(user);
   if (introductionId.startsWith(AD_OFFER_PREFIX)) return addAdIntroductionMessage(user, introductionId.slice(AD_OFFER_PREFIX.length), body);
+  if (introductionId.startsWith(DIRECT_PREFIX)) return addDirectMessage(user, introductionId.slice(DIRECT_PREFIX.length), body);
   const access = await introductionPartner(user.userId, introductionId);
   if (!access) throw new Error('このやり取りには書き込めません。');
   await requireOfferChatAccess(user.userId, access.isAuthor);
@@ -1535,6 +1566,62 @@ async function listAdIntroductionMessages(user: SessionUser, id: string): Promis
     senderAvatarUrl: avatarUrl(senderId, senderAvatarKey, senderAvatarVersion),
     mine: senderId === user.userId,
   }));
+}
+
+/**
+ * 会員どうしのじかのやり取りを、古い順に返す。
+ *
+ * `chatId` は `dm:<相手のID>`。**やり取りそのもののIDは持たない**ので、
+ * 相手が分かれば読める。読めるのは当人2人だけ（鍵に自分のIDが入っている）。
+ */
+async function listDirectMessages(user: SessionUser, partnerId: string): Promise<IntroductionMessage[]> {
+  if (!partnerId || partnerId === user.userId) throw new Error('このやり取りは表示できません。');
+  const pairKey = directPairKey(user.userId, partnerId);
+  const rows = await env.DB.prepare(`SELECT n.id, n.body, n.created_at AS createdAt, n.sender_id AS senderId,
+      m.display_name AS senderName, m.avatar_key AS senderAvatarKey, m.avatar_version AS senderAvatarVersion
+    FROM direct_messages n JOIN members m ON m.id = n.sender_id
+    WHERE n.pair_key = ? ORDER BY n.created_at ASC`)
+    .bind(pairKey).all<{ id: string; body: string; createdAt: string; senderId: string;
+      senderName: string; senderAvatarKey: string; senderAvatarVersion: number }>();
+  return rows.results.map(({ senderId, senderAvatarKey, senderAvatarVersion, ...row }) => ({
+    ...row,
+    senderAvatarUrl: avatarUrl(senderId, senderAvatarKey, senderAvatarVersion),
+    mine: senderId === user.userId,
+  }));
+}
+
+/**
+ * 会員どうしのじかのやり取りを1つ送る。
+ *
+ * **話しかけ始めるのはスタンダードから。** 「自社で請け負う」オファーと同じ
+ * 線引きにしてある。誰にでもただで売り込める道を開けると、有料にしている
+ * 意味が無くなる（`docs/pricing-plan-ja.md`）。
+ *
+ * **返事は無料のまま。** 話しかけられた人が返せないと、送った側にも何も
+ * 返ってこない。無料の人を黙らせるのは、場そのものを止めることになる。
+ */
+async function addDirectMessage(user: SessionUser, partnerId: string, body: string) {
+  if (!partnerId || partnerId === user.userId) throw new Error('このやり取りには書き込めません。');
+  const partner = await env.DB.prepare(`SELECT id, display_name AS displayName, membership_status AS status,
+      membership_period_end AS periodEnd FROM members WHERE id = ?`)
+    .bind(partnerId).first<{ id: string; displayName: string; status: MembershipStatus; periodEnd: string }>();
+  if (!partner || !canUseMembership(normalizeMembershipStatus(partner.status), partner.periodEnd)) {
+    throw new Error('この会員には、いまメッセージをお送りいただけません。');
+  }
+  const pairKey = directPairKey(user.userId, partnerId);
+  const already = await env.DB.prepare('SELECT id FROM direct_messages WHERE pair_key = ? LIMIT 1')
+    .bind(pairKey).first<{ id: string }>();
+  // 1通目だけ関所を置く。始まっている話への返事は止めない。
+  if (!already && !can(await getPlanState(user.userId), 'self_offer')) {
+    throw new Error(`${PAYWALL}会員へじかにメッセージを送るのは、スタンダードプランからです。案件へのリファラルは無料でお送りいただけます。`);
+  }
+  const text = body.trim().slice(0, INTRODUCTION_MESSAGE_MAX);
+  if (!text) throw new Error('メッセージを入力してください。');
+  await env.DB.prepare(`INSERT INTO direct_messages (id, pair_key, sender_id, recipient_id, body, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)`)
+    .bind(crypto.randomUUID(), pairKey, user.userId, partnerId, text, new Date().toISOString()).run();
+  await sendDirectMessageNotice(partnerId, user.displayName).catch(() => undefined);
+  return listDirectMessages(user, partnerId);
 }
 
 /** 広告へのオファーに1つ書く。書けるのは広告主とオファーした人だけ。 */
@@ -1716,6 +1803,29 @@ function requestImageUrl(id: string, version: number, size: 'thumb' | 'full', in
  * 紹介のやり取りが届いたことを、相手1人にだけ知らせる。
  * 中身は本文に入れない（通知は端末の画面に出るため、他人に見えうる）。
  */
+/** じかのやり取りが届いたことを知らせる。案件名が無いので、そこだけ文が違う。 */
+async function sendDirectMessageNotice(partnerId: string, senderName: string) {
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return;
+  const rows = await env.DB.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE member_id = ?')
+    .bind(partnerId).all<{ endpoint: string; p256dh: string; auth: string }>();
+  await Promise.allSettled(rows.results.map(async (row) => {
+    const subscription: PushSubscription = {
+      endpoint: row.endpoint, expirationTime: null, keys: { p256dh: row.p256dh, auth: row.auth },
+    };
+    const payload = await buildPushPayload({
+      data: {
+        title: `${senderName}さんからメッセージが届きました`,
+        body: 'メッセージを開いてご確認ください',
+        url: '/?intro=1',
+      },
+    }, subscription, { subject: 'mailto:' + (env.VAPID_SUBJECT || 'support@example.com'), publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY });
+    const response = await fetch(subscription.endpoint, { ...payload, body: new Uint8Array(payload.body) });
+    if (response.status === 404 || response.status === 410) {
+      await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(row.endpoint).run();
+    }
+  }));
+}
+
 async function sendIntroductionMessageNotice(partnerId: string, senderName: string, requestTitle: string) {
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return;
   const rows = await env.DB.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE member_id = ?')
@@ -2627,7 +2737,8 @@ export async function countFeedback(memberId: string) {
 export type MessageThread = {
   /** 既読の記録に使う名前。thread_reads.thread_key と同じもの。 */
   key: string;
-  kind: 'intro' | 'ad';
+  /** intro＝案件へのオファー／ad＝広告へのオファー／dm＝会員へじかに送ったもの */
+  kind: 'intro' | 'ad' | 'dm';
   /**
    * やり取りを開くときに渡すID。広告へのオファーは `ad:` が付く
    * （`listIntroductionMessages` が、その印で見に行く表を決める）。
@@ -2675,6 +2786,8 @@ function openingLine(kind: string, fitReason: string, mine: boolean) {
 /** 相手の顔ぶれ。どちらが自分かで、出す相手が入れ替わる。 */
 type ThreadRow = {
   introductionId: string; requestId: string;
+  /** じかのやり取りだけが持つ、2人ぶんの鍵。 */
+  pairKey: string;
   /** オファーを出した日時と、出した人。まだ1通もやり取りが無いときに使う。 */
   offerAt: string; introducerId: string; kind: string; fitReason: string;
   lastBody: string; lastMessageAt: string | null; lastReadAt: string | null;
@@ -2722,7 +2835,7 @@ export async function getMessageThreads(viewerId: string): Promise<MessageThread
   // 以前はメッセージの表から数えていたので、送ったばかりで誰もまだ返事を
   // 書いていないオファーが1件も出なかった。会員から見れば、オファーを
   // 出した時点でその人との話は始まっている。
-  const [offers, adOffers] = await env.DB.batch<ThreadRow & Record<string, string>>([
+  const [offers, adOffers, directs] = await env.DB.batch<ThreadRow & Record<string, string>>([
     // 1. 案件へのオファー
     env.DB.prepare(`SELECT i.id AS introductionId, i.request_id AS requestId,
       i.created_at AS offerAt, i.introducer_id AS introducerId, i.kind AS kind, i.fit_reason AS fitReason,
@@ -2751,6 +2864,18 @@ export async function getMessageThreads(viewerId: string): Promise<MessageThread
       LEFT JOIN thread_reads t ON t.member_id = ? AND t.thread_key = 'ad:' || i.id
       WHERE a.member_id = ? OR i.introducer_id = ?
       GROUP BY i.id`).bind(viewerId, viewerId, viewerId, viewerId),
+    // 3. 会員へじかに送ったやり取り。案件にも広告にもぶら下がらない。
+    // **相手ごとに1本**なので、まとめるのは pair_key。
+    env.DB.prepare(`SELECT n.pair_key AS pairKey, n.body AS lastBody, MAX(n.created_at) AS lastMessageAt,
+      t.last_read_at AS lastReadAt,
+      SUM(CASE WHEN n.sender_id != ? AND n.created_at > COALESCE(t.last_read_at, '') THEN 1 ELSE 0 END) AS unread,
+      p.id AS otherId, p.display_name AS otherName, p.company AS otherCompany,
+      p.avatar_key AS otherAvatarKey, p.avatar_version AS otherAvatarVersion
+      FROM direct_messages n
+      JOIN members p ON p.id = CASE WHEN n.sender_id = ? THEN n.recipient_id ELSE n.sender_id END
+      LEFT JOIN thread_reads t ON t.member_id = ? AND t.thread_key = '${DIRECT_PREFIX}' || n.pair_key
+      WHERE n.sender_id = ? OR n.recipient_id = ?
+      GROUP BY n.pair_key`).bind(viewerId, viewerId, viewerId, viewerId, viewerId),
   ]);
 
   // **受け取る側が無料プランなら、中身は渡さない。** 届いていること自体は
@@ -2784,9 +2909,29 @@ export async function getMessageThreads(viewerId: string): Promise<MessageThread
       },
     };
   };
+  // じかのやり取りには「きっかけのオファー」が無い。**関所も無い**
+  // （中身を伏せるのは、届いたオファーの話であって、会話そのものではない）。
+  const buildDirect = (row: ThreadRow & Record<string, string>): MessageThread => ({
+    key: `${DIRECT_PREFIX}${row.pairKey}`,
+    kind: 'dm',
+    chatId: `${DIRECT_PREFIX}${row.otherId}`,
+    requestId: '',
+    title: '',
+    locked: false,
+    partnerId: row.otherId,
+    partnerName: row.otherName,
+    partnerCompany: row.otherCompany,
+    partnerAvatarUrl: avatarUrl(row.otherId, row.otherAvatarKey, Number(row.otherAvatarVersion)),
+    lastBody: row.lastBody ?? '',
+    lastAt: row.lastMessageAt ?? '',
+    unread: Number(row.unread) || 0,
+    offer: { kind: 'referral', body: '', at: '', mine: false },
+  });
+
   const threads: MessageThread[] = [
     ...offers.results.map(build('intro')),
     ...adOffers.results.map(build('ad')),
+    ...directs.results.map(buildDirect),
   ];
   // 自分ひとりのやり取り（相手がいない）は出さない。数合わせにしかならない。
   return threads.filter((thread) => thread.partnerId && thread.partnerId !== viewerId)
