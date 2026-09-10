@@ -78,6 +78,17 @@ export function adTotalPrice(placement: string, days: number, discountRate = 0) 
   return `${adSlotTotalYen(placement, days, discountRate).toLocaleString('ja-JP')}円`;
 }
 
+/**
+ * その月に新しく話しかけられる人数。
+ *
+ * **会話そのものは止めない。** 返事も、すでに話している相手も数えない。
+ * 数えるのは「その月に自分から話しかけ始めた人数」だけ。
+ */
+export function newChatLimit(plan: Plan) {
+  const cap = planLimits[plan].newChatsPerMonth;
+  return cap === UNLIMITED ? '何人でも' : `月${cap}人まで`;
+}
+
 export function planPostLimit(plan: Plan) {
   const cap = planLimits[plan].requestsPerMonth;
   return cap === UNLIMITED ? '何件でも' : `月${cap}件まで`;

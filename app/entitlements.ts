@@ -43,9 +43,11 @@ export type PlanState = {
 /** 無制限は -1 で表す。JSONに載せるので Infinity は使わない。 */
 export const UNLIMITED = -1;
 
-export const planLimits: Record<Plan, { requestsPerMonth: number }> = {
-  free: { requestsPerMonth: 1 },
-  standard: { requestsPerMonth: UNLIMITED },
+export const planLimits: Record<Plan, { requestsPerMonth: number; newChatsPerMonth: number }> = {
+  // newChatsPerMonth … その月に**新しく話しかけられる人数**。
+  // 返事と、すでに話している相手は数えない（下の `newChatLimit` の説明）。
+  free: { requestsPerMonth: 1, newChatsPerMonth: 3 },
+  standard: { requestsPerMonth: UNLIMITED, newChatsPerMonth: UNLIMITED },
 };
 
 export const features = [
@@ -60,8 +62,6 @@ export const features = [
   // 相手が見つからないと掲示板そのものが動かないので、入口として開けてある。
   'member_search',
   'self_offer',           // 自社で請け負うオファー（＝受注）を送る
-  // 会員へじかにメッセージを送る（1通目だけ）。届いたぶんへの返事は全プラン。
-  'direct_message',
 ] as const;
 export type Feature = (typeof features)[number];
 
@@ -72,10 +72,6 @@ const requiredPlan: Partial<Record<Feature, Plan>> = {
   receive_introductions: 'standard',
   // 「知り合いを紹介する」は無料。「自社で請け負う」は受注そのものなので有料。
   self_offer: 'standard',
-  // **話しかけ始めるのは有料。** 誰にでもただで売り込める道を開けると、
-  // 「自社で請け負う」を有料にしている意味が無くなる。
-  // **返事は無料**（db/data.ts の addDirectMessage が1通目だけ見ている）。
-  direct_message: 'standard',
 };
 
 export function toPlan(value: unknown): Plan {

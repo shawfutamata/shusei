@@ -4,7 +4,7 @@ import type { SessionUser } from '@/app/session-user';
 import { cleanFacebookUrl } from '@/app/social-links';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
 import { AD_DESCRIPTION_MAX, AD_RESERVATION_MINUTES, AD_TITLE_MAX, DEFAULT_PLACEMENT, placementSlots } from '@/app/ad-options';
-import { UNLIMITED, bonusPlan, campaignPlan, can, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
+import { UNLIMITED, bonusPlan, campaignPlan, can, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, planLimits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
 import { adGacha, consolationPrize, drawPrize, gachaOpen, gachaSeason, giftExpiryFrom, jstDate, jstMonth, previousDay } from '@/app/gacha';
 import { EXTEND_DAYS, MAX_LEVEL, canExtendRequest, canPostVideo, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
 import { isAdminEmail } from '@/app/admin-emails';
@@ -1593,15 +1593,16 @@ async function listDirectMessages(user: SessionUser, partnerId: string): Promise
 /**
  * 会員どうしのじかのやり取りを1つ送る。
  *
- * **話しかけ始めるのはスタンダードから**（`direct_message`）。「自社で請け負う」
- * オファーと同じ線引きにしてある。誰にでもただで売り込める道を開けると、
- * 有料にしている意味が無くなる（`docs/pricing-plan-ja.md`）。
+ * **やり取りそのものは止めない。回数で切る。**
  *
- * 線引きは `app/entitlements.ts` の1か所にある。プラン表（マイページ）も
- * 同じところを見ているので、片方だけ直して食い違うことがない。
+ * - 返事はいつでも無制限。話しかけられた人が返せないと、送った側にも何も
+ *   返ってこない。無料の人を黙らせるのは、場そのものを止めることになる
+ * - すでに話している相手も無制限。1本の話の途中で止まるのがいちばん困る
+ * - 数えるのは**その月に自分から新しく話しかけた人数**だけ。無料は月3人まで
+ *   （`planLimits.newChatsPerMonth`）。売り込みに使い倒すところが有料になる
  *
- * **返事は無料のまま。** 話しかけられた人が返せないと、送った側にも何も
- * 返ってこない。無料の人を黙らせるのは、場そのものを止めることになる。
+ * 上限は `app/entitlements.ts` の1か所にある。プラン表（マイページ）も同じ
+ * ところを見ているので、片方だけ直して食い違うことがない。
  */
 async function addDirectMessage(user: SessionUser, partnerId: string, body: string) {
   if (!partnerId || partnerId === user.userId) throw new Error('このやり取りには書き込めません。');
@@ -1614,9 +1615,15 @@ async function addDirectMessage(user: SessionUser, partnerId: string, body: stri
   const pairKey = directPairKey(user.userId, partnerId);
   const already = await env.DB.prepare('SELECT id FROM direct_messages WHERE pair_key = ? LIMIT 1')
     .bind(pairKey).first<{ id: string }>();
-  // 1通目だけ関所を置く。始まっている話への返事は止めない。
-  if (!already && !can(await getPlanState(user.userId), 'direct_message')) {
-    throw new Error(`${PAYWALL}会員へじかにメッセージを送るのは、スタンダードプランからです。案件へのリファラルは無料でお送りいただけます。`);
+  // 数えるのは**新しく話しかけるときだけ**。始まっている話への返事は止めない。
+  if (!already) {
+    const cap = planLimits[currentPlan(await getPlanState(user.userId))].newChatsPerMonth;
+    if (cap !== UNLIMITED) {
+      const started = await countNewChatsThisMonth(user.userId);
+      if (started >= cap) {
+        throw new Error(`${PAYWALL}新しくメッセージをお送りできるのは、無料プランでは月${cap}人までです。今月はあと0人です。お返事と、すでにやり取りしている方へのメッセージは、いつでもお送りいただけます。`);
+      }
+    }
   }
   const text = body.trim().slice(0, INTRODUCTION_MESSAGE_MAX);
   if (!text) throw new Error('メッセージを入力してください。');
@@ -2600,6 +2607,24 @@ export async function releaseAdGiftDays(adId: string) {
   if (!adId) return;
   await env.DB.prepare(`UPDATE ad_gifts SET days_left = days_left + held_days, held_days = 0, held_ad_id = ''
     WHERE held_ad_id = ?`).bind(adId).run();
+}
+
+/**
+ * その月に、自分から新しく話しかけた人数。
+ *
+ * **「1本目を書いたのが自分」の相手だけ**を数える。話しかけられて返しただけの
+ * 相手を数えると、返事をするほど上限が減ることになり、返しづらくなる。
+ * 区切りは日本時間の月（`monthStartUtc`）。毎月1日に戻る。
+ */
+export async function countNewChatsThisMonth(memberId: string) {
+  await ensureDatabase();
+  const row = await env.DB.prepare(`SELECT COUNT(*) AS count FROM (
+      SELECT pair_key, sender_id AS firstSender, MIN(created_at) AS firstAt
+      FROM direct_messages WHERE sender_id = ? OR recipient_id = ?
+      GROUP BY pair_key
+    ) WHERE firstSender = ? AND firstAt >= ?`)
+    .bind(memberId, memberId, memberId, monthStartUtc()).first<{ count: number }>();
+  return Number(row?.count ?? 0);
 }
 
 /** 手持ちの券の一覧。マイページの「無料券」に出す。**期限が近い順。** */

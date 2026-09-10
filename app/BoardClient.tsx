@@ -14,7 +14,7 @@ import { feedbackCategories } from './feedback-options';
 import { campaignUntilLabel, freeCampaign } from './campaign';
 import { gachaDateLabel } from './gacha';
 import type { GachaView } from './gacha-view';
-import { adDailyPrice, adTotalPrice, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
+import { adDailyPrice, adTotalPrice, newChatLimit, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
 import LegalLinks from './LegalLinks';
 import Tutorial, { tutorialSeen } from './Tutorial';
@@ -2864,10 +2864,10 @@ const planRows: { label: string; note?: string; soon?: boolean; value: (plan: Pl
   { label: '案件の投稿', value: (plan) => planPostLimit(plan) },
   { label: 'オファーを受け取る', note: '中身を読む・返事する', value: (plan) => allows(plan, 'receive_introductions') },
   { label: 'オファーを送る', note: '自社で請け負う', value: (plan) => allows(plan, 'self_offer') },
-  { label: 'メッセージを送る', note: '会員へじかに・1通目', value: (plan) => allows(plan, 'direct_message') },
-  // 届いたメッセージは、どのプランでも読めるし返せる。話しかけられた人が
-  // 返せないと、送った側にも何も返ってこない。
-  { label: 'メッセージに返事する', note: '届いたぶん', value: () => true },
+  // **会話そのものは止めない。回数で切る。** 数えるのは「その月に自分から
+  // 新しく話しかけた人数」だけで、返事とすでに話している相手は数えない。
+  { label: '新しくメッセージを送る', note: '会員へじかに', value: (plan) => newChatLimit(plan) },
+  { label: 'メッセージの返事・続き', note: '回数は数えません', value: () => true },
 ];
 
 /** そのプラン単体で使えるか。期限や招待特典は絡めず、プランの素の力を見る。 */
