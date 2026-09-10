@@ -32,4 +32,6 @@ The old inflatable assets and font remain available for rollback but are no long
 
 Use `npm run preflight` and `node scripts/check-lp.mjs` with the local dev server on localhost:4173. Review screenshots in `review/`. Check 1440, 768, 390 and 320 widths, mobile menu open/close and navigation, invitation normalization and mocked destination, login errors, local fonts and absence of the old ribbon.
 
+Responsive edge treatment: on widths up to 600px, the two confetti SVGs sit fully inside the viewport instead of using negative offsets. The content inset grows to 46px (34px at 360px and below), and the edge art scales from 36px to 26px. Browser QA checks 430, 390, 375 and 320px and asserts both decorations have non-negative left positions, remain within the viewport, and do not create horizontal overflow.
+
 Production evidence is kept in `review/deployment-checks.json`, `review/production-check.json` and production screenshots after publication. Google redirect is verified without completing registration; live member transactions and payments are not exercised.

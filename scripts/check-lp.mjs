@@ -10,11 +10,22 @@ await page.goto('http://localhost:4173/lp',{waitUntil:'networkidle'});
 await page.evaluate(()=>document.fonts.ready);
 await page.screenshot({path:'review/desktop.png',fullPage:true});
 await page.screenshot({path:'review/hero.png'});
-for(const width of [1440,768,390,320]){
+for(const width of [1440,768,430,390,375,320]){
  await page.setViewportSize({width,height:844});
  await page.evaluate(()=>window.scrollTo(0,0));
- const dims=await page.evaluate(()=>({w:innerWidth,scroll:document.documentElement.scrollWidth}));
+ const dims=await page.evaluate(()=>({
+  w:innerWidth,
+  scroll:document.documentElement.scrollWidth,
+  confetti:[...document.querySelectorAll('section:first-of-type svg')].slice(0,2).map((element)=>{
+   const box=element.getBoundingClientRect();
+   return {left:box.left,right:box.right,width:box.width};
+  }),
+ }));
  assert.ok(dims.scroll<=dims.w,JSON.stringify(dims));
+ if(width<=430){
+  assert.equal(dims.confetti.length,2,JSON.stringify(dims));
+  assert.ok(dims.confetti.every(({left,right,width})=>left>=0&&right<=dims.w&&width>=26),JSON.stringify(dims));
+ }
  if(width===390){await page.screenshot({path:'review/mobile.png',fullPage:true});await page.screenshot({path:'review/mobile-hero.png'});}
 }
 await page.locator('summary[aria-label="メニューを開く"]').click();
