@@ -2046,15 +2046,23 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             {stats.adminPlan && <p className="plan-until">運営のアカウントとして、お支払いなしでスタンダードの機能をお使いいただけます。設定は Cloudflare の ADMIN_EMAILS です。</p>}
             {stats.campaignPlan && !stats.adminPlan && <p className="plan-until">{freeCampaign.name}のため、{campaignUntilLabel(stats.campaignUntil)}まではお申し込みなしでスタンダードをお使いいただけます。{stats.contractedPlan !== 'free' && 'すでにご契約いただいている方は、そのままご契約が続きます（解約はいつでもできます）。'}</p>}
             {referral?.billing?.hasCustomer && !stats.adminPlan && <p className="plan-manage-note">お支払いカードの変更・領収書のダウンロード・解約は、<a href="/support#billing">サポートの「解約・お支払いの変更」</a>からお手続きいただけます。</p>}
-            <p className="plan-note">仲間を1人招待してご利用が{referral?.qualifyDays ?? 30}日続くと、{stats.contractedPlan === 'free' ? <><b>自動でスタンダードが1ヶ月使えるようになります</b>（お手続きは要りません）</> : <><b>次回の請求から1ヶ月分自動で引かれます</b></>}。{stats.campaignPlan ? 'いまたまった分は、キャンペーンが終わったあとにそのまま使えます。' : referral?.billing?.ready ? '有料プランへのお申し込みは、上のボタンからいつでもどうぞ。解約もいつでもできます。' : ''}</p>
+            {/* 招待の無料月は止めてある（db/data.ts の REFERRAL_FREE_MONTHS）。
+                戻したときにここも一緒に戻るよう、文言は消さずに分岐で残す。 */}
+            {referral?.freeMonths
+              ? <p className="plan-note">仲間を1人招待してご利用が{referral.qualifyDays}日続くと、{stats.contractedPlan === 'free' ? <><b>自動でスタンダードが1ヶ月使えるようになります</b>（お手続きは要りません）</> : <><b>次回の請求から1ヶ月分自動で引かれます</b></>}。{stats.campaignPlan ? 'いまたまった分は、キャンペーンが終わったあとにそのまま使えます。' : referral.billing?.ready ? '有料プランへのお申し込みは、上のボタンからいつでもどうぞ。解約もいつでもできます。' : ''}</p>
+              : !stats.campaignPlan && referral?.billing?.ready
+                ? <p className="plan-note">有料プランへのお申し込みは、上のボタンからいつでもどうぞ。解約もいつでもできます。</p>
+                : null}
           </div>
         </details>
 
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section> : activeTab === 'invite' ? <section className="profile-page" aria-labelledby="invite-title">
-        <header className="profile-page-heading"><p>INVITE</p><h1 id="invite-title">仲間を招待する</h1><span>あなたの招待リンク（または招待コード）から入会した方の人数で<b>ランクが上がります</b>。ご利用が続くと、会費も無料になります。</span></header>
+        <header className="profile-page-heading"><p>INVITE</p><h1 id="invite-title">仲間を招待する</h1><span>あなたの招待リンク（または招待コード）から入会した方の人数で<b>ランクが上がります</b>。ランクが上がると、案件に付けられる写真や動画、掲示板の絞り込みが増えます。</span></header>
         {referral && <section className="invite-card" aria-label="仲間を招待する">
-          <div className="invite-heading"><p>INVITE</p><h2>仲間を招待する</h2><span>あなたの招待リンクから入会して{referral.qualifyDays}日続いた方1人につき、{stats.contractedPlan !== 'free' ? '会費が1ヶ月無料になります' : 'スタンダードが1ヶ月使えます'}（合計{referral.capTotal}ヶ月まで）。</span></div>
+          <div className="invite-heading"><p>INVITE</p><h2>仲間を招待する</h2><span>{referral.freeMonths
+            ? <>あなたの招待リンクから入会して{referral.qualifyDays}日続いた方1人につき、{stats.contractedPlan !== 'free' ? '会費が1ヶ月無料になります' : 'スタンダードが1ヶ月使えます'}（合計{referral.capTotal}ヶ月まで）。</>
+            : <>あなたの招待リンクから入会した方の人数で、あなたのランクが上がります。</>}</span></div>
           <button className="invite-link" onClick={copyInviteLink}><span>{referral.url.replace(/^https?:\/\//, '')}</span><i>{inviteCopied ? 'コピーしました' : 'リンクをコピー'}</i></button>
           {/* リンクを送れない場面のために、コードそのものも出しておく。
               対面で口頭で伝えたり、名刺に書いて渡したりできる。
@@ -2064,15 +2072,19 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <dl className="invite-stats">
             <div><dt>招待した人</dt><dd>{referral.invitedCount}<small>人</small></dd></div>
             <div><dt>利用中</dt><dd>{referral.activeCount}<small>人</small></dd></div>
-            <div><dt>{stats.contractedPlan !== 'free' ? '無料になった月' : '有料になった月'}</dt><dd>{referral.earnedMonths}<small>ヶ月</small></dd></div>
+            {referral.freeMonths
+              ? <div><dt>{stats.contractedPlan !== 'free' ? '無料になった月' : '有料になった月'}</dt><dd>{referral.earnedMonths}<small>ヶ月</small></dd></div>
+              : <div><dt>いまのランク</dt><dd>{stats.rank}</dd></div>}
           </dl>
           <ul className="invite-note">
             {referral.waitingCount > 0 && <li><b>{referral.waitingCount}人</b><span>いまご利用を停止しています</span></li>}
-            {!!referral.billing?.creditPerReferralYen && <li><b>1人につき {referral.billing.creditPerReferralYen.toLocaleString('ja-JP')}円</b><span>{referral.billing.cycle === 'year' ? '次回の年額のお支払いから引かれます' : '次回の請求から引かれます'}</span></li>}
-            {referral.remaining > 0 && referral.qualifyingCount > 0 && <li><b>{referral.qualifyingCount}人</b><span>ご利用が{referral.qualifyDays}日続くと、1ヶ月分の利用料が無料になります</span></li>}
-            {referral.waitingCredits > 0 && <li><b>受け取り済み</b><span>合計{referral.capTotal}ヶ月分の上限に達しました。ご紹介はいつでも歓迎ですが、これ以上の無料月は付きません</span></li>}
+            {referral.freeMonths && !!referral.billing?.creditPerReferralYen && <li><b>1人につき {referral.billing.creditPerReferralYen.toLocaleString('ja-JP')}円</b><span>{referral.billing.cycle === 'year' ? '次回の年額のお支払いから引かれます' : '次回の請求から引かれます'}</span></li>}
+            {referral.freeMonths && referral.remaining > 0 && referral.qualifyingCount > 0 && <li><b>{referral.qualifyingCount}人</b><span>ご利用が{referral.qualifyDays}日続くと、1ヶ月分の利用料が無料になります</span></li>}
+            {referral.freeMonths && referral.waitingCredits > 0 && <li><b>受け取り済み</b><span>合計{referral.capTotal}ヶ月分の上限に達しました。ご紹介はいつでも歓迎ですが、これ以上の無料月は付きません</span></li>}
           </ul>
-          <p className="invite-terms">この特典は、予告なく内容の変更または終了をすることがあります。すでに確定した分は、そのままご利用いただけます。</p>
+          <p className="invite-terms">{referral.freeMonths
+            ? 'この特典は、予告なく内容の変更または終了をすることがあります。すでに確定した分は、そのままご利用いただけます。'
+            : 'ランクの特典は、予告なく内容の変更または終了をすることがあります。'}</p>
         </section>}
 
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
@@ -2189,7 +2201,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <button className={`nav-mypage${navHere === 'mypage' ? ' active' : ''}`} onClick={showMyPage}><span><PersonIcon /></span><small>マイページ</small></button>
       </nav>
 
-      {modal === 'request' && !canPostRequest && !editingRequest && <Modal title="今月分の投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる案件は月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p><p>仲間を1人招待して{referral?.qualifyDays ?? 30}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p><button className="submit-button" onClick={() => { setModal(null); showMyPage(); }}>マイページを開く</button></div></Modal>}
+      {modal === 'request' && !canPostRequest && !editingRequest && <Modal title="今月分の投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる案件は月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p>{referral?.freeMonths && <p>仲間を1人招待して{referral.qualifyDays}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p>}<button className="submit-button" onClick={() => { setModal(null); showMyPage(); }}>マイページを開く</button></div></Modal>}
 
       {modal === 'request' && (canPostRequest || editingRequest) && <Modal title={editingRequest ? '案件を編集' : '案件を投稿'} lead={editingRequest ? '直したいところを書き替えて、保存してください。' : 'どんな人にオファーしてほしいかを具体的に書きましょう。'} onClose={closeRequestModal}><form className="form" key={editingRequest?.id ?? 'new'} onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue={editingRequest?.category ?? ''}><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" defaultValue={editingRequest?.title ?? ''} /></label><label>詳しい内容 {descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" required maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人をオファーしてほしいか" defaultValue={editingRequest?.description ?? ''} /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算<select name="budgetBand" required defaultValue={editingRequest?.budgetBand ?? ''}><option value="" disabled>選択してください</option>{Object.entries(budgetBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>予算のくわしい書き方 <small>任意</small><input name="budgetLabel" maxLength={60} placeholder="例：月額20〜40万円／初回は50万円まで" defaultValue={editingRequest?.budgetLabel ?? ''} /></label><label>希望エリア <small>任意</small><select name="area" defaultValue={editingRequest?.area ?? ''}><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" defaultValue={editingRequest?.deadline ?? ''} /></label>{editingRequest && <label>募集状況<select name="status" defaultValue={editingRequest.status}><option value="open">募集中</option><option value="closed">募集を終了する</option></select></label>}{/* 写真と動画の枠は、**使えない人にも見せておく**。隠してしまうと
           「そんな機能がある」ことに気づかないので、上のランクへ上がる理由が

@@ -3,7 +3,7 @@
 // 値引きは「いま払っている料金の1ヶ月ぶん」。年払いの人は割引後の月あたり額になるので、
 // 年払いの20%OFFと紹介の無料月が二重取りにならない。
 import { creditCustomer, referralCreditYen, stripeConfigured } from './stripe';
-import { getPlanState, getStripeLink, markReferralCreditsApplied, unappliedReferralCredits } from '@/db/data';
+import { REFERRAL_FREE_MONTHS, getPlanState, getStripeLink, markReferralCreditsApplied, unappliedReferralCredits } from '@/db/data';
 import { currentPlan } from './entitlements';
 
 /**
@@ -13,6 +13,9 @@ import { currentPlan } from './entitlements';
  * @returns 入れた金額（円）。0なら何もしていない。
  */
 export async function applyReferralCreditsToStripe(memberId: string) {
+  // 特典を止めているあいだは、たまっている分にも手を付けない。
+  // 記録は消していないので、`REFERRAL_FREE_MONTHS` を戻せばそのまま請求に当たる。
+  if (!REFERRAL_FREE_MONTHS) return 0;
   if (!stripeConfigured()) return 0;
   const link = await getStripeLink(memberId);
   if (!link.customerId) return 0;

@@ -42,7 +42,7 @@ export async function GET(request: Request) {
     console.error('referral summary failed', error);
     return NextResponse.json({
       code: '', url: '', invitedCount: 0, waitingCount: 0, activeCount: 0, qualifyingCount: 0,
-      earnedMonths: 0, waitingCredits: 0, appliedMonths: 0, remaining: 0, capTotal: 0, qualifyDays: 30,
+      earnedMonths: 0, waitingCredits: 0, appliedMonths: 0, remaining: 0, capTotal: 0, qualifyDays: 30, freeMonths: false,
       /** 招待まわりの数字が読めていない。画面はこれを見て、招待欄だけ引っ込める。 */
       degraded: true,
       billing: { ...billingBase, hasCustomer: false, cycle: 'month' as const, creditedYen: 0, creditPerReferralYen: 0 },

@@ -3221,8 +3221,20 @@ export async function markReferralCreditsApplied(ids: string[], month: string) {
 
 // --- 会員紹介（招待）ここから -------------------------------------------------
 // ルールは docs/referral-program-ja.md が正。
-// 「紹介した人が入会して7日続いたら、紹介した人の会費が1ヶ月無料。通算6ヶ月まで」
+// いまは「招待した人数でランクが上がる」だけ。無料月の特典は止めてある。
 
+/**
+ * 招待の無料月（1人招待すると会費が1ヶ月無料）を配るかどうか。
+ *
+ * **いまは止めている。** 期間中は全員がスタンダードを無料で使えるので、
+ * そのうえに無料月を重ねても、招待する側には何も増えない。
+ *
+ * 仕組みそのものは残してあるので、ここを `true` に戻せばまた動く。
+ * すでに `referral_credits` にある記録も消していない。
+ * 招待リンク・招待コード・招待人数によるランクは、これとは別の仕組みなので
+ * ここを切っても止まらない。
+ */
+export const REFERRAL_FREE_MONTHS = false;
 /**
  * 招待した人が「続いた」と認める日数。
  *
@@ -3245,6 +3257,7 @@ export type ReferralSummary = {
   remaining: number;         // あと何ヶ月ぶん受け取れるか（通算）
   capTotal: number;
   qualifyDays: number;
+  freeMonths: boolean;       // 無料月の特典を配っているか。falseなら画面から文言を消す
 };
 
 const inviteAlphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -3353,12 +3366,16 @@ export async function registerInvitedMember(rawEmail: string, displayName: strin
  * - `activated_at` が空の利用中会員には、気づいた時点の日付を入れる（運営が手で入れてもよい）
  * - 利用中かつ `REFERRAL_QUALIFY_DAYS` 日を超えた招待者ぶんだけ確定する
  * - 年の上限を超えたぶんは `capped` として記録し、無料月にはしない
+ *
+ * `REFERRAL_FREE_MONTHS` が false のあいだは、`activated_at` を埋めるところまでで止める。
+ * 「いつから使っているか」はランクや案内でも使うので、そこだけは続ける。
  */
 async function reconcileReferralCredits(inviterId: string) {
   const now = new Date();
   const nowIso = now.toISOString();
   await env.DB.prepare(`UPDATE members SET activated_at = ? WHERE membership_status = 'active' AND activated_at = ''`)
     .bind(nowIso).run();
+  if (!REFERRAL_FREE_MONTHS) return;
 
   // 1. 資格を満たした招待は、まず「順番待ち」として記録する。ここで枠の判定はしない。
   const qualifiedBefore = new Date(now.getTime() - REFERRAL_QUALIFY_DAYS * 86400000).toISOString();
@@ -3442,6 +3459,7 @@ export async function getReferralSummary(memberId: string): Promise<ReferralSumm
     remaining: Math.max(0, REFERRAL_CAP_TOTAL - earnedTotal),
     capTotal: REFERRAL_CAP_TOTAL,
     qualifyDays: REFERRAL_QUALIFY_DAYS,
+    freeMonths: REFERRAL_FREE_MONTHS,
   };
 }
 // --- 会員紹介（招待）ここまで -------------------------------------------------
