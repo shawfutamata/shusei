@@ -12,6 +12,36 @@ export default function InstallAndNotificationPanel({ onNotice }: { onNotice: (m
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [installed, setInstalled] = useState(false);
   const [pushState, setPushState] = useState<'loading' | 'unsupported' | 'off' | 'on' | 'denied'>('loading');
+  /**
+   * メッセージが届いたときのメール。**既定は送る。**
+   * null のあいだは、まだサーバーに聞けていない（ボタンは押せない）。
+   */
+  const [mailOn, setMailOn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/profile/mail').then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (alive && data) setMailOn(Boolean((data as { on: boolean }).on)); })
+      .catch(() => { /* 読めなくても画面は動かす。押したときに直る。 */ });
+    return () => { alive = false; };
+  }, []);
+
+  /** メールのお知らせを切り替える。**押した瞬間に見た目を変えて**、通信は後ろで。 */
+  async function toggleMail() {
+    const next = !mailOn;
+    setMailOn(next);
+    try {
+      const response = await fetch('/api/profile/mail', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ on: next }),
+      });
+      if (!response.ok) throw new Error();
+      onNotice(next ? 'メッセージが届いたら、ご登録のメールにお知らせします。' : 'メールでのお知らせを止めました。');
+    } catch {
+      // 戻せなかったら、押す前の状態に返す。オンのままだと思わせない。
+      setMailOn(!next);
+      onNotice('設定を変えられませんでした。時間をおいてお試しください。');
+    }
+  }
 
   useEffect(() => {
     const handleInstall = (event: Event) => {
@@ -92,6 +122,13 @@ export default function InstallAndNotificationPanel({ onNotice }: { onNotice: (m
     <div className="app-tools-actions">
       <button className={pushState === 'on' ? 'enabled' : ''} onClick={enableNotifications} disabled={pushState === 'loading' || pushState === 'unsupported'}><span>●</span><b>{pushState === 'on' ? '通知オン' : pushState === 'denied' ? '通知を再設定' : '通知を受け取る'}</b><small>{pushState === 'on' ? '関連業種の新着をお知らせ' : '業種タグが一致した投稿だけ'}</small></button>
       <button className={installed ? 'enabled' : ''} onClick={installApp}><span>＋</span><b>{installed ? '追加済み' : 'ホーム画面に追加'}</b><small>ブラウザーを開かず起動</small></button>
+      {/* メールのお知らせ。**通知を許可していない人にも届く道**なので、
+          プッシュとは別に置いてある。 */}
+      <button className={mailOn ? 'enabled' : ''} onClick={toggleMail} disabled={mailOn === null}>
+        <span>✉</span>
+        <b>{mailOn === null ? '読み込み中' : mailOn ? 'メール通知オン' : 'メールで受け取る'}</b>
+        <small>{mailOn ? 'メッセージが届いたらお知らせ' : 'ご登録のメールアドレスへ'}</small>
+      </button>
     </div>
     <small className="app-tools-note">iPhoneはホーム画面へ追加した後に通知を有効にしてください。</small>
   </section>;

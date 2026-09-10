@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import type { SessionUser } from '@/app/session-user';
 import { cleanFacebookUrl } from '@/app/social-links';
+import { serviceName, serviceUrl } from '@/app/brand';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
 import { AD_DESCRIPTION_MAX, AD_RESERVATION_MINUTES, AD_TITLE_MAX, DEFAULT_PLACEMENT, placementSlots } from '@/app/ad-options';
 import { UNLIMITED, bonusPlan, campaignPlan, can, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, planLimits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
@@ -558,6 +559,9 @@ export async function ensureDatabase() {
     ['plan_interval', "ALTER TABLE members ADD COLUMN plan_interval TEXT NOT NULL DEFAULT 'month'"],
     ['bonus_plan', "ALTER TABLE members ADD COLUMN bonus_plan TEXT NOT NULL DEFAULT 'free'"],
     ['bonus_period_end', "ALTER TABLE members ADD COLUMN bonus_period_end TEXT NOT NULL DEFAULT ''"],
+    // メッセージが届いたときにメールで知らせるか。**既定は送る。**
+    // 毎日開く習慣がまだ無いうちは、届いたことに気づく道がこれしかない。
+    ['mail_on_message', 'ALTER TABLE members ADD COLUMN mail_on_message INTEGER NOT NULL DEFAULT 1'],
   ];
   for (const [columnName, sql] of missingColumns) {
     if (!existingColumns.has(columnName)) await env.DB.prepare(sql).run();
@@ -1547,6 +1551,11 @@ export async function addIntroductionMessage(user: SessionUser, introductionId: 
     .bind(crypto.randomUUID(), introductionId, user.userId, text, new Date().toISOString()).run();
   // 相手に知らせる。届かなくてもやり取りは残るので、失敗は握りつぶす。
   await sendIntroductionMessageNotice(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
+  // メールは**相手が読んだあとの最初の1通だけ**。往復のたびに飛ばさない。
+  const unread = await unreadInThread(access.partnerId, `intro:${introductionId}`,
+    `SELECT COUNT(*) AS count FROM introduction_messages
+      WHERE introduction_id = ? AND sender_id != ? AND created_at > ?`, introductionId).catch(() => 99);
+  if (unread <= 1) await sendMessageMail(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
   return listIntroductionMessages(user, introductionId);
 }
 
@@ -1631,6 +1640,10 @@ async function addDirectMessage(user: SessionUser, partnerId: string, body: stri
     VALUES (?, ?, ?, ?, ?, ?)`)
     .bind(crypto.randomUUID(), pairKey, user.userId, partnerId, text, new Date().toISOString()).run();
   await sendDirectMessageNotice(partnerId, user.displayName).catch(() => undefined);
+  const unread = await unreadInThread(partnerId, `${DIRECT_PREFIX}${pairKey}`,
+    `SELECT COUNT(*) AS count FROM direct_messages
+      WHERE pair_key = ? AND sender_id != ? AND created_at > ?`, pairKey).catch(() => 99);
+  if (unread <= 1) await sendMessageMail(partnerId, user.displayName, '').catch(() => undefined);
   return listDirectMessages(user, partnerId);
 }
 
@@ -1645,6 +1658,10 @@ async function addAdIntroductionMessage(user: SessionUser, id: string, body: str
     .bind(crypto.randomUUID(), id, user.userId, text, new Date().toISOString()).run();
   // 相手に知らせる。届かなくてもやり取りは残るので、失敗は握りつぶす。
   await sendIntroductionMessageNotice(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
+  const unread = await unreadInThread(access.partnerId, `${AD_OFFER_PREFIX}${id}`,
+    `SELECT COUNT(*) AS count FROM ad_introduction_messages
+      WHERE ad_introduction_id = ? AND sender_id != ? AND created_at > ?`, id).catch(() => 99);
+  if (unread <= 1) await sendMessageMail(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
   return listAdIntroductionMessages(user, id);
 }
 
@@ -1813,6 +1830,66 @@ function requestImageUrl(id: string, version: number, size: 'thumb' | 'full', in
  * 紹介のやり取りが届いたことを、相手1人にだけ知らせる。
  * 中身は本文に入れない（通知は端末の画面に出るため、他人に見えうる）。
  */
+/**
+ * メッセージが届いたことを、登録のメールアドレスに知らせる。
+ *
+ * **本文は載せない。** 1対1のやり取りは、当人2人だけが読むもの。メールは
+ * 転送も共有も簡単で、届いた先が本人の手元とは限らない。誰から届いたかと、
+ * 開く場所だけを伝える。
+ *
+ * **たまっているぶんには送らない。** 送るのは「その人が読んだあと、最初の
+ * 1通」だけ。往復するたびにメールが飛ぶと、通知そのものが読まれなくなる。
+ * 次に送るのは、相手が一度開いてからになる。
+ *
+ * 送れなくてもやり取りは残る。**失敗しても止めない。**
+ */
+async function sendMessageMail(recipientId: string, senderName: string, about: string) {
+  if (!env.RESEND_API_KEY || !env.AUTH_FROM_EMAIL) return;
+  const row = await env.DB.prepare(`SELECT email, mail_on_message AS mailOn FROM members WHERE id = ?`)
+    .bind(recipientId).first<{ email: string; mailOn: number }>();
+  if (!row?.email || !Number(row.mailOn)) return;
+  const line = about ? `「${about}」でのやり取りです。` : '';
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      from: env.AUTH_FROM_EMAIL,
+      to: [row.email],
+      subject: `${senderName}さんからメッセージが届きました`,
+      html: `<div style="font-family:Arial,sans-serif;color:#15213a;line-height:1.8">`
+        + `<h2 style="font-size:18px">${senderName}さんからメッセージが届きました</h2>`
+        + `<p>${line}内容は${serviceName}を開いてご確認ください。</p>`
+        + `<p><a href="${serviceUrl}/?intro=1" style="display:inline-block;padding:12px 22px;border-radius:10px;background:#0f5fc4;color:#fff;text-decoration:none;font-weight:700">メッセージを開く</a></p>`
+        + `<p style="color:#6b7d95;font-size:12px">このお知らせを止めたいときは、${serviceName}のマイページ →「アプリと通知」からオフにできます。</p>`
+        + `</div>`,
+    }),
+  });
+}
+
+/** メールで知らせてよいか。**既定は送る**（列の既定値が1）。 */
+export async function getMailOnMessage(memberId: string) {
+  await ensureDatabase();
+  const row = await env.DB.prepare('SELECT mail_on_message AS mailOn FROM members WHERE id = ?')
+    .bind(memberId).first<{ mailOn: number }>();
+  return Number(row?.mailOn ?? 1) === 1;
+}
+
+/** メールのお知らせを切り替える。会員が自分で止められるようにしておく。 */
+export async function setMailOnMessage(memberId: string, on: boolean) {
+  await ensureDatabase();
+  await env.DB.prepare('UPDATE members SET mail_on_message = ? WHERE id = ?')
+    .bind(on ? 1 : 0, memberId).run();
+  return on;
+}
+
+/** その人が、そのやり取りでまだ読んでいない通数。メールを出すかの判断に使う。 */
+async function unreadInThread(recipientId: string, threadKey: string, countSql: string, ...binds: unknown[]) {
+  const read = await env.DB.prepare('SELECT last_read_at AS lastReadAt FROM thread_reads WHERE member_id = ? AND thread_key = ?')
+    .bind(recipientId, threadKey).first<{ lastReadAt: string }>();
+  const row = await env.DB.prepare(countSql).bind(...binds, recipientId, read?.lastReadAt ?? '').first<{ count: number }>();
+  return Number(row?.count ?? 0);
+}
+
 /** じかのやり取りが届いたことを知らせる。案件名が無いので、そこだけ文が違う。 */
 async function sendDirectMessageNotice(partnerId: string, senderName: string) {
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return;
