@@ -1799,7 +1799,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
         {searchMode === 'members' ? <>
           <div className="section-title"><div><p>MEMBERS</p><h2>人を探す</h2></div><span>{members ? `${members.length}人` : '…'}</span></div>
-          <p className="member-search-lead">業種とエリアで会員を探せます。押すと、その方のプロフィールと<b>いま出している案件</b>が見られます。</p>
+          <p className="member-search-lead">業種とエリアで会員を探せます。押すと、その方のプロフィールと<b>いま出している案件</b>が見られます。そのまま<b>メッセージ</b>も送れます。</p>
           <div className="member-filters">
             <p>絞り込む</p>
             <label className="wide"><span>名前・会社・業種で探す</span>
@@ -1822,22 +1822,31 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div className="member-card-list">
             {members === null ? <p className="messages-loading">読み込んでいます…</p>
               : !members.length ? <div className="empty"><b>条件に合う方が見つかりません</b><span>絞り込みを外すと、ほかの会員が並びます。</span></div>
-              : members.map((member) => <button className="member-card" key={member.id} onClick={() => openMember(member.id)}>
-                <Avatar src={member.avatarUrl} name={member.displayName} className="member-avatar" />
-                <span className="member-card-main">
-                  <b>{member.displayName}{member.mine && <em>あなた</em>}</b>
-                  <small>{member.positionTitle && `${member.positionTitle}｜`}{member.company || '会社名未設定'}</small>
-                  <span className="member-card-tags">
-                    {member.primaryIndustry && <i>{member.primaryIndustry}</i>}
-                    {member.businessArea && <i>{member.businessArea}</i>}
+              : members.map((member) => <div className="member-card" key={member.id}>
+                {/* カードの中にボタンを2つ置くので、外側は div にする
+                    （button の中に button は置けない）。 */}
+                <button className="member-card-open" onClick={() => openMember(member.id)}>
+                  <Avatar src={member.avatarUrl} name={member.displayName} className="member-avatar" />
+                  <span className="member-card-main">
+                    <b>{member.displayName}{member.mine && <em>あなた</em>}</b>
+                    <small>{member.positionTitle && `${member.positionTitle}｜`}{member.company || '会社名未設定'}</small>
+                    <span className="member-card-tags">
+                      {member.primaryIndustry && <i>{member.primaryIndustry}</i>}
+                      {member.businessArea && <i>{member.businessArea}</i>}
+                    </span>
                   </span>
-                </span>
-                <span className="member-card-side">
-                  {/* 紋章は細かい絵なので、この大きさでは読めない。名前で出す。 */}
-                  <i className={`member-rank rank-${member.rank.toLowerCase()}`}>{member.rank}</i>
-                  {member.openRequests > 0 && <em>案件 {member.openRequests}件</em>}
-                </span>
-              </button>)}
+                  <span className="member-card-side">
+                    {/* 紋章は細かい絵なので、この大きさでは読めない。名前で出す。 */}
+                    <i className={`member-rank rank-${member.rank.toLowerCase()}`}>{member.rank}</i>
+                    {member.openRequests > 0 && <em>案件 {member.openRequests}件</em>}
+                  </span>
+                </button>
+                {/* **一覧からそのまま話しかけられるようにする。** プロフィールを
+                    開いてから、では1つ遠い。自分あてには出さない。 */}
+                {!member.mine && <button className="member-card-msg" onClick={() => messageMember(member)}>
+                  メッセージを送る
+                </button>}
+              </div>)}
           </div>
         </> : <>
         <div className="section-title"><div><p>REQUESTS</p><h2>{industryFilter === 'all' ? '仕事の掲示板' : industryFilter}<button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="案件・協業先・相談の違いを見る">i</button></h2></div><span>{shown.length}件</span></div>

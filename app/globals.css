@@ -2323,3 +2323,15 @@ body { font-weight:600; }
 /* 会員のプロフィールから、その場で話しかけるボタン。
    案件を出していない相手には、これまで声をかける道が無かった。 */
 .member-message { width:100%; margin-top:16px; }
+
+/* ── 会員のカード：一覧からそのまま話しかけられるようにする ─────
+   プロフィールを開いてから、では1つ遠い。カードの中にボタンが2つ入るので、
+   外側は div にしてある（button の中に button は置けない）。 */
+.member-card { padding:0; display:block; overflow:hidden; }
+.member-card-open { width:100%; padding:13px; display:grid; grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center; gap:12px; border:0; background:transparent; text-align:left; cursor:pointer; }
+.member-card-msg { width:100%; min-height:42px; padding:0 13px; display:flex;
+  align-items:center; justify-content:center; gap:6px;
+  border:0; border-top:1px solid var(--line); background:#f5f9ff; color:#0f5fc4;
+  font-family:inherit; font-size:12px; font-weight:900; cursor:pointer; }
+.member-card-msg:active { background:#e8f1ff; }
