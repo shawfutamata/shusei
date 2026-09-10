@@ -31,6 +31,7 @@ import AdAnalytics, { formatRange } from './AdAnalytics';
 import type { AdDay } from '@/db/data';
 
 import AdBanner from './AdBanner';
+import InstallAndNotificationPanel from './InstallAndNotificationPanel';
 
 const categories = {
   project: { label: '発注先', className: 'project' },
@@ -1964,6 +1965,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             <small>{tile.note}</small>
           </button>)}
         </nav>
+
+        <InstallAndNotificationPanel onNotice={showToast} />
 
         {/* 招待だけタイルから外して帯にしてある。7枚だと3列に収まらず最後の
             1枚が3段目に残るのと、**ランクが上がる唯一の道**なので、ほかの
