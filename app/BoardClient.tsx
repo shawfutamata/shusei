@@ -2389,7 +2389,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               {/* たまっている券は**1枚の回数券にまとめる。** あと何日で使えるかは
                   券そのものの話なので、券の外に別の帯と別の文で並べない
                   （同じ大きさの文が続くと、どれが結果でどれが説明か分からない）。
-                  7日たまるまで出すのは、広告が7日からしか申し込めないため。 */}
+                  最短の日数（AD_MIN_DAYS）に届くまで出すのは、そこまでは
+                  券だけで出せないため。 */}
               {gacha.giftDays > 0 && <p className="gacha-gift">
                 <small>たまっている無料券</small>
                 <b>{gacha.giftDays}<em>日分</em></b>
@@ -2397,7 +2398,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                   <span className="gacha-gift-gauge" aria-hidden="true">
                     <i style={{ width: `${Math.round((gacha.giftDays / AD_MIN_DAYS) * 100)}%` }} />
                   </span>
-                  <small>あと<b>{AD_MIN_DAYS - gacha.giftDays}日分</b>で1週間まるごと無料</small>
+                  <small>あと<b>{AD_MIN_DAYS - gacha.giftDays}日分</b>で、券だけで出せます</small>
                 </>}
                 {gacha.giftExpiresOn && <small>いちばん早い券は{gachaDateLabel(gacha.giftExpiresOn)}まで</small>}
               </p>}
