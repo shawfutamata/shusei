@@ -42,7 +42,7 @@ export default function LandingPage({ error = '', pending = false }: { error?: s
     <section className={styles.hero} aria-labelledby="lp-title">
       <div className={styles.heroInner}>
         <div className={styles.heroCopy}>
-          <p className={styles.eyebrow}>守成クラブ会員向け・招待制マッチングサービス</p>
+          <p className={styles.eyebrow}>経営者・事業者向け・招待制マッチングサービス</p>
           <h1 id="lp-title">紹介が、<br/>次の商売に<br/>つながる。</h1>
           <p className={styles.heroLead}>あの人の「困った」に、あなたのつながりを。<br/>会員同士の紹介とオファーで、<br className={styles.mobileBreak}/>商売の可能性を広げよう。</p>
           <div className={styles.actions}><a className={styles.primary} href="#start">招待コードで始める <span aria-hidden="true">↗</span></a><a className={styles.secondary} href="#about">TASUKIを知る <span aria-hidden="true">↓</span></a></div>
@@ -52,7 +52,7 @@ export default function LandingPage({ error = '', pending = false }: { error?: s
         <ConnectionSculpture/>
       </div>
     </section>
-    <div className={styles.introStrip}><span>守成クラブ会員向け</span><span>招待でつながる</span><span>紹介するオファーは無料</span></div>
+    <div className={styles.introStrip}><span>経営者・事業者向け</span><span>招待でつながる</span><span>紹介するオファーは無料</span></div>
     <section className={styles.productEvidence} aria-labelledby="product-title">
       <div><p className={styles.eyebrow}>CONNECTIONS INTO ACTION</p><h2 id="product-title">つながりを、<br/>動き出す商売へ。</h2><p>案件を探す。仲間を紹介する。<br/>TASUKIの実際の画面をご覧ください。</p><a className={styles.secondary} href="#start">招待コードで始める ↗</a></div>
       <ProductShowcase/>
@@ -90,7 +90,7 @@ export default function LandingPage({ error = '', pending = false }: { error?: s
     <section className={styles.faq} aria-labelledby="faq-title">
       <p className={styles.eyebrow}>QUESTIONS & ANSWERS</p>
       <h2 id="faq-title">はじめる前に、知っておきたいこと。</h2>
-      <details><summary>TASUKIはどんなサービスですか？</summary><p>守成クラブ会員向けの招待制ビジネスマッチングサービスです。案件の投稿や会員検索、知り合いの紹介を通じて、新しい商売や協業のきっかけをつなぎます。</p></details>
+      <details><summary>TASUKIはどんなサービスですか？</summary><p>経営者・事業者向けの招待制ビジネスマッチングサービスです。案件の投稿や会員検索、知り合いの紹介を通じて、新しい商売や協業のきっかけをつなぎます。</p></details>
       <details><summary>無料で利用できますか？</summary><p>無料プランがあります。各プランで利用できる機能や料金は、<a href="#plans">料金プラン</a>をご覧ください。</p></details>
       <details><summary>登録に必要なものは何ですか？</summary><p>8桁の招待コードとGoogleアカウントが必要です。招待リンクからGoogleで登録すると、利用を始められます。</p></details>
       <details><summary>招待コードを持っていない場合は？</summary><p>招待してくれる会員に、招待リンクまたは招待コードをご確認ください。ご不明な点は<a href="/support">運営窓口</a>へお問い合わせください。</p></details>
