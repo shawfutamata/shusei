@@ -1754,16 +1754,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           {recommended.map((need) => <HomeRequestCard key={need.id} need={need} favorite={favoriteIds.includes(need.id)} onOpen={() => openNeed(need)} onFavorite={() => toggleFavorite(need)} />)}
         </HomeShelf>
 
-        <HomeShelf title="閲覧履歴" count={viewedRequests.length} emptyTitle="まだ閲覧履歴がありません" emptyText="案件を開くと、ここからすぐ見返せます。" onMore={() => showSearch()}>
-          {viewedRequests.map((need) => <HomeRequestCard key={need.id} need={need} favorite={favoriteIds.includes(need.id)} onOpen={() => openNeed(need)} onFavorite={() => toggleFavorite(need)} />)}
-        </HomeShelf>
-
-        <section className="industry-home">
-          <div className="home-section-heading"><div><p>業種から探す</p><h2>ジャンル別の案件検索</h2></div><button onClick={() => showSearch('all')}>すべて見る</button></div>
-          <div className="industry-grid">{industryGroups.map((group) => <button key={group.name} onClick={() => showSearch(group.name)}><span><IndustryIcon group={group.name} /></span><b>{group.name}</b><small>{requests.filter((item) => matchesIndustry(item.industryTags, group.name)).length}件</small></button>)}</div>
-        </section>
-
-        {/* ガチャの入口。**その日に開いている回があるときだけ出る。**
+        {/* ガチャの入口。**閲覧履歴の上に置く。** おすすめを見たあと、
+            まだ下まで進む前のところ。いちばん下だと、毎日引いてもらうものが
+            毎日スクロールの先になる。
+            **その日に開いている回があるときだけ出る。**
             終わったら何も残らないので、引き忘れた人に「終わったもの」を
             見せ続けることにならない。
             横長の画像（1200×400）を置ける。画像が無い・読めないときは、
@@ -1785,6 +1779,16 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           </button>
           {gachaArtOk && <p className="gacha-section-note">{gachaStatusLine}</p>}
         </section>}
+
+        <HomeShelf title="閲覧履歴" count={viewedRequests.length} emptyTitle="まだ閲覧履歴がありません" emptyText="案件を開くと、ここからすぐ見返せます。" onMore={() => showSearch()}>
+          {viewedRequests.map((need) => <HomeRequestCard key={need.id} need={need} favorite={favoriteIds.includes(need.id)} onOpen={() => openNeed(need)} onFavorite={() => toggleFavorite(need)} />)}
+        </HomeShelf>
+
+        <section className="industry-home">
+          <div className="home-section-heading"><div><p>業種から探す</p><h2>ジャンル別の案件検索</h2></div><button onClick={() => showSearch('all')}>すべて見る</button></div>
+          <div className="industry-grid">{industryGroups.map((group) => <button key={group.name} onClick={() => showSearch(group.name)}><span><IndustryIcon group={group.name} /></span><b>{group.name}</b><small>{requests.filter((item) => matchesIndustry(item.industryTags, group.name)).length}件</small></button>)}</div>
+        </section>
+
 
         {!stats.avatarUrl && <button className="photo-required-banner" onClick={() => showProfileSettings()}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・オファーができます。</b><i>登録する →</i></button>}
       </div> : activeTab === 'search' ? <section className="mobile-board search-page" id="board">
