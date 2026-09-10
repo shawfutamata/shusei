@@ -220,8 +220,9 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .tut-back { min-height:46px; padding:0 16px; flex:0 0 auto; border:1px solid var(--line); border-radius:11px; background:#fff; color:#5b6b80; font-size:13px; font-weight:800; cursor:pointer; }
 .tut-next { flex:1; min-height:46px; border:0; border-radius:11px; background:var(--blue); color:#fff; font-size:14px; font-weight:900; cursor:pointer; }
 .mypage-howto { width:100%; min-height:48px; margin-top:18px; border:1px solid #cfdcee; border-radius:12px; background:#f2f7fe; color:var(--blue); font-size:13px; font-weight:800; cursor:pointer; }
-.mypage-howto + .mypage-signout { margin-top:9px; }
-.mypage-signout { width:100%; min-height:48px; margin-top:18px; border:1px solid var(--line); border-radius:12px; background:#fff; color:#6b7a90; font-size:13px; font-weight:800; cursor:pointer; }
+.mypage-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.mypage-signout { min-height:40px; padding:0 15px; flex:0 0 auto; border:1px solid var(--line); border-radius:999px; background:#fff; color:#596a82; font-size:12px; font-weight:800; cursor:pointer; }
+.mypage-signout:active { background:#f2f5f9; }
 .mypage-signout:disabled { opacity:.5; cursor:wait; }
 .legal-links a { min-height:44px; padding:0 8px; display:flex; align-items:center; color:#7b8ca4; font-size:9px; font-weight:800; }
 .legal-links a:hover { color:var(--blue); }
