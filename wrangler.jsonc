@@ -2,7 +2,8 @@
   // Cloudflare Workers へ直接デプロイするための設定。
   // ChatGPT Sites から切り離したので、D1 と R2 はショウさんのCloudflare
   // アカウントのものを使う。**ここに秘密は書かない**（APIキーの類は
-  // `npx wrangler secret put <名前>` で入れる。下の「vars」も使わない）。
+  // `npx wrangler secret put <名前>` で入れる）。Dashboardで設定した通常変数は
+  // `keep_vars` でデプロイ後も維持する。
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tasuki",
   "main": "vinext/server/app-router-entry",
@@ -10,6 +11,7 @@
   // ここだけ先に進めると開発サーバーが起動しない。上げるときは wrangler も上げる。
   "compatibility_date": "2026-05-22",
   "compatibility_flags": ["nodejs_compat"],
+  "keep_vars": true,
 
   "d1_databases": [
     {
