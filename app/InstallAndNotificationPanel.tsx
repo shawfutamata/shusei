@@ -11,6 +11,7 @@ type InstallPromptEvent = Event & {
 export default function InstallAndNotificationPanel({ onNotice }: { onNotice: (message: string) => void }) {
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [installed, setInstalled] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
   const [pushState, setPushState] = useState<'loading' | 'unsupported' | 'off' | 'on' | 'denied'>('loading');
   /**
    * メッセージが届いたときのメール。**既定は送る。**
@@ -50,6 +51,7 @@ export default function InstallAndNotificationPanel({ onNotice }: { onNotice: (m
     };
     window.addEventListener('beforeinstallprompt', handleInstall);
     queueMicrotask(() => {
+      setIsIOS(/iPhone|iPad|iPod/i.test(navigator.userAgent));
       const standalone = window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
       setInstalled(standalone);
       if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
@@ -106,7 +108,8 @@ export default function InstallAndNotificationPanel({ onNotice }: { onNotice: (m
 
   async function installApp() {
     if (installed) return onNotice(`${serviceName}はホーム画面から使えます。`);
-    if (!installPrompt) return onNotice('iPhoneは共有ボタンから「ホーム画面に追加」を選んでください。');
+    if (isIOS) return onNotice('SafariでTASUKIを開き、共有ボタンから「ホーム画面に追加」を選んでください。');
+    if (!installPrompt) return onNotice('ブラウザーのメニューから「ホーム画面に追加」または「アプリをインストール」を選んでください。');
     await installPrompt.prompt();
     const result = await installPrompt.userChoice;
     if (result.outcome === 'accepted') {
@@ -121,7 +124,7 @@ export default function InstallAndNotificationPanel({ onNotice }: { onNotice: (m
     <p className="app-tools-lead">ホーム画面からすぐ開けます。新着案件のプッシュ通知と、メッセージ内容を確認できるメール通知を設定できます。</p>
     <div className="app-tools-actions">
       <button className={pushState === 'on' ? 'enabled' : ''} onClick={enableNotifications} disabled={pushState === 'loading' || pushState === 'unsupported'}><span>●</span><b>{pushState === 'on' ? '通知オン' : pushState === 'denied' ? '通知を再設定' : '通知を受け取る'}</b><small>{pushState === 'on' ? '関連業種の新着をお知らせ' : '業種タグが一致した投稿だけ'}</small></button>
-      <button className={installed ? 'enabled' : ''} onClick={installApp}><span>＋</span><b>{installed ? '追加済み' : 'ホーム画面に追加'}</b><small>ブラウザーを開かず起動</small></button>
+      <button className={installed ? 'enabled' : ''} onClick={installApp}><span>＋</span><b>{installed ? '追加済み' : isIOS ? 'Safariでホーム画面に追加' : 'ホーム画面に追加'}</b><small>{isIOS && !installed ? '共有ボタンから設定' : 'ブラウザーを開かず起動'}</small></button>
       {/* メールのお知らせ。**通知を許可していない人にも届く道**なので、
           プッシュとは別に置いてある。 */}
       <button className={mailOn ? 'enabled' : ''} onClick={toggleMail} disabled={mailOn === null}>
@@ -130,7 +133,7 @@ export default function InstallAndNotificationPanel({ onNotice }: { onNotice: (m
         <small>{mailOn ? '内容をメールでも確認できます' : 'ご登録のメールアドレスへ通知'}</small>
       </button>
     </div>
-    <small className="app-tools-note">通知はいつでもこの画面から変更できます。iPhoneのプッシュ通知は、ホーム画面へ追加した後に有効にしてください。</small>
+    <small className="app-tools-note">通知はいつでもこの画面から変更できます。iPhoneはSafariでホーム画面へ追加した後、プッシュ通知を有効にしてください。</small>
   </section>;
 }
 
