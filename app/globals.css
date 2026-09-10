@@ -941,6 +941,8 @@ body { font-weight:600; }
 
 .signin-card .google-button { display:flex; align-items:center; justify-content:center; gap:11px; background:#fff; color:#17233c; border:1px solid #d3dcec; }
 .signin-card .google-button svg { width:20px; height:20px; flex:none; }
+.signin-card .login-divider { margin:0 0 -7px; display:flex; align-items:center; gap:12px; color:#8d98aa; font-size:12px; font-weight:700; }
+.signin-card .login-divider::before,.signin-card .login-divider::after { content:''; height:1px; flex:1; background:#e3e8f0; }
 .signin-card .login-error { margin:20px 0 0; padding:13px 15px; border-radius:12px; background:#fff4f2; color:#a8321f; font-size:13px; line-height:1.8; font-weight:700; text-align:left; }
 
 
