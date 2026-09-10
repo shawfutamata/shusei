@@ -121,19 +121,19 @@ export default function InstallAndNotificationPanel({ onNotice }: { onNotice: (m
 
   return <section className="app-tools" aria-label="アプリと通知の設定">
     <div><p>APP &amp; NOTIFICATIONS</p><h2>アプリと通知</h2></div>
-    <p className="app-tools-lead">ホーム画面からすぐ開けます。新着案件のプッシュ通知と、メッセージ内容を確認できるメール通知を設定できます。</p>
+    <p className="app-tools-lead">通知とホーム画面への追加を設定できます。</p>
     <div className="app-tools-actions">
-      <button className={pushState === 'on' ? 'enabled' : ''} onClick={enableNotifications} disabled={pushState === 'loading' || pushState === 'unsupported'}><span>●</span><b>{pushState === 'on' ? '通知オン' : pushState === 'denied' ? '通知を再設定' : '通知を受け取る'}</b><small>{pushState === 'on' ? '関連業種の新着をお知らせ' : '業種タグが一致した投稿だけ'}</small></button>
-      <button className={installed ? 'enabled' : ''} onClick={installApp}><span>＋</span><b>{installed ? '追加済み' : isIOS ? 'Safariでホーム画面に追加' : 'ホーム画面に追加'}</b><small>{isIOS && !installed ? '共有ボタンから設定' : 'ブラウザーを開かず起動'}</small></button>
+      <button className={pushState === 'on' ? 'enabled' : ''} onClick={enableNotifications} disabled={pushState === 'loading' || pushState === 'unsupported'}><span>●</span><b>{pushState === 'on' ? '案件通知オン' : pushState === 'denied' ? '通知を再設定' : '案件通知'}</b><small>{pushState === 'on' ? '関連業種の新着' : '一致した投稿だけ'}</small></button>
+      <button className={installed ? 'enabled' : ''} onClick={installApp}><span>＋</span><b>{installed ? '追加済み' : isIOS ? 'Safariで追加' : 'ホームに追加'}</b><small>{isIOS && !installed ? '共有ボタンから' : 'すぐに起動'}</small></button>
       {/* メールのお知らせ。**通知を許可していない人にも届く道**なので、
           プッシュとは別に置いてある。 */}
       <button className={mailOn ? 'enabled' : ''} onClick={toggleMail} disabled={mailOn === null}>
         <span>✉</span>
-        <b>{mailOn === null ? '読み込み中' : mailOn ? 'メッセージ通知オン' : 'メールで受け取る'}</b>
-        <small>{mailOn ? '内容をメールでも確認できます' : 'ご登録のメールアドレスへ通知'}</small>
+        <b>{mailOn === null ? '読み込み中' : mailOn ? 'メール通知オン' : 'メール通知'}</b>
+        <small>{mailOn ? '本文も確認' : '登録メールへ'}</small>
       </button>
     </div>
-    <small className="app-tools-note">通知はいつでもこの画面から変更できます。iPhoneはSafariでホーム画面へ追加した後、プッシュ通知を有効にしてください。</small>
+    <small className="app-tools-note">iPhoneはSafariで追加後、プッシュ通知を有効にしてください。</small>
   </section>;
 }
 
