@@ -19,14 +19,17 @@ function FeatureIcon({ kind }: { kind: 'search' | 'people' | 'message' }) {
   return <svg className={styles.featureIcon} viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{kind === 'search' ? <><circle cx="14" cy="14" r="8"/><path d="m20 20 7 7"/></> : kind === 'people' ? <><circle cx="12" cy="10" r="4"/><path d="M4 27v-3a8 8 0 0 1 16 0v3M22 6a4 4 0 0 1 0 8M24 19a7 7 0 0 1 4 6v2"/></> : <><path d="M5 5h22v17H15l-7 6v-6H5Z"/><path d="M10 11h12M10 16h8"/></>}</svg>;
 }
 
-function ConnectionDiagram() {
-  return <div className={styles.connectionDiagram} aria-label="案件を投稿し、知り合いの紹介を通じて商売につなげる利用イメージ">
-    <div className={styles.diagramHeading}><BrandMark/><span>つながりのイメージ</span><span aria-hidden="true">↗</span></div>
-    <div className={styles.requestExample}><span className={styles.badge}>こんな人、探しています</span><h3>店舗の内装を<br/>相談できる会社は？</h3><p>探していることを、会員へ届ける。</p><span className={styles.exampleNote}>投稿内容の一例</span></div>
-    <div className={styles.connector} aria-hidden="true"><span/>知り合いを紹介<span/></div>
-    <div className={styles.introExample}><FeatureIcon kind="people"/><div><h3>その人なら、知っています。</h3><p>仲間の得意を、必要としている人へ。</p></div></div>
-    <div className={styles.diagramOutcome}><FeatureIcon kind="message"/><span>オファーから、次の商売へ。</span></div>
-  </div>;
+function ProductShowcase() {
+  return <figure className={styles.productShowcase} aria-label="TASUKIの実際の画面">
+    <figcaption className={styles.productCaption}><span aria-hidden="true"/>ACTUAL PRODUCT UI <b>デモデータ</b></figcaption>
+    <div className={`${styles.productScreen} ${styles.productScreenBack}`}>
+      <img src="/lp/tasuki-ui-mypage.jpg" width="960" height="1880" alt="TASUKIのマイページ画面"/>
+    </div>
+    <div className={`${styles.productScreen} ${styles.productScreenFront}`}>
+      <img src="/lp/tasuki-ui-requests.jpg" width="960" height="1880" alt="TASUKIの仕事の掲示板画面"/>
+    </div>
+    <p className={styles.productNote}><span aria-hidden="true">●</span> 掲示板も会員情報も、ひとつの場所に。</p>
+  </figure>;
 }
 
 export default function LandingPage({ error = '', pending = false }: { error?: string; pending?: boolean }) {
@@ -52,7 +55,7 @@ export default function LandingPage({ error = '', pending = false }: { error?: s
           <p className={styles.fine}>無料プランあり · Googleアカウントで登録</p>
           {error && <p className={styles.notice} role={pending ? 'status' : 'alert'}>{error}</p>}
         </div>
-        <ConnectionDiagram/>
+        <ProductShowcase/>
       </div>
     </section>
     <div className={styles.introStrip}><span>守成クラブ会員向け</span><span>招待でつながる</span><span>紹介するオファーは無料</span></div>

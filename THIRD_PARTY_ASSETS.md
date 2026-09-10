@@ -45,4 +45,5 @@ ICOOON MONO はアイコンそのものの再配布を認めていないため�
 
 - `public/lp/inter-{400,500,700}.ttf`: Inter, Google Fonts, SIL OFL 1.1; license `public/lp/inter-OFL.txt`; https://github.com/google/fonts/tree/main/ofl/inter
 - `public/lp/manrope-{400,500,700}.ttf`: Manrope, Google Fonts, SIL OFL 1.1; license `public/lp/manrope-OFL.txt`; https://github.com/google/fonts/tree/main/ofl/manrope
-- Confetti and functional diagram are original inline SVG/HTML primitives. No external imagery.
+- Confetti is an original inline SVG primitive.
+- `public/lp/tasuki-ui-requests.jpg` and `public/lp/tasuki-ui-mypage.jpg` are first-party screenshots captured from the locally rendered TASUKI application with reserved demo data. They contain no live member data or third-party product UI.

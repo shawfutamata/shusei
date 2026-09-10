@@ -26,13 +26,23 @@ const browser = await chromium.launch({ executablePath: BROWSER, args: ['--no-sa
 // タブごとに新しいコンテキストを使う。モーダルの開いた状態が次の撮影に残らない。
 async function capture(name, { signIn = false, path = '/', navIndex = null } = {}) {
   const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 2, locale: 'ja-JP' });
+  await context.addInitScript(() => window.localStorage.setItem('tasuki:tutorial:v1', 'done'));
   const page = await context.newPage();
   if (signIn) await page.goto(`${BASE}/api/dev/signin?return_to=%2F`, { waitUntil: 'networkidle' });
   await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(800);
+  const automaticModalClose = page.locator('.modal-close').first();
+  if (await automaticModalClose.isVisible().catch(() => false)) {
+    await automaticModalClose.click();
+    await page.waitForTimeout(250);
+  }
   if (navIndex !== null) {
     await page.locator('.bottom-nav button, .bottom-nav a').nth(navIndex).click();
     await page.waitForTimeout(1100);
+    if (await automaticModalClose.isVisible().catch(() => false)) {
+      await automaticModalClose.click();
+      await page.waitForTimeout(250);
+    }
   }
   writeFileSync(join(OUT, `${name}.jpg`), await page.screenshot({ type: 'jpeg', quality: 76 }));
   console.log(name);
@@ -46,8 +56,16 @@ setStatus('invited');
 await capture('03-denied', { signIn: true });
 
 setStatus('active');
-const tabs = ['04-home', '05-requests', '06-post', '07-cards', '08-mypage'];
-for (const [index, name] of tabs.entries()) await capture(name, { signIn: true, navIndex: index });
+const tabs = [
+  ['04-home', 0],
+  ['05-requests', 1],
+  ['06-recommended', 2],
+  ['07-post', 3],
+  ['08-messages', 4],
+  ['09-ads', 5],
+  ['10-mypage', 6],
+];
+for (const [name, navIndex] of tabs) await capture(name, { signIn: true, navIndex });
 
 await browser.close();
 console.log(`\n${OUT}/ に保存しました。`);

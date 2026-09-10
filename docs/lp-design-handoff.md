@@ -14,10 +14,11 @@ The user replaced the Slush brief with their full Atlassian style reference and 
 | 1200px content, 64–80px sections, 20px cards, 28px buttons | User spacing and shape tokens |
 | Manrope display / Inter text, locally hosted with OFL licenses | User-approved substitutions; Japanese system sans fallback at readable weight and line height |
 | Lavender editorial band | User section rhythm; dark text, no functional card fills |
-| Referral diagram with explicitly labeled sample | Service flow from code + user imagery guidance for flat engineering diagrams; not represented as a real screenshot or member data |
+| Overlapping product screenshots in the hero | User RevenueCat reference; actual locally rendered TASUKI UI with demo-only data, framed as a front board screen and a rear member screen |
 | Restrained navigation and lower weight editorial hierarchy | Refero Atlassian 827c26bc-d922-4123-9526-4280d497eea2; user-provided details take precedence over broader retrieved style |
+| White cards, 16–18px corners and violet-tinted ambient elevation around the product UI | Refero RevenueCat c6dff893-73b0-46f0-8701-03283dc4558c; borrowed only for hero screenshot framing |
 
-The old inflatable assets and font remain available for rollback but are no longer loaded by this LP. No Atlassian logo, third-party product UI, member data or fabricated testimonial is used. Existing TASUKI BrandMark is retained.
+The old inflatable assets and font remain available for rollback but are no longer loaded by this LP. No Atlassian logo, third-party product UI, live member data or fabricated testimonial is used. Existing TASUKI BrandMark is retained. `tasuki-ui-requests.jpg` and `tasuki-ui-mypage.jpg` were captured from the real local application after its demo seed ran; the visible sample names and requests are reserved example data and the hero labels them as demo data.
 
 ## Behavior and commercial content
 
@@ -30,7 +31,7 @@ The old inflatable assets and font remain available for rollback but are no long
 
 ## QA
 
-Use `npm run preflight` and `node scripts/check-lp.mjs` with the local dev server on localhost:4173. Review screenshots in `review/`. Check 1440, 768, 390 and 320 widths, mobile menu open/close and navigation, invitation normalization and mocked destination, login errors, local fonts and absence of the old ribbon.
+Use `npm run preflight` and `node scripts/check-lp.mjs` with the local dev server on localhost:4173. Review screenshots in `review/`. Check 1440, 768, 430, 390, 375 and 320 widths, mobile menu open/close and navigation, invitation normalization and mocked destination, login errors, local fonts, both product screenshot dimensions and absence of the old ribbon.
 
 Responsive edge treatment: on widths up to 600px, the two confetti SVGs sit fully inside the viewport instead of using negative offsets. The content inset grows to 46px (34px at 360px and below), and the edge art scales from 36px to 26px. Browser QA checks 430, 390, 375 and 320px and asserts both decorations have non-negative left positions, remain within the viewport, and do not create horizontal overflow.
 
