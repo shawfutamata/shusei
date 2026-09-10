@@ -44,3 +44,45 @@
 @media(max-width:800px){.heroInner{padding:24px;gap:0}.hero h1{font-size:44px}.heroLead{font-size:14px}.productEvidence h2{font-size:32px}.productEvidence .productShowcase{min-height:440px}}
 @media(max-width:600px){.hero{min-height:0}.heroInner{position:relative;top:auto;display:block;padding:40px 24px 0;min-height:0}.hero h1{font-size:clamp(40px,10.8vw,58px);margin:22px 0}.heroLead{font-size:14px}.hero .actions{gap:12px;flex-wrap:wrap}.heroCopy{padding:0 4px 16px}.hero .fine{font-size:11px}.productEvidence{grid-template-columns:1fr;padding:48px 24px;gap:30px}.productEvidence h2{font-size:32px}.productEvidence .productShowcase{width:100%;max-width:340px;min-height:460px}.productEvidence .productScreenFront{width:59%}.productEvidence .productNote{font-size:9px}.startInner{padding:48px 24px}}
 @media(prefers-reduced-motion:reduce){.hero{min-height:0}.heroInner{position:relative;top:auto;min-height:0;padding-top:48px;padding-bottom:48px}}
+/* Blue daylight: a calm business canvas surrounding the transparent sculpture. */
+.page{--ink:#102f51;--body:#293f55;--muted:#52677c;--tint:#edf6ff;--fog:#edf1f6;--action:#1267db;--lavender:#edf6ff;background:#fff}
+.header{background:rgba(255,255,255,.96);border-bottom:1px solid #e5edf6}
+.hero{background:radial-gradient(ellipse at 94% 36%,#86c9fa 0%,#c5e4ff 23%,transparent 61%),linear-gradient(125deg,#fff 12%,#f0f8ff 54%,#d9edff 100%)}
+.heroCopy{position:relative;z-index:1}
+.heroCopy>.eyebrow{display:inline-flex;align-items:center;gap:8px;max-width:100%;padding:9px 13px;background:#ffffffb8;border:1px solid #cfe2f5;border-radius:999px;color:#25527c;line-height:1.6}
+.heroCopy>.eyebrow:before{content:'';width:6px;height:6px;flex:none;background:#1677e6;border-radius:50%}
+.hero h1{font-weight:700;color:#102f51;letter-spacing:-.035em}
+.heroLead{color:#344e66;line-height:1.95}
+.hero .fine{color:#4b6680}
+.primary,.headerCta{background:var(--action);box-shadow:0 5px 16px #1667cb18;transition:background .2s,transform .2s,box-shadow .2s}
+.primary:hover,.headerCta:hover{background:#0756be;transform:translateY(-2px);box-shadow:0 8px 22px #1667cb28}
+.introStrip{background:#f5faff;color:#395b78;border-bottom:1px solid #e2edf7;padding-top:26px;padding-bottom:26px}
+.productEvidence{padding-top:96px;padding-bottom:96px}
+.productEvidence h2,.aboutIntro h2,.planHeading h2,.steps h2,.faq h2{font-weight:700;letter-spacing:-.025em}
+.productEvidence .productShowcase{isolation:isolate}
+.productEvidence .productShowcase:before{content:'';position:absolute;inset:50px -12px 22px;border-radius:40px;background:linear-gradient(145deg,#edf8ff,#cbe5ff 60%,#e5f1ff);z-index:-1}
+.productEvidence .productCaption{background:#fff;border:1px solid #e2edf7;padding:10px 14px}
+.productScreen{box-shadow:0 18px 44px #1b518a20,0 2px 8px #1b518a10;border:1px solid #dbe8f3}
+.about,.how,.plans{padding-top:96px;padding-bottom:96px}
+.story{background:#f6faff;border:1px solid #e1edf7;padding:32px 28px}
+.story>.featureIcon{color:#1671d7;background:#e4f1ff;box-sizing:content-box;padding:12px;border-radius:16px}
+.story h3{font-weight:700;font-size:26px}
+.lavenderBand{background:linear-gradient(115deg,#e9f6ff,#d5eaff 55%,#eaf5ff);padding:80px 24px;color:#163e67}
+.lavenderBand h2{font-weight:700;letter-spacing:-.025em}
+.howArt{background:linear-gradient(145deg,#eef8ff,#dcecff);border:1px solid #d6e7f6}
+.joinDiagram>div{border:1px solid #e2ecf6;border-radius:16px}
+.planCard{border-color:#dde8f3}.standard{background:#eff7ff;border-color:#bad8f8}
+.campaign{border:1px solid #dbeafb;background:#f4f9ff}
+.faq{max-width:1000px;margin:auto;padding:32px 24px 96px}
+.faq h2{font-size:36px;line-height:1.45;margin:18px 0 36px}
+.faq details{border-bottom:1px solid #dde8f3;padding:22px 0}
+.faq summary{cursor:pointer;font-size:17px;line-height:1.7;font-weight:500}
+.faq details p{font-size:15px;line-height:1.9;color:var(--muted);max-width:780px;margin:16px 0 2px}
+.faq a{color:var(--action);text-decoration:underline;text-underline-offset:4px}
+.start{background:radial-gradient(ellipse at 5% 100%,#9cd7ff 0,transparent 60%),linear-gradient(120deg,#eaf7ff,#cfE7ff 60%,#e5f0ff);color:#123a60}
+.startCopy h2{font-weight:700;letter-spacing:-.025em}
+.startCard{border:1px solid #ffffffbd;box-shadow:0 16px 48px #14549c12}
+.footer{padding-top:56px;padding-bottom:40px}
+@media(max-width:800px){.heroCopy>.eyebrow{font-size:10px;padding:7px 10px}.story{padding:24px 20px}.story h3{font-size:23px}}
+@media(max-width:600px){.hero{background:radial-gradient(ellipse at 70% 66%,#a5d8ff 0,transparent 54%),linear-gradient(165deg,#fff 4%,#edf7ff 40%,#d8edff 100%)}.heroInner{padding-top:32px}.hero h1{font-size:clamp(38px,10.8vw,58px)}.heroCopy>.eyebrow{font-size:9px;padding:7px 9px;gap:6px}.heroLead{font-size:14px}.productEvidence,.about,.how,.plans{padding-top:64px;padding-bottom:64px}.productEvidence .productShowcase:before{inset:50px -4px 22px;border-radius:28px}.story{padding:28px}.story h3{font-size:26px}.lavenderBand{padding:60px 24px}.faq{padding:16px 24px 64px}.faq h2{font-size:28px}.faq summary{font-size:15px}.faq details p{font-size:14px}.startCopy h2{font-size:34px}}
+@media(prefers-reduced-motion:reduce){.primary:hover,.headerCta:hover{transform:none}}

@@ -18,10 +18,10 @@ function ProductShowcase() {
   return <figure className={styles.productShowcase} aria-label="TASUKIの実際の画面">
     <figcaption className={styles.productCaption}><span aria-hidden="true"/>ACTUAL PRODUCT UI <b>デモデータ</b></figcaption>
     <div className={`${styles.productScreen} ${styles.productScreenBack}`}>
-      <img data-product-screen src="/lp/tasuki-ui-mypage.jpg" width="960" height="1880" alt="TASUKIのマイページ画面"/>
+      <img loading="lazy" decoding="async" data-product-screen src="/lp/tasuki-ui-mypage.jpg" width="960" height="1880" alt="TASUKIのマイページ画面"/>
     </div>
     <div className={`${styles.productScreen} ${styles.productScreenFront}`}>
-      <img data-product-screen src="/lp/tasuki-ui-requests.jpg" width="960" height="1880" alt="TASUKIの仕事の掲示板画面"/>
+      <img loading="lazy" decoding="async" data-product-screen src="/lp/tasuki-ui-requests.jpg" width="960" height="1880" alt="TASUKIの仕事の掲示板画面"/>
     </div>
     <p className={styles.productNote}><span aria-hidden="true">●</span> 掲示板も会員情報も、ひとつの場所に。</p>
   </figure>;
@@ -86,6 +86,14 @@ export default function LandingPage({ error = '', pending = false }: { error?: s
         <article className={`${styles.planCard} ${styles.standard}`}><span className={styles.smallLabel}>STANDARD</span><h3>もっと、商売につなぐ。</h3><div className={styles.price}>{planCatalog.standard.monthlyYen.toLocaleString('ja-JP')}<span>円 / 月</span></div><p>年払い {yearlyYen('standard').toLocaleString('ja-JP')}円 / 年 <b className={styles.discount}>{YEARLY_DISCOUNT * 100}%OFF</b></p><ul><li>無料プランの機能すべて</li><li>案件の投稿は何件でも</li><li>届いたオファーの内容確認・返信</li><li>自社で請け負うオファー</li></ul><a href="#start" className={styles.primary}>{activeCampaign ? '招待を受けて無料で試す' : '招待コードで始める'} ↗</a></article>
       </div>
       <div className={styles.ads} id="advertising"><div><span className={styles.smallLabel}>LET YOUR BUSINESS BE SEEN</span><h3>あなたの商売を、<br/>会員に届ける広告枠。</h3><p>掲載日数に応じた日割り料金。<br/>最短{AD_MIN_DAYS}日〜最長{AD_MAX_DAYS}日で掲載できます。</p></div><div className={styles.adPrices}><div><span>バナー広告 · {placementSlots('banner')}枠</span><b>{AD_DAILY_YEN.banner}円<small> / 日</small></b></div><div><span>掲示板上位 · {placementSlots('list')}枠</span><b>{AD_DAILY_YEN.list}円<small> / 日</small></b></div><p>出稿条件・空き枠は、ログイン後の広告申込画面でご確認ください。</p></div></div>
+    </section>
+    <section className={styles.faq} aria-labelledby="faq-title">
+      <p className={styles.eyebrow}>QUESTIONS & ANSWERS</p>
+      <h2 id="faq-title">はじめる前に、知っておきたいこと。</h2>
+      <details><summary>TASUKIはどんなサービスですか？</summary><p>守成クラブ会員向けの招待制ビジネスマッチングサービスです。案件の投稿や会員検索、知り合いの紹介を通じて、新しい商売や協業のきっかけをつなぎます。</p></details>
+      <details><summary>無料で利用できますか？</summary><p>無料プランがあります。各プランで利用できる機能や料金は、<a href="#plans">料金プラン</a>をご覧ください。</p></details>
+      <details><summary>登録に必要なものは何ですか？</summary><p>8桁の招待コードとGoogleアカウントが必要です。招待リンクからGoogleで登録すると、利用を始められます。</p></details>
+      <details><summary>招待コードを持っていない場合は？</summary><p>招待してくれる会員に、招待リンクまたは招待コードをご確認ください。ご不明な点は<a href="/support">運営窓口</a>へお問い合わせください。</p></details>
     </section>
     <section className={styles.start} id="start" aria-labelledby="start-title"><div className={styles.startInner}><div className={styles.startCopy}><p className={styles.eyebrow}>LET’S CONNECT</p><h2 id="start-title">次のご縁は、<br/>あなたの<br/>つながりから。</h2><p>仲間からの招待を受け取ったら、<br/>TASUKIで最初の一歩を。</p></div><div className={styles.startCard}><p className={styles.smallLabel}>INVITATION ONLY</p><h3>TASUKIを始める</h3><LandingInvite/><a className={styles.memberLogin} href="/api/auth/google/start">登録済みの方：Googleでログイン ↗</a></div></div></section>
     <footer className={styles.footer}><a className={styles.brand} href="#top"><BrandMark/><b>{serviceName}</b></a><p>人から人へ。商売のたすきをつなぐ。</p><nav aria-label="規約とお問い合わせ"><a href="/terms">利用規約</a><a href="/privacy">プライバシーポリシー</a><a href="/refund">返金・キャンセル</a><a href="/tokushoho">特定商取引法に基づく表記</a><a href="/support">お問い合わせ</a></nav><small>運営：株式会社ColourJam</small></footer>

@@ -8,6 +8,8 @@ import BrandMark from './BrandMark';
 import LegalLinks from './LegalLinks';
 import LandingPage from './LandingPage';
 
+export const metadata = { alternates: { canonical: 'https://tasuki.club/lp' } };
+
 export const dynamic = 'force-dynamic';
 
 const loginErrors: Record<string, string> = {

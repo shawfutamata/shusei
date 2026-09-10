@@ -38,12 +38,14 @@ try {
   }
   const screens = page.locator('img[data-product-screen]');
   assert.equal(await screens.count(), 2);
+  await screens.first().scrollIntoViewIfNeeded();
+  await page.waitForTimeout(500);
   for (const screen of await screens.all()) assert.ok(await screen.evaluate(el => el.complete && el.naturalWidth === 960));
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
   await scene.scrollIntoViewIfNeeded();
   await page.waitForFunction(() => document.querySelector('[data-ready]')?.getAttribute('data-connected') === '8');
-  assert.equal(await page.locator('section').first().evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(239, 239, 236)');
+  assert.ok(await page.locator('section').first().evaluate(e => getComputedStyle(e).backgroundImage.includes('gradient')));
   await page.getByRole('link', { name: '招待コードで始める', exact: false }).first().click();
   await page.getByLabel('招待コード（8桁の英数字）').fill('ab12cd34');
   assert.equal(await page.locator('#lp-invite').inputValue(), 'AB12CD34');
