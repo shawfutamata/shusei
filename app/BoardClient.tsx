@@ -384,6 +384,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [zoom, setZoom] = useState(1);
   const [croppedArea, setCroppedArea] = useState<Area | null>(null);
   const [cropping, setCropping] = useState(false);
+  /** 選んだ写真が端末で読めるか確かめているあいだ。大きい写真だと少し待つ。 */
+  const [photoChecking, setPhotoChecking] = useState(false);
   const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'thread' | 'responses' | 'ads' | 'perks' | 'categories' | 'upgrade' | 'adDetail' | 'member' | 'gacha' | null>(null);
   /**
    * オファーの種類。**知り合いの紹介は無料、自社で請け負う（受注）は有料。**
@@ -850,7 +852,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     const picked = Array.from(event.target.files ?? []);
     event.target.value = '';
     if (!picked.length) return;
-    if (picked.some((file) => file.size > 15 * 1024 * 1024)) return showToast('写真は1枚15MB以下を選んでください。');
+    // 送る前に端末で小さいJPEGへ焼き直すので、元の大きさは細かく見ない
+    // （顔写真と同じ扱い。いまのスマホの写真は10MBを超えることがある）。
+    if (picked.some((file) => file.size > 60 * 1024 * 1024)) return showToast('写真が大きすぎます。別の写真をお試しください。');
     const room = photoLimit(stats.level) - requestPhotos.length;
     if (room <= 0) return showToast(`写真は${photoLimit(stats.level)}枚までです。`);
     const added = picked.slice(0, room);
@@ -949,13 +953,29 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     await refreshBoard(); showToast('顔写真とプロフィールを保存しました。');
   }
 
-  function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
+  async function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return showToast('JPEG・PNG・WebPの写真を選んでください。');
-    if (file.size > 5 * 1024 * 1024) return showToast('顔写真は5MB以下にしてください。');
-    setCropSource(URL.createObjectURL(file)); setCropFileName(file.name); setCrop({ x: 0, y: 0 }); setZoom(1); setCroppedArea(null);
+    // **種類と大きさで弾かない。** 切り抜きのときに800pxのJPEGへ焼き直すので、
+    // 送るのは何を選んでも必ず200KBほどのJPEGになる。ここで元の写真を
+    // 5MBで切っていたせいで、いまのiPhoneで撮った写真が登録できなかった。
+    // HEICも同じ。種類の名前ではなく、**端末で読めるかどうか**だけを見る。
+    if (file.size > 60 * 1024 * 1024) return showToast('写真が大きすぎます。別の写真をお試しください。');
+    setPhotoChecking(true);
+    const source = URL.createObjectURL(file);
+    try {
+      await loadPhoto(source);
+    } catch {
+      URL.revokeObjectURL(source);
+      setPhotoChecking(false);
+      // 読めないまま切り抜き画面を開くと、真っ白なまま「決定」も押せない
+      // 行き止まりになる。開く前に止めて、次にどうすればよいかまで出す。
+      return showToast('この写真は読み込めませんでした。カメラロールから選び直すか、別の写真をお試しください。');
+    }
+    setPhotoChecking(false);
+    if (cropSource.startsWith('blob:')) URL.revokeObjectURL(cropSource);
+    setCropSource(source); setCropFileName(file.name); setCrop({ x: 0, y: 0 }); setZoom(1); setCroppedArea(null);
   }
 
   async function confirmCrop() {
@@ -963,7 +983,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     setCropping(true);
     try {
       const croppedFile = await makeCroppedPhoto(cropSource, croppedArea, cropFileName);
-      setProfilePhoto(croppedFile); setPhotoPreview(URL.createObjectURL(croppedFile)); setCropSource('');
+      setProfilePhoto(croppedFile); setPhotoPreview(URL.createObjectURL(croppedFile));
+      URL.revokeObjectURL(cropSource); setCropSource('');
       showToast('トリミングしました。プロフィールを保存してください。');
     } catch {
       showToast('写真をトリミングできませんでした。別の写真をお試しください。');
@@ -1389,7 +1410,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    if (file.size > 15 * 1024 * 1024) return showToast('画像は15MB以下を選んでください。');
+    if (file.size > 60 * 1024 * 1024) return showToast('画像が大きすぎます。別の画像をお試しください。');
     setAdFileName(file.name);
     setAdDraft((current) => {
       if (current.imagePreview.startsWith('blob:')) URL.revokeObjectURL(current.imagePreview);
@@ -2165,7 +2186,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         {/* プロフィール設定。入口は右上の顔写真と、マイページの「プロフィールを編集する」。 */}
         <header className="profile-page-heading"><p>PROFILE</p><h1 id="profile-settings-title">プロフィール設定</h1><span>ここで登録した内容が、案件やオファーのときに相手に見えます。</span></header>
         <div className="profile-form profile-page-form">
-          <label className="photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />JPEG・PNG・WebP／5MBまで</small></span><i>{stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
+          <label className="photo-upload"><input type="file" accept="image/*" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />スマホで撮った写真をそのまま選べます</small></span><i>{photoChecking ? '読み込んでいます…' : stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
           <label>お名前 <small className="req">必須</small><input value={profileName} onChange={(event) => setProfileName(event.target.value)} maxLength={40} placeholder="二俣 将" required /></label>
           <label>お名前のふりがな <small>任意</small><input value={profileNameKana} onChange={(event) => setProfileNameKana(event.target.value)} maxLength={60} placeholder="ふたまた しょう" /></label>
           <label>会社名 <small className="req">必須</small><input value={profileCompany} onChange={(event) => setProfileCompany(event.target.value)} maxLength={80} placeholder="株式会社〇〇" required /></label>
@@ -2206,7 +2227,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       {modal === 'request' && (canPostRequest || editingRequest) && <Modal title={editingRequest ? '案件を編集' : '案件を投稿'} lead={editingRequest ? '直したいところを書き替えて、保存してください。' : 'どんな人にオファーしてほしいかを具体的に書きましょう。'} onClose={closeRequestModal}><form className="form" key={editingRequest?.id ?? 'new'} onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue={editingRequest?.category ?? ''}><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" defaultValue={editingRequest?.title ?? ''} /></label><label>詳しい内容 {descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" required maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人をオファーしてほしいか" defaultValue={editingRequest?.description ?? ''} /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算<select name="budgetBand" required defaultValue={editingRequest?.budgetBand ?? ''}><option value="" disabled>選択してください</option>{Object.entries(budgetBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>予算のくわしい書き方 <small>任意</small><input name="budgetLabel" maxLength={60} placeholder="例：月額20〜40万円／初回は50万円まで" defaultValue={editingRequest?.budgetLabel ?? ''} /></label><label>希望エリア <small>任意</small><select name="area" defaultValue={editingRequest?.area ?? ''}><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" defaultValue={editingRequest?.deadline ?? ''} /></label>{editingRequest && <label>募集状況<select name="status" defaultValue={editingRequest.status}><option value="open">募集中</option><option value="closed">募集を終了する</option></select></label>}{/* 写真と動画の枠は、**使えない人にも見せておく**。隠してしまうと
           「そんな機能がある」ことに気づかないので、上のランクへ上がる理由が
           伝わらない。掲示板の絞り込みと同じで、鍵の札を出して押せなくする。 */}
-        <div className="request-photos"><p><b>写真を付ける <em>任意</em></b><small>{photoLimit(stats.level) > 1 ? `${stats.rank}は${photoLimit(stats.level)}枚まで付けられます` : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></p><div className="request-photo-grid">{requestPhotoPreviews.map((preview, index) => <span key={preview} className="request-photo-item"><img src={preview} alt={`添付する写真 ${index + 1}枚目`} /><button type="button" onClick={() => removeRequestPhoto(index)} aria-label={`${index + 1}枚目を削除`}>×</button></span>)}{requestPhotos.length < photoLimit(stats.level) && <label className="request-photo-add"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" multiple={photoLimit(stats.level) > 1} onChange={chooseRequestPhoto} /><b>＋</b><small>{requestPhotos.length ? 'もう1枚' : '写真を選ぶ'}</small></label>}{photoLimit(stats.level) < PHOTO_LIMIT_TOP && Array.from({ length: PHOTO_LIMIT_TOP - photoLimit(stats.level) }, (_, index) => <span className="request-photo-add is-locked" key={`locked-${index}`} aria-hidden="true"><b>＋</b><small>{rankNames[2]}から</small></span>)}</div>{photoLimit(stats.level) < PHOTO_LIMIT_TOP && <p className="request-locked-note"><em>{rankNames[2]}から</em>写真を{PHOTO_LIMIT_TOP}枚まで付けられます。仲間を{Math.max(0, rankThresholds[2] - stats.inviteCount)}人ご招待いただくと {rankNames[2]} です。</p>}</div><div className={canPostVideo(stats.level) ? 'request-video' : 'request-video is-locked'}><p><b>動画を付ける <em>任意</em></b><small>{VIDEO_MAX_SECONDS}秒まで。選ぶと端末の中で自動的に小さくします。</small></p>
+        <div className="request-photos"><p><b>写真を付ける <em>任意</em></b><small>{photoLimit(stats.level) > 1 ? `${stats.rank}は${photoLimit(stats.level)}枚まで付けられます` : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></p><div className="request-photo-grid">{requestPhotoPreviews.map((preview, index) => <span key={preview} className="request-photo-item"><img src={preview} alt={`添付する写真 ${index + 1}枚目`} /><button type="button" onClick={() => removeRequestPhoto(index)} aria-label={`${index + 1}枚目を削除`}>×</button></span>)}{requestPhotos.length < photoLimit(stats.level) && <label className="request-photo-add"><input name="photo" type="file" accept="image/*" multiple={photoLimit(stats.level) > 1} onChange={chooseRequestPhoto} /><b>＋</b><small>{requestPhotos.length ? 'もう1枚' : '写真を選ぶ'}</small></label>}{photoLimit(stats.level) < PHOTO_LIMIT_TOP && Array.from({ length: PHOTO_LIMIT_TOP - photoLimit(stats.level) }, (_, index) => <span className="request-photo-add is-locked" key={`locked-${index}`} aria-hidden="true"><b>＋</b><small>{rankNames[2]}から</small></span>)}</div>{photoLimit(stats.level) < PHOTO_LIMIT_TOP && <p className="request-locked-note"><em>{rankNames[2]}から</em>写真を{PHOTO_LIMIT_TOP}枚まで付けられます。仲間を{Math.max(0, rankThresholds[2] - stats.inviteCount)}人ご招待いただくと {rankNames[2]} です。</p>}</div><div className={canPostVideo(stats.level) ? 'request-video' : 'request-video is-locked'}><p><b>動画を付ける <em>任意</em></b><small>{VIDEO_MAX_SECONDS}秒まで。選ぶと端末の中で自動的に小さくします。</small></p>
         {!canPostVideo(stats.level)
           ? <><span className="request-video-add is-locked" aria-hidden="true"><b>＋</b><small>{rankNames[2]}から</small></span>
             <p className="request-locked-note"><em>{rankNames[2]}から</em>案件に短い動画を付けられます。仲間を{Math.max(0, rankThresholds[2] - stats.inviteCount)}人ご招待いただくと {rankNames[2]} です。</p></>
@@ -2821,7 +2842,7 @@ function AdFields({ offer, draft, onChange, onImage, imageName, keepImage }: {
     <label><span>リンク先 <small>任意・広告を押したときに開くページ</small></span>
       <input value={draft.linkUrl} onChange={(event) => onChange({ ...draft, linkUrl: event.target.value })} maxLength={200} inputMode="url" placeholder="https://example.com" /></label>
     <label className="ad-file"><span>画像 <small>任意・横長（3:2）を推奨</small></span>
-      <input type="file" accept="image/jpeg,image/png,image/webp" onChange={onImage} />
+      <input type="file" accept="image/*" onChange={onImage} />
       {/* これは押すと写真を選ぶボタン。いま何が載っているかの説明ではなく、
           **押したら何が起きるか**を書く。「現在の画像を使用」だと、押しても
           何も変わらない札に見えてしまう。 */}
