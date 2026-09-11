@@ -40,8 +40,9 @@ export async function PATCH(request: Request) {
   }
   // 会場は画面から外してあるので、必須にしない（空でも通す）。
   // 列とすでに入っている値は残してあるので、戻すときはここも戻す。
+  // 屋号を持たない方もいるので、法人名だけを求める書き方にしない。
   if (!company) {
-    return NextResponse.json({ error: '会社名を入力してください。' }, { status: 400 });
+    return NextResponse.json({ error: '会社名・屋号を入力してください。屋号をお持ちでない方は「フリーランス」で構いません。' }, { status: 400 });
   }
   if (!kanaOnly.test(nameKana)) {
     return NextResponse.json({ error: 'お名前のふりがなは、ひらがな・カタカナで入力してください。' }, { status: 400 });

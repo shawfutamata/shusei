@@ -2194,7 +2194,11 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <label className="photo-upload"><input type="file" accept="image/*" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />スマホで撮った写真をそのまま選べます</small></span><i>{photoChecking ? '読み込んでいます…' : stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
           <label>お名前 <small className="req">必須</small><input value={profileName} onChange={(event) => setProfileName(event.target.value)} maxLength={40} placeholder="二俣 将" required /></label>
           <label>お名前のふりがな <small>任意</small><input value={profileNameKana} onChange={(event) => setProfileNameKana(event.target.value)} maxLength={60} placeholder="ふたまた しょう" /></label>
-          <label>会社名 <small className="req">必須</small><input value={profileCompany} onChange={(event) => setProfileCompany(event.target.value)} maxLength={80} placeholder="株式会社〇〇" required /></label>
+          {/* 会社名は相手に見える札なので必須のまま。ただし**屋号を持たない人が
+              いる**。法人名しか受け付けない書き方だと、フリーランスの方はここで
+              手が止まってしまうので、名前を広げて、一押しで入る道を横に置く。 */}
+          <label>会社名・屋号 <small className="req">必須</small><input value={profileCompany} onChange={(event) => setProfileCompany(event.target.value)} maxLength={80} placeholder="株式会社〇〇／屋号" required /></label>
+          <p className="profile-hint">屋号をお持ちでない方は<button type="button" className="profile-hint-fill" onClick={() => setProfileCompany('フリーランス')}>フリーランス</button>と入れてください。あとからいつでも直せます。</p>
           {/* 会社での役職。**団体の役職を入れる欄ではない**ので、例も会社のものにする。 */}
           <label>役職 <small>任意</small><input value={profilePosition} onChange={(event) => setProfilePosition(event.target.value)} maxLength={60} placeholder="例：代表取締役" /></label>
           <label>会社名のふりがな <small>任意</small><input value={profileCompanyKana} onChange={(event) => setProfileCompanyKana(event.target.value)} maxLength={100} placeholder="かぶしきがいしゃ〇〇" /></label>
