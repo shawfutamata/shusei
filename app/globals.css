@@ -2335,7 +2335,10 @@ body { font-weight:600; }
 
 /* プロフィール設定の補足。入力欄のすぐ下に置く、小さな添え書き。
    「フリーランス」は押すと会社名欄に入る。屋号が無い人がここで
-   止まらないようにするための、一押しの逃げ道。 */
+   止まらないようにするための、一押しの逃げ道。
+
+   **ボタンの形にしない。** 文の途中に丸い塊が挟まると、行が膨らんで
+   そこだけ浮く。地の文と同じ大きさの、色の付いた文字にしておく。 */
 .profile-form .profile-hint {
   margin: -6px 0 2px;
   color: #5f7088;
@@ -2346,15 +2349,15 @@ body { font-weight:600; }
 .profile-form .profile-hint-fill {
   display: inline;
   width: auto;
-  margin: 0 4px;
-  padding: 3px 10px;
-  border: 1px solid #bcd2f0;
-  border-radius: 999px;
-  background: #eef4fd;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
   color: #1c56b8;
-  font-size: 13px;
-  font-weight: 800;
-  font-family: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
   cursor: pointer;
 }
-.profile-form .profile-hint-fill:hover { background: #e0ecfb; }
+.profile-form .profile-hint-fill:hover { color: #12408c; }

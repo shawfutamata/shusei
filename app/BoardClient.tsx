@@ -2198,7 +2198,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               いる**。法人名しか受け付けない書き方だと、フリーランスの方はここで
               手が止まってしまうので、名前を広げて、一押しで入る道を横に置く。 */}
           <label>会社名・屋号 <small className="req">必須</small><input value={profileCompany} onChange={(event) => setProfileCompany(event.target.value)} maxLength={80} placeholder="株式会社〇〇／屋号" required /></label>
-          <p className="profile-hint">屋号をお持ちでない方は<button type="button" className="profile-hint-fill" onClick={() => setProfileCompany('フリーランス')}>フリーランス</button>と入れてください。あとからいつでも直せます。</p>
+          <p className="profile-hint">屋号をお持ちでない方は<button type="button" className="profile-hint-fill" onClick={() => setProfileCompany('フリーランス')}>「フリーランス」と入れる</button>。あとからいつでも直せます。</p>
           {/* 会社での役職。**団体の役職を入れる欄ではない**ので、例も会社のものにする。 */}
           <label>役職 <small>任意</small><input value={profilePosition} onChange={(event) => setProfilePosition(event.target.value)} maxLength={60} placeholder="例：代表取締役" /></label>
           <label>会社名のふりがな <small>任意</small><input value={profileCompanyKana} onChange={(event) => setProfileCompanyKana(event.target.value)} maxLength={100} placeholder="かぶしきがいしゃ〇〇" /></label>
