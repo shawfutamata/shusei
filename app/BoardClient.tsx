@@ -31,6 +31,7 @@ import AdAnalytics, { formatRange } from './AdAnalytics';
 import type { AdDay } from '@/db/data';
 
 import AdBanner from './AdBanner';
+import InstallAndNotificationPanel from './InstallAndNotificationPanel';
 
 const categories = {
   project: { label: '発注先', className: 'project' },
@@ -1962,7 +1963,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             </button>
           </li>)}</ul>}
       </section> : activeTab === 'mypage' ? <section className="profile-page" aria-labelledby="profile-page-title">
-        <header className="profile-page-heading"><p>MY PAGE</p><h1 id="profile-page-title">マイページ</h1></header>
+        <header className="profile-page-heading mypage-heading">
+          <div><p>MY PAGE</p><h1 id="profile-page-title">マイページ</h1></div>
+          <button className="mypage-signout" onClick={signOut} disabled={busy}>{busy ? '…' : 'ログアウト'}</button>
+        </header>
         <button className={`rank-card rank-${stats.rank.toLowerCase()} rank-card-slim`} onClick={() => setModal('perks')} aria-label={`${stats.rank}会員ランクカード。特典を見る`}>
           <p className="rank-slim-top"><CrownMark /><b>{serviceName}</b></p>
           <RankCrest rank={stats.rank} />
@@ -1986,6 +1990,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           </button>)}
         </nav>
 
+        <InstallAndNotificationPanel onNotice={showToast} />
+
         {/* 招待だけタイルから外して帯にしてある。7枚だと3列に収まらず最後の
             1枚が3段目に残るのと、**ランクが上がる唯一の道**なので、ほかの
             入口と同じ大きさで並べるより、ここで1本立てたほうが目に入る。 */}
@@ -2008,7 +2014,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </HomeShelf>
 
         <button className="mypage-howto" onClick={() => setTutorial(true)}>使い方をもう一度見る</button>
-        <button className="mypage-signout" onClick={signOut} disabled={busy}>{busy ? '…' : 'ログアウト'}</button>
         <LegalLinks />
       </section> : activeTab === 'offers' ? <section className="profile-page" aria-labelledby="offers-title">
         <header className="profile-page-heading"><p>OFFERS</p><h1 id="offers-title">オファーのやり取り</h1><span>届いたオファーと、あなたが出したオファーです。相手とそのままやり取りできます。</span></header>
