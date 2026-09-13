@@ -2164,7 +2164,7 @@ body { font-weight:600; }
   box-shadow:0 10px 30px rgba(4,16,38,.34), 0 0 0 6px #fff, 0 0 0 10px rgba(255,255,255,.3); }
 .gacha-wheel-turn svg { width:100%; height:100%; display:block; }
 .gacha-wheel-turn path { stroke:#fff; stroke-width:1.5; }
-.gacha-wheel-turn text { font-size:15px; font-weight:900; text-anchor:middle;
+.gacha-wheel-turn text { font-size:13px; font-weight:900; text-anchor:middle;
   dominant-baseline:central; letter-spacing:0; }
 /* はずれは薄く、当たりは濃く。**どれが目玉か一目で分かる**ように、
    いちばん上の賞（A賞）だけ金色にしてある。 */

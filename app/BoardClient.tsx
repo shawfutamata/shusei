@@ -2363,11 +2363,11 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                       const letters = [...(prize?.short ?? '')];
                       return <g key={at} className={rank}>
                         <path d={wheelSlice(at, gacha.season!.segments.length, 100)} />
-                        {/* 日本語は**縦に積む**。コマの幅は12分の1しかないので、
+                        {/* 日本語は**縦に積む**。コマの幅は20分の1しかないので、
                             横に置くと2文字で外にはみ出す。 */}
                         <text transform={`rotate(${mid}) translate(0 -72) rotate(${flip ? 180 : 0})`}>
                           {letters.map((letter, line) =>
-                            <tspan key={line} x="0" y={(line - (letters.length - 1) / 2) * 16}>{letter}</tspan>)}
+                            <tspan key={line} x="0" y={(line - (letters.length - 1) / 2) * 14}>{letter}</tspan>)}
                         </text>
                       </g>;
                     })}
