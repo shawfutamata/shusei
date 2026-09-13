@@ -2425,17 +2425,22 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       </section>}
     </main>
 
-      {/* ＋を真ん中に置きたいので、左右3つずつの6項目にしてある。増やすときは
-          必ず偶数で。奇数にすると＋が中央から外れて、押す場所が動いて見える。 */}
+      {/* ＋を真ん中に置きたいので、左右2つずつの5項目にしてある。増やすときは
+          必ず奇数で。偶数にすると真ん中が中央から外れて、押す場所が動いて見える。 */}
       <nav className="bottom-nav is-five" aria-label="アプリメニュー">
         {/* 並び順ではなく名前で指せるように、1つずつ印をつけてある。案内
             （チュートリアル）がここを指すので、項目を足しても指す先がずれない。 */}
-        {/* ＋は**真ん中の列**に来るように並べる。5つなので3番目。
-            メッセージとマイページは右側のまま動かしていない（いちばんよく
-            押すところなので、指の位置を変えない）。 */}
+        {/* 真ん中は**5つなので3番目**。メッセージとマイページは右側のまま
+            動かしていない（いちばんよく押すところなので、指の位置を変えない）。
+
+            **5つとも「絵＋名前」で揃える。** 真ん中だけ大きなオレンジの＋に
+            していたが、記号だけで何が起きるか分かるのは、そういう画面に
+            慣れている人だけ。名前を書いていないものは、押してよいものか
+            判断がつかず、触られないまま終わる。
+            いちばん押してほしいところなので、色（橙）だけは残してある。 */}
         <button className={`nav-home${navHere === 'home' ? ' active' : ''}`} onClick={showHome}><span><HomeIcon /></span><small>ホーム</small></button>
-        <button className={`nav-ads${navHere === 'ads' ? ' active' : ''}`} onClick={openAdSettings}><span><BannerIcon /></span><small>広告</small></button>
-        <button className="nav-post" onClick={openRequest} aria-label="案件を投稿する"><span>＋</span></button>
+        <button className={`nav-ads${navHere === 'ads' ? ' active' : ''}`} onClick={openAdSettings}><span><BannerIcon /></span><small>広告を掲載</small></button>
+        <button className="nav-post" onClick={openRequest}><span><PostIcon /></span><small>案件を投稿</small></button>
         <button className={`nav-messages${navHere === 'messages' ? ' active' : ''}`} onClick={showMessages}
           aria-label={unreadMessages ? `メッセージ 未読${unreadMessages}件` : 'メッセージ'}>
           <span><MessageIcon />{unreadMessages > 0 && <i className="nav-badge">{unreadMessages > 99 ? '99+' : unreadMessages}</i>}</span>
@@ -3344,6 +3349,20 @@ function shortDate(value: string) {
   return sameDay
     ? `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
     : `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+/**
+ * 案件を投稿する。**四角の中に＋**。
+ *
+ * もとは大きなオレンジの＋そのものだった。形を引き継いであるので、
+ * 今まで押していた人は同じものだと分かるし、はじめての人には
+ * 下の「案件を投稿」という名前で伝わる。
+ */
+function PostIcon() {
+  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <rect x="3" y="3" width="18" height="18" rx="5.4" />
+    <path d="M12 8.1v7.8M8.1 12h7.8" />
+  </svg>;
 }
 
 /** 個別メッセージ。**吹き出しひとつ**。オファーの受け箱（封筒）と見分ける。 */
