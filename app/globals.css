@@ -2640,3 +2640,15 @@ body { font-weight:600; }
 .kind.is-new { background:#d92d20; color:#fff; letter-spacing:.06em; }
 .card-topline .kind.is-new { margin-left:5px; }
 .home-request-copy .kind.is-new { margin-left:4px; }
+
+/* サムネイルは**切り取らない。**
+   案件の画像は「◯◯を探しています」と文字が入ったものが多く、cover で
+   合わせると、いちばん読んでほしい見出しから先に切れる（実際に切れていた）。
+   枠のほうを 3:2 にして、収まらないものは contain で余白にする。
+   3:2 は、いま出されている画像と同じ形（1200×800・1400×933）。 */
+.home-request-cover { height:auto; aspect-ratio:3 / 2; }
+.home-request-cover.has-photo img { object-fit:contain; background:#e8eef7; }
+
+/* 一覧の小さいサムネイルも同じ。正方形だと左右が切れていた。 */
+.need-row:has(.need-thumb-mini) { grid-template-columns:minmax(0,1fr) 96px; }
+.need-thumb-mini { width:96px; height:64px; object-fit:contain; background:#eef2f8; }
