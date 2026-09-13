@@ -2459,13 +2459,15 @@ body { font-weight:600; }
 
    真ん中の列（＋）を広めに取って、左右の2つずつを外側へ寄せる。等分だと
    4つが＋のまわりに固まって、両端が間延びして見える。 */
-.bottom-nav.is-five { grid-template-columns:repeat(2,1fr) 1.7fr repeat(2,1fr);
-  padding-left:clamp(6px,3vw,18px); padding-right:clamp(6px,3vw,18px); }
-/* 1つぶんの幅に余裕ができたので、6つ並びのときより字も絵も大きくできる。 */
-/* 「メッセージ」と「マイページ」は字数が多く、隣どうしでぶつかりやすい。
-   幅に合わせて縮め、字間も少し詰めておく。 */
-.bottom-nav.is-five small { font-size:clamp(8.5px,2.6vw,11px); letter-spacing:-.05em; transform:none; }
-.bottom-nav.is-five button>span, .bottom-nav.is-five label>span { font-size:clamp(22px,6.4vw,27px); }
+/* **5等分。** 真ん中だけ広く取っていたのは、大きな＋を置いていたころの名残。
+   5つとも同じ形になったので、幅も同じにする。1つだけ広い列が残っていると、
+   両隣が中央へ寄って、並びが歪んで見える。 */
+.bottom-nav.is-five { grid-template-columns:repeat(5,1fr);
+  padding-left:clamp(4px,2vw,12px); padding-right:clamp(4px,2vw,12px); }
+/* 「メッセージ」「マイページ」「広告を掲載」は5文字あって隣どうしぶつかり
+   やすい。字間を少し詰めたうえで、幅に合わせて伸び縮みさせる。 */
+.bottom-nav.is-five small { font-size:clamp(9.5px,3vw,12.5px); letter-spacing:-.05em; transform:none; }
+.bottom-nav.is-five button>span, .bottom-nav.is-five label>span { font-size:clamp(25px,7.2vw,31px); }
 .bottom-nav.is-five button, .bottom-nav.is-five label { gap:5px; padding:4px 0; }
 /* 真ん中も**ほかの4つと同じ形**（絵＋名前）。記号だけの大きなボタンは、
    そういう画面に慣れていない人には、押してよいものか判断がつかない。
