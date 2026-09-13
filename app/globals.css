@@ -2574,3 +2574,11 @@ body { font-weight:600; }
   background:#fff; color:#5f7088; font-family:inherit; font-size:14px; font-weight:800; cursor:pointer; }
 .chat-confirm-actions button.is-danger { border-color:#d93025; background:#d93025; color:#fff; }
 .chat-confirm-actions button:disabled { opacity:.55; cursor:not-allowed; }
+
+/* やり取りを一覧から消すボタン。**行の外の右上に小さく置く。**
+   行そのものは押すと開くので、同じ面に重ねると、開くつもりで消してしまう。 */
+.message-list li { position:relative; }
+.message-hide { position:absolute; right:6px; top:6px; z-index:2; width:26px; height:26px; padding:0;
+  border:0; border-radius:50%; background:transparent; color:#b3bdcc; font-size:15px; line-height:1;
+  cursor:pointer; }
+.message-hide:hover { background:#eef1f5; color:#5f7088; }

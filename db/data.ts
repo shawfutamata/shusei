@@ -500,6 +500,20 @@ const statements = [
   )`,
   // どのやり取りを、どこまで読んだか。**未読の数はここから引き算で出す。**
   // 1通ずつ既読の印を持つと行が増え続けるので、「いつまで読んだか」だけ持つ。
+  // 一覧から隠したやり取り。**消すのは自分の一覧からだけ。**
+  //
+  // 相手のやり取りまで消すと、片方が2人ぶんの記録を捨てられることになる。
+  // 仕事の話なので、そこは触らせない（1通ずつの削除とは別の考え方）。
+  //
+  // **隠したあとに新しく届いたら、また出す。** 隠しっぱなしにすると、
+  // 相手からの連絡が黙って呑み込まれる。そのため「いつ隠したか」を持ち、
+  // それより新しいやり取りがあれば一覧に戻す。
+  `CREATE TABLE IF NOT EXISTS thread_hides (
+    member_id TEXT NOT NULL REFERENCES members(id),
+    thread_key TEXT NOT NULL,
+    hidden_at TEXT NOT NULL,
+    PRIMARY KEY (member_id, thread_key)
+  )`,
   `CREATE TABLE IF NOT EXISTS thread_reads (
     member_id TEXT NOT NULL REFERENCES members(id),
     -- 'request:<案件ID>:<相手の会員ID>' / 'intro:<オファーID>' / 'ad:<広告オファーID>'
@@ -3320,14 +3334,42 @@ export async function getMessageThreads(viewerId: string): Promise<MessageThread
     ...adOffers.results.map(build('ad')),
     ...directs.results.map(buildDirect),
   ];
+  // 自分の一覧から消したやり取り。**隠したあとに動きがあれば、また出す。**
+  const hidden = await env.DB.prepare('SELECT thread_key AS key, hidden_at AS hiddenAt FROM thread_hides WHERE member_id = ?')
+    .bind(viewerId).all<{ key: string; hiddenAt: string }>();
+  const hiddenAt = new Map(hidden.results.map((row) => [row.key, row.hiddenAt]));
   // 自分ひとりのやり取り（相手がいない）は出さない。数合わせにしかならない。
   return threads.filter((thread) => thread.partnerId && thread.partnerId !== viewerId)
+    .filter((thread) => {
+      const since = hiddenAt.get(thread.key);
+      if (!since) return true;
+      // 最後の動き＝やり取りの最終メッセージか、1通も無ければオファーそのもの。
+      return (thread.lastAt || thread.offer.at || '') > since;
+    })
     .sort((a, b) => b.lastAt.localeCompare(a.lastAt));
 }
 
 /** 未読の合計。下のメニューの数字に使う。 */
 export async function getUnreadMessageCount(viewerId: string) {
   return (await getMessageThreads(viewerId)).reduce((total, thread) => total + thread.unread, 0);
+}
+
+/**
+ * やり取りを**自分の一覧から**消す。相手の一覧はそのまま。
+ *
+ * 相手のぶんまで消すと、片方が2人ぶんの記録を捨てられることになる。
+ * 仕事の話なので、そこは触らせない。1通ずつの削除（`deleteMessage`）は
+ * 自分の発言を取り消すもので、こちらとは別の話。
+ *
+ * **やり取りそのものは消えない。** 相手から新しく届けば、また一覧に出る。
+ */
+export async function hideMessageThread(user: SessionUser, threadKey: string) {
+  await ensureDatabase();
+  const key = threadKey.trim().slice(0, 200);
+  if (!key) throw new Error('どのやり取りか分かりませんでした。');
+  await env.DB.prepare(`INSERT INTO thread_hides (member_id, thread_key, hidden_at) VALUES (?, ?, ?)
+    ON CONFLICT(member_id, thread_key) DO UPDATE SET hidden_at = excluded.hidden_at`)
+    .bind(user.userId, key, new Date().toISOString()).run();
 }
 
 /**

@@ -323,6 +323,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [threadsLoading, setThreadsLoading] = useState(true);
   /** メッセージの一覧から開いたやり取り。ここで直に読み書きする。 */
   const [openChat, setOpenChat] = useState<MessageThread | null>(null);
+  /** 一覧から消そうとしているやり取り。消す前に必ず一度確かめる。 */
+  const [hidingThread, setHidingThread] = useState<MessageThread | null>(null);
   /** プロフィール設定を開いたとき、どの欄まで送るか。空なら先頭のまま。 */
   const [profileFocus, setProfileFocus] = useState('');
   /** お支払いの情報を読み込めなかったか。「準備中」と混ぜないための印。 */
@@ -1533,6 +1535,26 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
    * **案件の詳細へは飛ばさない。** 見たいのは相手との話であって、
    * 案件の説明ではない。押したら会話がそのまま出る、という1つの動きにする。
    */
+  /**
+   * やり取りを**自分の一覧から**消す。相手の一覧はそのまま残る。
+   * 相手から新しく届けば、また一覧に戻る（サーバー側で判断している）。
+   */
+  async function confirmHideThread() {
+    const target = hidingThread;
+    if (!target || busy) return;
+    setBusy(true);
+    const response = await fetch('/api/messages', {
+      method: 'DELETE', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ key: target.key }),
+    });
+    setBusy(false); setHidingThread(null);
+    if (!response.ok) return showToast('消せませんでした。時間をおいてお試しください。');
+    const data = await response.json() as { threads?: MessageThread[]; unread?: number };
+    setThreads(data.threads ?? []);
+    setUnreadMessages(data.unread ?? 0);
+    showToast('一覧から消しました。相手のやり取りはそのまま残ります。');
+  }
+
   function openThread(thread: MessageThread) {
     // まだ1通も無いやり取り（これから話しかけるとき）は key が空。
     // 読んだ記録を書くものが無いので、そのまま開くだけにする。
@@ -1955,6 +1977,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             <p>オファーやリファラルを送ると、相手とおふたりだけのやり取りがここにまとまります。</p>
             <button className="submit-button" onClick={() => showSearch()}>案件を見る</button></div>
           : <ul className="message-list">{threads.map((thread) => <li key={thread.key}>
+            {/* 一覧から消すボタンは**行の外**に置く。行そのものは押すと開くので、
+                同じ面に消すボタンを重ねると、開くつもりで消してしまう。 */}
+            <button className="message-hide" onClick={() => setHidingThread(thread)}
+              aria-label={`${thread.partnerName}さんとのやり取りを一覧から消す`}>×</button>
             <button className={thread.unread ? 'message-row is-unread' : 'message-row'} onClick={() => openThread(thread)}>
               <Avatar src={thread.partnerAvatarUrl} name={thread.partnerName} className="member-avatar" />
               <span className="message-main">
@@ -2490,6 +2516,23 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             </>}
         </div>
       </Modal>}
+
+      {/* やり取りを一覧から消す前の確認。**相手のぶんは消えない**ことを
+          はっきり書く。ここを書かないと、相手の記録まで消したと思われる。 */}
+      {!!hidingThread && <div className="chat-confirm" role="dialog" aria-modal="true" aria-label="やり取りを一覧から消す">
+        <div className="chat-confirm-box">
+          <b>このやり取りを一覧から消しますか？</b>
+          <p>消えるのは<b>あなたの一覧からだけ</b>です。{hidingThread.partnerName}さんの画面には残ります。
+            相手から新しくメッセージが届くと、また一覧に出ます。</p>
+          <q className="chat-confirm-quote">{hidingThread.partnerName}さん{hidingThread.kind === 'dm' ? '' : `／${hidingThread.title}`}</q>
+          <div className="chat-confirm-actions">
+            <button type="button" onClick={() => setHidingThread(null)} disabled={busy}>やめる</button>
+            <button type="button" className="is-danger" onClick={confirmHideThread} disabled={busy}>
+              {busy ? '消しています…' : '一覧から消す'}
+            </button>
+          </div>
+        </div>
+      </div>}
 
       {modal === 'perks' && <Modal title="ランクの特典" lead="招待して参加した仲間の人数でランクが上がり、できることが増えます。一度上がったランクは下がりません。" onClose={() => { setModal(null); setOpenPerk(''); }}>
         <div className="perk-panel">

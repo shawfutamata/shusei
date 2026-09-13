@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
-import { getMessageThreads, markThreadRead } from '@/db/data';
+import { getMessageThreads, hideMessageThread, markThreadRead } from '@/db/data';
 
 /** その人の個別メッセージ。3か所に散っているやり取りを1つの箱にして返す。 */
 export async function GET() {
@@ -21,5 +21,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ threads, unread: threads.reduce((total, thread) => total + thread.unread, 0) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : '記録できませんでした。' }, { status: 400 });
+  }
+}
+
+/**
+ * やり取りを**自分の一覧から**消す。相手の一覧はそのまま。
+ * 相手から新しく届けば、また出る（db/data.ts の hideMessageThread）。
+ */
+export async function DELETE(request: Request) {
+  const gate = await requireActiveMember();
+  if (gate.response) return gate.response;
+  try {
+    const { key } = await request.json() as { key?: string };
+    await hideMessageThread(gate.user, key ?? '');
+    const threads = await getMessageThreads(gate.user.userId);
+    return NextResponse.json({ threads, unread: threads.reduce((total, thread) => total + thread.unread, 0) });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : '消せませんでした。' }, { status: 400 });
   }
 }
