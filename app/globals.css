@@ -2631,3 +2631,12 @@ body { font-weight:600; }
 
 /* 広告カードの取り下げ。掲載内容の変更の隣に並ぶ。 */
 .ad-slot-foot button.is-danger { border-color:#f0c4c0; background:#fdeceb; color:#b42318; }
+
+/* 出したばかりの案件。**塗りつぶしで、いちばん強い。**
+   まわりの種別（案件・協業・相談）は淡い塗りなので、ここだけ濃くすると
+   並んでいる中から新しいものだけが浮き上がる。
+   広告のオレンジ（--accent）は使わない。PRと新着は別のことなので、
+   同じ色にすると「新しい＝広告」と読めてしまう。 */
+.kind.is-new { background:#d92d20; color:#fff; letter-spacing:.06em; }
+.card-topline .kind.is-new { margin-left:5px; }
+.home-request-copy .kind.is-new { margin-left:4px; }

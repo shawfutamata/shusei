@@ -1562,7 +1562,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     <article className={isOpenRequest(need) ? 'need-card' : 'need-card closed'} key={need.id} onClick={() => openNeed(need)}>
       <div className="need-row">
         <div className="need-main">
-          <div className="card-topline"><span className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</span>{need.sample && <span className="kind is-sample">サンプル</span>}<span className="card-top-actions">{isOpenRequest(need) ? <span className="deadline">あと{daysLeft(need.deadline)}日</span> : <span className="deadline ended">募集終了</span>}<button className={favoriteIds.includes(need.id) ? 'card-heart active' : 'card-heart'} aria-label={favoriteIds.includes(need.id) ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={(event) => { event.stopPropagation(); toggleFavorite(need); }}>♥</button></span></div>
+          <div className="card-topline"><span className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</span>{need.sample && <span className="kind is-sample">サンプル</span>}{/* 募集が終わったものには付けない。「NEW」と「募集終了」が並ぶと、どちらを信じるか分からない。 */}{isNewPost(need.createdAt) && isOpenRequest(need) && <span className="kind is-new">NEW</span>}<span className="card-top-actions">{isOpenRequest(need) ? <span className="deadline">あと{daysLeft(need.deadline)}日</span> : <span className="deadline ended">募集終了</span>}<button className={favoriteIds.includes(need.id) ? 'card-heart active' : 'card-heart'} aria-label={favoriteIds.includes(need.id) ? 'お気に入りから外す' : 'お気に入りに保存'} onClick={(event) => { event.stopPropagation(); toggleFavorite(need); }}>♥</button></span></div>
           <h3>{need.title}</h3>
           {/* **本文は一覧に出さない。** 1行に切り詰めた説明はどれも似た書き出しに
               なって読み分けられず、そのぶん高さだけが増える。見出しと予算で
@@ -3380,7 +3380,7 @@ function HomeRequestCard({ need, favorite, onOpen, onFavorite }: { need: BoardRe
     <span className={need.thumbUrl ? 'home-request-cover has-photo' : 'home-request-cover'}>{need.thumbUrl
       ? <img src={need.thumbUrl} alt="" loading="lazy" decoding="async" />
       : <><IndustryIcon group={primaryGroup} /><small>{primaryIndustry}</small></>}</span>
-    <span className="home-request-copy"><small><b className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</b> あと{daysLeft(need.deadline)}日</small><strong>{need.title}</strong><span>{budgetText(need)}</span><em>{need.authorName}</em></span>
+    <span className="home-request-copy"><small><b className={`kind ${categories[need.category].className}`}>{categories[need.category].label}</b>{isNewPost(need.createdAt) && <b className="kind is-new">NEW</b>} あと{daysLeft(need.deadline)}日</small><strong>{need.title}</strong><span>{budgetText(need)}</span><em>{need.authorName}</em></span>
   </button></article>;
 }
 
@@ -3440,6 +3440,21 @@ function categoryOf(key: string) {
 function isOpenRequest(need: BoardRequest) {
   return need.status === 'open' && new Date(`${need.deadline}T23:59:59+09:00`).getTime() >= Date.now();
 }
+/**
+ * 投稿されてから間もないものに付ける印の長さ。**出した時刻から72時間。**
+ *
+ * 日付が変わったところで消すと、夜に出した投稿だけ新着でいられる時間が
+ * 極端に短くなる（23時に出せば1時間で消える）。出した時刻から数えれば、
+ * いつ出しても同じだけ新着でいられる。
+ */
+const NEW_POST_HOURS = 72;
+
+/** 投稿から NEW_POST_HOURS 以内か。日付が壊れている古いデータは false。 */
+function isNewPost(createdAt: string) {
+  const posted = new Date(createdAt).getTime();
+  return Number.isFinite(posted) && Date.now() - posted < NEW_POST_HOURS * 3600000;
+}
+
 function daysLeft(value: string) { const deadline = new Date(`${value}T23:59:59+09:00`).getTime(); return Math.max(0, Math.ceil((deadline - Date.now()) / 86400000)); }
 
 async function makeCroppedPhoto(source: string, area: Area, originalName: string) {
