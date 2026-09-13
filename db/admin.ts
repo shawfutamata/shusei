@@ -425,3 +425,240 @@ export async function adminAnalytics(days = 90): Promise<AdminAnalytics> {
     paidMembers: Number(paid?.count ?? 0),
   };
 }
+
+// --- 会員1人の詳細 ------------------------------------------------------------
+// 一覧の行を押したときに出す。**1人ぶんを、運営が知りたい順に並べて返す。**
+//
+// 何を出すかの決め方:
+//   - 「この人は続いているか」…… 使った日、連続、直近30日
+//   - 「この人は場に何を返したか」…… 投稿・オファー・紹介
+//   - 「この人はお金を払っているか」…… プランの出どころ、広告のお支払い
+//
+// **出さないもの**: メッセージの中身、オファーの本文。数だけを出す。
+// 運営が読めるようにすると、会員に「読まれている」と伝えなければならなくなる。
+
+export type AdminMemberDetail = {
+  id: string; email: string; displayName: string; nameKana: string;
+  company: string; companyKana: string; positionTitle: string;
+  businessArea: string; primaryIndustry: string; notifyIndustries: string[];
+  annualRevenueBand: string; facebookUrl: string;
+  avatarKey: string; avatarVersion: number;
+  status: string; canUse: boolean;
+  createdAt: string; activatedAt: string;
+  /** 実効プランと、その出どころ。一覧と同じ関数で出す。 */
+  plan: string; planSource: AdminMember['planSource']; adminPlan: boolean;
+  planPeriodEnd: string; bonusPeriodEnd: string; planInterval: string;
+  hasStripeCustomer: boolean;
+  /** ランク（招待して参加した人数で決まる）。 */
+  rank: string; level: number; inviteCount: number;
+  inviteCode: string;
+  /** 誰の招待で入ったか。空なら直接。 */
+  invitedBy: { id: string; displayName: string; company: string } | null;
+  /** 招待して入った人たち。 */
+  invitees: { id: string; displayName: string; company: string; createdAt: string; canUse: boolean }[];
+
+  activity: {
+    /** 開いた日の合計。member_days を入れた日から数えている。 */
+    totalDays: number;
+    /** 直近30日のうち開いた日数。 */
+    days30: number;
+    /** 最後に開いた日（YYYY-MM-DD）。空なら記録なし。 */
+    lastSeen: string;
+    /** いま何日続けて開いているか。 */
+    streak: number;
+    /** 直近8週ぶん（56日）の開いた／開いていない。カレンダーに描く。 */
+    recent: { date: string; open: boolean }[];
+    /** member_days を入れてから何日経ったか。数字の読み方の但し書きに使う。 */
+    trackedSince: string;
+  };
+
+  /** 投稿した案件。**閲覧数は出さない**（案件は閲覧を数えていない。広告だけ）。 */
+  requests: { id: string; title: string; category: string; status: string; deadline: string;
+    createdAt: string; introCount: number }[];
+  offers: {
+    /** この人が出したオファー（案件・広告あわせて）。 */
+    sent: number;
+    /** この人の案件に届いたオファー。 */
+    received: number;
+    /** 人を紹介した数（自薦ではないもの）。 */
+    referral: number;
+  };
+  messages: { threads: number; sent: number };
+  gacha: { draws: number; wonDays: number; usedDays: number };
+  ads: { count: number; paidYen: number; giftDays: number; views: number; clicks: number;
+    list: { id: string; title: string; placement: string; status: string;
+      startDate: string; endDate: string; amountYen: number; giftDays: number;
+      viewCount: number; clickCount: number }[] };
+};
+
+export async function adminMemberDetail(memberId: string): Promise<AdminMemberDetail | null> {
+  await ensureDatabase();
+  const row = await env.DB.prepare(`SELECT id, email, display_name AS displayName, name_kana AS nameKana,
+      company, company_kana AS companyKana, position_title AS positionTitle,
+      business_area AS businessArea, primary_industry AS primaryIndustry,
+      notify_industries AS notifyIndustriesJson, annual_revenue_band AS annualRevenueBand,
+      facebook_url AS facebookUrl, avatar_key AS avatarKey, avatar_version AS avatarVersion,
+      membership_status AS status, created_at AS createdAt, activated_at AS activatedAt,
+      plan AS storedPlan, plan_period_end AS planPeriodEnd, plan_interval AS planInterval,
+      bonus_plan AS bonusPlan, bonus_period_end AS bonusPeriodEnd,
+      stripe_customer_id AS stripeCustomerId, invite_code AS inviteCode, invited_by AS invitedBy
+    FROM members WHERE id = ?`).bind(memberId).first<Record<string, string | number>>();
+  if (!row) return null;
+
+  const email = String(row.email ?? '');
+  const now = new Date();
+  const state = {
+    plan: (row.storedPlan === 'standard' ? 'standard' : 'free') as Plan,
+    planPeriodEnd: String(row.planPeriodEnd ?? ''),
+    bonusPlan: (row.bonusPlan === 'standard' ? 'standard' : 'free') as Plan,
+    bonusPeriodEnd: String(row.bonusPeriodEnd ?? ''),
+  };
+
+  const today = jstToday();
+  const from56 = shiftDay(today, -55);
+  const from30 = shiftDay(today, -29);
+
+  const [days, requests, offers, messages, gacha, ads, invitees, inviter] = await env.DB.batch([
+    // 開いた日。**全部は取らない。** 数だけ先に出し、カレンダーには56日ぶんを使う。
+    env.DB.prepare(`SELECT
+        (SELECT COUNT(*) FROM member_days WHERE member_id = ?1) AS totalDays,
+        (SELECT COUNT(*) FROM member_days WHERE member_id = ?1 AND day >= ?2) AS days30,
+        (SELECT MAX(day) FROM member_days WHERE member_id = ?1) AS lastSeen,
+        (SELECT MIN(day) FROM member_days) AS trackedSince`).bind(memberId, from30),
+    env.DB.prepare(`SELECT r.id, r.title, r.category, r.status, r.deadline, r.created_at AS createdAt,
+        (SELECT COUNT(*) FROM introductions i WHERE i.request_id = r.id) AS introCount
+      FROM requests r WHERE r.author_id = ? ORDER BY r.created_at DESC LIMIT 50`).bind(memberId),
+    env.DB.prepare(`SELECT
+        (SELECT COUNT(*) FROM introductions WHERE introducer_id = ?1) AS sentRequest,
+        (SELECT COUNT(*) FROM ad_introductions WHERE introducer_id = ?1) AS sentAd,
+        (SELECT COUNT(*) FROM introductions i JOIN requests r ON r.id = i.request_id
+          WHERE r.author_id = ?1) AS received,
+        (SELECT COUNT(*) FROM introductions WHERE introducer_id = ?1 AND kind = 'referral') AS referral`)
+      .bind(memberId),
+    env.DB.prepare(`SELECT
+        (SELECT COUNT(DISTINCT pair_key) FROM direct_messages
+          WHERE sender_id = ?1 OR recipient_id = ?1) AS threads,
+        (SELECT COUNT(*) FROM direct_messages WHERE sender_id = ?1) AS sent`).bind(memberId),
+    env.DB.prepare(`SELECT COUNT(*) AS draws, COALESCE(SUM(days),0) AS wonDays
+      FROM gacha_days WHERE member_id = ?`).bind(memberId),
+    env.DB.prepare(`SELECT id, title, placement, status, start_date AS startDate, end_date AS endDate,
+        amount_yen AS amountYen, gift_days AS giftDays, view_count AS viewCount, click_count AS clickCount
+      FROM ad_slots WHERE member_id = ? ORDER BY start_date DESC LIMIT 50`).bind(memberId),
+    env.DB.prepare(`SELECT id, display_name AS displayName, company, created_at AS createdAt,
+        membership_status AS status
+      FROM members WHERE invited_by = ? ORDER BY created_at DESC LIMIT 100`).bind(memberId),
+    env.DB.prepare('SELECT id, display_name AS displayName, company FROM members WHERE id = ?')
+      .bind(String(row.invitedBy ?? '')),
+  ]);
+
+  // カレンダー用の56日ぶんは、別に引く（上の batch は集計だけ）。
+  const recentRows = await env.DB.prepare('SELECT day FROM member_days WHERE member_id = ? AND day >= ?')
+    .bind(memberId, from56).all<{ day: string }>();
+  const openDays = new Set(recentRows.results.map((item) => item.day));
+  const recent: AdminMemberDetail['activity']['recent'] = [];
+  for (let index = 55; index >= 0; index -= 1) {
+    const date = shiftDay(today, -index);
+    recent.push({ date, open: openDays.has(date) });
+  }
+  // 続けて開いている日数。**今日まだ開いていない人も切らさない**（昨日から数える）。
+  let streak = 0;
+  let cursor = openDays.has(today) ? today : shiftDay(today, -1);
+  while (openDays.has(cursor)) { streak += 1; cursor = shiftDay(cursor, -1); }
+
+  const dayRow = (days.results[0] ?? {}) as Record<string, string | number | null>;
+  const offerRow = (offers.results[0] ?? {}) as Record<string, number>;
+  const messageRow = (messages.results[0] ?? {}) as Record<string, number>;
+  const gachaRow = (gacha.results[0] ?? {}) as Record<string, number>;
+  const adRows = ads.results as Record<string, string | number>[];
+  const inviterRow = (inviter.results[0] ?? null) as { id: string; displayName: string; company: string } | null;
+  const inviteeRows = invitees.results as Record<string, string>[];
+
+  // ガチャの券をどれだけ使ったか。ad_slots に積まれた無料日数で数える。
+  const usedDays = adRows.reduce((sum, ad) => sum + Number(ad.giftDays ?? 0), 0);
+
+  return {
+    id: String(row.id), email,
+    displayName: String(row.displayName ?? ''), nameKana: String(row.nameKana ?? ''),
+    company: String(row.company ?? ''), companyKana: String(row.companyKana ?? ''),
+    positionTitle: String(row.positionTitle ?? ''),
+    businessArea: String(row.businessArea ?? ''), primaryIndustry: String(row.primaryIndustry ?? ''),
+    notifyIndustries: parseIndustries(row.notifyIndustriesJson),
+    annualRevenueBand: String(row.annualRevenueBand ?? ''), facebookUrl: String(row.facebookUrl ?? ''),
+    avatarKey: String(row.avatarKey ?? ''), avatarVersion: Number(row.avatarVersion ?? 0),
+    status: String(row.status ?? ''),
+    canUse: row.status === 'active' || row.status === 'past_due',
+    createdAt: String(row.createdAt ?? ''), activatedAt: String(row.activatedAt ?? ''),
+    plan: effectivePlan(email, state, now),
+    planSource: planSourceOf(email, String(row.storedPlan ?? ''), state.planPeriodEnd,
+      String(row.bonusPlan ?? ''), state.bonusPeriodEnd, now),
+    adminPlan: isPlanOverridden(email),
+    planPeriodEnd: state.planPeriodEnd, bonusPeriodEnd: state.bonusPeriodEnd,
+    planInterval: String(row.planInterval ?? 'month'),
+    hasStripeCustomer: Boolean(String(row.stripeCustomerId ?? '')),
+    rank: rankNames[Math.min(levelFor(inviteeRows.length), MAX_LEVEL) - 1] ?? rankNames[0],
+    level: levelFor(inviteeRows.length),
+    inviteCount: inviteeRows.length,
+    inviteCode: String(row.inviteCode ?? ''),
+    invitedBy: inviterRow ? { ...inviterRow } : null,
+    invitees: inviteeRows.map((item) => ({
+      id: String(item.id), displayName: String(item.displayName ?? ''), company: String(item.company ?? ''),
+      createdAt: String(item.createdAt ?? ''),
+      canUse: item.status === 'active' || item.status === 'past_due',
+    })),
+
+    activity: {
+      totalDays: Number(dayRow.totalDays ?? 0),
+      days30: Number(dayRow.days30 ?? 0),
+      lastSeen: String(dayRow.lastSeen ?? ''),
+      streak,
+      recent,
+      trackedSince: String(dayRow.trackedSince ?? ''),
+    },
+    requests: (requests.results as Record<string, string | number>[]).map((item) => ({
+      id: String(item.id), title: String(item.title ?? ''), category: String(item.category ?? ''),
+      status: String(item.status ?? ''), deadline: String(item.deadline ?? ''),
+      createdAt: String(item.createdAt ?? ''),
+      introCount: Number(item.introCount ?? 0),
+    })),
+    offers: {
+      sent: Number(offerRow.sentRequest ?? 0) + Number(offerRow.sentAd ?? 0),
+      received: Number(offerRow.received ?? 0),
+      referral: Number(offerRow.referral ?? 0),
+    },
+    messages: { threads: Number(messageRow.threads ?? 0), sent: Number(messageRow.sent ?? 0) },
+    gacha: { draws: Number(gachaRow.draws ?? 0), wonDays: Number(gachaRow.wonDays ?? 0), usedDays },
+    ads: {
+      count: adRows.length,
+      paidYen: adRows.reduce((sum, ad) => sum + Number(ad.amountYen ?? 0), 0),
+      giftDays: usedDays,
+      views: adRows.reduce((sum, ad) => sum + Number(ad.viewCount ?? 0), 0),
+      clicks: adRows.reduce((sum, ad) => sum + Number(ad.clickCount ?? 0), 0),
+      list: adRows.map((ad) => ({
+        id: String(ad.id), title: String(ad.title ?? ''), placement: String(ad.placement ?? ''),
+        status: String(ad.status ?? ''), startDate: String(ad.startDate ?? ''), endDate: String(ad.endDate ?? ''),
+        amountYen: Number(ad.amountYen ?? 0), giftDays: Number(ad.giftDays ?? 0),
+        viewCount: Number(ad.viewCount ?? 0), clickCount: Number(ad.clickCount ?? 0),
+      })),
+    },
+  };
+}
+
+/** 日本時間の今日。member_days と同じ数え方でないと、連続日数がずれる。 */
+function jstToday() {
+  return new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+}
+
+function shiftDay(day: string, delta: number) {
+  const date = new Date(`${day}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + delta);
+  return date.toISOString().slice(0, 10);
+}
+
+function parseIndustries(value: unknown) {
+  try {
+    const parsed = JSON.parse(String(value ?? '[]')) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}

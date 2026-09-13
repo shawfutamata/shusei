@@ -6,7 +6,7 @@ import type { AdSlot, BoardRequest, MemberCard, MemberProfile, MemberStats, Mess
 import ReceivedIntroductions from './ReceivedIntroductions';
 import IntroductionChat from './IntroductionChat';
 import FacebookLink from './FacebookLink';
-import { areaMatchesPrefecture, areaMatchesRegion, prefectures, regions, requestAreaOptions, type Prefecture } from './profile-options';
+import { areaMatchesPrefecture, areaMatchesRegion, prefectures, regions, requestAreaOptions, revenueBands, type Prefecture } from './profile-options';
 import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-options';
 import { budgetBandLabel, budgetBands } from './budget-options';
 import { UNLIMITED, can, plans, type BillingCycle, type Feature, type Plan } from './entitlements';
@@ -77,13 +77,6 @@ function budgetText(need: { budgetBand: string; budgetLabel: string }) {
   if (band && need.budgetLabel) return `${band}（${need.budgetLabel}）`;
   return band || need.budgetLabel || '応相談';
 }
-
-const revenueBands: Record<string, string> = {
-  revenue_10_30: '1,000万〜3,000万円',
-  revenue_30_70: '3,000万〜7,000万円',
-  revenue_70_100: '7,000万円〜1億円',
-  revenue_100_plus: '1億円以上',
-};
 
 /**
  * 出稿された広告が無いときに出す、自前のバナー。

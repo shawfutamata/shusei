@@ -2366,3 +2366,101 @@ body { font-weight:600; }
   cursor: pointer;
 }
 .profile-form .profile-hint-fill:hover { color: #12408c; }
+
+/* --- 会員の詳細（管理画面）-----------------------------------------------------
+   一覧の名前を押すと、この板が画面いっぱいにかぶさる。
+   **一覧の上に重ねる**のは、見たあとに同じ場所へ戻れるようにするため。
+   別ページに飛ばすと、絞り込みもスクロール位置も消える。 */
+.admin-open { padding:0; border:0; background:none; color:var(--blue-dark); font:inherit;
+  font-weight:900; text-align:left; cursor:pointer; }
+.admin-open:hover { text-decoration:underline; text-underline-offset:3px; }
+
+.mdetail-backdrop { position:fixed; inset:0; z-index:60; padding:0; display:flex;
+  justify-content:center; align-items:flex-start; overflow-y:auto;
+  background:rgba(15,35,70,.5); backdrop-filter:blur(2px); }
+.mdetail { width:min(880px,100%); min-height:100%; background:#f5f8fd; }
+@media (min-width:721px) {
+  .mdetail-backdrop { padding:26px 20px 40px; }
+  .mdetail { min-height:0; border-radius:20px; overflow:hidden; box-shadow:0 24px 70px rgba(12,40,90,.28); }
+}
+
+/* 見出し。**名前・会社・状態を一目で。** ここだけ濃い色にして、
+   下の白い札と段差をつける。 */
+.mdetail-head { padding:20px 20px 18px; position:relative; display:grid;
+  grid-template-columns:auto 1fr; align-items:center; gap:13px;
+  background:linear-gradient(160deg,#0b4ea8,#1478d6); color:#fff; }
+.mdetail-close { position:absolute; right:12px; top:12px; width:34px; height:34px; border:0;
+  border-radius:50%; background:rgba(255,255,255,.18); color:#fff; font-size:19px; line-height:1;
+  cursor:pointer; }
+.mdetail-close:hover { background:rgba(255,255,255,.3); }
+.mdetail-face { width:56px; height:56px; display:grid; place-items:center; overflow:hidden;
+  border:2px solid rgba(255,255,255,.6); border-radius:50%; background:rgba(255,255,255,.2); }
+.mdetail-face img { width:100%; height:100%; object-fit:cover; }
+.mdetail-face i { font-size:22px; font-style:normal; font-weight:900; }
+.mdetail-who { min-width:0; padding-right:38px; }
+.mdetail-who h2 { margin:0; font-size:19px; font-weight:900; line-height:1.35; }
+.mdetail-who p { margin:3px 0 0; font-size:12px; font-weight:700; opacity:.92; }
+.mdetail-mail { font-size:11px !important; opacity:.75 !important; word-break:break-all; }
+.mdetail-chips { grid-column:1/-1; margin:3px 0 0; padding:0; display:flex; flex-wrap:wrap; gap:6px;
+  list-style:none; }
+.mdetail-chips li { padding:4px 10px; border-radius:99px; background:rgba(255,255,255,.2);
+  font-size:11px; font-weight:900; }
+.mdetail-chips li em { margin-left:3px; font-size:10px; font-style:normal; opacity:.85; }
+.mdetail-chips li.is-off { background:#ffd9d9; color:#a11e2c; }
+.mdetail-chips li.is-rank { background:#fff; color:#0f5fc4; }
+
+.mdetail-body { padding:14px 14px 30px; display:grid; gap:12px; }
+.mdetail-block { padding:15px 16px 17px; border:1px solid #e2e9f4; border-radius:16px; background:#fff; }
+.mdetail-block h3 { margin:0 0 12px; color:var(--navy); font-size:14px; font-weight:900; }
+.mdetail-block h3 em { margin-left:6px; color:#8b99ad; font-size:11px; font-style:normal; font-weight:800; }
+
+/* 数字の札。**4つ並びを基本に**、狭ければ2つ折り返し。 */
+.mdetail-tiles { margin:0; padding:0; display:grid; gap:8px; list-style:none;
+  grid-template-columns:repeat(2,1fr); }
+@media (min-width:561px) { .mdetail-tiles { grid-template-columns:repeat(4,1fr); } }
+.mdetail-tiles + .mdetail-tiles { margin-top:8px; }
+.mdetail-tile { padding:11px 12px 12px; border-radius:12px; background:#f4f8ff; }
+.mdetail-tile > span { display:block; color:#6c7b92; font-size:10px; font-weight:900; }
+.mdetail-tile > b { display:block; margin-top:4px; color:var(--navy); font-size:21px; font-weight:900;
+  letter-spacing:-.02em; line-height:1.25; word-break:break-all; }
+.mdetail-tile > b em { margin-left:2px; font-size:11px; font-style:normal; font-weight:800; color:#6c7b92; }
+.mdetail-tile > small { display:block; margin-top:3px; color:#8b99ad; font-size:10px; font-weight:700;
+  line-height:1.5; }
+.mdetail-tiles.is-thin .mdetail-tile > b { font-size:17px; }
+
+/* 出席の升目。**縦が曜日、横が週。** 1日に何回開いても1回なので、
+   折れ線ではなく升目にしてある（上下する量が無い）。 */
+.mdetail-cal { margin:13px 0 0; }
+.mdetail-cal-grid { display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; }
+.mdetail-cal-grid::-webkit-scrollbar { display:none; }
+.mdetail-cal-week { display:grid; grid-template-rows:repeat(7,1fr); gap:4px; }
+.mdetail-cal-week i { width:13px; height:13px; border-radius:3px; background:#e8eef7; }
+.mdetail-cal-week i.is-open { background:#1478d6; }
+.mdetail-cal figcaption { margin-top:9px; display:flex; flex-wrap:wrap; align-items:center; gap:12px;
+  color:#8b99ad; font-size:10px; font-weight:800; }
+.mdetail-cal figcaption span { display:flex; align-items:center; gap:5px; }
+.mdetail-cal figcaption i { width:11px; height:11px; border-radius:3px; background:#e8eef7; }
+.mdetail-cal figcaption i.is-open { background:#1478d6; }
+.mdetail-cal figcaption b { margin-left:auto; color:var(--navy); font-size:11px; }
+
+.mdetail-note { margin:11px 0 0; color:#8b99ad; font-size:11px; font-weight:700; line-height:1.7; }
+.mdetail-note b { color:#5a6a80; }
+.mdetail-empty { margin:0; padding:14px 0; color:#9aa7b8; font-size:12px; font-weight:700; text-align:center; }
+
+.mdetail-list { margin:0; padding:0; display:grid; gap:8px; list-style:none; }
+.mdetail-list li { padding:11px 13px 12px; border:1px solid #e6ecf5; border-radius:12px; background:#fbfcfe; }
+.mdetail-list.is-compact li { padding:9px 12px 10px; }
+.mdetail-row-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.mdetail-row-top b { min-width:0; color:var(--navy); font-size:13px; font-weight:900; line-height:1.5; }
+
+.mdetail-pair { margin:0 0 8px; display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; }
+.mdetail-pair span { color:#8b99ad; font-size:11px; font-weight:800; }
+.mdetail-pair b { color:var(--navy); font-size:13px; font-weight:900; }
+
+/* プロフィールの表。**2列の対**にして、空の項目も「未設定」と出す。
+   行が消えると、何が埋まっていないのか分からなくなる。 */
+.mdetail-facts { margin:0; display:grid; grid-template-columns:auto 1fr; gap:7px 14px; }
+.mdetail-facts dt { color:#8b99ad; font-size:11px; font-weight:800; }
+.mdetail-facts dd { margin:0; color:var(--navy); font-size:12px; font-weight:800; word-break:break-all; }
+.mdetail-facts dd i { color:#b3bdcc; font-style:normal; font-weight:700; }
+.mdetail-facts dd a { color:var(--blue-dark); }

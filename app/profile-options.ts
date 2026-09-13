@@ -12,6 +12,18 @@ export const prefectures = [
 
 export type Prefecture = (typeof prefectures)[number];
 
+/**
+ * 年商の区分。**プロフィールの入力欄と、管理画面の両方から読む。**
+ * 片方だけに書いていると、片方の表示が空のままになる（実際になっていた）。
+ * 値（キー）は db に入るので、**増やすのはよいが、書き替えてはいけない**。
+ */
+export const revenueBands: Record<string, string> = {
+  revenue_10_30: '1,000万〜3,000万円',
+  revenue_30_70: '3,000万〜7,000万円',
+  revenue_70_100: '7,000万円〜1億円',
+  revenue_100_plus: '1億円以上',
+};
+
 // 地方ブロック。絞り込みは都道府県ではなくこの単位で選ぶ。
 export const regions = [
   { name: '北海道', prefectures: ['北海道'] },

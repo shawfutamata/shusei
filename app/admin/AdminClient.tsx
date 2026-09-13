@@ -7,6 +7,7 @@ import { placementName } from '@/app/ad-options';
 import { rankNames } from '@/app/rank-perks';
 import BrandMark from '@/app/BrandMark';
 import { BarList, TrendChart } from './Charts';
+import MemberDetail from './MemberDetail';
 
 type GachaSummary = {
   name: string; open: boolean; seasonName: string; month: string;
@@ -46,6 +47,8 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   const [keyword, setKeyword] = useState('');
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
+  /** 詳細を開いている会員のID。空なら閉じている。 */
+  const [detailId, setDetailId] = useState('');
   /** 消す前に必ず一度止める。取り消せない操作なので。 */
   const [confirming, setConfirming] = useState<AdminRequest | null>(null);
   /** 置いてあるデータの控え。バックアップのタブを開いたときに読む。 */
@@ -119,7 +122,11 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
 
   const memberRow = (member: AdminMember) => <li key={member.id} className={member.canUse ? '' : 'is-off'}>
     <div className="admin-row-top">
-      <b>{member.displayName || '(名前なし)'}</b>
+      {/* 名前そのものを押せるようにする。別に「詳細」ボタンを置くより、
+          押す場所を探さずに済む。 */}
+      <b><button className="admin-open" onClick={() => setDetailId(member.id)}>
+        {member.displayName || '(名前なし)'}
+      </button></b>
       <span className={`admin-state ${member.canUse ? 'is-on' : 'is-off'}`}>{member.canUse ? '利用中' : '停止中'}</span>
     </div>
     <p className="admin-meta">
@@ -561,6 +568,10 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
     </div>}
 
     {!!note && <p className="admin-note" role="status">{note}</p>}
+
+    {/* 会員1人ぶんの詳細。一覧の名前を押すと、この板がかぶさる。
+        中身は開いたときに読む（一覧と一緒には引かない）。 */}
+    {!!detailId && <MemberDetail memberId={detailId} onClose={() => setDetailId('')} />}
     </main>
   </div>;
 }
