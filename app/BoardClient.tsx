@@ -1746,7 +1746,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     <main className="app-shell" id="home">
       <header className="mobile-header">
         <button className="mobile-brand" onClick={showHome}><BrandMark /><b>{serviceName}</b></button>
-        <button className="header-profile" onClick={() => showProfileSettings()}><span><small>こんにちは</small><b>{shownName}</b></span><Avatar src={stats.avatarUrl} name={shownName} className="mini-avatar" /></button>
+        {/* 右上は**アイコンだけ**にする。「こんにちは 〇〇さん」は毎回同じことしか
+            言わないので、その幅を「探す」に譲った。下のメニューが1つ減る。 */}
+        <div className="header-tools">
+          <button className={`header-search${navHere === 'search' ? ' active' : ''}`} onClick={() => showSearch()} aria-label="探す"><SearchIcon /></button>
+          <button className="header-profile" onClick={() => showProfileSettings()} aria-label="プロフィール設定">
+            <Avatar src={stats.avatarUrl} name={shownName} className="mini-avatar" />
+          </button>
+        </div>
       </header>
 
       {activeTab === 'home' ? <div className="home-dashboard">
@@ -1765,7 +1772,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           emptyTitle={ownMatching > 0 ? 'いまは、ご自身の投稿だけです' : 'まだ募集中の案件がありません'}
           emptyText={ownMatching > 0 ? `選んだ業種に合う案件は${ownMatching}件ありますが、すべてご自身の投稿です。ここにはオファーできる相手だけを並べるため、ご自身の分は出しません。ほかの会員が投稿すると並びます。`
             : 'ほかの会員が案件を投稿すると、ここに並びます。'}
-          onMore={() => stats.notifyIndustries.length ? showSearch() : showProfileSettings('notify-industries')}>
+          onMore={() => {
+            // 下のメニューから「おすすめ」を外したので、**ここが入口になる。**
+            // 業種を選んでいない人には、先に選んでもらうところへ送る。
+            if (stats.notifyIndustries.length) showRecommend();
+            else showProfileSettings('notify-industries');
+          }}>
           {recommended.map((need) => <HomeRequestCard key={need.id} need={need} favorite={favoriteIds.includes(need.id)} onOpen={() => openNeed(need)} onFavorite={() => toggleFavorite(need)} />)}
         </HomeShelf>
 
@@ -2211,19 +2223,20 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {/* ＋を真ん中に置きたいので、左右3つずつの6項目にしてある。増やすときは
           必ず偶数で。奇数にすると＋が中央から外れて、押す場所が動いて見える。 */}
-      <nav className="bottom-nav is-six" aria-label="アプリメニュー">
+      <nav className="bottom-nav is-five" aria-label="アプリメニュー">
         {/* 並び順ではなく名前で指せるように、1つずつ印をつけてある。案内
             （チュートリアル）がここを指すので、項目を足しても指す先がずれない。 */}
+        {/* ＋は**真ん中の列**に来るように並べる。5つなので3番目。
+            メッセージとマイページは右側のまま動かしていない（いちばんよく
+            押すところなので、指の位置を変えない）。 */}
         <button className={`nav-home${navHere === 'home' ? ' active' : ''}`} onClick={showHome}><span><HomeIcon /></span><small>ホーム</small></button>
-        <button className={`nav-search${navHere === 'search' ? ' active' : ''}`} onClick={() => showSearch()}><span><SearchIcon /></span><small>探す</small></button>
-        <button className={`nav-recommend${navHere === 'recommend' ? ' active' : ''}`} onClick={showRecommend}><span><RecommendIcon /></span><small>おすすめ</small></button>
+        <button className={`nav-ads${navHere === 'ads' ? ' active' : ''}`} onClick={openAdSettings}><span><BannerIcon /></span><small>広告</small></button>
         <button className="nav-post" onClick={openRequest} aria-label="案件を投稿する"><span>＋</span></button>
         <button className={`nav-messages${navHere === 'messages' ? ' active' : ''}`} onClick={showMessages}
           aria-label={unreadMessages ? `メッセージ 未読${unreadMessages}件` : 'メッセージ'}>
           <span><MessageIcon />{unreadMessages > 0 && <i className="nav-badge">{unreadMessages > 99 ? '99+' : unreadMessages}</i>}</span>
           <small>メッセージ</small>
         </button>
-        <button className={`nav-ads${navHere === 'ads' ? ' active' : ''}`} onClick={openAdSettings}><span><BannerIcon /></span><small>広告</small></button>
         <button className={`nav-mypage${navHere === 'mypage' ? ' active' : ''}`} onClick={showMyPage}><span><PersonIcon /></span><small>マイページ</small></button>
       </nav>
 

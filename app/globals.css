@@ -2468,3 +2468,31 @@ body { font-weight:600; }
 /* 管理画面の会員番号。名簿と突き合わせるときに拾いやすいよう、
    等幅ぎみの数字にして、ほかの項目より少し濃くする。 */
 .admin-no { color:#4a5c76 !important; font-weight:900 !important; font-variant-numeric:tabular-nums; }
+
+/* --- 右上のアイコン列 ----------------------------------------------------------
+   「こんにちは 〇〇さん」をやめて、その幅を「探す」に譲った。
+   毎回同じことしか言わない文字より、押せるものを置いたほうが効く。 */
+.header-tools { display:flex; align-items:center; gap:4px; }
+.header-search { width:38px; height:38px; padding:0; display:grid; place-items:center;
+  border:0; border-radius:50%; background:transparent; color:#64748b; font-size:20px; cursor:pointer; }
+.header-search:hover { background:#eef4fd; color:var(--blue); }
+.header-search.active { background:#e6f0fd; color:var(--blue); }
+.header-search .nav-icon { width:1em; height:1em; display:block; }
+
+/* --- 下のメニュー（5つ）--------------------------------------------------------
+   **この指定はファイルの後ろに置く。** 前に書くと、上のほうにある
+   .bottom-nav の指定に負けて何も変わらない（あとに書いたほうが勝つ）。
+
+   真ん中の列（＋）を広めに取って、左右の2つずつを外側へ寄せる。等分だと
+   4つが＋のまわりに固まって、両端が間延びして見える。 */
+.bottom-nav.is-five { grid-template-columns:repeat(2,1fr) 1.7fr repeat(2,1fr);
+  padding-left:clamp(6px,3vw,18px); padding-right:clamp(6px,3vw,18px); }
+/* 1つぶんの幅に余裕ができたので、6つ並びのときより字も絵も大きくできる。 */
+/* 「メッセージ」と「マイページ」は字数が多く、隣どうしでぶつかりやすい。
+   幅に合わせて縮め、字間も少し詰めておく。 */
+.bottom-nav.is-five small { font-size:clamp(8.5px,2.6vw,11px); letter-spacing:-.05em; transform:none; }
+.bottom-nav.is-five button>span, .bottom-nav.is-five label>span { font-size:clamp(22px,6.4vw,27px); }
+.bottom-nav.is-five button, .bottom-nav.is-five label { gap:5px; padding:4px 0; }
+.bottom-nav.is-five .nav-post { width:clamp(56px,16vw,64px); height:clamp(56px,16vw,64px);
+  min-height:clamp(56px,16vw,64px); margin-bottom:9px; border-radius:18px; }
+.bottom-nav.is-five .nav-post span { font-size:clamp(31px,8.4vw,36px); }
