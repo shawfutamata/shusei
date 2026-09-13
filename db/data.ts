@@ -461,6 +461,20 @@ const statements = [
     last_read_at TEXT NOT NULL,
     PRIMARY KEY (member_id, thread_key)
   )`,
+  // 会員が**その日に開いたか**だけを残す表。
+  //
+  // Webはクッキーで入るので、これまで「いつ使ったか」がどこにも残っていなかった
+  // （mobile_sessions はアプリ専用で、アプリはまだ出していない）。運営が
+  // 「この人は続けて使っているか」を見るために、**1人1日1行**だけ置く。
+  //
+  // **時刻は持たない。** 何時に何をしたかまで残すと、ただの行動ログになる。
+  // 知りたいのは「続いているかどうか」なので、日付だけで足りる。
+  // 日付は日本時間の YYYY-MM-DD。
+  `CREATE TABLE IF NOT EXISTS member_days (
+    member_id TEXT NOT NULL REFERENCES members(id),
+    day TEXT NOT NULL,
+    PRIMARY KEY (member_id, day)
+  )`,
   // --- 広告のガチャ（app/gacha.ts）-------------------------------------------
   // 引いた記録。**主キーで「1人1日1回」を守る。** 画面側の制御だけだと、
   // 通信をやり直すだけで何度でも引けてしまう。
@@ -660,6 +674,7 @@ export async function ensureDatabase() {
     WHERE start_date = '' AND month <> ''`).run();
   // 索引は列ができたあとに作る。statements に混ぜると、列が無い初回に全部こける。
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_ad_slots_period ON ad_slots(placement, status, start_date, end_date)').run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_member_days_day ON member_days(day)').run();
   // 写真を1枚だけ持っていた投稿を、枚数1として数え直す。1回だけ効く。
   await env.DB.prepare('UPDATE requests SET image_count = 1 WHERE image_count = 0 AND image_version > 0').run();
   await env.DB.prepare("UPDATE referral_credits SET status = 'waiting', earned_at = '' WHERE status = 'capped'").run();
@@ -1058,8 +1073,27 @@ export async function upsertMember(user: SessionUser) {
 const hideSamples = import.meta.env.DEV ? ''
   : "WHERE m.email NOT LIKE '%@example.jp' AND m.email NOT LIKE '%@example.com'";
 
+/**
+ * その人が**今日このサービスを開いた**ことを残す。1人1日1行だけ。
+ *
+ * 主キーが (member_id, day) なので、同じ日に何度呼んでも増えない。
+ * 掲示板を読みに来たところ（getBoardData）から呼んでいるので、
+ * 開けば必ず残り、開かなければ残らない。
+ *
+ * **失敗しても黙って流す。** 出席の記録のために掲示板が出ないのは本末転倒。
+ */
+export async function touchMemberDay(memberId: string) {
+  try {
+    await env.DB.prepare('INSERT OR IGNORE INTO member_days (member_id, day) VALUES (?, ?)')
+      .bind(memberId, jstDate()).run();
+  } catch (error) {
+    console.error('touchMemberDay failed', error);
+  }
+}
+
 export async function getBoardData(user: SessionUser) {
   await upsertMember(user);
+  await touchMemberDay(user.userId);
   const requestsResult = await env.DB.prepare(`SELECT r.id, r.category, r.title, r.description,
     r.budget_label AS budgetLabel, r.budget_band AS budgetBand, r.area, r.industry_tags AS industryTagsJson,
     r.deadline, r.status, r.image_version AS imageVersion, r.created_at AS createdAt,

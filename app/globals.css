@@ -2068,6 +2068,11 @@ body { font-weight:600; }
 .gacha-again { min-height:44px; margin-top:14px; padding:0 20px; border:1px solid #cfdcee; border-radius:11px;
   background:#fff; color:#0f5fc4; font-size:13px; font-weight:900; cursor:pointer; }
 
+/* 券のボタンと「もう一度回す」が並ぶ回がある（運営で券がたまっているとき）。
+   親が text-align:center の並びなので、**左右に同じだけ余白を置く。**
+   片側だけに付けると、1つしか出ていない回に中心からずれる。 */
+.gacha-draw, .gacha-again { margin-inline:5px; }
+
 /* --- ガチャの入口（ジャンル別の下）---------------------------------------------
    **横長のバナー（1200×400／3:1）を置ける枠。** 画像が無い・読めないときは
    色と文字だけの帯になる。どちらでも成り立つ形にしてあるので、画像の差し替えで
