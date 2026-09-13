@@ -43,10 +43,19 @@ export type PlanState = {
 /** 無制限は -1 で表す。JSONに載せるので Infinity は使わない。 */
 export const UNLIMITED = -1;
 
+/**
+ * プランごとの上限。
+ *
+ * **案件の投稿は、無料でも止めない。**
+ * 掲示板は投稿が多いほど価値が上がる。出す側に壁を立てると、探す側にとっての
+ * 価値まで下がり、結局お金を払う理由も消える。**売るのは「読む側・送る側」。**
+ * 出す側は開けておく（届いたオファーの中身と、新しく話しかける回数が有料の線）。
+ *
+ * newChatsPerMonth … その月に**新しく話しかけられる人数**。
+ * 返事と、すでに話している相手は数えない（下の `newChatLimit` の説明）。
+ */
 export const planLimits: Record<Plan, { requestsPerMonth: number; newChatsPerMonth: number }> = {
-  // newChatsPerMonth … その月に**新しく話しかけられる人数**。
-  // 返事と、すでに話している相手は数えない（下の `newChatLimit` の説明）。
-  free: { requestsPerMonth: 1, newChatsPerMonth: 3 },
+  free: { requestsPerMonth: UNLIMITED, newChatsPerMonth: 3 },
   standard: { requestsPerMonth: UNLIMITED, newChatsPerMonth: UNLIMITED },
 };
 

@@ -325,6 +325,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [openChat, setOpenChat] = useState<MessageThread | null>(null);
   /** 一覧から消そうとしているやり取り。消す前に必ず一度確かめる。 */
   const [hidingThread, setHidingThread] = useState<MessageThread | null>(null);
+  /**
+   * 投稿の「詳しく書く」を開いているか。**既定は閉じたまま。**
+   * 必須はカテゴリとタイトルだけで、残りは書きたい人だけが開く。
+   * 直すときは、すでに書いてあるものが隠れないように開いて出す。
+   */
+  const [requestDetail, setRequestDetail] = useState(false);
   /** プロフィール設定を開いたとき、どの欄まで送るか。空なら先頭のまま。 */
   const [profileFocus, setProfileFocus] = useState('');
   /** お支払いの情報を読み込めなかったか。「準備中」と混ぜないための印。 */
@@ -894,7 +900,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     const response = editing
       ? await fetch(`/api/requests/${encodeURIComponent(editing.id)}`, { method: 'PATCH', body })
       : await fetch('/api/board', { method: 'POST', body });
-    const result = await response.json() as { error?: string }; setBusy(false);
+    const result = await response.json() as { error?: string; reached?: number }; setBusy(false);
     if (!response.ok) return showToast(result.error ?? (editing ? '保存できませんでした。' : '投稿できませんでした。'));
     removeRequestVideo();
     // 広告にする、を選んでいたら、投稿の見出しと本文を持って申し込みへ進む。
@@ -909,7 +915,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       startAdFlow(adSeed);
       return showToast('投稿しました。続けて広告のお申し込みへ進みます。');
     }
-    showToast(editing ? '案件を保存しました。' : '案件を投稿しました。関連業種の会員へ通知します。');
+    // **届いた人数をその場で返す。** 出した人にいちばん効くのは「届いている」
+    // 実感で、それが返らないと2件目が出ない。0人のときは数を出さず、
+    // 業種を選べば届くことだけを伝える（0という数字は落胆にしかならない）。
+    showToast(editing ? '案件を保存しました。'
+      : result.reached
+        ? `案件を投稿しました。この業種を待っている会員 ${result.reached}人にお知らせしました。`
+        : '案件を投稿しました。「詳しく書く」から業種を選ぶと、その業種の会員にお知らせが届きます。');
   }
 
   async function submitIntroduction(event: FormEvent<HTMLFormElement>) {
@@ -994,11 +1006,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   function openRequest() {
     if (!stats.avatarUrl) { showProfileSettings(); return showToast('投稿の前に顔写真を登録してください。'); }
     setEditingRequest(null); setRequestIndustries([]); clearRequestPhoto(); removeRequestVideo();
+    setRequestDetail(false);
     setModal('request');
   }
 
   /** 自分の投稿を直す。同じモーダルを、中身を入れて開く。 */
   function openEditRequest(item: MyRequest) {
+    // 直すときは開いて出す。閉じていると、書いてあるものが消えたように見える。
+    setRequestDetail(true);
     setEditingRequest(item);
     setRequestIndustries(item.industryTags);
     setRequestIndustryGroup(getIndustryGroup(item.industryTags[0] ?? '')?.name ?? 'IT・システム');
@@ -2280,7 +2295,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {modal === 'request' && !canPostRequest && !editingRequest && <Modal title="今月分の投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる案件は月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p>{referral?.freeMonths && <p>仲間を1人招待して{referral.qualifyDays}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p>}<button className="submit-button" onClick={() => { setModal(null); showMyPage(); }}>マイページを開く</button></div></Modal>}
 
-      {modal === 'request' && (canPostRequest || editingRequest) && <Modal title={editingRequest ? '案件を編集' : '案件を投稿'} lead={editingRequest ? '直したいところを書き替えて、保存してください。' : 'どんな人にオファーしてほしいかを具体的に書きましょう。'} onClose={closeRequestModal}><form className="form" key={editingRequest?.id ?? 'new'} onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue={editingRequest?.category ?? ''}><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" defaultValue={editingRequest?.title ?? ''} /></label><label>詳しい内容 {descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" required maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人をオファーしてほしいか" defaultValue={editingRequest?.description ?? ''} /></label><IndustryPicker legend="関連する業種" note="必須・3個まで" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算<select name="budgetBand" required defaultValue={editingRequest?.budgetBand ?? ''}><option value="" disabled>選択してください</option>{Object.entries(budgetBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>予算のくわしい書き方 <small>任意</small><input name="budgetLabel" maxLength={60} placeholder="例：月額20〜40万円／初回は50万円まで" defaultValue={editingRequest?.budgetLabel ?? ''} /></label><label>希望エリア <small>任意</small><select name="area" defaultValue={editingRequest?.area ?? ''}><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限<input name="deadline" type="date" required min="2026-08-27" defaultValue={editingRequest?.deadline ?? ''} /></label>{editingRequest && <label>募集状況<select name="status" defaultValue={editingRequest.status}><option value="open">募集中</option><option value="closed">募集を終了する</option></select></label>}{/* 写真と動画の枠は、**使えない人にも見せておく**。隠してしまうと
+      {modal === 'request' && (canPostRequest || editingRequest) && <Modal title={editingRequest ? '案件を編集' : 'こんな人を探しています'} lead={editingRequest ? '直したいところを書き替えて、保存してください。' : 'ひとことで大丈夫です。「〇〇できる方いませんか」だけでも出せます。'} onClose={closeRequestModal}><form className="form" key={editingRequest?.id ?? 'new'} onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue={editingRequest?.category ?? ''}><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" defaultValue={editingRequest?.title ?? ''} /></label>{/* **ここから下は任意。** 良い投稿の条件ではあるが、投稿がある条件では
+          ない。予算も期限もまだ決まっていないから探しているので、決めさせない。
+          書きたい人だけが開く（直すときは開いた状態で出す）。 */}
+        {!requestDetail && <button type="button" className="request-more" onClick={() => setRequestDetail(true)}>
+          <b>詳しく書く</b><small>業種・予算・期限・写真　どれも任意です</small><i>開く</i>
+        </button>}
+        <div className="request-detail" hidden={!requestDetail}>
+        <label>詳しい内容 <small>任意</small>{descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人をオファーしてほしいか" defaultValue={editingRequest?.description ?? ''} /></label><IndustryPicker legend="関連する業種" note="任意・3個まで。選ぶとその業種の会員にお知らせが届きます" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算 <small>任意・選ばないと「応相談」</small><select name="budgetBand" defaultValue={editingRequest?.budgetBand ?? ''}><option value="">選ばない（応相談）</option>{Object.entries(budgetBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>予算のくわしい書き方 <small>任意</small><input name="budgetLabel" maxLength={60} placeholder="例：月額20〜40万円／初回は50万円まで" defaultValue={editingRequest?.budgetLabel ?? ''} /></label><label>希望エリア <small>任意</small><select name="area" defaultValue={editingRequest?.area ?? ''}><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限 <small>任意・決めないと30日後</small><input name="deadline" type="date" min="2026-08-27" defaultValue={editingRequest?.deadline ?? ''} /></label>{editingRequest && <label>募集状況<select name="status" defaultValue={editingRequest.status}><option value="open">募集中</option><option value="closed">募集を終了する</option></select></label>}{/* 写真と動画の枠は、**使えない人にも見せておく**。隠してしまうと
           「そんな機能がある」ことに気づかないので、上のランクへ上がる理由が
           伝わらない。掲示板の絞り込みと同じで、鍵の札を出して押せなくする。 */}
         <div className="request-photos"><p><b>写真を付ける <em>任意</em></b><small>{photoLimit(stats.level) > 1 ? `${stats.rank}は${photoLimit(stats.level)}枚まで付けられます` : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}</small></p><div className="request-photo-grid">{requestPhotoPreviews.map((preview, index) => <span key={preview} className="request-photo-item"><img src={preview} alt={`添付する写真 ${index + 1}枚目`} /><button type="button" onClick={() => removeRequestPhoto(index)} aria-label={`${index + 1}枚目を削除`}>×</button></span>)}{requestPhotos.length < photoLimit(stats.level) && <label className="request-photo-add"><input name="photo" type="file" accept="image/*" multiple={photoLimit(stats.level) > 1} onChange={chooseRequestPhoto} /><b>＋</b><small>{requestPhotos.length ? 'もう1枚' : '写真を選ぶ'}</small></label>}{photoLimit(stats.level) < PHOTO_LIMIT_TOP && Array.from({ length: PHOTO_LIMIT_TOP - photoLimit(stats.level) }, (_, index) => <span className="request-photo-add is-locked" key={`locked-${index}`} aria-hidden="true"><b>＋</b><small>{rankNames[2]}から</small></span>)}</div>{photoLimit(stats.level) < PHOTO_LIMIT_TOP && <p className="request-locked-note"><em>{rankNames[2]}から</em>写真を{PHOTO_LIMIT_TOP}枚まで付けられます。仲間を{Math.max(0, rankThresholds[2] - stats.inviteCount)}人ご招待いただくと {rankNames[2]} です。</p>}</div><div className={canPostVideo(stats.level) ? 'request-video' : 'request-video is-locked'}><p><b>動画を付ける <em>任意</em></b><small>{VIDEO_MAX_SECONDS}秒まで。選ぶと端末の中で自動的に小さくします。</small></p>
@@ -2303,7 +2325,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               <b>広告も出す</b><small>投稿のあと、続けてお申し込みへ</small>
             </button>
           </div>
-        </div>}<button className="submit-button" disabled={busy || !requestIndustries.length || videoProgress >= 0}>{busy ? '保存しています…' : editingRequest ? '保存する' : postAsAd ? '投稿して広告の申し込みへ' : '投稿する'}</button></form></Modal>}
+        </div>}
+        </div>
+        {/* 出すのに要るのはカテゴリとタイトルだけ。業種を選んでいなくても押せる。 */}
+        <button className="submit-button" disabled={busy || videoProgress >= 0}>{busy ? '保存しています…' : editingRequest ? '保存する' : postAsAd ? '投稿して広告の申し込みへ' : '投稿する'}</button></form></Modal>}
 
       {deletingRequest && <Modal title="この案件を削除しますか" lead="削除すると元に戻せません。" onClose={() => setDeletingRequest(null)}>
         <div className="quota-block">
@@ -2943,8 +2968,8 @@ function AdFields({ offer, draft, onChange, onImage, imageName, keepImage }: {
  * 表だけ古いまま残る。実際に止めている判断と同じものを見せることで、
  * 「表ではできると書いてあるのに使えない」を起こさない。
  *
- * 「案件の投稿」だけは○×では足りない（月1件と無制限の差）ので、
- * 件数を出す行にしてある。
+ * 「案件の投稿」は件数を出す行にしてある。いまはどちらも無制限だが、
+ * **投稿では課金しないことを表に出しておく**（出す側に壁が無いと分かる）。
  */
 function PlanTable({ current }: { current: Plan }) {
   return <div className="plan-table-wrap">

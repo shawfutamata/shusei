@@ -1343,7 +1343,25 @@ export async function createRequest(user: SessionUser, input: { category: string
   await sendMatchingRequestMails(user.userId, {
     id, title: input.title, industryTags: input.industryTags, authorName: user.displayName,
   }).catch(() => undefined);
-  return id;
+  // **何人に届いたかを返す。** 出した人にいちばん効くのは「届いている」実感で、
+  // それが返らないと2件目が出ない。数えるだけなので、通知が失敗しても返す。
+  const reached = await countMatchingMembers(user.userId, input.industryTags).catch(() => 0);
+  return { id, reached };
+}
+
+/**
+ * その案件の業種を「おすすめに出したい業種」にしている会員の数。
+ * **投稿した本人は数えない。** 自分に届いても意味がない。
+ */
+async function countMatchingMembers(authorId: string, industryTags: string[]) {
+  if (!industryTags.length) return 0;
+  const now = new Date().toISOString();
+  const rows = await env.DB.prepare(`SELECT notify_industries AS notifyIndustriesJson FROM members
+    WHERE id != ? AND (membership_status = 'active'
+      OR (membership_status = 'past_due' AND membership_period_end > ?))`)
+    .bind(authorId, now).all<{ notifyIndustriesJson: string }>();
+  return rows.results.filter((row) => parseStringArray(row.notifyIndustriesJson)
+    .some((industry) => matchesIndustry(industryTags, industry))).length;
 }
 
 /**

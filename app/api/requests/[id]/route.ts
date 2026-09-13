@@ -36,10 +36,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const deadline = clean(field('deadline'), 10);
   const status = clean(field('status'), 10) === 'closed' ? 'closed' : 'open';
 
-  if (!['project', 'collaboration', 'consultation'].includes(category) || !title || !description
-    || !budgetBand || !industryTags.length || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
-    return NextResponse.json({ error: '入力内容を確認してください。' }, { status: 400 });
+  // 直すときも**必須はカテゴリとタイトルだけ**（投稿と同じ）。ひとことで出した
+  // 投稿をあとから開いたときに、書いていない欄のせいで保存できないと困る。
+  if (!['project', 'collaboration', 'consultation'].includes(category) || !title) {
+    return NextResponse.json({ error: '探しているものと、タイトルを入力してください。' }, { status: 400 });
   }
+  const filledBand = budgetBand || 'negotiable';
+  const filledDeadline = /^\d{4}-\d{2}-\d{2}$/.test(deadline) ? deadline : defaultDeadline();
 
   // 写真は選び直したときだけ送られてくる。触らなければ今のものが残る。
   const images: RequestImageUpload[] = [];
@@ -57,7 +60,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 
   try {
-    await updateRequest(gate.user, id, { category, title, description, budgetLabel, budgetBand, area, industryTags, deadline, status, images });
+    await updateRequest(gate.user, id, { category, title, description, budgetLabel, budgetBand: filledBand, area, industryTags, deadline: filledDeadline, status, images });
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : '保存できませんでした。' }, { status: 400 });
@@ -107,4 +110,11 @@ function cleanIndustries(value: unknown, max: number) {
 
 function clean(value: unknown, max: number) {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
+}
+
+/** 期限を決めていないときの既定。投稿のとき（app/api/board）と同じ30日後。 */
+function defaultDeadline() {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + 30);
+  return date.toISOString().slice(0, 10);
 }

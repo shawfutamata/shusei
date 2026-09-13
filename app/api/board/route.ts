@@ -43,10 +43,21 @@ export async function POST(request: Request) {
   const area = clean(field('area'), 60);
   const industryTags = multipart ? parseIndustries(field('industryTags'), 3) : cleanIndustries(field('industryTags'), 3);
   const deadline = clean(field('deadline'), 10);
-  // 希望エリアは任意。指定しない案件があってよい。
-  if (!['project', 'collaboration', 'consultation'].includes(category) || !title || !description || !budgetBand || !industryTags.length || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
-    return NextResponse.json({ error: '入力内容を確認してください。' }, { status: 400 });
+  // **必須はカテゴリとタイトルだけ。**
+  //
+  // 以前は詳しい内容・業種・予算・期限もすべて必須にしていた。良い投稿の
+  // 条件ではあるが、**投稿がある条件ではない。** 「こんな人いませんか」と
+  // 言いたいだけの人に、まだ決まっていない予算と期限を決めさせていた。
+  // 空の掲示板に良い投稿はゼロ件なので、まず出してもらう。
+  //
+  // 足りないところは下で埋める。**列は空にしない**（一覧の並べ替えや
+  // 絞り込みが期限と予算を見ているため）。
+  if (!['project', 'collaboration', 'consultation'].includes(category) || !title) {
+    return NextResponse.json({ error: '探しているものと、タイトルを入力してください。' }, { status: 400 });
   }
+  // 予算を決めていない人は「応相談」。期限を決めていない人は30日後。
+  const filledBand = budgetBand || 'negotiable';
+  const filledDeadline = /^\d{4}-\d{2}-\d{2}$/.test(deadline) ? deadline : defaultDeadline();
 
   // 写真は複数枚。何枚まで受けるかは db/data.ts がランクを見て切り詰める。
   const images: RequestImageUpload[] = [];
@@ -77,8 +88,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const id = await createRequest(user, { category, title, description, budgetLabel, budgetBand, area, industryTags, deadline, images, video });
-    return NextResponse.json({ id }, { status: 201 });
+    // reached … その業種を待っている会員の数。画面が「〇人に届きました」と返す。
+    const { id, reached } = await createRequest(user, { category, title, description, budgetLabel, budgetBand: filledBand, area, industryTags, deadline: filledDeadline, images, video });
+    return NextResponse.json({ id, reached }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : '投稿できませんでした。' }, { status: 400 });
   }
@@ -126,4 +138,16 @@ function isSupportedImage(buffer: ArrayBuffer, contentType: string) {
   if (contentType === 'image/jpeg') return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
   if (contentType === 'image/png') return bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
   return bytes.length >= 12 && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP';
+}
+
+/**
+ * 期限を決めていない投稿の既定。**空にはしない。**
+ * 一覧は期限で絞り込みと並べ替えをしていて、空だと「あと〇日」も出せない。
+ * 30日にしてあるのは、短すぎると出してすぐ消え、長すぎると古い投稿が
+ * 残り続けて掲示板が死んで見えるため。延長は投稿者がいつでもできる。
+ */
+function defaultDeadline() {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + 30);
+  return date.toISOString().slice(0, 10);
 }

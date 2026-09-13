@@ -7,7 +7,7 @@ import { UNLIMITED, planLimits, type BillingCycle, type Plan } from './entitleme
 export const YEARLY_DISCOUNT = 0.2;
 
 export const planCatalog: Record<Plan, { name: string; monthlyYen: number; summary: string }> = {
-  free: { name: '無料', monthlyYen: 0, summary: '案件の投稿は月1件まで' },
+  free: { name: '無料', monthlyYen: 0, summary: '案件の投稿は何件でも' },
   standard: { name: 'スタンダード', monthlyYen: 1200, summary: '案件の投稿は何件でも' },
 };
 
