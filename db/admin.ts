@@ -262,6 +262,24 @@ export async function adminAds(limit = 100): Promise<AdminAd[]> {
  * 広告の掲載を止める／戻す。
  * 枠は消さない（お金をいただいているので、記録と数字は残す）。表示だけ止める。
  */
+/**
+ * その会員が持っている**無料券を、まとめて取り消す**。
+ *
+ * 行は消さない。`days_left` を 0 にするだけ。いつ何が当たったかは
+ * gacha_days と ad_gifts に残るので、「当たったのに無くなっている」と
+ * 言われたときに、取り消したことまで含めて追える。
+ *
+ * 使うのは、試験中に貯まった券を掃除するときと、誤って配ったとき。
+ * **戻せない。** 押す前に必ず確かめさせること（画面側）。
+ */
+export async function adminClearAdGifts(memberId: string) {
+  await ensureDatabase();
+  const result = await env.DB.prepare(
+    'UPDATE ad_gifts SET days_left = 0, held_days = 0 WHERE member_id = ? AND days_left > 0')
+    .bind(memberId).run();
+  return Number(result.meta?.changes ?? 0);
+}
+
 export async function adminSetAdStopped(adId: string, stopped: boolean) {
   await ensureDatabase();
   await env.DB.prepare("UPDATE ad_slots SET status = ? WHERE id = ?")
@@ -487,7 +505,8 @@ export type AdminMemberDetail = {
     referral: number;
   };
   messages: { threads: number; sent: number };
-  gacha: { draws: number; wonDays: number; usedDays: number };
+  /** ガチャ。`openDays` は**いま使える券**の合計日数（期限切れと使い切りは外す）。 */
+  gacha: { draws: number; wonDays: number; usedDays: number; openDays: number };
   ads: { count: number; paidYen: number; giftDays: number; views: number; clicks: number;
     list: { id: string; title: string; placement: string; status: string;
       startDate: string; endDate: string; amountYen: number; giftDays: number;
@@ -542,8 +561,12 @@ export async function adminMemberDetail(memberId: string): Promise<AdminMemberDe
         (SELECT COUNT(DISTINCT pair_key) FROM direct_messages
           WHERE sender_id = ?1 OR recipient_id = ?1) AS threads,
         (SELECT COUNT(*) FROM direct_messages WHERE sender_id = ?1) AS sent`).bind(memberId),
-    env.DB.prepare(`SELECT COUNT(*) AS draws, COALESCE(SUM(days),0) AS wonDays
-      FROM gacha_days WHERE member_id = ?`).bind(memberId),
+    env.DB.prepare(`SELECT
+        (SELECT COUNT(*) FROM gacha_days WHERE member_id = ?1) AS draws,
+        (SELECT COALESCE(SUM(days),0) FROM gacha_days WHERE member_id = ?1) AS wonDays,
+        (SELECT COALESCE(SUM(days_left),0) FROM ad_gifts
+          WHERE member_id = ?1 AND days_left > 0 AND (expires_on = '' OR expires_on >= ?2)) AS openDays`)
+      .bind(memberId, today),
     env.DB.prepare(`SELECT id, title, placement, status, start_date AS startDate, end_date AS endDate,
         amount_yen AS amountYen, gift_days AS giftDays, view_count AS viewCount, click_count AS clickCount
       FROM ad_slots WHERE member_id = ? ORDER BY start_date DESC LIMIT 50`).bind(memberId),
@@ -629,7 +652,8 @@ export async function adminMemberDetail(memberId: string): Promise<AdminMemberDe
       referral: Number(offerRow.referral ?? 0),
     },
     messages: { threads: Number(messageRow.threads ?? 0), sent: Number(messageRow.sent ?? 0) },
-    gacha: { draws: Number(gachaRow.draws ?? 0), wonDays: Number(gachaRow.wonDays ?? 0), usedDays },
+    gacha: { draws: Number(gachaRow.draws ?? 0), wonDays: Number(gachaRow.wonDays ?? 0), usedDays,
+      openDays: Number(gachaRow.openDays ?? 0) },
     ads: {
       count: adRows.length,
       paidYen: adRows.reduce((sum, ad) => sum + Number(ad.amountYen ?? 0), 0),

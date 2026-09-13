@@ -2575,6 +2575,9 @@ export async function listActiveAds(viewerId: string, placement?: string): Promi
 /**
  * その会員が持っている枠。掲載内容を入れる画面で使う。
  * 終わったものも90日ぶん返す。「いくら払って、何人に届いたか」を後から見返せるように。
+ *
+ * **もっと前まで遡るときは `listMemberAdHistory`。** こちらは「いま手元にある枠」を
+ * 出すところなので、何年ぶんも並ぶと、直したい枠を探すのに邪魔になる。
  */
 export async function listMemberAds(memberId: string): Promise<AdSlot[]> {
   await ensureDatabase();
@@ -2582,6 +2585,42 @@ export async function listMemberAds(memberId: string): Promise<AdSlot[]> {
     WHERE a.member_id = ? AND a.end_date >= ? AND a.status IN ('active', 'stopped')
     ORDER BY a.start_date DESC`).bind(memberId, shiftDate(today(), -90)).all<AdRow>();
   return rows.results.map(toAdSlot(memberId));
+}
+
+/**
+ * これまでに出した広告を**全部**。自分の投稿から見返すときに使う。
+ *
+ * 日数で切らない。掲示板への投稿が全部残るのに、広告だけ90日で
+ * 消えるのは筋が通らない。どちらも「自分が出したもの」なので揃える。
+ *
+ * 支払いの済んでいない枠（`reserved`）は出さない。押さえただけのものは
+ * 出したことにならないし、60分で勝手に消えるので、並べると混乱する。
+ */
+export async function listMemberAdHistory(memberId: string): Promise<AdSlot[]> {
+  await ensureDatabase();
+  const rows = await env.DB.prepare(`${adSelect}
+    WHERE a.member_id = ? AND a.status IN ('active', 'stopped')
+    ORDER BY a.start_date DESC`).bind(memberId).all<AdRow>();
+  return rows.results.map(toAdSlot(memberId));
+}
+
+/**
+ * 掲載を途中で取り下げる。**戻せない。**
+ *
+ * 止めた枠は、その日の残り枠に戻る（空きを数える `overlappingSlots` が
+ * `reserved` と `active` しか見ないため）。空いた枠はすぐ次の人が押さえられるので、
+ * あとから「やっぱり戻したい」は通せない。押す前に必ず確かめさせること。
+ *
+ * **お金は返さない。** 返金はStripe側の判断が要るので、ここでは触らない。
+ * 使った無料券も戻さない（戻したところで、その日の枠はもう無い）。
+ * 数字（表示・クリック）と記録は消さない。払った分の成果は見返せるべきなので。
+ */
+export async function withdrawAd(memberId: string, adId: string) {
+  await ensureDatabase();
+  const result = await env.DB.prepare(
+    "UPDATE ad_slots SET status = 'stopped' WHERE id = ? AND member_id = ? AND status = 'active'")
+    .bind(adId, memberId).run();
+  if (!result.meta.changes) throw new Error('この広告は取り下げられません。');
 }
 
 /**

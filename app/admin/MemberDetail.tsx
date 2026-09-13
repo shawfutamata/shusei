@@ -23,6 +23,15 @@ export default function MemberDetail({ memberId, onClose }: { memberId: string; 
   // 会員を切り替えたときに前の人の中身と新しい人の失敗が同時に画面に出る。
   const [state, setState] = useState<{ id: string; detail: AdminMemberDetail | null; error: string }>(
     { id: memberId, detail: null, error: '' });
+  /**
+   * 無料券の取り消しを確かめている会員のID。**戻せない**ので、必ず一度確かめる。
+   *
+   * 真偽値ではなくIDで持つ。会員を切り替えたときに確認が開いたままだと、
+   * 別の人の券を取り消してしまう。IDなら、切り替わった時点でひとりでに閉じる
+   * （effect で消すのと違って、描いている最中に決まる）。
+   */
+  const [clearing, setClearing] = useState('');
+  const [clearBusy, setClearBusy] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -37,6 +46,25 @@ export default function MemberDetail({ memberId, onClose }: { memberId: string; 
   // **描いている最中に判断する**ので、effect で消すより1描画ぶん早い。
   const detail = state.id === memberId ? state.detail : null;
   const error = state.id === memberId ? state.error : '';
+
+  const confirmingClear = clearing === memberId;
+
+  /** 券をまとめて取り消す。行は消さず、使える日数を0にするだけ。 */
+  async function clearGifts() {
+    if (clearBusy) return;
+    setClearBusy(true);
+    const response = await fetch(`/api/admin/members/${encodeURIComponent(memberId)}/gifts`, { method: 'DELETE' })
+      .catch(() => null);
+    setClearBusy(false);
+    setClearing('');
+    if (!response?.ok) {
+      return setState((current) => ({ ...current, error: '取り消せませんでした。' }));
+    }
+    // 画面の数字もその場で0にする。読み直すと、押した手ごたえが1往復ぶん遅れる。
+    setState((current) => (current.detail
+      ? { ...current, detail: { ...current.detail, gacha: { ...current.detail.gacha, openDays: 0 } } }
+      : current));
+  }
 
   // Escで閉じられるようにする。板が画面いっぱいに出るので、
   // 戻る道が「閉じる」ボタンひとつだけだと行き止まりに見える。
@@ -113,7 +141,20 @@ export default function MemberDetail({ memberId, onClose }: { memberId: string; 
             <Tile label="ガチャを引いた" value={detail.gacha.draws} unit="回"
               note={`当たり ${detail.gacha.wonDays}日分`} />
             <Tile label="無料券を使った" value={detail.gacha.usedDays} unit="日分" />
+            <Tile label="いま使える券" value={detail.gacha.openDays} unit="日分"
+              note={detail.gacha.openDays ? '期限切れは除く' : 'なし'} />
           </ul>
+          {detail.gacha.openDays > 0 && <div className="mdetail-act">
+            {confirmingClear
+              ? <>
+                <b>この方の無料券 {detail.gacha.openDays}日分を取り消します。戻せません。</b>
+                <button type="button" onClick={() => setClearing('')} disabled={clearBusy}>やめる</button>
+                <button type="button" className="is-danger" onClick={clearGifts} disabled={clearBusy}>
+                  {clearBusy ? '取り消しています…' : '取り消す'}
+                </button>
+              </>
+              : <button type="button" className="is-danger" onClick={() => setClearing(memberId)}>無料券を取り消す</button>}
+          </div>}
         </section>
 
         {/* 3. お金 ---------------------------------------------------------- */}

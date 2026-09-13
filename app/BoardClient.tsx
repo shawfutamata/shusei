@@ -341,6 +341,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const upgradeShown = useRef(false);
   /** 自分の投稿ページの絞り込み。件数が増えたときに探せるように。 */
   const [postFilter, setPostFilter] = useState<'all' | 'open' | 'closed'>('all');
+  /** 自分の投稿で、掲示板と広告のどちらを見ているか。 */
+  const [postKind, setPostKind] = useState<'request' | 'ad'>('request');
+  /** これまでに出した広告。開いたときに一度だけ読む（枠を買う画面とは別のもの）。 */
+  const [adHistory, setAdHistory] = useState<AdSlot[] | null>(null);
+  /** 取り下げようとしている広告。**戻せない**ので、必ず一度確かめる。 */
+  const [withdrawingAd, setWithdrawingAd] = useState<AdSlot | null>(null);
   /** きょうの日付。期限を過ぎた投稿に印を付けるのに使う。 */
   const today = new Date().toISOString().slice(0, 10);
   const introBoxNote = introCounts.received || introCounts.sent
@@ -1054,6 +1060,41 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     await refreshBoard();
     await loadMyRequests().catch(() => {});
     showToast('案件を削除しました。');
+  }
+
+  // これまでに出した広告。自分の投稿で広告を開いたときに、一度だけ読む。
+  // 買う画面（/api/ads）とは別の道なので、広告タブを見ていなくてもここで完結する。
+  useEffect(() => {
+    if (activeTab !== 'posts' || postKind !== 'ad' || adHistory !== null) return;
+    let alive = true;
+    fetch('/api/ads/history')
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (alive) setAdHistory(data ? (data as { ads: AdSlot[] }).ads : []); })
+      .catch(() => { if (alive) setAdHistory([]); });
+    return () => { alive = false; };
+  }, [activeTab, postKind, adHistory]);
+
+  /**
+   * 掲載を途中で取り下げる。**戻せない。**
+   * 空いた枠はすぐ次の人が押さえられるので、戻す道は用意していない。
+   */
+  async function confirmWithdrawAd() {
+    const target = withdrawingAd;
+    if (!target || busy) return;
+    setBusy(true);
+    const response = await fetch(`/api/ads/${encodeURIComponent(target.id)}`, { method: 'DELETE' });
+    setBusy(false); setWithdrawingAd(null);
+    if (!response.ok) {
+      const result = await response.json().catch(() => null) as { error?: string } | null;
+      return showToast(result?.error ?? '取り下げられませんでした。');
+    }
+    // 買う画面と自分の投稿の両方に同じ枠が出る。**両方その場で直す。**
+    // 片方だけだと、行き来したときに掲載中と停止中が食い違って見える。
+    setAdInfo((current) => (current
+      ? { ...current, slots: current.slots.map((ad) => ad.id === target.id ? { ...ad, status: 'stopped' } : ad) }
+      : current));
+    setAdHistory((current) => (current ?? []).map((ad) => ad.id === target.id ? { ...ad, status: 'stopped' } : ad));
+    showToast('掲載を取り下げました。');
   }
 
   /** 広告あてにオファーする。入力も線引きも案件と同じで、宛先が違うだけ。 */
@@ -2230,8 +2271,17 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section> : activeTab === 'posts' ? <section className="profile-page" aria-labelledby="my-posts-title">
         {/* 自分の投稿。件数が増えるので、マイページの中ではなく1ページ取る。 */}
-        <header className="profile-page-heading"><p>MY POSTS</p><h1 id="my-posts-title">自分の投稿</h1><span>これまでに出した案件です。募集が終わったものも残ります。内容はあとから直せます。</span></header>
+        <header className="profile-page-heading"><p>MY POSTS</p><h1 id="my-posts-title">自分の投稿</h1><span>これまでに出したものが、すべて残ります。掲示板への投稿と、広告とを切り替えてご覧いただけます。</span></header>
 
+        {/* 掲示板と広告の切り替え。**どちらも「自分が出したもの」**なので同じ場所にまとめる。
+            広告は買う画面（広告タブ）にも出るが、あちらは直近90日ぶんだけ。ここは全部残す。 */}
+        <div className="post-kinds" role="tablist" aria-label="投稿の種類">
+          {([['request', '掲示板への投稿', myRequests.length], ['ad', '広告', adHistory?.length ?? null]] as const).map(([key, label, count]) =>
+            <button key={key} role="tab" aria-selected={postKind === key} className={postKind === key ? 'selected' : ''}
+              onClick={() => setPostKind(key)}>{label}{count !== null && <span>{count}</span>}</button>)}
+        </div>
+
+        {postKind === 'request' ? <>
         <dl className="post-totals">
           <div><dt>投稿</dt><dd>{myRequests.length}<small>件</small></dd></div>
           <div><dt>募集中</dt><dd>{openPostCount}<small>件</small></dd></div>
@@ -2269,6 +2319,39 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               </div>
             </li>;
           })}</ul>}
+        </> : <>
+          {/* 広告は消せない。お金をいただいたものなので、記録ごと消してよいものではない。
+              掲載中のものは取り下げられる（withdrawingAd）。 */}
+          {adHistory === null ? <p className="my-requests-empty">読み込んでいます…</p>
+            : !adHistory.length ? <p className="my-requests-empty">まだ広告を出していません。下の「広告」から出せます。</p>
+            : <>
+              <dl className="post-totals">
+                <div><dt>掲載</dt><dd>{adHistory.length}<small>件</small></dd></div>
+                <div><dt>掲載中</dt><dd>{adHistory.filter((ad) => adState(ad).tone === 'live').length}<small>件</small></dd></div>
+                <div><dt>のべ表示</dt><dd>{adHistory.reduce((sum, ad) => sum + ad.viewCount, 0)}<small>回</small></dd></div>
+                <div><dt>クリック</dt><dd>{adHistory.reduce((sum, ad) => sum + ad.clickCount, 0)}<small>回</small></dd></div>
+              </dl>
+              <ul className="my-request-list">{adHistory.map((ad) => {
+                const state = adState(ad);
+                return <li key={ad.id} className={`my-request${state.tone === 'live' ? '' : ' is-done'}`}>
+                  <div className="my-request-top">
+                    <span className={`my-request-state is-${state.tone}`}>{state.label}</span>
+                    <small>{formatRange(ad.startDate, ad.endDate)}</small>
+                  </div>
+                  <b className="my-request-title">{ad.title || '（内容が未入力）'}</b>
+                  <p className="my-request-meta">
+                    <span>{placementName(ad.placement)}</span>
+                    {!!ad.industry && <span>{ad.industry}</span>}
+                    <span>表示 {ad.viewCount}回</span>
+                    <span>クリック {ad.clickCount}回</span>
+                  </p>
+                  {state.tone === 'live' && <div className="my-request-actions">
+                    <button className="is-danger" onClick={() => setWithdrawingAd(ad)}>掲載を取り下げる</button>
+                  </div>}
+                </li>;
+              })}</ul>
+            </>}
+        </>}
 
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section> : <section className="profile-page" aria-labelledby="profile-settings-title">
@@ -2368,6 +2451,18 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <p>募集を止めたいだけなら、削除ではなく<b>編集から「募集を終了する」</b>を選ぶと、記録とやり取りを残したまま新しいオファーを止められます。</p>
           <button className="submit-button is-danger" onClick={confirmDeleteRequest} disabled={busy}>{busy ? '削除しています…' : '削除する'}</button>
           <button className="quota-cancel" onClick={() => setDeletingRequest(null)} disabled={busy}>やめる</button>
+        </div>
+      </Modal>}
+
+      {/* 掲載の取り下げ。**戻せない。** 空いた枠はすぐ次の人が押さえられるので、そう書く。 */}
+      {withdrawingAd && <Modal title="掲載を取り下げますか" lead="取り下げると、その場で出なくなります。" onClose={() => setWithdrawingAd(null)}>
+        <div className="quota-block">
+          <p><b>{withdrawingAd.title || '（内容が未入力）'}</b></p>
+          <p>{placementName(withdrawingAd.placement)}・{formatRange(withdrawingAd.startDate, withdrawingAd.endDate)}</p>
+          <p><b>元に戻すことはできません。</b>空いた枠はほかの方がお申し込みになれる状態に戻るため、あとから掲載を再開することはできません。</p>
+          <p>残りの日数ぶんの<b>返金と、お使いになった無料券の払い戻しはございません</b>。これまでの表示数・クリック数のレポートは、そのまま残ります。</p>
+          <button className="submit-button is-danger" onClick={confirmWithdrawAd} disabled={busy}>{busy ? '取り下げています…' : '取り下げる'}</button>
+          <button className="quota-cancel" onClick={() => setWithdrawingAd(null)} disabled={busy}>やめる</button>
         </div>
       </Modal>}
 
@@ -2769,7 +2864,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                     <div className="ad-step-actions"><button type="button" onClick={() => setEditingAd('')} disabled={busy}>キャンセル</button><button className="submit-button" disabled={busy}>{busy ? '保存しています…' : '変更を保存'}</button></div>
                   </form>
                 : <>
-                    <div className="ad-slot-foot"><b>{ad.linkUrl ? ad.linkUrl.replace(/^https?:\/\//, '') : 'リンク先なし'}</b>{state.editable && <button onClick={() => startEditingAd(ad)}>掲載内容を変更</button>}</div>
+                    <div className="ad-slot-foot"><b>{ad.linkUrl ? ad.linkUrl.replace(/^https?:\/\//, '') : 'リンク先なし'}</b>{state.editable && <button onClick={() => startEditingAd(ad)}>掲載内容を変更</button>}
+                      {/* 取り下げられるのは、いま出ているものだけ。
+                          掲載前のものは「変更」で直せるし、終わったものは止めようがない。 */}
+                      {state.tone === 'live' && <button className="is-danger" onClick={() => setWithdrawingAd(ad)}>掲載を取り下げる</button>}</div>
                     {(ad.viewCount > 0 || state.tone !== 'soon') && <button className="ad-stats-open" onClick={() => toggleStats(ad.id)}>{openStats === ad.id ? 'レポートを閉じる' : '掲載レポートを見る'}<i aria-hidden="true">{openStats === ad.id ? '▴' : '▾'}</i></button>}
                     {openStats === ad.id && (adStats ? <AdAnalytics slot={adStats.slot} days={adStats.days} /> : <p className="ad-analytics-empty">読み込んでいます…</p>)}
                   </>}
