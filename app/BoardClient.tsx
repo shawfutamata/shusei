@@ -525,6 +525,23 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       ownMatching: requests.filter((item) => item.mine && isOpenRequest(item) && inGroup(item)).length,
     };
   }, [requests, stats.notifyIndustries]);
+  /**
+   * 見ている人に**関係のある業種（大分類）**。広告を当てる相手はここで決める。
+   *
+   * 使うのは**登録してある業種**（自分の業種＋おすすめに出したい業種）で、
+   * 画面でタップしている絞り込みではない。絞り込みはほとんどの人が触らないまま
+   * 見ているので、そちらで当てると、業種を指定した広告がほぼ誰にも出なくなる。
+   * メール通知はもともと登録業種で当てている。広告だけ揃っていなかった。
+   */
+  const myIndustryGroups = useMemo(() => {
+    const names = new Set<string>();
+    for (const value of [stats.primaryIndustry, ...stats.notifyIndustries]) {
+      const group = getIndustryGroup(value)?.name;
+      if (group) names.add(group);
+    }
+    return names;
+  }, [stats.primaryIndustry, stats.notifyIndustries]);
+
   const viewedRequests = useMemo(() => viewedIds.map((id) => requests.find((item) => item.id === id)).filter((item): item is BoardRequest => Boolean(item)), [requests, viewedIds]);
   const favoriteRequests = useMemo(() => favoriteIds.map((id) => requests.find((item) => item.id === id)).filter((item): item is BoardRequest => Boolean(item)), [favoriteIds, requests]);
   const canPostRequest = stats.requestLimit === UNLIMITED || stats.requestsThisMonth < stats.requestLimit;
@@ -1377,7 +1394,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       body.set('description', adDraft.description);
       body.set('linkUrl', adDraft.linkUrl);
       body.set('placement', adPlacement);
-      body.set('industry', adPlacement === 'list' ? adIndustry : '');
+      body.set('industry', adIndustry);
       body.set('startDate', adStart);
       body.set('days', String(adDays));
       // 券を使うかどうかは会員が決める。**日数はサーバーが数え直す**ので、
@@ -1659,18 +1676,32 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // 普通はここに4件以上来ない。ただし**業種を狙った広告と全業種の広告が
   // 混ざる**ので、数え方が変わったときに一覧の先頭がPRだらけになりうる。
   // どの業種を見ていても、絞り込まなくても、出るのは先頭3件まで。
+  //
+  // 当てる相手は**登録業種**（myIndustryGroups）。いま絞り込んでいる業種も足す。
+  // その業種を見に行っている人には、その業種の広告が出たほうが合っているため。
   const listAds = useMemo(() => {
+    const lookingAt = getIndustryGroup(industryFilter)?.name ?? '';
     const picked = ads.filter((ad) => ad.placement === 'list'
-      && (!ad.industry || ad.industry === (getIndustryGroup(industryFilter)?.name ?? industryFilter)));
+      && (!ad.industry || myIndustryGroups.has(ad.industry) || ad.industry === lookingAt));
     return (mounted ? shuffle(picked) : picked).slice(0, placementSlots('list'));
-  }, [ads, industryFilter, mounted]);
+  }, [ads, industryFilter, myIndustryGroups, mounted]);
 
   // 出稿された広告を先に置く。お金をいただいている枠なので、いちばん先に目に入る場所に出す。
   // 並びは開くたびに入れ替える。同じ月に出した人へ均等に順番が回るようにするため。
-  const slides = useMemo(() => [
-    ...(mounted ? shuffle(bannerAds) : bannerAds).map((ad) => ({ src: ad.imageUrl, alt: `${ad.memberName}さんの広告「${ad.title}」`, ad, to: '', sample: false })),
-    ...topBanners.map((banner) => ({ ...banner, ad: null as AdSlot | null })),
-  ], [bannerAds, mounted]);
+  //
+  // そのうえで、**業種が合うものを先に回す**。ここでやるのは並べ替えだけで、
+  // 合わないものを**外しはしない**。バナーの値打ちは「開けば全員が見る」ことで、
+  // 「10枠が3秒ずつ」と約束している以上、見せる相手を減らしてはいけない。
+  // 1周30秒を最後まで見ない人のほうが多いので、順番を寄せるだけでよく効く。
+  // sort は安定なので、寄せたあとも組の中の入れ替え（shuffle）は保たれる。
+  const slides = useMemo(() => {
+    const fits = (ad: AdSlot) => Boolean(ad.industry) && myIndustryGroups.has(ad.industry);
+    const ordered = [...(mounted ? shuffle(bannerAds) : bannerAds)].sort((a, b) => Number(fits(b)) - Number(fits(a)));
+    return [
+      ...ordered.map((ad) => ({ src: ad.imageUrl, alt: `${ad.memberName}さんの広告「${ad.title}」`, ad, to: '', sample: false })),
+      ...topBanners.map((banner) => ({ ...banner, ad: null as AdSlot | null })),
+    ];
+  }, [bannerAds, myIndustryGroups, mounted]);
   const slide = slides[Math.min(carouselIndex, slides.length - 1)];
 
   // 広告は自分から送らないと見てもらえないので、一定の間隔で次へ送る。
@@ -2777,13 +2808,21 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                         </span>
                       </button>;
                     })}</div>
-                    {adPlacement === 'list' && <label className="ad-industry-pick"><span>どの業種の一覧に出しますか <small>任意</small></span>
+                    {/* どちらの枠でも業種は選べるが、**効き方が違う**ので言い方も変える。
+                        掲示板の上位は「その方にだけ出す」、バナーは「その方に先に出す」。
+                        当たる相手は、その会員が登録している業種で決まる。 */}
+                    <label className="ad-industry-pick">
+                      <span>{adPlacement === 'list' ? <>どの業種の方に出しますか <small>任意</small></> : <>特に届けたい業種 <small>任意</small></>}</span>
                       <select value={adIndustry} onChange={(event) => setAdIndustry(event.target.value)}>
-                        <option value="">すべての業種の一覧に出す</option>
-                        {industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}の一覧だけに出す</option>)}
+                        <option value="">{adPlacement === 'list' ? 'すべての業種の方に出す' : '業種を選ばない'}</option>
+                        {industryGroups.map((group) => <option value={group.name} key={group.name}>
+                          {adPlacement === 'list' ? `${group.name}の方にだけ出す` : `${group.name}の方に先に出す`}
+                        </option>)}
                       </select>
-                      <small>業種を選ぶと、その大分類を見ている方にだけ出ます。届く人数は減りますが、その業種を探している方に確実に当たります。<br />業種で絞れるのはこの枠だけです。画面上部のバナーは、会員全員に同じものが出ます。</small>
-                    </label>}
+                      <small>{adPlacement === 'list'
+                        ? <>業種を選ぶと、その業種を登録している方にだけ出ます。届く人数は減りますが、その業種の方に確実に当たります。</>
+                        : <>バナーは<b>どちらを選んでも会員全員に出ます</b>。業種を選ぶと、その業種を登録している方の画面で<b>先のほうに回ります</b>。届く人数は減りません。</>}</small>
+                    </label>
                     <div className="ad-step-actions"><button type="button" onClick={closeAdFlow}>キャンセル</button><button type="button" className="submit-button" onClick={() => setAdStep(1)}>次へ：掲載内容</button></div>
                   </div>}
 
@@ -2845,7 +2884,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                     <p className="ad-step-head"><b>お申し込み内容</b><span>お支払いの完了後、ただちに掲載を開始します。</span></p>
                     <AdBanner ad={{ title: adDraft.title, description: adDraft.description, imageUrl: adDraft.imagePreview, by: stats.company || shownName }} />
                     <dl className="ad-check">
-                      <div><dt>掲載枠</dt><dd>{placementName(adPlacement)}<small>{currentPlacement.slots}枠のうち1枠{adPlacement === 'list' && `／${adIndustry ? `${adIndustry}の一覧` : 'すべての業種の一覧'}`}</small></dd></div><div><dt>掲載期間</dt><dd>{adStart && formatRange(adStart, shiftDate(adStart, adDays - 1))}<small>{adDays}日間</small></dd></div>
+                      <div><dt>掲載枠</dt><dd>{placementName(adPlacement)}<small>{currentPlacement.slots}枠のうち1枠{adPlacement === 'list'
+                        ? `／${adIndustry ? `${adIndustry}の方にだけ` : 'すべての業種の方に'}`
+                        : `／会員全員に${adIndustry ? `（${adIndustry}の方に先に）` : ''}`}</small></dd></div><div><dt>掲載期間</dt><dd>{adStart && formatRange(adStart, shiftDate(adStart, adDays - 1))}<small>{adDays}日間</small></dd></div>
                       <div><dt>リンク先</dt><dd>{adDraft.linkUrl ? adDraft.linkUrl.replace(/^https?:\/\//, '') : <em>設定なし</em>}</dd></div>
                       {adGiftUse > 0 && <div><dt>無料券</dt><dd>{adGiftUse}日分を使用<small>{adFreeByGift ? '掲載期間ぶんをすべて無料券でまかないます' : `残り${adChargeDays}日分をお支払いいただきます`}</small></dd></div>}
                       <div className="ad-check-pay"><dt>お支払い額</dt><dd>{adsFree || adFreeByGift ? '0円' : adTotalPrice(adPlacement, adChargeDays, adInfo.discountRate)}<small>{adsFree ? `${freeCampaign.name}のため無料（${campaignUntilLabel()}まで）` : adFreeByGift ? `無料券 ${adGiftUse}日分を使います` : <>{adDailyPrice(adPlacement)}×{adChargeDays}日{adInfo.discountRate > 0 && `・${adInfo.rank}の${Math.round(adInfo.discountRate * 100)}%OFF`}・税込・1回のみ</>}</small></dd></div>

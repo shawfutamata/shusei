@@ -36,9 +36,11 @@ export async function POST(request: Request) {
   // どこに出すか。知らない値が来たらバナー扱いにせず、はっきり断る。
   const placement = String(form.get('placement') ?? DEFAULT_PLACEMENT);
   if (!isAdPlacement(placement)) return NextResponse.json({ error: '掲載する場所をお選びください。' }, { status: 400 });
-  // 掲示板の上位だけ、大分類を1つ狙える。空なら全業種の先頭に出る。
+  // どちらの枠でも大分類を1つ狙える。ただし**効き方が違う**。
+  // 掲示板の上位は絞り込み（その業種の会員にだけ出る）。バナーは並べ替えだけで、
+  // 出る相手は全会員のまま変わらない。詳しくは AdSlot.industry の注記。
   const industryRaw = String(form.get('industry') ?? '').trim();
-  const industry = placement === 'list' && industryGroups.some((group) => group.name === industryRaw) ? industryRaw : '';
+  const industry = industryGroups.some((group) => group.name === industryRaw) ? industryRaw : '';
   const maxDays = AD_MAX_DAYS_ALL;
   if (!startDate) return NextResponse.json({ error: '掲載を始める日をお選びください。' }, { status: 400 });
   if (!Number.isInteger(days) || days < AD_MIN_DAYS || days > maxDays) {
