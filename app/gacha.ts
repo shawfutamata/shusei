@@ -12,6 +12,8 @@
 // （AD_MIN_DAYS）、1日券が2枚たまれば、それだけで無料で出せる。
 // 毎日ちょっとずつ増えるほうが、毎日開く理由になる。
 
+import { adsFreeNow, freeCampaign } from './campaign';
+
 /** 当たりの中身。日数は広告の無料券としてそのまま積み上がる。 */
 export type GachaPrize = {
   key: string;
@@ -221,6 +223,10 @@ export const adGacha = {
  * 日付の入っていない回（ふだんの回）が最後にあるので、ふつうは null にならない。
  */
 export function gachaSeason(now = new Date()): GachaSeason | null {
+  // **広告が無料のあいだは開けない。** 当たるのは広告の無料券なので、
+  // 広告そのものがタダの期間に配っても、当たった値打ちが出ない。
+  // キャンペーンが終われば、何もしなくてもまた開く。
+  if (adsFreeNow(now)) return null;
   const today = jstDate(now);
   return adGacha.seasons.find((season) =>
     (!season.from || today >= season.from) && (!season.until || today <= season.until)) ?? null;
@@ -230,9 +236,16 @@ export function gachaOpen(now = new Date()) {
   return gachaSeason(now) !== null;
 }
 
-/** 当たった日から数えた券の期限。 */
+/**
+ * 当たった日から数えた券の期限。
+ *
+ * ただし**キャンペーンが終わる日より前には切れない**。広告が無料の
+ * あいだは券を使えないので、そこで切れると当たっただけ損になる。
+ * 期間が終わってから、あらためて `giftValidDays` 日ぶん使える。
+ */
 export function giftExpiryFrom(day: string) {
-  const date = new Date(`${day}T00:00:00Z`);
+  const from = freeCampaign.until && day <= freeCampaign.until ? freeCampaign.until : day;
+  const date = new Date(`${from}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + adGacha.giftValidDays);
   return date.toISOString().slice(0, 10);
 }

@@ -11,6 +11,7 @@ import { EXTEND_DAYS, MAX_LEVEL, canExtendRequest, canPostVideo, descriptionLimi
 import { isAdminEmail } from '@/app/admin-emails';
 import { sampleRequests } from './sample-requests';
 import { effectivePlanState, isPlanOverridden } from '@/app/effective-plan';
+import { freeCampaign } from '@/app/campaign';
 import { matchesIndustry } from '@/app/industry-options';
 import { toBudgetBand } from '@/app/budget-options';
 
@@ -701,6 +702,14 @@ export async function ensureDatabase() {
       activated_at = CASE WHEN activated_at = '' THEN created_at ELSE activated_at END
     WHERE membership_status = 'invited'`).run();
   await env.DB.prepare("UPDATE members SET plan = 'premium' WHERE plan = 'pro'").run();
+  // 広告が無料のあいだは券を使えないので、**キャンペーン中に切れる券を延ばす。**
+  // すでに配った券は当たった日から90日で書き込んであり、このままだと
+  // 使えるようになる前に切れる。使っていない券だけを、期間のあとへ送る。
+  if (freeCampaign.until) {
+    await env.DB.prepare(`UPDATE ad_gifts SET expires_on = ?
+      WHERE used_ad_id = '' AND days_left > 0 AND expires_on != '' AND expires_on <= ?`)
+      .bind(giftExpiryFrom(freeCampaign.until), freeCampaign.until).run();
+  }
   // 会員番号を、**登録の早い順**に振る。すでに番号がある人は動かさない
   // （番号は名簿や請求書に出るので、あとから変わってはいけない）。
   await env.DB.prepare(`UPDATE members SET member_no = (
