@@ -213,7 +213,7 @@ type AdOffer = {
   discountRate: number;
   maxDays: number; daysAhead: number;
   /** 出せる場所。バナーと仕事の掲示板の上位。 */
-  placements: { key: string; name: string; where: string; detail: string; slots: number }[];
+  placements: { key: string; name: string; where: string; detail: string; fit: string; slots: number }[];
   /** 空きは場所ごとに違うので、場所をキーにして持つ。 */
   calendars: Record<string, AdCalendarDay[]>;
   slots: AdSlot[];
@@ -2769,6 +2769,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                           <b>{item.name}<em>{item.slots}枠</em></b>
                           <small>{item.where}</small>
                           <small>{item.detail}</small>
+                          {/* どちらを選べばよいか。**枠の違いより先に、自分が当てはまるか**で決められる。 */}
+                          <span className="ad-placement-fit"><em>こんな人におすすめ</em>{item.fit}</span>
                           <i className={firstOpen ? '' : 'is-full'}>{!firstOpen ? 'ただいま満枠です'
                             : fromToday ? `${item.slots}枠のうち 残り${firstOpen.remaining}枠`
                             : `${formatDay(firstOpen.date)}から 残り${firstOpen.remaining}枠`}</i>
@@ -2780,7 +2782,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                         <option value="">すべての業種の一覧に出す</option>
                         {industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}の一覧だけに出す</option>)}
                       </select>
-                      <small>業種を選ぶと、その大分類を見ている方にだけ出ます。届く人数は減りますが、その業種を探している方に確実に当たります。</small>
+                      <small>業種を選ぶと、その大分類を見ている方にだけ出ます。届く人数は減りますが、その業種を探している方に確実に当たります。<br />業種で絞れるのはこの枠だけです。画面上部のバナーは、会員全員に同じものが出ます。</small>
                     </label>}
                     <div className="ad-step-actions"><button type="button" onClick={closeAdFlow}>キャンセル</button><button type="button" className="submit-button" onClick={() => setAdStep(1)}>次へ：掲載内容</button></div>
                   </div>}
@@ -3145,13 +3147,6 @@ function shortDate(value: string) {
   return sameDay
     ? `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
     : `${date.getMonth() + 1}/${date.getDate()}`;
-}
-
-/** おすすめ。**星ひとつ**。線の太さと角の丸めは、ほかの項目に合わせてある。 */
-function RecommendIcon() {
-  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-    <path d="m12 3.6 2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 17.13l-5.3 2.78 1.01-5.9-4.29-4.18 5.93-.86z" />
-  </svg>;
 }
 
 /** 個別メッセージ。**吹き出しひとつ**。オファーの受け箱（封筒）と見分ける。 */
