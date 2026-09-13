@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { AdminMemberDetail } from '@/db/admin';
 import { placementName } from '@/app/ad-options';
+import { memberNoLabel } from '@/app/brand';
 import { revenueBands } from '@/app/profile-options';
 
 /**
@@ -54,7 +55,7 @@ export default function MemberDetail({ memberId, onClose }: { memberId: string; 
             <div className="mdetail-who">
               <h2>{detail.displayName || '(名前なし)'}</h2>
               <p>{[detail.positionTitle, detail.company].filter(Boolean).join('｜') || '会社名なし'}</p>
-              <p className="mdetail-mail">{detail.email}</p>
+              <p className="mdetail-mail">{memberNoLabel(detail.memberNo)}　{detail.email}</p>
             </div>
             <ul className="mdetail-chips">
               <li className={detail.canUse ? 'is-on' : 'is-off'}>{detail.canUse ? '利用中' : '停止中'}</li>

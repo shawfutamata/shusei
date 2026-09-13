@@ -70,6 +70,11 @@ export type BoardRequest = {
 export type MemberStats = {
   /** 自分の会員ID。「これは自分あてのやり取りか」を画面で見分けるのに使う。 */
   memberId: string;
+  /**
+   * 人が読める会員番号。**お問い合わせのときに伝えてもらうためのもの。**
+   * 中の処理は memberId で動いていて、こちらは呼び名にすぎない（app/brand.ts）。
+   */
+  memberNo: number;
   displayName: string;
   /** お名前のふりがな。会員が自分で入れる。 */
   nameKana: string;
@@ -576,6 +581,10 @@ export async function ensureDatabase() {
     // メッセージが届いたときにメールで知らせるか。**既定は送る。**
     // 毎日開く習慣がまだ無いうちは、届いたことに気づく道がこれしかない。
     ['mail_on_message', 'ALTER TABLE members ADD COLUMN mail_on_message INTEGER NOT NULL DEFAULT 1'],
+    // 人が読める会員番号。名簿・請求・問い合わせで「何番の方」と言うためのもの。
+    // **内部のIDは members.id のままで、こちらは呼び名にすぎない。**
+    // 0 は「まだ振っていない」。下の一度きりの処理と upsertMember で埋める。
+    ['member_no', 'ALTER TABLE members ADD COLUMN member_no INTEGER NOT NULL DEFAULT 0'],
   ];
   for (const [columnName, sql] of missingColumns) {
     if (existingColumns.has(columnName)) continue;
@@ -688,6 +697,14 @@ export async function ensureDatabase() {
       activated_at = CASE WHEN activated_at = '' THEN created_at ELSE activated_at END
     WHERE membership_status = 'invited'`).run();
   await env.DB.prepare("UPDATE members SET plan = 'premium' WHERE plan = 'pro'").run();
+  // 会員番号を、**登録の早い順**に振る。すでに番号がある人は動かさない
+  // （番号は名簿や請求書に出るので、あとから変わってはいけない）。
+  await env.DB.prepare(`UPDATE members SET member_no = (
+      SELECT COUNT(*) FROM members AS earlier
+      WHERE earlier.created_at < members.created_at
+         OR (earlier.created_at = members.created_at AND earlier.id <= members.id)
+    ) WHERE member_no = 0`).run();
+  await env.DB.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_members_no ON members(member_no) WHERE member_no > 0').run();
   await seedDemoData();
   initialized = true;
 }
@@ -1057,6 +1074,10 @@ export async function upsertMember(user: SessionUser) {
   await env.DB.prepare(`INSERT INTO members (id, email, display_name, membership_status, created_at)
     VALUES (?, ?, ?, 'invited', ?)
     ON CONFLICT(id) DO UPDATE SET email = excluded.email, display_name = excluded.display_name`).bind(user.userId, user.email, user.displayName, now).run();
+  // 会員番号を振る。**まだ0の人だけ**なので、何度呼んでも番号は変わらない。
+  // D1は1つずつ順に書くので、同じ番号が2人に付くことはない。
+  await env.DB.prepare(`UPDATE members SET member_no = (SELECT COALESCE(MAX(member_no), 0) + 1 FROM members)
+    WHERE id = ? AND member_no = 0`).bind(user.userId).run();
 }
 
 /**
@@ -1122,7 +1143,7 @@ export async function getBoardData(user: SessionUser) {
     .bind(user.userId, new Date().toISOString())
     .all<Omit<BoardRequest, 'industryTags' | 'thumbUrl' | 'imageUrl' | 'imageUrls' | 'mine'> & { industryTagsJson: string; imageVersion: number; imageCount: number; videoVersion: number; authorId: string; authorAvatarKey: string; authorAvatarVersion: number }>();
 
-  const member = await env.DB.prepare(`SELECT display_name AS displayName, name_kana AS nameKana,
+  const member = await env.DB.prepare(`SELECT member_no AS memberNo, display_name AS displayName, name_kana AS nameKana,
     venue, company, company_kana AS companyKana,
     position_title AS positionTitle, business_area AS businessArea,
     primary_industry AS primaryIndustry, notify_industries AS notifyIndustriesJson,
@@ -1138,7 +1159,7 @@ export async function getBoardData(user: SessionUser) {
     (SELECT COUNT(*) FROM members inv WHERE inv.invited_by = members.id) AS inviteCount
     FROM members WHERE id = ?`).bind(user.userId).first<Omit<MemberStats, 'rank' | 'level' | 'nextRankAt' | 'avatarUrl' | 'notifyIndustries'> & { notifyIndustriesJson: string; avatarKey: string; avatarVersion: number }>();
 
-  const baseMember = member ?? { displayName: user.displayName, nameKana: '', venue: 'ひるのめぐろ会場', company: '', companyKana: '', positionTitle: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', facebookUrl: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, inviteCount: 0, dealCount: 0 };
+  const baseMember = member ?? { memberNo: 0, displayName: user.displayName, nameKana: '', venue: 'ひるのめぐろ会場', company: '', companyKana: '', positionTitle: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', facebookUrl: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, inviteCount: 0, dealCount: 0 };
   const { notifyIndustriesJson, ...memberFields } = baseMember;
   const plan = await getPlanSummary(user.userId);
   const stats = calculateRank({ ...memberFields, memberId: user.userId, notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion),

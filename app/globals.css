@@ -2464,3 +2464,7 @@ body { font-weight:600; }
 .mdetail-facts dd { margin:0; color:var(--navy); font-size:12px; font-weight:800; word-break:break-all; }
 .mdetail-facts dd i { color:#b3bdcc; font-style:normal; font-weight:700; }
 .mdetail-facts dd a { color:var(--blue-dark); }
+
+/* 管理画面の会員番号。名簿と突き合わせるときに拾いやすいよう、
+   等幅ぎみの数字にして、ほかの項目より少し濃くする。 */
+.admin-no { color:#4a5c76 !important; font-weight:900 !important; font-variant-numeric:tabular-nums; }

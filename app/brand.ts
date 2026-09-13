@@ -16,3 +16,17 @@ export const serviceTagline = 'こんな人、探しています。';
  * ここを変えたら、Stripeのwebhook宛先とGoogleのリダイレクトURIも登録し直すこと。
  */
 export const serviceUrl = 'https://tasuki.club';
+
+/**
+ * 会員番号の見せ方。`members.member_no`（ただの連番）に頭を付けて、
+ * 名簿や請求書で「TSK-0007番の方」と言えるようにする。
+ *
+ * **番号そのものは変えない。** サービス名を変えるときは、ここの頭だけ直す。
+ * 4桁でゼロ詰めしてあるのは、名簿に並べたときに桁が揃うようにするため。
+ * 1万人を超えたら5桁になるだけで、番号は振り直さない。
+ */
+export const memberNoPrefix = 'TSK';
+
+export function memberNoLabel(memberNo: number) {
+  return memberNo > 0 ? `${memberNoPrefix}-${String(memberNo).padStart(4, '0')}` : '';
+}

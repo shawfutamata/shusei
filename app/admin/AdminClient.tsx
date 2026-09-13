@@ -6,6 +6,7 @@ import type { BackupEntry } from '@/db/backup';
 import { placementName } from '@/app/ad-options';
 import { rankNames } from '@/app/rank-perks';
 import BrandMark from '@/app/BrandMark';
+import { memberNoLabel } from '@/app/brand';
 import { BarList, TrendChart } from './Charts';
 import MemberDetail from './MemberDetail';
 
@@ -130,6 +131,9 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       <span className={`admin-state ${member.canUse ? 'is-on' : 'is-off'}`}>{member.canUse ? '利用中' : '停止中'}</span>
     </div>
     <p className="admin-meta">
+      {/* 会員番号は**いちばん前**に出す。名簿と突き合わせるとき、
+          名前より先に目が行く場所にあったほうが早い。 */}
+      <span className="admin-no">{memberNoLabel(member.memberNo) || '番号なし'}</span>
       <span>{member.company || '会社名なし'}</span><span>{member.email}</span>
     </p>
     <p className="admin-meta">

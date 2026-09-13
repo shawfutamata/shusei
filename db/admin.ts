@@ -36,7 +36,10 @@ export type AdminSummary = {
 };
 
 export type AdminMember = {
-  id: string; email: string; displayName: string; company: string;
+  id: string;
+  /** 人が読める会員番号。名簿と突き合わせるための呼び名（app/brand.ts）。 */
+  memberNo: number;
+  email: string; displayName: string; company: string;
   status: string;
   /**
    * **実効プラン。** `members.plan` の列をそのまま出さない。
@@ -138,7 +141,7 @@ export async function adminMembers(keyword = '', limit = 200): Promise<AdminMemb
     ? `WHERE (m.display_name LIKE ?1 ESCAPE '\\' OR m.company LIKE ?1 ESCAPE '\\'
         OR m.email LIKE ?1 ESCAPE '\\')`
     : '';
-  const statement = env.DB.prepare(`SELECT m.id, m.email, m.display_name AS displayName, m.company,
+  const statement = env.DB.prepare(`SELECT m.id, m.member_no AS memberNo, m.email, m.display_name AS displayName, m.company,
     m.membership_status AS status, m.intro_count AS introCount, m.created_at AS createdAt,
     m.plan AS storedPlan, m.plan_period_end AS planPeriodEnd,
     m.bonus_plan AS bonusPlan, m.bonus_period_end AS bonusPeriodEnd,
@@ -438,7 +441,7 @@ export async function adminAnalytics(days = 90): Promise<AdminAnalytics> {
 // 運営が読めるようにすると、会員に「読まれている」と伝えなければならなくなる。
 
 export type AdminMemberDetail = {
-  id: string; email: string; displayName: string; nameKana: string;
+  id: string; memberNo: number; email: string; displayName: string; nameKana: string;
   company: string; companyKana: string; positionTitle: string;
   businessArea: string; primaryIndustry: string; notifyIndustries: string[];
   annualRevenueBand: string; facebookUrl: string;
@@ -493,7 +496,7 @@ export type AdminMemberDetail = {
 
 export async function adminMemberDetail(memberId: string): Promise<AdminMemberDetail | null> {
   await ensureDatabase();
-  const row = await env.DB.prepare(`SELECT id, email, display_name AS displayName, name_kana AS nameKana,
+  const row = await env.DB.prepare(`SELECT id, member_no AS memberNo, email, display_name AS displayName, name_kana AS nameKana,
       company, company_kana AS companyKana, position_title AS positionTitle,
       business_area AS businessArea, primary_industry AS primaryIndustry,
       notify_industries AS notifyIndustriesJson, annual_revenue_band AS annualRevenueBand,
@@ -577,7 +580,7 @@ export async function adminMemberDetail(memberId: string): Promise<AdminMemberDe
   const usedDays = adRows.reduce((sum, ad) => sum + Number(ad.giftDays ?? 0), 0);
 
   return {
-    id: String(row.id), email,
+    id: String(row.id), memberNo: Number(row.memberNo ?? 0), email,
     displayName: String(row.displayName ?? ''), nameKana: String(row.nameKana ?? ''),
     company: String(row.company ?? ''), companyKana: String(row.companyKana ?? ''),
     positionTitle: String(row.positionTitle ?? ''),

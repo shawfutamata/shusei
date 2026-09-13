@@ -23,7 +23,7 @@ import type { BillingRecord } from './stripe';
 import PerkIcon from './PerkIcon';
 import { AD_MIN_DAYS, AD_ROTATE_MS, DEFAULT_PLACEMENT, adPlacements, placementName, placementSlots } from './ad-options';
 import { EXTEND_DAYS, PHOTO_LIMIT_TOP, canExtendRequest, canFilterByBudget, canPostVideo, descriptionLimit, notifyIndustryLimit, photoLimit, rankNames, rankPerks, rankThresholds } from './rank-perks';
-import { serviceName } from './brand';
+import { memberNoLabel, serviceName } from './brand';
 import BrandMark from './BrandMark';
 import { VIDEO_MAX_SECONDS, compressVideo } from './compress-video';
 import { detailImage, listThumbnail } from './resize-image';
@@ -1966,6 +1966,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <h2 className="rank-slim-title">{stats.rank}</h2>
           <p className="rank-slim-sub">MEMBER</p>
           <div className="rank-slim-foot">
+            {/* 会員番号は**名前の前**に置く。名簿やお問い合わせで先に聞かれるのが
+                こちらなので、カードを見せたときに目が行く順にしておく。 */}
+            {stats.memberNo > 0 && <span><small>会員番号</small><b>{memberNoLabel(stats.memberNo)}</b></span>}
             <span><small>会員名</small><b>{shownName}</b></span>
           </div>
           <span className="rank-slim-more">特典を見る ›</span>
