@@ -56,3 +56,21 @@ export const listThumbnail = (file: File) => shrinkImage(file, 480, 0.72);
 
 /** 詳細で見る版。拡大しても粗くならない大きさ。 */
 export const detailImage = (file: File) => shrinkImage(file, 1400, 0.8);
+
+/**
+ * メッセージに付ける画像。**送る前に端末で焼き直す。**
+ *
+ * 置き場（R2）を増やしすぎないための上限は長辺1400px。案件の詳細用と同じ
+ * 大きさで、画面で見るぶんには足りる。品質を少し落としてあるのは、
+ * やり取りの画像は数が出るため。
+ *
+ * 読めない画像のときは**投げる**。ここで元のまま返すと、HEICのまま送られて
+ * 受け取り側で弾かれ、送った人には理由が分からない。
+ */
+export async function messageImage(file: File) {
+  const shrunk = await shrinkImage(file, 1400, 0.72);
+  // shrinkImage は読めないと元のファイルをそのまま返す。焼き直せたかどうかは
+  // 種類で分かる（焼き直せていれば必ず image/jpeg）。
+  if (shrunk === file && file.type !== 'image/jpeg') throw new Error('画像を読み込めませんでした');
+  return shrunk;
+}

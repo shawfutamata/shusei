@@ -1426,29 +1426,6 @@ body { font-weight:600; }
 
 /* 紹介1件ごとのやり取り。**投稿者と紹介者の2人だけ**が読める場所なので、
    掲示板のコメント欄とは見た目を分け、チャットの形にする。 */
-.intro-chat { margin-top:14px; padding-top:14px; border-top:1px solid #e4e9f1; }
-.intro-chat-head { margin:0 0 10px; }
-.intro-chat-head b { display:block; color:#34445d; font-size:12px; }
-.intro-chat-head small { display:block; margin-top:3px; color:#8794a7; font-size:10px; line-height:1.6; }
-.intro-chat-loading { margin:0; padding:14px; border-radius:10px; background:#f6f8fb; color:#8794a7; font-size:11px; text-align:center; }
-.intro-chat-list { margin:0; padding:0; list-style:none; max-height:280px; overflow-y:auto; display:grid; gap:10px; }
-.intro-chat-empty { padding:14px; border-radius:10px; background:#f6f8fb; color:#8794a7; font-size:11px; line-height:1.7; text-align:center; }
-.intro-chat-list li { display:flex; align-items:flex-start; gap:8px; }
-.intro-chat-list li.is-mine { flex-direction:row-reverse; }
-.intro-chat-face { width:28px; height:28px; flex:0 0 auto; display:grid; place-items:center; overflow:hidden; border-radius:50%; background:#dbeafe; color:#1478d6; font-size:12px; font-weight:900; object-fit:cover; }
-.intro-chat-list li > div { min-width:0; max-width:78%; }
-.intro-chat-bubble { margin:0; padding:10px 12px; border-radius:13px 13px 13px 4px; background:#f1f4f9; color:#33425a; font-size:13px; line-height:1.75; white-space:pre-wrap; overflow-wrap:anywhere; }
-.intro-chat-list li.is-mine .intro-chat-bubble { border-radius:13px 13px 4px; background:var(--blue); color:#fff; }
-.intro-chat-list li small { display:block; margin-top:4px; color:#a4b0c1; font-size:9px; font-weight:700; }
-.intro-chat-list li.is-mine small { text-align:right; }
-.intro-chat-form { margin-top:11px; display:grid; gap:9px; }
-.intro-chat-form textarea { width:100%; min-height:96px; padding:12px 13px; border:1px solid #d7deea; border-radius:11px; background:#fff; color:var(--ink); font-size:15px; line-height:1.75; outline:none; resize:none; overflow-y:auto; }
-.intro-chat-form textarea:focus { border-color:#54b8ee; box-shadow:0 0 0 3px #dbeafe; }
-.intro-chat-send { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-.intro-chat-send small { color:#a4b0c1; font-size:10px; font-weight:700; }
-.intro-chat-form button { min-height:48px; padding:0 24px; border:0; border-radius:11px; background:var(--blue); color:#fff; font-size:14px; font-weight:800; cursor:pointer; }
-.intro-chat-form button:disabled { opacity:.5; cursor:not-allowed; }
-.intro-chat-error { margin:8px 0 0; color:#b4380f; font-size:11px; font-weight:700; }
 
 /* マイページのメニュー。**それぞれが下層ページの入口**で、マイページ自体
    には中身を並べない。全部を1枚に積むと下の欄が遠くなり、見られなくなる。
@@ -2509,3 +2486,91 @@ body { font-weight:600; }
 .member-pr { margin:13px 0 0; padding:13px 15px; border:1px solid #e3ebf6; border-radius:13px;
   background:#f7faff; color:#3f4d63; font-size:13px; font-weight:600; line-height:1.85;
   white-space:pre-wrap; word-break:break-word; }
+
+/* --- メッセージのやり取り -------------------------------------------------------
+   **よくあるメッセージアプリと同じ形。** 自分は右、相手は左、入力は下。
+   ふだん使っているものと同じ並びなら、説明しなくても使える。
+
+   **押せるものしか置かない。** カメラ・マイク・絵文字・いいねは付けていない。
+   並んでいるのに押しても何も起きないボタンは、できないことを探させるだけ。 */
+.chat { margin-top:14px; padding-top:14px; border-top:1px solid #e4e9f1; }
+.chat-head { margin:0 0 10px; }
+.chat-head b { display:block; color:#34445d; font-size:13px; }
+.chat-head small { display:block; margin-top:3px; color:#8794a7; font-size:11px; line-height:1.6; }
+.chat-loading, .chat-empty { margin:0; padding:16px; border-radius:12px; background:#f6f8fb;
+  color:#8794a7; font-size:12px; line-height:1.75; text-align:center; }
+
+.chat-list { margin:0; padding:2px 0; list-style:none; max-height:min(52vh,420px); overflow-y:auto;
+  display:grid; gap:3px; }
+/* 人が変わるところだけ間を空ける。1通ごとに空けると、話の固まりが見えない。 */
+.chat-list li.is-first { margin-top:11px; }
+.chat-list li:first-child { margin-top:0; }
+.chat-list li { display:flex; align-items:flex-end; gap:7px; }
+.chat-list li.is-mine { flex-direction:row-reverse; }
+/* 続けて送ったぶんは顔を出さないが、**場所は空けたまま**にする。
+   詰めると吹き出しの左端が揃わず、階段に見える。 */
+.chat-face { width:28px; height:28px; flex:0 0 auto; display:grid; place-items:center; overflow:hidden;
+  border-radius:50%; background:#dbeafe; color:#1478d6; font-size:12px; font-weight:900; }
+.chat-face img { width:100%; height:100%; object-fit:cover; }
+.chat-face i { font-style:normal; }
+.chat-body { min-width:0; max-width:76%; display:flex; flex-direction:column; align-items:flex-start; }
+.chat-list li.is-mine .chat-body { align-items:flex-end; }
+.chat-name { margin:0 0 3px; color:#8794a7; font-size:10px; font-weight:800; }
+
+.chat-bubble { margin:0; padding:9px 13px; border-radius:16px; background:#f1f4f9; color:#33425a;
+  font-size:14px; line-height:1.7; white-space:pre-wrap; overflow-wrap:anywhere; }
+.chat-list li.is-mine .chat-bubble { background:var(--blue); color:#fff; }
+
+/* 送られた画像。**吹き出しの色は付けない。** 写真に枠の色がかぶると濁る。 */
+.chat-photo { display:block; max-width:230px; overflow:hidden; border:1px solid #e4e9f1; border-radius:16px; }
+.chat-photo img { width:100%; display:block; }
+.chat-bubble + .chat-photo, .chat-photo + .chat-bubble { margin-top:4px; }
+.chat-gone { margin:0; padding:12px 14px; border:1px dashed #d7deea; border-radius:14px;
+  color:#9aa7b8; font-size:11px; font-weight:700; }
+
+.chat-when { margin-top:3px; display:flex; align-items:center; gap:8px;
+  color:#a4b0c1; font-size:10px; font-weight:700; }
+.chat-delete { padding:0; border:0; background:none; color:#b4380f; font:inherit; font-size:10px;
+  font-weight:800; text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
+
+/* 入力。**1本の帯**にまとめる。写真・入力・送信だけ。 */
+.chat-form { margin-top:10px; }
+.chat-bar { display:flex; align-items:flex-end; gap:7px; }
+.chat-bar textarea { flex:1 1 auto; min-width:0; min-height:44px; padding:11px 14px;
+  border:1px solid #d7deea; border-radius:22px; background:#fff; color:var(--ink);
+  font-family:inherit; font-size:15px; line-height:1.5; outline:none; resize:none; overflow-y:auto; }
+.chat-bar textarea:focus { border-color:#54b8ee; box-shadow:0 0 0 3px #dbeafe; }
+.chat-pick, .chat-send { width:42px; height:42px; flex:0 0 auto; display:grid; place-items:center;
+  border:0; border-radius:50%; cursor:pointer; }
+.chat-pick { background:#eef4fd; color:#0f5fc4; }
+.chat-pick:hover { background:#e0ecfb; }
+.chat-pick input { display:none; }
+.chat-pick svg, .chat-send svg { width:21px; height:21px; }
+.chat-send { background:var(--blue); color:#fff; }
+.chat-send:disabled { background:#e4e9f1; color:#aab5c5; cursor:not-allowed; }
+.chat-count { display:block; margin-top:6px; color:#a4b0c1; font-size:10px; font-weight:700; text-align:right; }
+
+/* 送る前の画像。外せるように×を重ねる。 */
+.chat-draft { margin-bottom:8px; position:relative; width:112px; }
+.chat-draft img { width:100%; display:block; border:1px solid #e4e9f1; border-radius:12px; }
+.chat-draft button { position:absolute; right:-7px; top:-7px; width:24px; height:24px; border:0;
+  border-radius:50%; background:#33425a; color:#fff; font-size:14px; line-height:1; cursor:pointer; }
+.chat-error { margin:8px 0 0; color:#b4380f; font-size:12px; font-weight:700; }
+
+/* 削除の確認。**取り消せないので、必ず一度止める。** */
+.chat-confirm { position:fixed; inset:0; z-index:120; display:grid; place-items:center; padding:20px;
+  background:rgba(15,35,70,.5); }
+.chat-confirm-box { width:min(340px,100%); padding:20px; border-radius:18px; background:#fff;
+  box-shadow:0 20px 60px rgba(12,40,90,.3); }
+.chat-confirm-box > b { display:block; color:var(--navy); font-size:16px; }
+.chat-confirm-box > p { margin:9px 0 0; color:#5f7088; font-size:13px; font-weight:600; line-height:1.75; }
+.chat-confirm-box > p b { color:#b4380f; font-weight:900; }
+/* 消そうとしているものを見せる。取り違えて消すのを防ぐ。 */
+.chat-confirm-quote { display:block; margin:12px 0 0; padding:11px 13px; border-radius:11px;
+  background:#f6f8fb; color:#5f7088; font-size:12px; font-style:normal; line-height:1.7;
+  max-height:88px; overflow:hidden; }
+.chat-confirm-actions { margin-top:17px; display:flex; gap:9px; }
+.chat-confirm-actions button { flex:1 1 0; min-height:46px; border:1px solid #d7deea; border-radius:12px;
+  background:#fff; color:#5f7088; font-family:inherit; font-size:14px; font-weight:800; cursor:pointer; }
+.chat-confirm-actions button.is-danger { border-color:#d93025; background:#d93025; color:#fff; }
+.chat-confirm-actions button:disabled { opacity:.55; cursor:not-allowed; }

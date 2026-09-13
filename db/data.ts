@@ -13,6 +13,7 @@ import { sampleRequests } from './sample-requests';
 import { effectivePlanState, isPlanOverridden } from '@/app/effective-plan';
 import { freeCampaign } from '@/app/campaign';
 import { matchesIndustry } from '@/app/industry-options';
+import { MESSAGE_IMAGE_DAYS } from '@/app/message-options';
 import { toBudgetBand } from '@/app/budget-options';
 
 export type BoardRequest = {
@@ -193,7 +194,44 @@ export type IntroductionMessage = {
   senderAvatarUrl: string;
   /** 自分が書いたものか。吹き出しを左右に分けるのに使う。 */
   mine: boolean;
+  /**
+   * 付いている画像のURL。無ければ空。
+   * **期限を過ぎたものも空になる**（下の `imageExpired` で見分ける）。
+   */
+  imageUrl: string;
+  /** 画像は付いていたが、保存の期限を過ぎている。 */
+  imageExpired: boolean;
 };
+
+
+/** メッセージの画像の置き場。**会員の写真と同じバケット**（R2は1つで足りる）。 */
+export function messageImageKey(messageId: string) {
+  return `message-images/${messageId}`;
+}
+
+/** 画像の期限が切れているか。送った日から数える。 */
+function messageImageExpired(createdAt: string) {
+  return Date.now() - Date.parse(createdAt) > MESSAGE_IMAGE_DAYS * 86400_000;
+}
+
+/** 3つの表から読んだ行を、画面が使う形に揃える。**3か所で同じことを書かない。** */
+type MessageRow = {
+  id: string; body: string; createdAt: string; senderId: string; imageKey: string;
+  senderName: string; senderAvatarKey: string; senderAvatarVersion: number;
+};
+
+function toMessages(rows: MessageRow[], userId: string): IntroductionMessage[] {
+  return rows.map(({ senderId, senderAvatarKey, senderAvatarVersion, imageKey, ...row }) => {
+    const expired = Boolean(imageKey) && messageImageExpired(row.createdAt);
+    return {
+      ...row,
+      senderAvatarUrl: avatarUrl(senderId, senderAvatarKey, senderAvatarVersion),
+      mine: senderId === userId,
+      imageUrl: imageKey && !expired ? `/api/messages/${encodeURIComponent(row.id)}/image` : '',
+      imageExpired: expired,
+    };
+  });
+}
 
 /** 自分が出した紹介。相手（投稿者）とやり取りするために返す。 */
 export type SentIntroduction = {
@@ -714,6 +752,15 @@ export async function ensureDatabase() {
     await env.DB.prepare(`UPDATE ad_gifts SET expires_on = ?
       WHERE used_ad_id = '' AND days_left > 0 AND expires_on != '' AND expires_on <= ?`)
       .bind(giftExpiryFrom(freeCampaign.until), freeCampaign.until).run();
+  }
+  // メッセージに画像を付けられるようにする。**3つの表に同じ列を足す。**
+  // やり取りの入れ物が3つある（案件のオファー／広告のオファー／じかのやり取り）
+  // ので、片方だけ足すと画面によって画像が出たり出なかったりする。
+  for (const table of ['introduction_messages', 'ad_introduction_messages', 'direct_messages'] as const) {
+    const columns = await env.DB.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>();
+    if (!columns.results.some((column) => column.name === 'image_key')) {
+      await env.DB.prepare(`ALTER TABLE ${table} ADD COLUMN image_key TEXT NOT NULL DEFAULT ''`).run();
+    }
   }
   // 会員番号を、**登録の早い順**に振る。すでに番号がある人は動かさない
   // （番号は名簿や請求書に出るので、あとから変わってはいけない）。
@@ -1608,37 +1655,142 @@ export async function listIntroductionMessages(user: SessionUser, introductionId
   const access = await introductionPartner(user.userId, introductionId);
   if (!access) throw new Error('このやり取りは表示できません。');
   await requireOfferChatAccess(user.userId, access.isAuthor);
-  const rows = await env.DB.prepare(`SELECT n.id, n.body, n.created_at AS createdAt, n.sender_id AS senderId,
+  const rows = await env.DB.prepare(`SELECT n.id, n.body, n.created_at AS createdAt, n.sender_id AS senderId, n.image_key AS imageKey,
       m.display_name AS senderName, m.avatar_key AS senderAvatarKey, m.avatar_version AS senderAvatarVersion
     FROM introduction_messages n JOIN members m ON m.id = n.sender_id
     WHERE n.introduction_id = ? ORDER BY n.created_at ASC`)
-    .bind(introductionId).all<{ id: string; body: string; createdAt: string; senderId: string;
-      senderName: string; senderAvatarKey: string; senderAvatarVersion: number }>();
-  return rows.results.map(({ senderId, senderAvatarKey, senderAvatarVersion, ...row }) => ({
-    ...row,
-    senderAvatarUrl: avatarUrl(senderId, senderAvatarKey, senderAvatarVersion),
-    mine: senderId === user.userId,
-  }));
+    .bind(introductionId).all<MessageRow>();
+  return toMessages(rows.results, user.userId);
 }
 
 export const INTRODUCTION_MESSAGE_MAX = 1000;
 
+/** 送るときに付けられる画像。端末でJPEGに焼き直したものが来る前提。 */
+export type MessageImageUpload = { bytes: ArrayBuffer; contentType: string };
+
+/**
+ * 送る中身を整える。**画像だけのメッセージを認める。**
+ * 写真を1枚だけ送りたい場面は多いので、そこで文章を強いない。
+ */
+function readMessageInput(body: string, image?: MessageImageUpload) {
+  const text = body.trim().slice(0, INTRODUCTION_MESSAGE_MAX);
+  if (!text && !image) throw new Error('メッセージを入力してください。');
+  return { id: crypto.randomUUID(), text, now: new Date().toISOString(), imageKey: image ? '' : '' };
+}
+
+/**
+ * 画像を置き場へ入れる。**行を作ったあとに呼ぶ**（鍵にメッセージのIDを使う）。
+ * 入れられなければ、その行の image_key を空に戻す。画像の無いメッセージとして
+ * 残るほうが、開けない画像が残るよりよい。
+ */
+async function putMessageImage(table: string, messageId: string, memberId: string, image: MessageImageUpload) {
+  try {
+    await env.AVATARS.put(messageImageKey(messageId), image.bytes, {
+      httpMetadata: { contentType: image.contentType },
+      customMetadata: { ownerId: memberId },
+    });
+  } catch (error) {
+    console.error('message image put failed', error);
+    await env.DB.prepare(`UPDATE ${table} SET image_key = '' WHERE id = ?`).bind(messageId).run();
+  }
+}
+
+/** メールと通知に出す短い言い方。画像だけのときに本文が空になるため。 */
+function messagePreview(text: string, hasImage: boolean) {
+  return text || (hasImage ? '画像が届きました' : '');
+}
+
 /** やり取りを1つ送る。送れるのは投稿者と紹介者の2人だけ。 */
-export async function addIntroductionMessage(user: SessionUser, introductionId: string, body: string) {
+export async function addIntroductionMessage(user: SessionUser, introductionId: string, body: string, image?: MessageImageUpload) {
   await upsertMember(user);
-  if (introductionId.startsWith(AD_OFFER_PREFIX)) return addAdIntroductionMessage(user, introductionId.slice(AD_OFFER_PREFIX.length), body);
-  if (introductionId.startsWith(DIRECT_PREFIX)) return addDirectMessage(user, introductionId.slice(DIRECT_PREFIX.length), body);
+  if (introductionId.startsWith(AD_OFFER_PREFIX)) return addAdIntroductionMessage(user, introductionId.slice(AD_OFFER_PREFIX.length), body, image);
+  if (introductionId.startsWith(DIRECT_PREFIX)) return addDirectMessage(user, introductionId.slice(DIRECT_PREFIX.length), body, image);
   const access = await introductionPartner(user.userId, introductionId);
   if (!access) throw new Error('このやり取りには書き込めません。');
   await requireOfferChatAccess(user.userId, access.isAuthor);
-  const text = body.trim().slice(0, INTRODUCTION_MESSAGE_MAX);
-  if (!text) throw new Error('メッセージを入力してください。');
-  await env.DB.prepare('INSERT INTO introduction_messages (id, introduction_id, sender_id, body, created_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(crypto.randomUUID(), introductionId, user.userId, text, new Date().toISOString()).run();
+  const { id, text, now } = readMessageInput(body, image);
+  await env.DB.prepare('INSERT INTO introduction_messages (id, introduction_id, sender_id, body, image_key, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(id, introductionId, user.userId, text, image ? messageImageKey(id) : '', now).run();
+  if (image) await putMessageImage('introduction_messages', id, user.userId, image);
   // 相手に知らせる。届かなくてもやり取りは残るので、失敗は握りつぶす。
+  const preview = messagePreview(text, Boolean(image));
   await sendIntroductionMessageNotice(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
-  await sendMessageMail(access.partnerId, user.displayName, access.requestTitle, text).catch(() => undefined);
+  await sendMessageMail(access.partnerId, user.displayName, access.requestTitle, preview).catch(() => undefined);
   return listIntroductionMessages(user, introductionId);
+}
+
+/**
+ * メッセージ1通を探す。**3つの表を順に見る。**
+ *
+ * やり取りの入れ物が3つある（案件のオファー／広告のオファー／じかのやり取り）。
+ * IDだけを渡されたときに、どの表のものかは分からないので、順に当たる。
+ * IDはUUIDなので、別の表とぶつかることはない。
+ */
+const MESSAGE_TABLES = [
+  { table: 'introduction_messages', thread: 'introduction_id' },
+  { table: 'ad_introduction_messages', thread: 'ad_introduction_id' },
+  { table: 'direct_messages', thread: 'pair_key' },
+] as const;
+
+async function findMessage(messageId: string) {
+  for (const { table, thread } of MESSAGE_TABLES) {
+    const row = await env.DB.prepare(`SELECT id, sender_id AS senderId, image_key AS imageKey,
+        created_at AS createdAt, ${thread} AS threadKey FROM ${table} WHERE id = ?`)
+      .bind(messageId).first<{ id: string; senderId: string; imageKey: string; createdAt: string; threadKey: string }>();
+    if (row) return { ...row, table, thread };
+  }
+  return null;
+}
+
+/**
+ * 自分が送ったメッセージを消す。**取り消せない。**
+ *
+ * 消せるのは**送った本人だけ**。受け取った側が相手の発言を消せると、
+ * 言った言わないの証拠を片方が握れてしまう。
+ *
+ * 付いていた画像も一緒に消す。置き場に残しても、もう誰も開けない。
+ */
+export async function deleteMessage(user: SessionUser, messageId: string) {
+  await ensureDatabase();
+  const found = await findMessage(messageId);
+  if (!found) throw new Error('そのメッセージは見つかりませんでした。');
+  if (found.senderId !== user.userId) throw new Error('ご自身が送ったメッセージだけ削除できます。');
+  await env.DB.prepare(`DELETE FROM ${found.table} WHERE id = ? AND sender_id = ?`)
+    .bind(messageId, user.userId).run();
+  if (found.imageKey) {
+    await env.AVATARS.delete(found.imageKey).catch((error) => console.error('message image delete failed', error));
+  }
+}
+
+/**
+ * メッセージに付いた画像を読む。**当人2人しか読めない。**
+ *
+ * 読めるかどうかは、そのやり取りを読めるかどうかと同じ判断にする
+ * （`listIntroductionMessages` を通す）。ここで別の条件を書くと、
+ * 画面では見えないのに画像だけ開ける、という穴ができる。
+ */
+export async function readMessageImage(user: SessionUser, messageId: string) {
+  await ensureDatabase();
+  const found = await findMessage(messageId);
+  if (!found?.imageKey) return null;
+  if (messageImageExpired(found.createdAt)) return null;
+
+  // やり取りを読む権利があるかを、いつもの経路で確かめる。
+  const chatId = found.table === 'ad_introduction_messages' ? `${AD_OFFER_PREFIX}${found.threadKey}`
+    : found.table === 'direct_messages' ? `${DIRECT_PREFIX}${otherInPair(found.threadKey, user.userId)}`
+    : found.threadKey;
+  const messages = await listIntroductionMessages(user, chatId).catch(() => null);
+  if (!messages?.some((message) => message.id === messageId)) return null;
+
+  const object = await env.AVATARS.get(found.imageKey);
+  if (!object) return null;
+  return { body: object.body, contentType: object.httpMetadata?.contentType || 'image/jpeg' };
+}
+
+/** `a|b` の鍵から、自分ではないほうを取り出す。 */
+function otherInPair(pairKey: string, userId: string) {
+  const [a, b] = pairKey.split('|');
+  return a === userId ? b : a;
 }
 
 /** 広告へのオファー1件ぶんのやり取り。読めるのは広告主とオファーした人だけ。 */
@@ -1646,17 +1798,12 @@ async function listAdIntroductionMessages(user: SessionUser, id: string): Promis
   const access = await adIntroductionPartner(user.userId, id);
   if (!access) throw new Error('このやり取りは表示できません。');
   await requireOfferChatAccess(user.userId, access.isAuthor);
-  const rows = await env.DB.prepare(`SELECT n.id, n.body, n.created_at AS createdAt, n.sender_id AS senderId,
+  const rows = await env.DB.prepare(`SELECT n.id, n.body, n.created_at AS createdAt, n.sender_id AS senderId, n.image_key AS imageKey,
       m.display_name AS senderName, m.avatar_key AS senderAvatarKey, m.avatar_version AS senderAvatarVersion
     FROM ad_introduction_messages n JOIN members m ON m.id = n.sender_id
     WHERE n.ad_introduction_id = ? ORDER BY n.created_at ASC`)
-    .bind(id).all<{ id: string; body: string; createdAt: string; senderId: string;
-      senderName: string; senderAvatarKey: string; senderAvatarVersion: number }>();
-  return rows.results.map(({ senderId, senderAvatarKey, senderAvatarVersion, ...row }) => ({
-    ...row,
-    senderAvatarUrl: avatarUrl(senderId, senderAvatarKey, senderAvatarVersion),
-    mine: senderId === user.userId,
-  }));
+    .bind(id).all<MessageRow>();
+  return toMessages(rows.results, user.userId);
 }
 
 /**
@@ -1668,17 +1815,12 @@ async function listAdIntroductionMessages(user: SessionUser, id: string): Promis
 async function listDirectMessages(user: SessionUser, partnerId: string): Promise<IntroductionMessage[]> {
   if (!partnerId || partnerId === user.userId) throw new Error('このやり取りは表示できません。');
   const pairKey = directPairKey(user.userId, partnerId);
-  const rows = await env.DB.prepare(`SELECT n.id, n.body, n.created_at AS createdAt, n.sender_id AS senderId,
+  const rows = await env.DB.prepare(`SELECT n.id, n.body, n.created_at AS createdAt, n.sender_id AS senderId, n.image_key AS imageKey,
       m.display_name AS senderName, m.avatar_key AS senderAvatarKey, m.avatar_version AS senderAvatarVersion
     FROM direct_messages n JOIN members m ON m.id = n.sender_id
     WHERE n.pair_key = ? ORDER BY n.created_at ASC`)
-    .bind(pairKey).all<{ id: string; body: string; createdAt: string; senderId: string;
-      senderName: string; senderAvatarKey: string; senderAvatarVersion: number }>();
-  return rows.results.map(({ senderId, senderAvatarKey, senderAvatarVersion, ...row }) => ({
-    ...row,
-    senderAvatarUrl: avatarUrl(senderId, senderAvatarKey, senderAvatarVersion),
-    mine: senderId === user.userId,
-  }));
+    .bind(pairKey).all<MessageRow>();
+  return toMessages(rows.results, user.userId);
 }
 
 /**
@@ -1695,7 +1837,7 @@ async function listDirectMessages(user: SessionUser, partnerId: string): Promise
  * 上限は `app/entitlements.ts` の1か所にある。プラン表（マイページ）も同じ
  * ところを見ているので、片方だけ直して食い違うことがない。
  */
-async function addDirectMessage(user: SessionUser, partnerId: string, body: string) {
+async function addDirectMessage(user: SessionUser, partnerId: string, body: string, image?: MessageImageUpload) {
   if (!partnerId || partnerId === user.userId) throw new Error('このやり取りには書き込めません。');
   const partner = await env.DB.prepare(`SELECT id, display_name AS displayName, membership_status AS status,
       membership_period_end AS periodEnd FROM members WHERE id = ?`)
@@ -1716,28 +1858,30 @@ async function addDirectMessage(user: SessionUser, partnerId: string, body: stri
       }
     }
   }
-  const text = body.trim().slice(0, INTRODUCTION_MESSAGE_MAX);
-  if (!text) throw new Error('メッセージを入力してください。');
-  await env.DB.prepare(`INSERT INTO direct_messages (id, pair_key, sender_id, recipient_id, body, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)`)
-    .bind(crypto.randomUUID(), pairKey, user.userId, partnerId, text, new Date().toISOString()).run();
+  const { id, text, now } = readMessageInput(body, image);
+  await env.DB.prepare(`INSERT INTO direct_messages (id, pair_key, sender_id, recipient_id, body, image_key, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    .bind(id, pairKey, user.userId, partnerId, text, image ? messageImageKey(id) : '', now).run();
+  if (image) await putMessageImage('direct_messages', id, user.userId, image);
+  const preview = messagePreview(text, Boolean(image));
   await sendDirectMessageNotice(partnerId, user.displayName).catch(() => undefined);
-  await sendMessageMail(partnerId, user.displayName, '', text).catch(() => undefined);
+  await sendMessageMail(partnerId, user.displayName, '', preview).catch(() => undefined);
   return listDirectMessages(user, partnerId);
 }
 
 /** 広告へのオファーに1つ書く。書けるのは広告主とオファーした人だけ。 */
-async function addAdIntroductionMessage(user: SessionUser, id: string, body: string) {
-  const access = await adIntroductionPartner(user.userId, id);
+async function addAdIntroductionMessage(user: SessionUser, adIntroductionId: string, body: string, image?: MessageImageUpload) {
+  const access = await adIntroductionPartner(user.userId, adIntroductionId);
   if (!access) throw new Error('このやり取りには書き込めません。');
   await requireOfferChatAccess(user.userId, access.isAuthor);
-  const text = body.trim().slice(0, INTRODUCTION_MESSAGE_MAX);
-  if (!text) throw new Error('メッセージを入力してください。');
-  await env.DB.prepare('INSERT INTO ad_introduction_messages (id, ad_introduction_id, sender_id, body, created_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(crypto.randomUUID(), id, user.userId, text, new Date().toISOString()).run();
+  const { id, text, now } = readMessageInput(body, image);
+  await env.DB.prepare('INSERT INTO ad_introduction_messages (id, ad_introduction_id, sender_id, body, image_key, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(id, adIntroductionId, user.userId, text, image ? messageImageKey(id) : '', now).run();
+  if (image) await putMessageImage('ad_introduction_messages', id, user.userId, image);
   // 相手に知らせる。届かなくてもやり取りは残るので、失敗は握りつぶす。
+  const preview = messagePreview(text, Boolean(image));
   await sendIntroductionMessageNotice(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
-  await sendMessageMail(access.partnerId, user.displayName, access.requestTitle, text).catch(() => undefined);
+  await sendMessageMail(access.partnerId, user.displayName, access.requestTitle, preview).catch(() => undefined);
   return listAdIntroductionMessages(user, id);
 }
 
