@@ -47,6 +47,18 @@ export function campaignPlan(): Plan {
  * 「聞いていない」となるのを避けるため）。
  */
 export function adsFreeNow(now = new Date()) {
+  return campaignRunning(now);
+}
+
+/**
+ * キャンペーンの期間中か。**会費も広告も、数え方はここ1か所。**
+ *
+ * 会費のほうは `campaignPlan()` と `entitlements.currentPlan()` が期限を見て
+ * 決めているので、機能そのものはこれを通さなくても正しく開く。これは
+ * **画面の言い方を決めるため**のもの。「有料」と書いたまま無料で使えている、
+ * という食い違いを防ぐ（実際にオファーの欄がそうなっていた）。
+ */
+export function campaignRunning(now = new Date()) {
   return Boolean(freeCampaign.until) && isoDate(now) <= freeCampaign.until;
 }
 

@@ -11,7 +11,7 @@ import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-op
 import { budgetBandLabel, budgetBands } from './budget-options';
 import { UNLIMITED, can, plans, type BillingCycle, type Feature, type Plan } from './entitlements';
 import { feedbackCategories } from './feedback-options';
-import { adsFreeNow, campaignUntilLabel, freeCampaign } from './campaign';
+import { adsFreeNow, campaignRunning, campaignUntilLabel, freeCampaign } from './campaign';
 import { gachaDateLabel } from './gacha';
 import type { GachaView } from './gacha-view';
 import { adDailyPrice, adTotalPrice, newChatLimit, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
@@ -1177,6 +1177,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // 当たった意味が消える）。サーバー側も同じ判断をしている
   // （app/api/ads/checkout と app/campaign.ts の adsFreeNow）。
   const adsFree = adsFreeNow();
+  /** 会費のキャンペーン中か。オファーの言い方を変えるのに使う。 */
+  const planFree = campaignRunning();
   const adGiftUse = adUseGift && !adsFree ? Math.min(adGiftDays, adDays) : 0;
   const adChargeDays = adDays - adGiftUse;
   const adFreeByGift = !adsFree && adChargeDays <= 0;
@@ -2515,7 +2517,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <button type="button" className={offerKind === 'referral' ? 'selected' : ''} onClick={() => setOfferKind('referral')} aria-pressed={offerKind === 'referral'}>
             <b>リファラル<em>無料</em></b><small>知り合いを紹介します。人をつなぐだけなので、どのプランでもどうぞ。</small></button>
           <button type="button" className={offerKind === 'self' ? 'selected' : ''} onClick={() => setOfferKind('self')} aria-pressed={offerKind === 'self'}>
-            <b>オファー<em>有料</em></b><small>自社で請け負います。仕事を受ける話なので、スタンダードから。</small></button>
+            {/* **「有料」と書いたまま、実は無料で使えていた。** キャンペーン中は
+                全員がスタンダードの状態になる（app/effective-plan.ts）ので、
+                この欄はもともと開いている。書き方だけが追いついていなかった。 */}
+            <b>オファー<em>{planFree ? '無料' : '有料'}</em></b><small>自社で請け負います。{planFree
+              ? `${freeCampaign.name}のため、${campaignUntilLabel()}まではどのプランでも無料でお送りいただけます。`
+              : '仕事を受ける話なので、スタンダードから。'}</small></button>
         </div>
         {offerKind === 'self' && stats.plan === 'free'
           ? <div className="offer-locked">
