@@ -52,6 +52,8 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   const [detailId, setDetailId] = useState('');
   /** 消す前に必ず一度止める。取り消せない操作なので。 */
   const [confirming, setConfirming] = useState<AdminRequest | null>(null);
+  /** 削除しようとしている広告。**戻せない**ので、必ず一度確かめる。 */
+  const [confirmingAd, setConfirmingAd] = useState<AdminAd | null>(null);
   /** 置いてあるデータの控え。バックアップのタブを開いたときに読む。 */
   const [backups, setBackups] = useState<BackupEntry[] | null>(null);
   /** スマホでのメニューの開け閉め。パソコンの幅では常に出ているので関係ない。 */
@@ -181,6 +183,10 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
           ad.status === 'stopped' ? '掲載を戻しました。' : '掲載を止めました。')}>
         {busy === ad.id ? '…' : ad.status === 'stopped' ? '掲載を戻す' : '掲載を止める'}
       </button>
+      {/* **消せるのは止めたあとだけ。** 出ている最中に消えると、お金をいただいた
+          掲載が理由もなく止まる。先に「掲載を止める」を押してもらう。 */}
+      {ad.status === 'stopped' && <button className="is-danger" disabled={busy === ad.id}
+        onClick={() => setConfirmingAd(ad)}>完全に削除</button>}
     </div>
   </li>;
 
@@ -568,6 +574,17 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
         <button className="is-danger" disabled={busy === confirming.id}
           onClick={() => { const target = confirming; setConfirming(null); act(target.id, `/api/admin/requests/${target.id}`, null, 'DELETE', '投稿を削除しました。'); }}>削除する</button>
         <button onClick={() => setConfirming(null)}>やめる</button>
+      </div>
+    </div>}
+
+    {confirmingAd && <div className="admin-confirm-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setConfirmingAd(null); }}>
+      <div className="admin-confirm" role="dialog" aria-modal="true">
+        <h2>この広告を削除しますか</h2>
+        <p><b>{confirmingAd.title || '(入稿前)'}</b></p>
+        <p>{confirmingAd.memberCompany || confirmingAd.memberName}さんの広告です。届いたオファーとやり取り、表示・クリックの記録も一緒に消えます。<b>元に戻せません。</b></p>
+        <button className="is-danger" disabled={busy === confirmingAd.id}
+          onClick={() => { const target = confirmingAd; setConfirmingAd(null); act(target.id, `/api/admin/ads/${target.id}`, null, 'DELETE', '広告を削除しました。'); }}>削除する</button>
+        <button onClick={() => setConfirmingAd(null)}>やめる</button>
       </div>
     </div>}
 

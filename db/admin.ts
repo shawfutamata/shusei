@@ -286,6 +286,38 @@ export async function adminSetAdStopped(adId: string, stopped: boolean) {
     .bind(stopped ? 'stopped' : 'active', adId).run();
 }
 
+/**
+ * 広告の枠を、記録ごと丸ごと消す。**戻せない。**
+ *
+ * 止める（adminSetAdStopped）とは別のもの。止めるのは「もう出さない」で
+ * 記録は残るが、こちらは「無かったことにする」。載せ間違い・テストで
+ * 作った枠など、記録に残す意味が無いものを消すために使う。
+ *
+ * **掲載中（active）は消せない。** 出ている最中に消えると、お金をいただいた
+ * 掲載が理由もなく止まる。止めてからでないと消せない作りにしてある。
+ *
+ * 一緒に消すのは、この枠にぶら下がっている紹介とやり取り（案件と同じ考え方。
+ * db/data.ts の deleteRequest 参照）と、日ごとの成果（ad_daily）。無料券
+ * （ad_gifts）は消さない。「いつ、何日ぶん当たったか」の記録なので、
+ * 使い先の枠が消えても、当たったこと自体は残す。
+ */
+export async function adminDeleteAd(adId: string) {
+  await ensureDatabase();
+  const ad = await env.DB.prepare("SELECT id, image_version AS imageVersion FROM ad_slots WHERE id = ? AND status = 'stopped'")
+    .bind(adId).first<{ id: string; imageVersion: number }>();
+  if (!ad) throw new Error('掲載中の広告は削除できません。先に停止してください。');
+
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM ad_introduction_messages WHERE ad_introduction_id IN (SELECT id FROM ad_introductions WHERE ad_id = ?)').bind(adId),
+    env.DB.prepare('DELETE FROM ad_introductions WHERE ad_id = ?').bind(adId),
+    env.DB.prepare('DELETE FROM ad_daily WHERE ad_id = ?').bind(adId),
+    env.DB.prepare('DELETE FROM ad_slots WHERE id = ?').bind(adId),
+  ]);
+
+  // R2の後片づけ。ここが失敗しても枠は消えているので、握りつぶしてよい。
+  if (ad.imageVersion) await env.AVATARS.delete(`ad-images/${adId}`).catch(() => undefined);
+}
+
 /** 届いたご意見。新しいものから、未対応を先に出す。 */
 export async function adminFeedback(limit = 100): Promise<AdminFeedback[]> {
   await ensureDatabase();
