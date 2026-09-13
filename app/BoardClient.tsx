@@ -2808,7 +2808,17 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                         </span>
                       </button>;
                     })}</div>
-                    {/* どちらの枠でも業種は選べるが、**効き方が違う**ので言い方も変える。
+                    <div className="ad-step-actions"><button type="button" onClick={closeAdFlow}>キャンセル</button><button type="button" className="submit-button" onClick={() => setAdStep(1)}>次へ：掲載内容</button></div>
+                  </div>}
+
+                  {adStep === 1 && <div className="ad-step">
+                    <p className="ad-step-head"><b>掲載内容</b><span>タイトルのみでも掲載できます。画像を添えると目に留まりやすくなります。</span></p>
+                    <div className="ad-fields"><AdFields offer={adInfo} draft={adDraft} onChange={setAdDraft} onImage={chooseAdImage} imageName={adFileName} /></div>
+                    <AdPreview draft={adDraft} by={stats.company || shownName} />
+                    {/* **届け先は、中身を書いたあとに選ぶ。** 枠を選ぶ画面に置いていたが、
+                        まだ何を出すか決まっていない時点で「どの業種へ」は決めようがない。
+                        できあがりを見てからのほうが選べる。
+                        どちらの枠でも選べるが、**効き方が違う**ので言い方も変える。
                         掲示板の上位は「その方にだけ出す」、バナーは「その方に先に出す」。
                         当たる相手は、その会員が登録している業種で決まる。 */}
                     <label className="ad-industry-pick">
@@ -2823,13 +2833,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                         ? <>業種を選ぶと、その業種を登録している方にだけ出ます。届く人数は減りますが、その業種の方に確実に当たります。</>
                         : <>バナーは<b>どちらを選んでも会員全員に出ます</b>。業種を選ぶと、その業種を登録している方の画面で<b>先のほうに回ります</b>。届く人数は減りません。</>}</small>
                     </label>
-                    <div className="ad-step-actions"><button type="button" onClick={closeAdFlow}>キャンセル</button><button type="button" className="submit-button" onClick={() => setAdStep(1)}>次へ：掲載内容</button></div>
-                  </div>}
-
-                  {adStep === 1 && <div className="ad-step">
-                    <p className="ad-step-head"><b>掲載内容</b><span>タイトルのみでも掲載できます。画像を添えると目に留まりやすくなります。</span></p>
-                    <div className="ad-fields"><AdFields offer={adInfo} draft={adDraft} onChange={setAdDraft} onImage={chooseAdImage} imageName={adFileName} /></div>
-                    <AdPreview draft={adDraft} by={stats.company || shownName} />
                     <div className="ad-step-actions"><button type="button" onClick={() => setAdStep(0)}>戻る</button><button type="button" className="submit-button" disabled={!adDraft.title.trim()} onClick={() => setAdStep(2)}>{adDraft.title.trim() ? '次へ：掲載期間の指定' : 'タイトルをご入力ください'}</button></div>
                   </div>}
 
