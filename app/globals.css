@@ -2659,3 +2659,8 @@ body { font-weight:600; }
    任せ（画面幅で 44px と 50px に変わるので、ここでは決めない）。 */
 .message-face { position:absolute; left:13px; top:13px; z-index:2; padding:0; border:0; border-radius:50%; background:none; cursor:pointer; }
 .message-face:focus-visible { outline:2px solid var(--blue); outline-offset:2px; }
+
+/* オファーの行。開く印は山形だけにして、やり取りの数は言葉を添えて本文側へ。
+   「＋2」はひとつの塊に見えて、足し算としか読めなかった。 */
+.received-card-head i { font-size:13px; font-weight:900; color:#93a0b3; }
+.received-msgs { margin-left:8px; padding:2px 7px; border-radius:99px; background:#eaf2ff; color:#0f5fc4; font-size:10px; font-style:normal; font-weight:900; white-space:nowrap; }

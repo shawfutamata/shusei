@@ -86,7 +86,7 @@ export default function ReceivedIntroductions({ onUpgrade }: { onUpgrade?: () =>
               <div><small>{formatDate(item.createdAt)}に届きました{item.locked && <em className="locked-tag">ロック中</em>}</small>
                 <h4>{item.locked ? 'オファーが届いています' : item.personName}</h4>
                 <p>{item.locked ? kindLabels[item.kind] : item.personCompany}</p></div>
-              <i>{expanded === item.id ? '−' : '＋'}</i>
+              <i aria-hidden="true">{expanded === item.id ? '▴' : '▾'}</i>
             </button>
             {expanded === item.id && (item.locked ? <div className="received-detail received-locked">
               {/* ぼかしているのは**中身ではなく形だけ**。サーバーは名前も理由も
@@ -130,8 +130,11 @@ export default function ReceivedIntroductions({ onUpgrade }: { onUpgrade?: () =>
           <button className="received-card-head" onClick={() => setExpanded((current) => current === item.id ? '' : item.id)}>
             <div className="received-person-mark">{item.kind === 'self' ? '社' : '人'}</div>
             <div><small>{formatDate(item.createdAt)}にオファーしました</small><h4>{item.personName}</h4>
-              <p>{item.requestTitle}</p></div>
-            <i>{expanded === item.id ? '−' : `＋${item.messageCount ? ` ${item.messageCount}` : ''}`}</i>
+              {/* **開くための印と、やり取りの数は別のもの。** ひとつにまとめて
+                  「＋2」と出していたが、あれは足し算にしか読めなかった。
+                  数は何の数か言葉で添え、開く印は山形だけにする。 */}
+              <p>{item.requestTitle}{item.messageCount > 0 && <em className="received-msgs">やり取り {item.messageCount}件</em>}</p></div>
+            <i aria-hidden="true">{expanded === item.id ? '▴' : '▾'}</i>
           </button>
           {expanded === item.id && <div className="received-detail">
             <dl>
