@@ -19,18 +19,24 @@ import { revenueBands } from '@/app/profile-options';
  * 運営が読める作りにすると、会員にそう伝えなければならなくなる。
  */
 export default function MemberDetail({ memberId, onClose }: { memberId: string; onClose: () => void }) {
-  const [detail, setDetail] = useState<AdminMemberDetail | null>(null);
-  const [error, setError] = useState('');
+  // 読み込みの結果は**1つの状態にまとめる。** 中身と失敗を別々に持つと、
+  // 会員を切り替えたときに前の人の中身と新しい人の失敗が同時に画面に出る。
+  const [state, setState] = useState<{ id: string; detail: AdminMemberDetail | null; error: string }>(
+    { id: memberId, detail: null, error: '' });
 
   useEffect(() => {
     let alive = true;
-    setDetail(null); setError('');
     fetch(`/api/admin/members/${encodeURIComponent(memberId)}`)
       .then((response) => response.ok ? response.json() : Promise.reject(new Error('読み込めませんでした')))
-      .then((data) => { if (alive) setDetail(data as AdminMemberDetail); })
-      .catch(() => { if (alive) setError('読み込めませんでした。画面を開き直してください。'); });
+      .then((data) => { if (alive) setState({ id: memberId, detail: data as AdminMemberDetail, error: '' }); })
+      .catch(() => { if (alive) setState({ id: memberId, detail: null, error: '読み込めませんでした。画面を開き直してください。' }); });
     return () => { alive = false; };
   }, [memberId]);
+
+  // 別の会員に切り替わった直後は、前の人の中身をそのまま出さない。
+  // **描いている最中に判断する**ので、effect で消すより1描画ぶん早い。
+  const detail = state.id === memberId ? state.detail : null;
+  const error = state.id === memberId ? state.error : '';
 
   // Escで閉じられるようにする。板が画面いっぱいに出るので、
   // 戻る道が「閉じる」ボタンひとつだけだと行き止まりに見える。
