@@ -2846,7 +2846,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </div>}
       </Modal>}
 
-      {modal === 'ads' && adInfo && <Modal title="広告を出す" lead={`ご指定の期間だけ広告を掲載できます。お支払いは日数分の1回のみ（税込）。`} onClose={closeAdSettings}>
+      {/* キャンペーン中は「お支払いは…」と書いたままにしない。実際に無料で出せるのに
+          支払いを前提にした文言が出ていると、出すのをためらわせてしまう
+          （オファーの案内で同じ食い違いがあったのと同じ理由）。 */}
+      {modal === 'ads' && adInfo && <Modal title="広告を出す"
+        lead={adsFree
+          ? `${freeCampaign.name}のため、${campaignUntilLabel()}まで広告の掲載は無料です。掲載する期間だけお選びください。`
+          : `ご指定の期間だけ広告を掲載できます。お支払いは日数分の1回のみ（税込）。`}
+        onClose={closeAdSettings}>
         <div className="ad-panel">
           {/* 申し込みの入口は、開いてすぐ目に入るいちばん上に置く。
               下に置くと、掲載中のカードと掲載レポートを越えないと届かない。
