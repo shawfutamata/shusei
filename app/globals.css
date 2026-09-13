@@ -2652,3 +2652,10 @@ body { font-weight:600; }
 /* 一覧の小さいサムネイルも同じ。正方形だと左右が切れていた。 */
 .need-row:has(.need-thumb-mini) { grid-template-columns:minmax(0,1fr) 96px; }
 .need-thumb-mini { width:96px; height:64px; object-fit:contain; background:#eef2f8; }
+
+/* メッセージ一覧の顔写真。押すとその人のプロフィールが開く。
+   行（やり取りを開く）と重ならないよう、行の外に出して上に重ねてある。
+   位置は .message-row の枠線 1px ＋ 余白 12px で 13px。大きさは .member-avatar
+   任せ（画面幅で 44px と 50px に変わるので、ここでは決めない）。 */
+.message-face { position:absolute; left:13px; top:13px; z-index:2; padding:0; border:0; border-radius:50%; background:none; cursor:pointer; }
+.message-face:focus-visible { outline:2px solid var(--blue); outline-offset:2px; }

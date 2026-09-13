@@ -2068,8 +2068,15 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 同じ面に消すボタンを重ねると、開くつもりで消してしまう。 */}
             <button className="message-hide" onClick={() => setHidingThread(thread)}
               aria-label={`${thread.partnerName}さんとのやり取りを一覧から消す`}>×</button>
-            <button className={thread.unread ? 'message-row is-unread' : 'message-row'} onClick={() => openThread(thread)}>
+            {/* 顔写真を押すとプロフィール、行を押すとやり取り。**別のことなので別のボタン。**
+                行そのものがボタンなので、その中にボタンは入れられない（HTMLとして正しくない）。
+                行の中には同じ大きさの場所だけ空けておき、本物の顔写真はその上に重ねる。 */}
+            <button className="message-face" onClick={() => openMember(thread.partnerId)}
+              aria-label={`${thread.partnerName}さんのプロフィールを見る`}>
               <Avatar src={thread.partnerAvatarUrl} name={thread.partnerName} className="member-avatar" />
+            </button>
+            <button className={thread.unread ? 'message-row is-unread' : 'message-row'} onClick={() => openThread(thread)}>
+              <span className="member-avatar" aria-hidden="true" />
               <span className="message-main">
                 <b>{thread.partnerName}{thread.partnerCompany && <small>{thread.partnerCompany}</small>}</b>
                 {/* 何についての話か。**じかのやり取りには元の話が無い**ので、
