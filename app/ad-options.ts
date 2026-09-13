@@ -54,7 +54,7 @@ export function isAdPlacement(value: string): value is AdPlacement {
   return adPlacements.some((item) => item.key === value);
 }
 
-/** バナーが次へ送るまでの時間。5枠×3秒で1周15秒。 */
+/** バナーが次へ送るまでの時間。10枠×3秒で1周30秒。 */
 export const AD_ROTATE_MS = 3000;
 
 /**
