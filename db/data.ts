@@ -89,6 +89,8 @@ export type MemberStats = {
   notifyIndustries: string[];
   annualRevenueBand: string;
   facebookUrl: string;
+  /** 自社のPR。プロフィールを開いた人に見える。 */
+  companyPr: string;
   avatarUrl: string;
   introCount: number;
   receivedIntroCount: number;
@@ -586,6 +588,9 @@ export async function ensureDatabase() {
     // メッセージのメール（mail_on_message）とは別に持つ。片方だけ止めたい人が
     // 必ず出るので、1つのスイッチにまとめない。
     ['mail_on_request', 'ALTER TABLE members ADD COLUMN mail_on_request INTEGER NOT NULL DEFAULT 1'],
+    // 自社のPR。**プロフィールを開いた人が読む欄。** 案件とは別で、
+    // 「何をしている会社か」をここに書いてもらう。
+    ['company_pr', "ALTER TABLE members ADD COLUMN company_pr TEXT NOT NULL DEFAULT ''"],
     // 人が読める会員番号。名簿・請求・問い合わせで「何番の方」と言うためのもの。
     // **内部のIDは members.id のままで、こちらは呼び名にすぎない。**
     // 0 は「まだ振っていない」。下の一度きりの処理と upsertMember で埋める。
@@ -1160,7 +1165,7 @@ export async function getBoardData(user: SessionUser) {
     venue, company, company_kana AS companyKana,
     position_title AS positionTitle, business_area AS businessArea,
     primary_industry AS primaryIndustry, notify_industries AS notifyIndustriesJson,
-    annual_revenue_band AS annualRevenueBand, facebook_url AS facebookUrl,
+    annual_revenue_band AS annualRevenueBand, facebook_url AS facebookUrl, company_pr AS companyPr,
     avatar_key AS avatarKey, avatar_version AS avatarVersion,
     intro_count AS introCount, deal_count AS dealCount,
     (SELECT COUNT(*) FROM introductions i JOIN requests r ON r.id = i.request_id
@@ -1172,7 +1177,7 @@ export async function getBoardData(user: SessionUser) {
     (SELECT COUNT(*) FROM members inv WHERE inv.invited_by = members.id) AS inviteCount
     FROM members WHERE id = ?`).bind(user.userId).first<Omit<MemberStats, 'rank' | 'level' | 'nextRankAt' | 'avatarUrl' | 'notifyIndustries'> & { notifyIndustriesJson: string; avatarKey: string; avatarVersion: number }>();
 
-  const baseMember = member ?? { memberNo: 0, displayName: user.displayName, nameKana: '', venue: 'ひるのめぐろ会場', company: '', companyKana: '', positionTitle: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', facebookUrl: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, inviteCount: 0, dealCount: 0 };
+  const baseMember = member ?? { memberNo: 0, displayName: user.displayName, nameKana: '', venue: 'ひるのめぐろ会場', company: '', companyKana: '', positionTitle: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', facebookUrl: '', companyPr: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, inviteCount: 0, dealCount: 0 };
   const { notifyIndustriesJson, ...memberFields } = baseMember;
   const plan = await getPlanSummary(user.userId);
   const stats = calculateRank({ ...memberFields, memberId: user.userId, notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion),
@@ -1197,7 +1202,7 @@ export async function getBoardData(user: SessionUser) {
   return { requests: [...requests, ...sampleRequests()], stats, ads: await listActiveAds(user.userId) };
 }
 
-export async function updateMemberProfile(user: SessionUser, input: { displayName: string; nameKana: string; company: string; companyKana: string; venue: string; positionTitle: string; businessArea: string; primaryIndustry: string; notifyIndustries: string[]; annualRevenueBand: string; facebookUrl: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {
+export async function updateMemberProfile(user: SessionUser, input: { displayName: string; nameKana: string; company: string; companyKana: string; venue: string; positionTitle: string; businessArea: string; primaryIndustry: string; notifyIndustries: string[]; annualRevenueBand: string; facebookUrl: string; companyPr: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {
   await upsertMember(user);
   const existing = await env.DB.prepare('SELECT avatar_key AS avatarKey, avatar_version AS avatarVersion FROM members WHERE id = ?')
     .bind(user.userId).first<{ avatarKey: string; avatarVersion: number }>();
@@ -1218,11 +1223,11 @@ export async function updateMemberProfile(user: SessionUser, input: { displayNam
   await env.DB.prepare(`UPDATE members SET display_name = ?, name_kana = ?,
     company = ?, company_kana = ?, venue = ?, position_title = ?,
     business_area = ?, primary_industry = ?, notify_industries = ?, annual_revenue_band = ?,
-    facebook_url = ?, avatar_key = ?, avatar_version = ? WHERE id = ?`)
+    facebook_url = ?, company_pr = ?, avatar_key = ?, avatar_version = ? WHERE id = ?`)
     .bind(input.displayName, input.nameKana,
       input.company, input.companyKana, input.venue, input.positionTitle, input.businessArea,
       input.primaryIndustry, JSON.stringify(input.notifyIndustries), input.annualRevenueBand,
-      cleanFacebookUrl(input.facebookUrl), avatarKey, avatarVersion, user.userId).run();
+      cleanFacebookUrl(input.facebookUrl), input.companyPr, avatarKey, avatarVersion, user.userId).run();
   return avatarUrl(user.userId, avatarKey, avatarVersion);
 }
 
@@ -2501,6 +2506,8 @@ async function countAdEvents(ids: string[], kind: 'views' | 'clicks') {
 export type MemberProfile = {
   id: string; displayName: string; company: string; positionTitle: string; venue: string;
   businessArea: string; primaryIndustry: string; facebookUrl: string; avatarUrl: string;
+  /** 自社のPR。本人が書いたものをそのまま出す（運営は手を入れない）。 */
+  companyPr: string;
   rank: string; level: number; introCount: number; joinedAt: string;
   /** その人がいま出している、募集中の案件。 */
   requests: { id: string; title: string; category: string; deadline: string; budgetBand: string; budgetLabel: string; area: string; industryTags: string[]; thumbUrl: string }[];
@@ -2574,12 +2581,12 @@ export async function getMemberProfile(memberId: string): Promise<MemberProfile 
   await ensureDatabase();
   const row = await env.DB.prepare(`SELECT id, display_name AS displayName, company,
     position_title AS positionTitle, venue, business_area AS businessArea,
-    primary_industry AS primaryIndustry, facebook_url AS facebookUrl,
+    primary_industry AS primaryIndustry, facebook_url AS facebookUrl, company_pr AS companyPr,
     avatar_key AS avatarKey, avatar_version AS avatarVersion,
     intro_count AS introCount, created_at AS createdAt, membership_status AS status
     FROM members WHERE id = ?`)
     .bind(memberId).first<{ id: string; displayName: string; company: string; positionTitle: string; venue: string;
-      businessArea: string; primaryIndustry: string; facebookUrl: string; avatarKey: string; avatarVersion: number;
+      businessArea: string; primaryIndustry: string; facebookUrl: string; companyPr: string; avatarKey: string; avatarVersion: number;
       introCount: number; createdAt: string; status: MembershipStatus }>();
   // 利用を止めた人のページは出さない。掲示板から消えた人が、
   // 広告のリンクからだけ見えてしまうのを防ぐ。
@@ -2597,7 +2604,8 @@ export async function getMemberProfile(memberId: string): Promise<MemberProfile 
   return {
     id: row.id, displayName: row.displayName, company: row.company, positionTitle: row.positionTitle,
     venue: row.venue, businessArea: row.businessArea, primaryIndustry: row.primaryIndustry,
-    facebookUrl: row.facebookUrl, avatarUrl: avatarUrl(row.id, row.avatarKey, row.avatarVersion),
+    facebookUrl: row.facebookUrl, companyPr: row.companyPr ?? '',
+    avatarUrl: avatarUrl(row.id, row.avatarKey, row.avatarVersion),
     rank, level, introCount: Number(row.introCount ?? 0), joinedAt: row.createdAt.slice(0, 10),
     requests: requests.results.map(({ industryTagsJson, imageVersion, ...request }) => ({
       ...request, industryTags: parseStringArray(industryTagsJson), thumbUrl: requestImageUrl(request.id, imageVersion, 'thumb'),

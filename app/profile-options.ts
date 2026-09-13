@@ -13,6 +13,12 @@ export const prefectures = [
 export type Prefecture = (typeof prefectures)[number];
 
 /**
+ * 自社PRの上限。**入力欄（app/BoardClient.tsx）と保存（app/api/profile）の
+ * 両方から読む。** 片方だけ変えると、入力できたのに保存で切られる。
+ */
+export const COMPANY_PR_MAX = 400;
+
+/**
  * 年商の区分。**プロフィールの入力欄と、管理画面の両方から読む。**
  * 片方だけに書いていると、片方の表示が空のままになる（実際になっていた）。
  * 値（キー）は db に入るので、**増やすのはよいが、書き替えてはいけない**。

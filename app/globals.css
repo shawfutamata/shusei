@@ -2495,3 +2495,17 @@ body { font-weight:600; }
 .ad-gift-kept { margin:10px 0 0; padding:11px 13px; border:1px dashed #e8c877; border-radius:12px;
   background:#fffaf0; color:#7a5a12; font-size:12px; font-weight:700; line-height:1.65; }
 .ad-gift-kept b { font-weight:900; }
+
+/* --- 自社のPR ------------------------------------------------------------------
+   案件が「いま探しているもの」なのに対して、こちらは「ふだん何をしている
+   会社か」。プロフィールを開いた人が読む。 */
+.profile-pr { position:relative; }
+.profile-pr textarea { min-height:112px; resize:vertical; line-height:1.75; }
+/* 残り字数。**入力欄の外に置く。** 中に重ねると、書いた字にかぶる。 */
+.profile-pr-count { display:block; margin-top:5px; color:#9aa7b8; font-size:11px; font-weight:700;
+  font-style:normal; text-align:right; font-variant-numeric:tabular-nums; }
+
+/* 相手のプロフィールに出すPR。**本人が書いたまま出す**ので、改行も残す。 */
+.member-pr { margin:13px 0 0; padding:13px 15px; border:1px solid #e3ebf6; border-radius:13px;
+  background:#f7faff; color:#3f4d63; font-size:13px; font-weight:600; line-height:1.85;
+  white-space:pre-wrap; word-break:break-word; }

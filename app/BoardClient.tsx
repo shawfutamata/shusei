@@ -6,7 +6,7 @@ import type { AdSlot, BoardRequest, MemberCard, MemberProfile, MemberStats, Mess
 import ReceivedIntroductions from './ReceivedIntroductions';
 import IntroductionChat from './IntroductionChat';
 import FacebookLink from './FacebookLink';
-import { areaMatchesPrefecture, areaMatchesRegion, prefectures, regions, requestAreaOptions, revenueBands, type Prefecture } from './profile-options';
+import { COMPANY_PR_MAX, areaMatchesPrefecture, areaMatchesRegion, prefectures, regions, requestAreaOptions, revenueBands, type Prefecture } from './profile-options';
 import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-options';
 import { budgetBandLabel, budgetBands } from './budget-options';
 import { UNLIMITED, can, plans, type BillingCycle, type Feature, type Plan } from './entitlements';
@@ -367,6 +367,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [profileNotifyGroup, setProfileNotifyGroup] = useState<string>(getIndustryGroup(initialStats.notifyIndustries[0] ?? '')?.name ?? 'IT・システム');
   const [profileRevenue, setProfileRevenue] = useState(initialStats.annualRevenueBand);
   const [profileFacebook, setProfileFacebook] = useState(initialStats.facebookUrl);
+  /** 自社のPR。プロフィールを開いた相手が読む。 */
+  const [profileCompanyPr, setProfileCompanyPr] = useState(initialStats.companyPr);
   const [requestIndustries, setRequestIndustries] = useState<string[]>([]);
   const [requestIndustryGroup, setRequestIndustryGroup] = useState('IT・システム');
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
@@ -936,12 +938,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     body.set('companyKana', profileCompanyKana.trim());
     body.set('businessArea', profileArea); body.set('primaryIndustry', profileIndustry);
     body.set('notifyIndustries', JSON.stringify(profileNotifyIndustries)); body.set('annualRevenueBand', profileRevenue); body.set('facebookUrl', profileFacebook);
+    body.set('companyPr', profileCompanyPr.trim());
     if (profilePhoto) body.set('avatar', profilePhoto);
     const response = await fetch('/api/profile', { method: 'PATCH', body });
     const result = await response.json() as { error?: string; avatarUrl?: string }; setBusy(false);
     if (!response.ok) return showToast(result.error ?? 'プロフィールを保存できませんでした。');
     const avatarUrl = result.avatarUrl ?? stats.avatarUrl;
-    setStats((current) => ({ ...current, displayName: profileName.trim(), nameKana: profileNameKana.trim(), company: profileCompany, companyKana: profileCompanyKana.trim(), venue: stats.venue, positionTitle: profilePosition, businessArea: profileArea, primaryIndustry: profileIndustry, notifyIndustries: profileNotifyIndustries, annualRevenueBand: profileRevenue, facebookUrl: profileFacebook, avatarUrl }));
+    setStats((current) => ({ ...current, displayName: profileName.trim(), nameKana: profileNameKana.trim(), company: profileCompany, companyKana: profileCompanyKana.trim(), venue: stats.venue, positionTitle: profilePosition, businessArea: profileArea, primaryIndustry: profileIndustry, notifyIndustries: profileNotifyIndustries, annualRevenueBand: profileRevenue, facebookUrl: profileFacebook, companyPr: profileCompanyPr.trim(), avatarUrl }));
     setProfilePhoto(null); setPhotoPreview(avatarUrl);
     await refreshBoard(); showToast('顔写真とプロフィールを保存しました。');
   }
@@ -2215,6 +2218,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div className="profile-industry-select"><p>自分の業種 <small>おすすめの設定に使われます</small></p><label>大分類<select value={profileIndustryGroup} onChange={(event) => { setProfileIndustryGroup(event.target.value); setProfileIndustry(''); }}><option value="">選択してください</option>{industryGroups.map((group) => <option value={group.name} key={group.name}>{group.name}</option>)}</select></label><label>詳細業種<select value={profileIndustry} onChange={(event) => { const value = event.target.value; setProfileIndustry(value); if (value && !profileNotifyIndustries.includes(value)) setProfileNotifyIndustries((current) => [...current, value].slice(0, notifyIndustryLimit(stats.level))); }} disabled={!profileIndustryGroup}><option value="">詳細業種を選択</option>{profileIndustry === profileIndustryGroup && <option value={profileIndustryGroup}>大分類のみ（旧設定）</option>}{industryGroups.find((group) => group.name === profileIndustryGroup)?.children.map((industry) => <option value={industry} key={industry}>{industry}</option>)}</select></label></div>
           <IndustryPicker id="notify-industries" legend="おすすめに出したい業種" note={`${notifyIndustryLimit(stats.level)}個まで`} description="選んだ詳細業種の案件が、ホームの「あなたにおすすめ」に出ます。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, notifyIndustryLimit(stats.level))} className="profile-tag-field" />
           <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+          {/* 自社のPR。**案件とは別。** 案件は「いま探しているもの」、ここは
+              「ふだん何をしている会社か」。プロフィールを開いた人が読む。 */}
+          <label className="profile-pr">自社のPR <small>任意・{COMPANY_PR_MAX}文字まで</small>
+            <textarea value={profileCompanyPr} onChange={(event) => setProfileCompanyPr(event.target.value)}
+              maxLength={COMPANY_PR_MAX} rows={5}
+              placeholder="例：都内で店舗の内装工事を20年やっています。飲食店が得意で、図面から施工まで一貫してお引き受けできます。小さな改修でもお気軽にどうぞ。" />
+            <em className="profile-pr-count">{profileCompanyPr.length} / {COMPANY_PR_MAX}</em>
+          </label>
           <label>Facebook <small>任意・オファーのあとに直接やり取りできます</small><input value={profileFacebook} onChange={(event) => setProfileFacebook(event.target.value)} maxLength={200} placeholder="https://www.facebook.com/your.name" inputMode="url" /></label>
           <button className="profile-save-button" onClick={saveProfile} disabled={busy || !profileName.trim() || !profileCompany.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
         </div>
@@ -2565,6 +2576,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               <span className={`member-rank rank-${memberProfile.level}`}>{memberProfile.rank}</span>
             </div>
           </div>
+          {/* 本人が書いたものをそのまま出す。改行も残す（段落で書く人がいる）。 */}
+          {!!memberProfile.companyPr && <p className="member-pr">{memberProfile.companyPr}</p>}
           <dl className="member-facts">
             <div><dt>業種</dt><dd>{memberProfile.primaryIndustry || '未設定'}</dd></div>
             <div><dt>活動エリア</dt><dd>{memberProfile.businessArea || '指定なし'}</dd></div>

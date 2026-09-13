@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
 import { notifyIndustryCap, updateMemberProfile } from '@/db/data';
-import { prefectures, type Prefecture } from '@/app/profile-options';
+import { COMPANY_PR_MAX, prefectures, type Prefecture } from '@/app/profile-options';
 import { isIndustry } from '@/app/industry-options';
 import { cleanFacebookUrl } from '@/app/social-links';
 
@@ -29,6 +29,9 @@ export async function PATCH(request: Request) {
   const notifyIndustries = cleanIndustries(body.get('notifyIndustries'), await notifyIndustryCap(user.userId));
   const annualRevenueBand = clean(body.get('annualRevenueBand'), 30);
   // 入力そのままではなく、Facebookのプロフィールとして通る形だけを保存する。
+  // 自社のPR。**長さだけ止めて、中身には手を入れない。** 会社のことは
+  // 本人がいちばん分かっている。改行はそのまま残す（段落で書く人がいる）。
+  const companyPr = clean(body.get('companyPr'), COMPANY_PR_MAX);
   const rawFacebook = clean(body.get('facebookUrl'), 200);
   const facebookUrl = cleanFacebookUrl(rawFacebook);
   if (rawFacebook && !facebookUrl) {
@@ -68,8 +71,8 @@ export async function PATCH(request: Request) {
     avatarUpload = { bytes, contentType: avatar.type };
   }
   try {
-    const avatarUrl = await updateMemberProfile(user, { displayName, nameKana, company, companyKana, venue, positionTitle, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, avatar: avatarUpload });
-    return NextResponse.json({ displayName, nameKana, company, companyKana, venue, positionTitle, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, avatarUrl });
+    const avatarUrl = await updateMemberProfile(user, { displayName, nameKana, company, companyKana, venue, positionTitle, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, companyPr, avatar: avatarUpload });
+    return NextResponse.json({ displayName, nameKana, company, companyKana, venue, positionTitle, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, companyPr, avatarUrl });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'プロフィールを保存できませんでした。' }, { status: 400 });
   }
