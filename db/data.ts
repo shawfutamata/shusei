@@ -647,6 +647,14 @@ export async function ensureDatabase() {
     // **内部のIDは members.id のままで、こちらは呼び名にすぎない。**
     // 0 は「まだ振っていない」。下の一度きりの処理と upsertMember で埋める。
     ['member_no', 'ALTER TABLE members ADD COLUMN member_no INTEGER NOT NULL DEFAULT 0'],
+    // 自分の投稿・広告にオファーが届いたときのメール。**既定は送る。**
+    // mail_on_message（会話が進んだときのメール）とは別に持つ。こちらは
+    // 「新しいオファーが来た」という最初の知らせで、性質が違う。
+    ['mail_on_offer', 'ALTER TABLE members ADD COLUMN mail_on_offer INTEGER NOT NULL DEFAULT 1'],
+    // その日、いちばん最初のオファーをすでにメールで知らせた日（JST）。
+    // 空なら「まだ今日は知らせていない」。1日1件目だけをすぐ知らせ、
+    // 2件目以降はその日の夜にまとめて送るための目印（sendOfferNotification）。
+    ['offer_notified_day', "ALTER TABLE members ADD COLUMN offer_notified_day TEXT NOT NULL DEFAULT ''"],
   ];
   for (const [columnName, sql] of missingColumns) {
     if (existingColumns.has(columnName)) continue;
@@ -704,6 +712,17 @@ export async function ensureDatabase() {
   // 既にある行は全部「紹介」として扱う（受注は後からできた区別なので）。
   if (!introColumnNames.has('kind')) {
     await env.DB.prepare("ALTER TABLE introductions ADD COLUMN kind TEXT NOT NULL DEFAULT 'referral'").run();
+  }
+  // このオファーを、メールで知らせ終えたか。すぐの1通か、夜のまとめ（digest）
+  // のどちらかで送ったら1にする。**二重に送らないための印**で、既読とは別。
+  // 既にある行はすべて1（=知らせ済み扱い）にする。ここを足す前からある古い
+  // オファーを、夜のまとめ送信でいっせいに掘り出して送りつけないため。
+  if (!introColumnNames.has('notified')) {
+    await env.DB.prepare('ALTER TABLE introductions ADD COLUMN notified INTEGER NOT NULL DEFAULT 1').run();
+  }
+  const adIntroColumns = await env.DB.prepare('PRAGMA table_info(ad_introductions)').all<{ name: string }>();
+  if (!adIntroColumns.results.some((column) => column.name === 'notified')) {
+    await env.DB.prepare('ALTER TABLE ad_introductions ADD COLUMN notified INTEGER NOT NULL DEFAULT 1').run();
   }
   const adColumns = await env.DB.prepare('PRAGMA table_info(ad_slots)').all<{ name: string }>();
   const adColumnNames = new Set(adColumns.results.map((column) => column.name));
@@ -1506,14 +1525,23 @@ export async function createIntroduction(user: SessionUser, input: { requestId: 
   if (kind === 'self' && !can(await getPlanState(user.userId), 'self_offer')) {
     throw new Error(`${PAYWALL}オファー（自社で請け負う）は、スタンダードプランでお送りいただけます。リファラル（知り合いのご紹介）は、無料プランのままお使いいただけます。`);
   }
-  const request = await env.DB.prepare('SELECT id FROM requests WHERE id = ? AND status = ?').bind(input.requestId, 'open').first();
+  const request = await env.DB.prepare('SELECT id, title, author_id AS authorId FROM requests WHERE id = ? AND status = ?')
+    .bind(input.requestId, 'open').first<{ id: string; title: string; authorId: string }>();
   if (!request) throw new Error('募集が終了しているか、見つかりません。');
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
+  // 自分の投稿に自分でオファーは通常できないが、念のため自分あてには
+  // 知らせない（届いても意味がないメールになるため）。
+  const isSelfPost = request.authorId === user.userId;
+  // このオファーがすぐ知らせる1件目かどうかは、送る直前に決める。**先に決めておく**
+  // ことで、行を作った直後に別のオファーが割り込んでも、二重にすぐ知らせない。
+  const notifyNow = !isSelfPost && await claimImmediateOfferSlot(request.authorId);
   await env.DB.batch([
-    env.DB.prepare('INSERT INTO introductions (id, request_id, introducer_id, person_name, person_company, relationship, fit_reason, consent_confirmed, status, created_at, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, input.requestId, user.userId, input.personName, input.personCompany, input.relationship, input.fitReason, 1, 'proposed', createdAt, kind),
+    env.DB.prepare('INSERT INTO introductions (id, request_id, introducer_id, person_name, person_company, relationship, fit_reason, consent_confirmed, status, created_at, kind, notified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, input.requestId, user.userId, input.personName, input.personCompany, input.relationship, input.fitReason, 1, 'proposed', createdAt, kind, (notifyNow || isSelfPost) ? 1 : 0),
     env.DB.prepare('UPDATE members SET intro_count = intro_count + 1 WHERE id = ?').bind(user.userId),
   ]);
+  if (notifyNow) await sendOfferMail(request.authorId, user.displayName, request.title).catch(() => undefined);
   return id;
 }
 
@@ -1539,20 +1567,23 @@ export async function createAdIntroduction(user: SessionUser, input: { adId: str
     throw new Error(`${PAYWALL}オファー（自社で請け負う）は、スタンダードプランでお送りいただけます。リファラル（知り合いのご紹介）は、無料プランのままお使いいただけます。`);
   }
   // いま出ている枠にだけ送れる。終わった広告に送っても相手は気づかない。
-  const ad = await env.DB.prepare(`SELECT id, member_id AS memberId FROM ad_slots
+  const ad = await env.DB.prepare(`SELECT id, member_id AS memberId, title FROM ad_slots
     WHERE id = ? AND status = 'active' AND start_date <= ? AND end_date >= ?`)
-    .bind(input.adId, today(), today()).first<{ id: string; memberId: string }>();
+    .bind(input.adId, today(), today()).first<{ id: string; memberId: string; title: string }>();
   if (!ad) throw new Error('この広告は掲載が終わっているか、見つかりません。');
   if (ad.memberId === user.userId) throw new Error('ご自身の広告にはオファーできません。');
 
   const id = crypto.randomUUID();
+  // このオファーがすぐ知らせる1件目かどうかは、送る直前に決める（createIntroduction と同じ）。
+  const notifyNow = await claimImmediateOfferSlot(ad.memberId);
   await env.DB.batch([
     env.DB.prepare(`INSERT INTO ad_introductions
-      (id, ad_id, introducer_id, person_name, person_company, relationship, fit_reason, kind, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, input.adId, user.userId, input.personName, input.personCompany, input.relationship, input.fitReason, kind, new Date().toISOString()),
+      (id, ad_id, introducer_id, person_name, person_company, relationship, fit_reason, kind, created_at, notified)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(id, input.adId, user.userId, input.personName, input.personCompany, input.relationship, input.fitReason, kind, new Date().toISOString(), notifyNow ? 1 : 0),
     env.DB.prepare('UPDATE members SET intro_count = intro_count + 1 WHERE id = ?').bind(user.userId),
   ]);
+  if (notifyNow) await sendOfferMail(ad.memberId, user.displayName, ad.title || '広告').catch(() => undefined);
   return `${AD_OFFER_PREFIX}${id}`;
 }
 
@@ -2145,6 +2176,125 @@ export async function setMailOnMessage(memberId: string, on: boolean) {
   await env.DB.prepare('UPDATE members SET mail_on_message = ? WHERE id = ?')
     .bind(on ? 1 : 0, memberId).run();
   return on;
+}
+
+/**
+ * オファーが届いたことを知らせるメール。**1日の1件目だけ、その場で送る。**
+ *
+ * 案件へのオファーも広告へのオファーも、届いた人にとっては「新しいオファーが
+ * 来た」という同じ知らせ。届いた投稿の中身は入れない（自社で請け負う＝有料の
+ * オファーだと、無料プランの受け取り手にはまだ見せていない理由文を含むため。
+ * メールは「来たこと」を知らせるだけにして、中身はアプリを開いて確かめてもらう）。
+ *
+ * 2件目以降は sendPendingOfferDigest が夜まとめて拾う。ここでは何もしない
+ * （introductions.notified / ad_introductions.notified を 0 のままにしておく）。
+ */
+async function sendOfferMail(recipientId: string, senderName: string, title: string) {
+  if (!env.RESEND_API_KEY || !env.AUTH_FROM_EMAIL) return;
+  const row = await env.DB.prepare('SELECT email FROM members WHERE id = ?')
+    .bind(recipientId).first<{ email: string }>();
+  if (!row?.email) return;
+  const safeSenderName = escapeMailHtml(senderName);
+  const safeTitle = escapeMailHtml(title);
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      from: env.AUTH_FROM_EMAIL,
+      to: [row.email],
+      subject: `【${serviceName}】${senderName}さんからオファーが届きました`,
+      html: `<div style="font-family:Arial,sans-serif;color:#15213a;line-height:1.8">`
+        + `<h2 style="font-size:18px">${safeSenderName}さんからオファーが届きました</h2>`
+        + `<p>「${safeTitle}」に届いたオファーです。同じ日にもう1件届いた場合は、まとめて夜にお知らせします。</p>`
+        + `<p><a href="${serviceUrl}/" style="display:inline-block;padding:12px 22px;border-radius:10px;background:#0f5fc4;color:#fff;text-decoration:none;font-weight:700">オファーを見る</a></p>`
+        + `<p style="color:#6b7d95;font-size:12px">このお知らせが不要なときは、このメールにご返信いただければ止めます。</p>`
+        + `</div>`,
+      text: `${senderName}さんからオファーが届きました\n\n「${title}」に届いたオファーです。同じ日にもう1件届いた場合は、まとめて夜にお知らせします。\n\nオファーを見る: ${serviceUrl}/`,
+    }),
+  });
+}
+
+/**
+ * その日、いちばん最初のオファーとして「すぐ知らせる」枠を確保できるか。
+ *
+ * **確保できた人だけが true。** members.offer_notified_day にその日の日付
+ * （JST）を書き込めた場合だけ、呼び出し側がすぐメールを送ってよい。2件目
+ * 以降は書き込みが起きず false になり、夜のまとめ送り（digest）に回る。
+ *
+ * メールの設定（mail_on_offer）を切っている人・メール送信そのものが
+ * 未設定の環境では、そもそも枠を使わせない（false を返す）。使わせてしまうと
+ * その人の分だけ「知らせ済み」の記録が進み、あとで設定を戻しても
+ * その日はもう知らせが来なくなる。
+ */
+async function claimImmediateOfferSlot(recipientId: string) {
+  if (!env.RESEND_API_KEY || !env.AUTH_FROM_EMAIL) return false;
+  const today = jstDate();
+  const row = await env.DB.prepare('SELECT mail_on_offer AS mailOn, offer_notified_day AS notifiedDay FROM members WHERE id = ?')
+    .bind(recipientId).first<{ mailOn: number; notifiedDay: string }>();
+  if (!row || !Number(row.mailOn) || row.notifiedDay === today) return false;
+  await env.DB.prepare('UPDATE members SET offer_notified_day = ? WHERE id = ?').bind(today, recipientId).run();
+  return true;
+}
+
+/**
+ * 夜（21時ごろ）に、その日の2件目以降のオファーをまとめて知らせる。
+ *
+ * `notified = 0` のまま残っている行を、宛先（案件の投稿者／広告の出稿者）
+ * ごとに数えて1通にまとめる。**送れたかどうかに関わらず、拾った行はここで
+ * 全部 notified = 1 にする。** 送れなかった回（メール設定オフ・メール未設定）
+ * の分をそのまま積み上げると、次に見えるようになったときの件数が実際に
+ * 届いた日と合わなくなる。
+ *
+ * 呼ぶのは1日1回（app/api/admin/offer-digest、GitHub Actionsの日次実行）。
+ * 何度呼んでも、その時点で残っている未通知ぶんをまとめるだけなので壊れない。
+ */
+export async function sendPendingOfferDigest() {
+  await ensureDatabase();
+  const pending = await env.DB.prepare(`
+    SELECT recipient_id AS recipientId, COUNT(*) AS pending FROM (
+      SELECT r.author_id AS recipient_id FROM introductions i
+        JOIN requests r ON r.id = i.request_id WHERE i.notified = 0
+      UNION ALL
+      SELECT a.member_id AS recipient_id FROM ad_introductions ai
+        JOIN ad_slots a ON a.id = ai.ad_id WHERE ai.notified = 0
+    ) GROUP BY recipient_id`).all<{ recipientId: string; pending: number }>();
+
+  let sent = 0;
+  for (const row of pending.results) {
+    const member = await env.DB.prepare('SELECT email, mail_on_offer AS mailOn FROM members WHERE id = ?')
+      .bind(row.recipientId).first<{ email: string; mailOn: number }>();
+    if (member?.email && Number(member.mailOn)) {
+      await sendOfferDigestMail(member.email, Number(row.pending)).catch(() => undefined);
+      sent += 1;
+    }
+    await env.DB.batch([
+      env.DB.prepare(`UPDATE introductions SET notified = 1
+        WHERE notified = 0 AND request_id IN (SELECT id FROM requests WHERE author_id = ?)`).bind(row.recipientId),
+      env.DB.prepare(`UPDATE ad_introductions SET notified = 1
+        WHERE notified = 0 AND ad_id IN (SELECT id FROM ad_slots WHERE member_id = ?)`).bind(row.recipientId),
+    ]);
+  }
+  return { recipients: pending.results.length, sent };
+}
+
+async function sendOfferDigestMail(email: string, count: number) {
+  if (!env.RESEND_API_KEY || !env.AUTH_FROM_EMAIL) return;
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      from: env.AUTH_FROM_EMAIL,
+      to: [email],
+      subject: `【${serviceName}】本日、あわせて${count}件のオファーが届いています`,
+      html: `<div style="font-family:Arial,sans-serif;color:#15213a;line-height:1.8">`
+        + `<h2 style="font-size:18px">本日、あわせて${count}件のオファーが届いています</h2>`
+        + `<p>1件目は届いた時点でお知らせ済みです。それ以降のぶんをまとめてお伝えしています。</p>`
+        + `<p><a href="${serviceUrl}/" style="display:inline-block;padding:12px 22px;border-radius:10px;background:#0f5fc4;color:#fff;text-decoration:none;font-weight:700">オファーを見る</a></p>`
+        + `<p style="color:#6b7d95;font-size:12px">このお知らせが不要なときは、このメールにご返信いただければ止めます。</p>`
+        + `</div>`,
+      text: `本日、あわせて${count}件のオファーが届いています\n\n1件目は届いた時点でお知らせ済みです。それ以降のぶんをまとめてお伝えしています。\n\nオファーを見る: ${serviceUrl}/`,
+    }),
+  });
 }
 
 /** じかのやり取りが届いたことを知らせる。案件名が無いので、そこだけ文が違う。 */

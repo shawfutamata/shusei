@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { isAutomationToken } from '../app/automation-auth';
 import { ensureDatabase } from './data';
 
 /**
@@ -123,21 +124,8 @@ async function pruneBackups(now: Date) {
 }
 
 /**
- * 定期実行の合図が本物か。
- *
- * 管理画面から押すぶんにはログインで足りるが、毎日の自動実行にはブラウザが
- * 無い。そのための合言葉（BACKUP_TOKEN）。**設定していなければ、この道は
- * 開かない**（空文字と突き合わせて通ってしまわないように）。
- *
- * 突き合わせは長さの差で早く抜けない書き方にしてある。1文字ずつ違いを
- * 足し合わせるので、当たっている文字数が時間から読み取れない。
+ * 定期実行の合図が本物か。**中身は app/automation-auth.ts に出した。**
+ * バックアップ専用だったものを、日次の集計メールなど他の自動実行とも
+ * 共有する合言葉にしたため。名前はここからの呼び名として残す。
  */
-export function isBackupToken(value: string) {
-  const secret = String(env.BACKUP_TOKEN || '');
-  if (!secret || !value || value.length !== secret.length) return false;
-  let diff = 0;
-  for (let index = 0; index < secret.length; index += 1) {
-    diff |= secret.charCodeAt(index) ^ value.charCodeAt(index);
-  }
-  return diff === 0;
-}
+export const isBackupToken = isAutomationToken;
