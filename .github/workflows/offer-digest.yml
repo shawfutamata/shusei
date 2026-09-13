@@ -1,0 +1,39 @@
+# 毎晩、その日の2件目以降のオファーをまとめて知らせる。
+#
+# 1件目は届いた時点でその場のメールになる（db/data.ts の sendOfferMail）。
+# ここが動かすのは、そのあとに残っている分の「夜のまとめ」だけ。
+#
+# 動かすのに要るもの（リポジトリの Settings → Secrets and variables → Actions）
+#   BACKUP_TOKEN … `npx wrangler secret put BACKUP_TOKEN` で本番に入れたものと同じ文字列
+#   （backup.yml と同じ合言葉を使う。用途ごとに秘密を増やさないため）
+
+name: Offer digest
+
+on:
+  schedule:
+    # 毎日 12:00 UTC ＝ 日本時間 21:00。
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+
+jobs:
+  digest:
+    name: オファーのまとめメールを送る
+    runs-on: ubuntu-latest
+    steps:
+      - name: まとめて送る
+        env:
+          BACKUP_TOKEN: ${{ secrets.BACKUP_TOKEN }}
+        run: |
+          if [ -z "$BACKUP_TOKEN" ]; then
+            echo "BACKUP_TOKEN が設定されていません。リポジトリのSecretsに入れてください。"
+            exit 1
+          fi
+          curl -fsS --retry 3 --retry-delay 20 --max-time 300 \
+            -X POST \
+            -H "authorization: Bearer $BACKUP_TOKEN" \
+            https://tasuki.club/api/admin/offer-digest | tee result.json
+          echo
+          echo "### オファーのまとめメールを送りました" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat result.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
