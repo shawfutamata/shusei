@@ -42,7 +42,7 @@ export type GachaPrize = {
    * **見えている通りの確率にする**ためにコマ数と重みを1つにまとめてある。
    * 別々に持つと、盤面は「20分の1」なのに実際は8%、のように食い違う。
    *
-   * いまは**全20コマ**。1コマ＝5%なので、A賞1・B賞3・C賞16 で 5%／15%／80%。
+   * いまは**全20コマ**。1コマ＝5%なので、A賞2・B賞5・C賞13 で 10%／25%／65%。
    * 変えるときは**3つの回すべてで合計20に保つ**こと。回ごとに当たりやすさが
    * 違うと、季節の回だけ得（損）になる。
    */
@@ -154,11 +154,11 @@ export const adGacha = {
       videoStopAt: 2.1,
       lead: '毎日1回、広告の無料券が当たります。',
       prizes: [
-        { key: 'x3', tier: 'A賞', label: '大きなプレゼント', short: 'A賞', days: 3, slots: 1,
+        { key: 'x3', tier: 'A賞', label: '大きなプレゼント', short: 'A賞', days: 3, slots: 2,
           note: '大きな箱が当たりました。' },
-        { key: 'x1', tier: 'B賞', label: 'プレゼント', short: 'B賞', days: 1, slots: 3,
+        { key: 'x1', tier: 'B賞', label: 'プレゼント', short: 'B賞', days: 1, slots: 5,
           note: '箱の中に無料券が入っていました。' },
-        { key: 'x0', tier: 'C賞', label: 'くつ下は空っぽ', short: 'C賞', days: 0, slots: 16,
+        { key: 'x0', tier: 'C賞', label: 'くつ下は空っぽ', short: 'C賞', days: 0, slots: 13,
           note: '今日は何も入っていませんでした。また明日どうぞ。' },
       ],
     },
@@ -176,17 +176,17 @@ export const adGacha = {
       videoStopAt: 2.1,
       lead: '毎日1回、運だめし。大吉なら広告の無料券が3日分。',
       // 名前は A賞・B賞ではないが、**当たりやすさは毎日ガチャと揃えてある**
-      // （大吉5%／中吉+小吉15%／吉+末吉80%。全20コマ）。
+      // （大吉10%／中吉+小吉25%／吉+末吉65%。全20コマ）。
       prizes: [
-        { key: 'n-daikichi', tier: 'A賞', label: '大吉', short: '大吉', days: 3, slots: 1,
+        { key: 'n-daikichi', tier: 'A賞', label: '大吉', short: '大吉', days: 3, slots: 2,
           note: '広告の無料券が3日分。よい年になりますように。' },
-        { key: 'n-chukichi', tier: 'B賞', label: '中吉', short: '中吉', days: 1, slots: 1,
+        { key: 'n-chukichi', tier: 'B賞', label: '中吉', short: '中吉', days: 1, slots: 2,
           note: '広告の無料券が1日分。ためると、そのぶん無料で出せます。' },
-        { key: 'n-shokichi', tier: 'B賞', label: '小吉', short: '小吉', days: 1, slots: 2,
+        { key: 'n-shokichi', tier: 'B賞', label: '小吉', short: '小吉', days: 1, slots: 3,
           note: '広告の無料券が1日分。こつこついきましょう。' },
-        { key: 'n-kichi', tier: '', label: '吉', short: '吉', days: 0, slots: 8,
+        { key: 'n-kichi', tier: '', label: '吉', short: '吉', days: 0, slots: 6,
           note: '悪くない一日になりそうです。また明日どうぞ。' },
-        { key: 'n-suekichi', tier: '', label: '末吉', short: '末吉', days: 0, slots: 8,
+        { key: 'n-suekichi', tier: '', label: '末吉', short: '末吉', days: 0, slots: 7,
           note: 'あとになるほど良くなります。また明日どうぞ。' },
       ],
     },
@@ -205,11 +205,11 @@ export const adGacha = {
       videoStopAt: 2.1,
       lead: '毎日1回、広告の無料券が当たります。',
       prizes: [
-        { key: 'd3', tier: 'A賞', label: '広告の無料券 3日分', short: 'A賞', days: 3, slots: 1,
+        { key: 'd3', tier: 'A賞', label: '広告の無料券 3日分', short: 'A賞', days: 3, slots: 2,
           note: 'いちばん大きい当たりです。' },
-        { key: 'd1', tier: 'B賞', label: '広告の無料券 1日分', short: 'B賞', days: 1, slots: 3,
+        { key: 'd1', tier: 'B賞', label: '広告の無料券 1日分', short: 'B賞', days: 1, slots: 5,
           note: 'こつこつためていきましょう。' },
-        { key: 'd0', tier: 'C賞', label: 'はずれ', short: 'C賞', days: 0, slots: 16,
+        { key: 'd0', tier: 'C賞', label: 'はずれ', short: 'C賞', days: 0, slots: 13,
           note: '今日はご縁がありませんでした。また明日どうぞ。' },
       ],
     },
