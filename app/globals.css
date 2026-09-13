@@ -2664,3 +2664,18 @@ body { font-weight:600; }
    「＋2」はひとつの塊に見えて、足し算としか読めなかった。 */
 .received-card-head i { font-size:13px; font-weight:900; color:#93a0b3; }
 .received-msgs { margin-left:8px; padding:2px 7px; border-radius:99px; background:#eaf2ff; color:#0f5fc4; font-size:10px; font-style:normal; font-weight:900; white-space:nowrap; }
+
+/* オファーが届いたことの知らせ。ホームのいちばん上、広告より前に出る。
+   この場でいちばん動いてほしいことなので、塗りつぶしで強く出す。
+   色は未読と同じ橙。**新着（赤）とは分ける** ── 新着は案件、橙は自分あて。 */
+.offer-alert { margin:0 16px 12px; padding:14px 15px; display:flex; align-items:center; gap:12px;
+  border:0; border-radius:15px; background:linear-gradient(135deg,#f4501e,#ff7a45); color:#fff;
+  text-align:left; cursor:pointer; box-shadow:0 6px 18px rgba(244,80,30,.28); }
+.offer-alert-mark { width:38px; height:38px; flex:0 0 auto; display:grid; place-items:center; border-radius:50%;
+  background:rgba(255,255,255,.22); font-size:18px; }
+.offer-alert-copy { min-width:0; flex:1 1 auto; display:grid; gap:2px; }
+.offer-alert-copy b { font-size:15px; font-weight:900; }
+.offer-alert-copy small { overflow:hidden; color:rgba(255,255,255,.9); font-size:11px; font-weight:700;
+  text-overflow:ellipsis; white-space:nowrap; }
+.offer-alert i { flex:0 0 auto; padding:5px 10px; border-radius:99px; background:rgba(255,255,255,.2);
+  font-size:11px; font-style:normal; font-weight:900; }

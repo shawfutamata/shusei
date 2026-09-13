@@ -548,6 +548,19 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     return names;
   }, [stats.primaryIndustry, stats.notifyIndustries]);
 
+  /**
+   * 届いたまま、まだ開いていないオファー。ホームのいちばん上に出す。
+   *
+   * **数えるのは「まだ開いていないもの」だけ。** 届いた総数で出すと、
+   * 一度でも受け取った人の画面に、ずっと同じ知らせが出たままになる。
+   * `offer.mine` が false のものが、自分あてに届いたオファー。
+   * 未読はやり取りを開いた時点で消える（/api/messages が既読を書く）ので、
+   * 見たあとは何もしなくても、この知らせは引っ込む。
+   */
+  const newOffers = useMemo(
+    () => threads.filter((thread) => thread.kind !== 'dm' && !thread.offer.mine && thread.unread > 0),
+    [threads]);
+
   const viewedRequests = useMemo(() => viewedIds.map((id) => requests.find((item) => item.id === id)).filter((item): item is BoardRequest => Boolean(item)), [requests, viewedIds]);
   const favoriteRequests = useMemo(() => favoriteIds.map((id) => requests.find((item) => item.id === id)).filter((item): item is BoardRequest => Boolean(item)), [favoriteIds, requests]);
   const canPostRequest = stats.requestLimit === UNLIMITED || stats.requestsThisMonth < stats.requestLimit;
@@ -1872,6 +1885,21 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       </header>
 
       {activeTab === 'home' ? <div className="home-dashboard">
+        {/* 届いたオファーは、この場でいちばん大事な知らせ。**広告より上に置く。**
+            1件なら、そのやり取りへ直に入る。何件もあるときは一覧へ送る。
+            どちらも開けば既読になるので、この知らせはひとりでに引っ込む。 */}
+        {newOffers.length > 0 && <button className="offer-alert"
+          onClick={() => (newOffers.length === 1 ? openThread(newOffers[0]) : showMessages())}>
+          <span className="offer-alert-mark" aria-hidden="true">✉</span>
+          <span className="offer-alert-copy">
+            <b>オファーが届いています！</b>
+            <small>{newOffers.length === 1
+              ? `${newOffers[0].partnerName}さんから「${newOffers[0].title}」へ`
+              : `まだ開いていないオファーが${newOffers.length}件あります`}</small>
+          </span>
+          <i aria-hidden="true">{newOffers.length === 1 ? '見る' : `${newOffers.length}件`}</i>
+        </button>}
+
         <section className="hero-carousel" aria-label={`${serviceName}の使い方`}>
           <button key={carouselIndex} className={`hero-image-slide${slide?.ad ? ' is-ad' : ''}${slide?.sample ? ' is-sample' : ''}`} onClick={openCurrentBanner} aria-label={`${slide?.alt ?? ''}を開く`}>{slide?.sample && <span className="sample-flag">サンプル</span>}{slide?.ad
             ? <AdBanner ad={{ title: slide.ad.title, description: slide.ad.description, imageUrl: slide.ad.imageUrl, by: slide.ad.memberCompany || slide.ad.memberName }} />
