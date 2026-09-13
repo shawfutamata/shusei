@@ -581,6 +581,10 @@ export async function ensureDatabase() {
     // メッセージが届いたときにメールで知らせるか。**既定は送る。**
     // 毎日開く習慣がまだ無いうちは、届いたことに気づく道がこれしかない。
     ['mail_on_message', 'ALTER TABLE members ADD COLUMN mail_on_message INTEGER NOT NULL DEFAULT 1'],
+    // おすすめに出したい業種の案件が投稿されたときのメール。**既定は送る。**
+    // メッセージのメール（mail_on_message）とは別に持つ。片方だけ止めたい人が
+    // 必ず出るので、1つのスイッチにまとめない。
+    ['mail_on_request', 'ALTER TABLE members ADD COLUMN mail_on_request INTEGER NOT NULL DEFAULT 1'],
     // 人が読める会員番号。名簿・請求・問い合わせで「何番の方」と言うためのもの。
     // **内部のIDは members.id のままで、こちらは呼び名にすぎない。**
     // 0 は「まだ振っていない」。下の一度きりの処理と upsertMember で埋める。
@@ -1260,6 +1264,10 @@ export async function createRequest(user: SessionUser, input: { category: string
     .bind(id, user.userId, input.category, input.title, input.description.slice(0, descriptionLimit(level)), input.budgetLabel, toBudgetBand(input.budgetBand), input.area, JSON.stringify(input.industryTags), input.deadline, 'open', imageVersion, images.length, videoVersion, videoType, createdAt).run();
   await sendMatchingPushNotifications(user.userId, { id, title: input.title, industryTags: input.industryTags }).catch(() => undefined);
   await sendMatchingMobileNotifications(user.userId, { id, title: input.title, industryTags: input.industryTags }).catch(() => undefined);
+  // メールは**通知を許可していない人にも届く道**。プッシュとは別に送る。
+  await sendMatchingRequestMails(user.userId, {
+    id, title: input.title, industryTags: input.industryTags, authorName: user.displayName,
+  }).catch(() => undefined);
   return id;
 }
 
@@ -1916,7 +1924,7 @@ async function sendMessageMail(recipientId: string, senderName: string, about: s
         + (line ? `<p>${line}</p>` : '')
         + `<div style="margin:20px 0;padding:16px 18px;border:1px solid #dbe5f3;border-radius:12px;background:#f6f9fd;color:#15213a;white-space:normal">${safeMessage}</div>`
         + `<p><a href="${serviceUrl}/?intro=1" style="display:inline-block;padding:12px 22px;border-radius:10px;background:#0f5fc4;color:#fff;text-decoration:none;font-weight:700">メッセージを開く</a></p>`
-        + `<p style="color:#6b7d95;font-size:12px">このお知らせを止めたいときは、${serviceName}のマイページ →「アプリと通知」からオフにできます。</p>`
+        + `<p style="color:#6b7d95;font-size:12px">このお知らせが不要なときは、このメールにご返信いただければ止めます。</p>`
         + `</div>`,
       text: `${senderName}さんからメッセージが届きました\n\n${about ? `「${about}」でのやり取りです。\n\n` : ''}${message}\n\nメッセージを開く: ${serviceUrl}/?intro=1`,
     }),
@@ -2029,6 +2037,64 @@ async function sendMatchingPushNotifications(authorId: string, request: { id: st
   if (expiredEndpoints.length) {
     await env.DB.batch(expiredEndpoints.map((endpoint) => env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(endpoint)));
   }
+}
+
+/**
+ * おすすめに出したい業種が一致した会員に、**メールで**知らせる。
+ *
+ * プッシュ通知（sendMatchingPushNotifications）と別に要るのは、
+ * **通知を許可していない人のほうが多い**から。iPhoneはホーム画面に
+ * 追加しないとプッシュを受け取れず、そこまでやる人は多くない。
+ *
+ * 送り先は**1通ずつ**にする。まとめて宛先に並べると、会員どうしに
+ * メールアドレスが見えてしまう。
+ *
+ * **上限を置く。** 一致が増えたときに1回の投稿で何百通も出ると、
+ * 送信元のドメインが迷惑メール扱いになる。そこまで増えたら、
+ * まとめて1日1通にするなど別の形にすること。
+ */
+const REQUEST_MAIL_LIMIT = 200;
+
+async function sendMatchingRequestMails(authorId: string, request: {
+  id: string; title: string; industryTags: string[]; authorName: string;
+}) {
+  if (!request.industryTags.length || !env.RESEND_API_KEY || !env.AUTH_FROM_EMAIL) return;
+  const now = new Date().toISOString();
+  const rows = await env.DB.prepare(`SELECT m.email, m.notify_industries AS notifyIndustriesJson
+    FROM members m
+    WHERE m.id != ? AND m.email != '' AND m.mail_on_request = 1
+      AND (m.membership_status = 'active'
+        OR (m.membership_status = 'past_due' AND m.membership_period_end > ?))`)
+    .bind(authorId, now).all<{ email: string; notifyIndustriesJson: string }>();
+  const targets = rows.results
+    .filter((row) => parseStringArray(row.notifyIndustriesJson)
+      .some((industry) => matchesIndustry(request.industryTags, industry)))
+    .slice(0, REQUEST_MAIL_LIMIT);
+  if (!targets.length) return;
+
+  const safeTitle = escapeMailHtml(request.title);
+  const safeAuthor = escapeMailHtml(request.authorName);
+  const safeTags = escapeMailHtml(request.industryTags.join('・'));
+  const link = `${serviceUrl}/?request=${encodeURIComponent(request.id)}`;
+  await Promise.allSettled(targets.map((target) => fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      from: env.AUTH_FROM_EMAIL,
+      to: [target.email],
+      subject: `【${serviceName}】関連する案件が投稿されました：${request.title}`,
+      html: `<div style="font-family:Arial,sans-serif;color:#15213a;line-height:1.8">`
+        + `<h2 style="font-size:18px">おすすめに出したい業種の案件が投稿されました</h2>`
+        + `<div style="margin:20px 0;padding:16px 18px;border:1px solid #dbe5f3;border-radius:12px;background:#f6f9fd">`
+        + `<p style="margin:0;font-size:16px;font-weight:700">${safeTitle}</p>`
+        + `<p style="margin:8px 0 0;color:#5f7088;font-size:13px">${safeAuthor}さん｜${safeTags}</p></div>`
+        + `<p><a href="${link}" style="display:inline-block;padding:12px 22px;border-radius:10px;background:#0f5fc4;color:#fff;text-decoration:none;font-weight:700">案件を見る</a></p>`
+        + `<p style="color:#6b7d95;font-size:12px">心当たりのある方をご存じでしたら、ぜひ繋いでください。`
+        + `このお知らせが不要なときは、このメールにご返信いただければ止めます。</p>`
+        + `</div>`,
+      text: `おすすめに出したい業種の案件が投稿されました\n\n${request.title}\n${request.authorName}さん｜${request.industryTags.join('・')}\n\n案件を見る: ${link}`,
+    }),
+  })));
 }
 
 async function sendMatchingMobileNotifications(authorId: string, request: { id: string; title: string; industryTags: string[] }) {
