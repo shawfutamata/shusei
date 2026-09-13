@@ -4,6 +4,7 @@ import { adSlotConfigured, stripeClient } from '@/app/stripe';
 import { AD_MIN_DAYS, DEFAULT_PLACEMENT, isAdPlacement, placementName } from '@/app/ad-options';
 import { industryGroups } from '@/app/industry-options';
 import { adSlotTotalYen } from '@/app/plan-catalog';
+import { adsFreeNow, freeCampaign } from '@/app/campaign';
 import { activateAdSlot, availableAdGiftDays, canBuyAdSlot, commitAdGiftDays, getMemberRank, getStripeLink, holdAdGiftDays, releaseAdSlot, reserveAdSlot, saveAdSlotSession, saveStripeCustomer, shiftDate } from '@/db/data';
 import { AD_DAYS_AHEAD_ALL, AD_MAX_DAYS_ALL, adDiscountRate } from '@/app/rank-perks';
 import { readAdContent } from '@/app/ad-upload';
@@ -57,10 +58,16 @@ export async function POST(request: Request) {
   // 使うかどうかは会員が選べる。まるごと無料にできる日まで取っておきたい人が
   // いるので、黙って減らさない。既定は「使う」。
   const useGift = String(form.get('useGift') ?? '1') !== '0';
-  const giftAvailable = useGift ? await availableAdGiftDays(gate.user.userId) : 0;
+  // **キャンペーン中は券を使わせない。** どうせ無料なのに券が減ると、
+  // 当たった意味が消える。券は期間が終わってから使ってもらう。
+  const adsFree = adsFreeNow();
+  const giftAvailable = useGift && !adsFree ? await availableAdGiftDays(gate.user.userId) : 0;
   const giftDays = Math.min(giftAvailable, days);
   const chargeDays = days - giftDays;
-  const free = chargeDays <= 0;
+  // 請求額はここで1回だけ出して、以降はこの値を使い回す。
+  // **0円になったら Stripe は通さない**（0円の明細は受け付けられない）。
+  const chargeYen = adsFree ? 0 : adSlotTotalYen(placement, chargeDays, adDiscountRate(level));
+  const free = chargeYen <= 0;
 
   // 先に枠を押さえる。早い者勝ちなので、決済画面を開く前に取り合いを終わらせる。
   let reserved: { id: string; endDate: string };
@@ -69,7 +76,7 @@ export async function POST(request: Request) {
     // 額は使わない**（書き換えられるため）。分析の売上はこの値だけを使う。
     // 無料券で消したぶんは請求に入らないので、売上にも乗らない。
     reserved = await reserveAdSlot(gate.user.userId, startDate, days, parsed.content, placement, industry,
-      free ? 0 : adSlotTotalYen(placement, chargeDays, adDiscountRate(level)), giftDays);
+      chargeYen, giftDays);
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : '枠を押さえられませんでした。' }, { status: 409 });
   }
@@ -93,13 +100,17 @@ export async function POST(request: Request) {
     }
   }
 
-  // 券だけで足りるときは、Stripeを通さずそのまま掲載を始める。
+  // 払うものが無いときは、Stripeを通さずそのまま掲載を始める。
+  // 理由は2つある（キャンペーン中／券だけで足りる）ので、**返す言葉を分ける。**
+  // どちらも「無料券で」と言うと、券を使っていないのに減ったように読める。
   // **券を使用済みにするのは掲載を始めたあと。**
   if (free) {
     try {
       await activateAdSlot(reserved.id);
       await commitAdGiftDays(reserved.id);
-      return NextResponse.json({ free: true, message: `無料券で${days}日間の掲載を始めました。` });
+      return NextResponse.json({ free: true, message: adsFree
+        ? `${days}日間の掲載を始めました。${freeCampaign.name}のため、お支払いはありません。`
+        : `無料券で${days}日間の掲載を始めました。` });
     } catch (error) {
       await releaseAdSlot(reserved.id).catch(() => undefined);
       console.error('free ad slot failed', error);
@@ -113,7 +124,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    return await createCheckout(gate.user.userId, gate.user.email, gate.user.displayName, reserved.id, startDate, reserved.endDate, placement, days, chargeDays, giftDays, level, new URL(request.url).origin);
+    return await createCheckout(gate.user.userId, gate.user.email, gate.user.displayName, reserved.id, startDate, reserved.endDate, placement, days, chargeDays, chargeYen, giftDays, new URL(request.url).origin);
   } catch (error) {
     // 決済画面を開けなかったのに枠を押さえたままにしない。次の人がすぐ買える。
     await releaseAdSlot(reserved.id).catch(() => undefined);
@@ -122,7 +133,9 @@ export async function POST(request: Request) {
   }
 }
 
-async function createCheckout(memberId: string, userEmail: string, userName: string, slotId: string, startDate: string, endDate: string, placement: string, days: number, chargeDays: number, giftDays: number, level: number, origin: string) {
+// 請求額は呼ぶ側で1回だけ出して、ここへ渡す。**ここで計算し直さない**
+// （枠に記録した額と、Stripeに出す額が食い違うため）。
+async function createCheckout(memberId: string, userEmail: string, userName: string, slotId: string, startDate: string, endDate: string, placement: string, days: number, chargeDays: number, chargeYen: number, giftDays: number, origin: string) {
   const stripe = stripeClient();
   const link = await getStripeLink(memberId);
 
@@ -147,7 +160,7 @@ async function createCheckout(memberId: string, userEmail: string, userName: str
       price_data: {
         currency: 'jpy',
         // **請求するのは券で消せなかった日数ぶんだけ。**
-        unit_amount: adSlotTotalYen(placement, chargeDays, adDiscountRate(level)),
+        unit_amount: chargeYen,
         product_data: {
           name: `TASUKI ${placementName(placement)} ${days}日間`,
           // 無料券を使ったときは、明細にもそう書く。あとで請求書を見たときに

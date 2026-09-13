@@ -2488,3 +2488,10 @@ body { font-weight:600; }
 .bottom-nav.is-five .nav-post { width:clamp(56px,16vw,64px); height:clamp(56px,16vw,64px);
   min-height:clamp(56px,16vw,64px); margin-bottom:9px; border-radius:18px; }
 .bottom-nav.is-five .nav-post span { font-size:clamp(31px,8.4vw,36px); }
+
+/* キャンペーン中、無料券を使わずに取ってあることを伝える一言。
+   選ばせる欄（.ad-gift-use）の代わりに出す。押すところではないので、
+   ボタンの形にしない。 */
+.ad-gift-kept { margin:10px 0 0; padding:11px 13px; border:1px dashed #e8c877; border-radius:12px;
+  background:#fffaf0; color:#7a5a12; font-size:12px; font-weight:700; line-height:1.65; }
+.ad-gift-kept b { font-weight:900; }

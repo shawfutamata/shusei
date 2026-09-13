@@ -11,7 +11,7 @@ import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-op
 import { budgetBandLabel, budgetBands } from './budget-options';
 import { UNLIMITED, can, plans, type BillingCycle, type Feature, type Plan } from './entitlements';
 import { feedbackCategories } from './feedback-options';
-import { campaignUntilLabel, freeCampaign } from './campaign';
+import { adsFreeNow, campaignUntilLabel, freeCampaign } from './campaign';
 import { gachaDateLabel } from './gacha';
 import type { GachaView } from './gacha-view';
 import { adDailyPrice, adTotalPrice, newChatLimit, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
@@ -1082,9 +1082,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
    * この申し込みで無料券を何日ぶん使うか。**足りないぶんは払ってもらう。**
    * まるごと無料にできる日まで取っておきたい人がいるので、外せるようにしてある。
    */
-  const adGiftUse = adUseGift ? Math.min(adGiftDays, adDays) : 0;
+  // キャンペーン中は広告も無料。**券は使わせない**（どうせ無料なのに減ると、
+  // 当たった意味が消える）。サーバー側も同じ判断をしている
+  // （app/api/ads/checkout と app/campaign.ts の adsFreeNow）。
+  const adsFree = adsFreeNow();
+  const adGiftUse = adUseGift && !adsFree ? Math.min(adGiftDays, adDays) : 0;
   const adChargeDays = adDays - adGiftUse;
-  const adFreeByGift = adChargeDays <= 0;
+  const adFreeByGift = !adsFree && adChargeDays <= 0;
 
   async function loadAdInfo() {
     const data = await fetch('/api/ads').then((response) => response.ok ? response.json() : null).catch(() => null);
@@ -2716,9 +2720,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                     </label>
                     {/* 動かした結果がいくらになるのか、その場で見えるようにする */}
                     <p className="ad-quote">
-                      {(adInfo.discountRate > 0 || adGiftUse > 0) && <s>{adTotalPrice(adPlacement, adDays)}</s>}
-                      <b>{adFreeByGift ? '0円' : adTotalPrice(adPlacement, adChargeDays, adInfo.discountRate)}</b>
-                      <small>{adFreeByGift
+                      {/* **ふだんの値段は消さずに残す。** 取り消し線で並べておくと、
+                          いくらのものが無料になっているのかが伝わる。 */}
+                      {(adsFree || adInfo.discountRate > 0 || adGiftUse > 0) && <s>{adTotalPrice(adPlacement, adDays)}</s>}
+                      <b>{adsFree || adFreeByGift ? '0円' : adTotalPrice(adPlacement, adChargeDays, adInfo.discountRate)}</b>
+                      <small>{adsFree
+                        ? `${freeCampaign.name}のため、${campaignUntilLabel()}までは掲載料が無料です`
+                        : adFreeByGift
                         ? `無料券 ${adGiftUse}日分で、この${adDays}日間はお支払いが要りません`
                         : <>{adDailyPrice(adPlacement)} × {adChargeDays}日（税込・1回のみ）
                           {adGiftUse > 0 && `／無料券 ${adGiftUse}日分を差し引き`}
@@ -2727,7 +2735,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                     {/* 券を持っている人には、**使うかどうかをその場で選ばせる。**
                         黙って減らすと、まるごと無料にできる日まで取っておきたい人の
                         券が消える。既定は使う（当てたものは使えたほうが嬉しい）。 */}
-                    {adGiftDays > 0 && <label className="ad-gift-use">
+                    {/* キャンペーン中はそもそも無料なので、券の選択は出さない。
+                        出すと「使う」を選べてしまい、無料なのに券が減ったように
+                        見える。かわりに、取ってあることだけを伝える。 */}
+                    {adsFree && adGiftDays > 0 && <p className="ad-gift-kept">
+                      無料券は<b>{adGiftDays}日分</b>お預かりしたままです。{campaignUntilLabel()}を過ぎてからお使いいただけます。
+                    </p>}
+                    {!adsFree && adGiftDays > 0 && <label className="ad-gift-use">
                       <input type="checkbox" checked={adUseGift} onChange={(event) => setAdUseGift(event.target.checked)} />
                       <span>
                         <b>無料券を使う</b>
@@ -2751,7 +2765,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                       <div><dt>掲載枠</dt><dd>{placementName(adPlacement)}<small>{currentPlacement.slots}枠のうち1枠{adPlacement === 'list' && `／${adIndustry ? `${adIndustry}の一覧` : 'すべての業種の一覧'}`}</small></dd></div><div><dt>掲載期間</dt><dd>{adStart && formatRange(adStart, shiftDate(adStart, adDays - 1))}<small>{adDays}日間</small></dd></div>
                       <div><dt>リンク先</dt><dd>{adDraft.linkUrl ? adDraft.linkUrl.replace(/^https?:\/\//, '') : <em>設定なし</em>}</dd></div>
                       {adGiftUse > 0 && <div><dt>無料券</dt><dd>{adGiftUse}日分を使用<small>{adFreeByGift ? '掲載期間ぶんをすべて無料券でまかないます' : `残り${adChargeDays}日分をお支払いいただきます`}</small></dd></div>}
-                      <div className="ad-check-pay"><dt>お支払い額</dt><dd>{adFreeByGift ? '0円' : adTotalPrice(adPlacement, adChargeDays, adInfo.discountRate)}<small>{adFreeByGift ? `無料券 ${adGiftUse}日分を使います` : <>{adDailyPrice(adPlacement)}×{adChargeDays}日{adInfo.discountRate > 0 && `・${adInfo.rank}の${Math.round(adInfo.discountRate * 100)}%OFF`}・税込・1回のみ</>}</small></dd></div>
+                      <div className="ad-check-pay"><dt>お支払い額</dt><dd>{adsFree || adFreeByGift ? '0円' : adTotalPrice(adPlacement, adChargeDays, adInfo.discountRate)}<small>{adsFree ? `${freeCampaign.name}のため無料（${campaignUntilLabel()}まで）` : adFreeByGift ? `無料券 ${adGiftUse}日分を使います` : <>{adDailyPrice(adPlacement)}×{adChargeDays}日{adInfo.discountRate > 0 && `・${adInfo.rank}の${Math.round(adInfo.discountRate * 100)}%OFF`}・税込・1回のみ</>}</small></dd></div>
                     </dl>
                     <div className="ad-step-actions"><button type="button" onClick={() => setAdStep(2)}>戻る</button><button className="submit-button" disabled={busy || !adStart || !periodOpen}>{busy ? '処理しています…' : adFreeByGift ? '無料で掲載を始める' : 'お支払いへ進む'}</button></div>
                     <p className="ad-note">{adFreeByGift

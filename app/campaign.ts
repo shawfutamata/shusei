@@ -13,7 +13,7 @@
 // **期間を変えるのはこのファイルの `until` を書き替えるだけ。** 押した瞬間から
 // 全員に効くので、終わらせる前に必ず会員へ知らせること。
 
-import type { Plan } from './entitlements';
+import { isoDate, type Plan } from './entitlements';
 
 export const freeCampaign = {
   /** 画面に出す名前。 */
@@ -30,6 +30,24 @@ export const freeCampaign = {
 /** キャンペーンが動いているか。日付の判定は entitlements 側で行う。 */
 export function campaignPlan(): Plan {
   return freeCampaign.until ? freeCampaign.plan : 'free';
+}
+
+/**
+ * **期間中は広告の掲載料も無料。** 会費と同じ日まで。
+ *
+ * 空いた枠は売っても埋まらない。誰も出していないところに最初に出すのは
+ * 決心が要るので、まず無料で埋めてしまう。次に買う人は「こう出るのか」を
+ * 見てから決められる。
+ *
+ * **ガチャの無料券は使わせない**（app/api/ads/checkout）。どうせ無料なのに
+ * 券が減ると、当たった意味が消える。券は期間が終わってから使ってもらう。
+ *
+ * 終わらせるときは `freeCampaign.until` を空にするか日付を過ぎさせるだけ。
+ * 会費の無料と同時に終わる。**別々の日付にしない**（片方だけ終わって
+ * 「聞いていない」となるのを避けるため）。
+ */
+export function adsFreeNow(now = new Date()) {
+  return Boolean(freeCampaign.until) && isoDate(now) <= freeCampaign.until;
 }
 
 /** 「2026年12月31日」の形。画面に出す用。 */
