@@ -3208,8 +3208,12 @@ const planRows: { label: string; note?: string; soon?: boolean; value: (plan: Pl
   { label: 'オファーを送る', note: '自社で請け負う', value: (plan) => allows(plan, 'self_offer') },
   // **会話そのものは止めない。回数で切る。** 数えるのは「その月に自分から
   // 新しく話しかけた人数」だけで、返事とすでに話している相手は数えない。
-  { label: '新しくメッセージを送る', note: '会員へじかに', value: (plan) => newChatLimit(plan) },
-  { label: 'メッセージの返事・続き', note: '回数は数えません', value: () => true },
+  //
+  // この2行は**対にして読ませる。** 「はじめての相手」には上限があり、
+  // 「一度話した相手」には無い、という違いが、並べたときに一目で分かる。
+  // 見出しは電話の幅で折り返さない長さ（8文字）に収めてある。
+  { label: 'メッセージを送る', note: 'はじめての相手へ', value: (plan) => newChatLimit(plan) },
+  { label: 'メッセージの返事', note: '一度話した相手へ', value: () => true },
 ];
 
 /** そのプラン単体で使えるか。期限や招待特典は絡めず、プランの素の力を見る。 */
