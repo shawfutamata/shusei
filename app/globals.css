@@ -2447,11 +2447,15 @@ body { font-weight:600; }
    「こんにちは 〇〇さん」をやめて、その幅を「探す」に譲った。
    毎回同じことしか言わない文字より、押せるものを置いたほうが効く。 */
 .header-tools { display:flex; align-items:center; gap:4px; }
-.header-search { width:38px; height:38px; padding:0; display:grid; place-items:center;
-  border:0; border-radius:50%; background:transparent; color:#64748b; font-size:20px; cursor:pointer; }
-.header-search:hover { background:#eef4fd; color:var(--blue); }
-.header-search.active { background:#e6f0fd; color:var(--blue); }
-.header-search .nav-icon { width:1em; height:1em; display:block; }
+/* 虫眼鏡だけの丸ボタンをやめ、名前を添えた横長の形にした。記号だけだと
+   押せるものだと気づかれない。枠線を付けてあるのは、押すところだと
+   形からも分かるようにするため。 */
+.header-search { height:38px; padding:0 13px 0 11px; display:inline-flex; align-items:center; gap:6px;
+  border:1px solid #d7e0ed; border-radius:999px; background:#fff; color:#41638f; font-size:18px; cursor:pointer; }
+.header-search small { font-size:12.5px; font-weight:900; letter-spacing:-.02em; white-space:nowrap; }
+.header-search:hover { border-color:#bcd3f0; background:#eef4fd; color:var(--blue); }
+.header-search.active { border-color:var(--blue); background:#e6f0fd; color:var(--blue); }
+.header-search .nav-icon { width:1em; height:1em; flex:0 0 auto; display:block; }
 
 /* --- 下のメニュー（5つ）--------------------------------------------------------
    **この指定はファイルの後ろに置く。** 前に書くと、上のほうにある

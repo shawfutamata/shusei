@@ -1876,10 +1876,16 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     <main className="app-shell" id="home">
       <header className="mobile-header">
         <button className="mobile-brand" onClick={showHome}><BrandMark /><b>{serviceName}</b></button>
-        {/* 右上は**アイコンだけ**にする。「こんにちは 〇〇さん」は毎回同じことしか
-            言わないので、その幅を「探す」に譲った。下のメニューが1つ減る。 */}
+        {/* 「こんにちは 〇〇さん」は毎回同じことしか言わないので、その幅を
+            「探す」に譲った。下のメニューが1つ減る。
+
+            **虫眼鏡だけにしない。** 記号だけで意味が伝わるのは、そういう画面に
+            慣れている人だけ。名前を添えて、押せるものだと分かる形にしてある
+            （下のメニューを5つとも「絵＋名前」に揃えたのと同じ理由）。 */}
         <div className="header-tools">
-          <button className={`header-search${navHere === 'search' ? ' active' : ''}`} onClick={() => showSearch()} aria-label="探す"><SearchIcon /></button>
+          <button className={`header-search${navHere === 'search' ? ' active' : ''}`} onClick={() => showSearch()}>
+            <SearchIcon /><small>案件を探す</small>
+          </button>
           <button className="header-profile" onClick={() => showProfileSettings()} aria-label="プロフィール設定">
             <Avatar src={stats.avatarUrl} name={shownName} className="mini-avatar" />
           </button>
