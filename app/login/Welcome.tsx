@@ -23,7 +23,7 @@ function Recording({ name, label }: { name: 'find' | 'post'; label: string }) {
     {/* Actual browser captures of the public sample, with no member data. */}
     {/* eslint-disable-next-line @next/next/no-img-element */}
     <img src={`/welcome/${name}.gif`} alt={label} width={520} height={700} loading="lazy" />
-    <figcaption><span>サンプル画面の操作録画</span><span className="welcome-recording-status"><i aria-hidden="true" />自動再生</span></figcaption>
+    <figcaption><span>指アイコンでタップ位置を案内</span><span className="welcome-recording-status"><i aria-hidden="true" />自動再生</span></figcaption>
   </figure>;
 }
 
