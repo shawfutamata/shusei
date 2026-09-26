@@ -1,5 +1,4 @@
 import BrandMark from './BrandMark';
-import LandingInvite from './LandingInvite';
 import LandingMenu from './LandingMenu';
 import ConnectionSculpture from './ConnectionSculpture';
 import { serviceName } from './brand';
@@ -42,19 +41,19 @@ export default function LandingPage({ error = '', pending = false }: { error?: s
     <section className={styles.hero} aria-labelledby="lp-title">
       <div className={styles.heroInner}>
         <div className={styles.heroCopy}>
-          <p className={styles.eyebrow}>経営者・事業者向け・招待制マッチングサービス</p>
+          <p className={styles.eyebrow}>経営者・事業者向けビジネスマッチングサービス</p>
           <h1 id="lp-title">紹介が、<br/>次の商売に<br/>つながる。</h1>
           <p className={styles.heroLead}>あの人の「困った」に、あなたのつながりを。<br/>会員同士の紹介とオファーで、<br className={styles.mobileBreak}/>商売の可能性を広げよう。</p>
-          <div className={styles.actions}><a className={styles.primary} href="#start">招待コードで始める <span aria-hidden="true">↗</span></a><a className={styles.secondary} href="#about">TASUKIを知る <span aria-hidden="true">↓</span></a></div>
+          <div className={styles.actions}><a className={styles.primary} href="#start">無料で始める <span aria-hidden="true">↗</span></a><a className={styles.secondary} href="#about">TASUKIを知る <span aria-hidden="true">↓</span></a></div>
           <p className={styles.fine}>無料プランあり · Googleアカウントで登録</p>
           {error && <p className={styles.notice} role={pending ? 'status' : 'alert'}>{error}</p>}
         </div>
         <ConnectionSculpture/>
       </div>
     </section>
-    <div className={styles.introStrip}><span>経営者・事業者向け</span><span>招待でつながる</span><span>紹介するオファーは無料</span></div>
+    <div className={styles.introStrip}><span>経営者・事業者向け</span><span>招待コードなしで登録</span><span>無料プランあり</span></div>
     <section className={styles.productEvidence} aria-labelledby="product-title">
-      <div><p className={styles.eyebrow}>CONNECTIONS INTO ACTION</p><h2 id="product-title">つながりを、<br/>動き出す商売へ。</h2><p>案件を探す。仲間を紹介する。<br/>TASUKIの実際の画面をご覧ください。</p><a className={styles.secondary} href="#start">招待コードで始める ↗</a></div>
+      <div><p className={styles.eyebrow}>CONNECTIONS INTO ACTION</p><h2 id="product-title">つながりを、<br/>動き出す商売へ。</h2><p>案件を探す。仲間を紹介する。<br/>TASUKIの実際の画面をご覧ください。</p><a className={styles.secondary} href="#start">無料で始める ↗</a></div>
       <ProductShowcase/>
     </section>
     <section className={styles.about} id="about" aria-labelledby="about-title">
@@ -70,20 +69,20 @@ export default function LandingPage({ error = '', pending = false }: { error?: s
     </section>
     <section className={styles.lavenderBand} aria-labelledby="give-title"><p className={styles.eyebrow}>GOOD CONNECTIONS. GREAT BUSINESS.</p><h2 id="give-title">あなたの「知っている」が、<br/>誰かの力になる。</h2><p>紹介は、商売をつなぐ最初の一歩。<br/>いつものつながりを、毎日の商売の力に。</p><a href="#start">仲間と一緒に始める <span aria-hidden="true">→</span></a></section>
     <section className={styles.how} id="how" aria-labelledby="how-title">
-      <div className={styles.sectionTop}><span>02 / HOW TO JOIN</span><span>まずは、仲間からの招待で。</span></div>
-      <div className={styles.howGrid}><div className={styles.howArt}><p className={styles.smallLabel}>YOUR NEXT CONNECTION</p><h3>仲間からの招待が、<br/>新しい商売の入口に。</h3><div className={styles.joinDiagram}><div><span>01</span><b>招待リンク</b><small>会員から受け取る</small></div><span aria-hidden="true">↓</span><div><span>02</span><b>Googleで登録</b><small>ご自身のアカウントで</small></div><span aria-hidden="true">↓</span><div><span>03</span><b>TASUKIを利用</b><small>案件を見る・仲間を紹介する</small></div></div></div><div className={styles.steps}><h2 id="how-title">つながる準備は、<br/>この3ステップ。</h2><ol>{[
-        ['招待を受け取る', 'TASUKIを利用している会員から、招待リンクまたは8桁の招待コードを受け取ります。'],
-        ['Googleで登録する', '招待ページで内容を確認し、ご自身のGoogleアカウントで登録します。'],
-        ['さっそく、つながる', '登録後はすぐに利用できます。案件を見たり、知り合いを紹介したりするところから。'],
-      ].map(([title, body], i) => <li key={title}><span>0{i + 1}</span><div><h3>{title}</h3><p>{body}</p></div></li>)}</ol><a href="#start" className={styles.primary}>招待コードを入力する <span aria-hidden="true">↗</span></a></div></div>
+      <div className={styles.sectionTop}><span>02 / HOW TO JOIN</span><span>Googleアカウントで登録。</span></div>
+      <div className={styles.howGrid}><div className={styles.howArt}><p className={styles.smallLabel}>YOUR NEXT CONNECTION</p><h3>アカウント登録が、<br/>新しい商売の入口に。</h3><div className={styles.joinDiagram}><div><span>01</span><b>無料登録</b><small>招待コードは不要</small></div><span aria-hidden="true">↓</span><div><span>02</span><b>運営確認</b><small>登録内容を確認</small></div><span aria-hidden="true">↓</span><div><span>03</span><b>TASUKIを利用</b><small>案件を見る・仕事を依頼する</small></div></div></div><div className={styles.steps}><h2 id="how-title">つながる準備は、<br/>この3ステップ。</h2><ol>{[
+        ['Googleで登録する', '招待コードは不要です。ご自身のGoogleアカウントで登録します。'],
+        ['運営確認を待つ', '安心して利用できる環境を保つため、運営が登録内容を確認します。'],
+        ['さっそく、つながる', '確認完了後、案件を見たり、仕事を依頼したりできます。'],
+      ].map(([title, body], i) => <li key={title}><span>0{i + 1}</span><div><h3>{title}</h3><p>{body}</p></div></li>)}</ol><a href="#start" className={styles.primary}>無料でアカウント登録 <span aria-hidden="true">↗</span></a></div></div>
     </section>
     <section className={styles.plans} id="plans" aria-labelledby="plans-title">
       <div className={styles.sectionTop}><span>03 / MEMBERSHIP</span><span>紹介は無料。もっと使うならスタンダード。</span></div>
       <div className={styles.planHeading}><h2 id="plans-title">あなたのペースで、<br/>商売を広げよう。</h2></div>
       {activeCampaign && <div className={styles.campaign}><b>{freeCampaign.name}</b><p><strong>{campaignUntilLabel()}まで、スタンダード機能が無料。</strong><br/>期間中は契約なしで利用できます。以下は通常料金です。広告掲載は別料金です。</p></div>}
       <div className={styles.planCards}>
-        <article className={styles.planCard}><span className={styles.smallLabel}>FREE</span><h3>まずは、つながる。</h3><div className={styles.price}>0<span>円</span></div><p>無料プラン</p><ul><li>掲示板の閲覧・会員検索</li><li>知り合いを紹介するオファー</li><li>案件の投稿は何件でも</li><li>メッセージは月3人まで新しく送れる</li></ul><p className={styles.planNote}>通常、届いたオファーの内容確認・返信と、自社で請け負うオファーにはスタンダードが必要です。お返事と、すでにやり取りしている方へのメッセージは、いつでもお送りいただけます。</p><a href="#start" className={styles.secondary}>招待コードで始める ↗</a></article>
-        <article className={`${styles.planCard} ${styles.standard}`}><span className={styles.smallLabel}>STANDARD</span><h3>もっと、商売につなぐ。</h3><div className={styles.price}>{planCatalog.standard.monthlyYen.toLocaleString('ja-JP')}<span>円 / 月</span></div><p>年払い {yearlyYen('standard').toLocaleString('ja-JP')}円 / 年 <b className={styles.discount}>{YEARLY_DISCOUNT * 100}%OFF</b></p><ul><li>無料プランの機能すべて</li><li>案件の投稿は何件でも</li><li>届いたオファーの内容確認・返信</li><li>自社で請け負うオファー</li><li>メッセージは何人にでも送れる</li></ul><a href="#start" className={styles.primary}>{activeCampaign ? '招待を受けて無料で試す' : '招待コードで始める'} ↗</a></article>
+        <article className={styles.planCard}><span className={styles.smallLabel}>FREE</span><h3>まずは、つながる。</h3><div className={styles.price}>0<span>円</span></div><p>無料プラン</p><ul><li>掲示板の閲覧・会員検索</li><li>知り合いを紹介するオファー</li><li>案件の投稿は何件でも</li><li>メッセージは月3人まで新しく送れる</li></ul><p className={styles.planNote}>通常、届いたオファーの内容確認・返信と、自社で請け負うオファーにはスタンダードが必要です。お返事と、すでにやり取りしている方へのメッセージは、いつでもお送りいただけます。</p><a href="#start" className={styles.secondary}>無料で始める ↗</a></article>
+        <article className={`${styles.planCard} ${styles.standard}`}><span className={styles.smallLabel}>STANDARD</span><h3>もっと、商売につなぐ。</h3><div className={styles.price}>{planCatalog.standard.monthlyYen.toLocaleString('ja-JP')}<span>円 / 月</span></div><p>年払い {yearlyYen('standard').toLocaleString('ja-JP')}円 / 年 <b className={styles.discount}>{YEARLY_DISCOUNT * 100}%OFF</b></p><ul><li>無料プランの機能すべて</li><li>案件の投稿は何件でも</li><li>届いたオファーの内容確認・返信</li><li>自社で請け負うオファー</li><li>メッセージは何人にでも送れる</li></ul><a href="#start" className={styles.primary}>{activeCampaign ? '無料で試す' : 'アカウント登録'} ↗</a></article>
       </div>
       <div className={styles.ads} id="advertising"><div><span className={styles.smallLabel}>LET YOUR BUSINESS BE SEEN</span><h3>あなたの商売を、<br/>会員に届ける広告枠。</h3><p>掲載日数に応じた日割り料金。<br/>最短{AD_MIN_DAYS}日〜最長{AD_MAX_DAYS}日で掲載できます。</p></div><div className={styles.adPrices}><div><span>バナー広告 · {placementSlots('banner')}枠</span><b>{AD_DAILY_YEN.banner}円<small> / 日</small></b></div><div><span>掲示板上位 · {placementSlots('list')}枠</span><b>{AD_DAILY_YEN.list}円<small> / 日</small></b></div><p>出稿条件・空き枠は、ログイン後の広告申込画面でご確認ください。</p></div></div>
     </section>
@@ -92,10 +91,10 @@ export default function LandingPage({ error = '', pending = false }: { error?: s
       <h2 id="faq-title">はじめる前に、知っておきたいこと。</h2>
       <details><summary>TASUKIはどんなサービスですか？</summary><p>経営者・事業者向けの招待制ビジネスマッチングサービスです。案件の投稿や会員検索、知り合いの紹介を通じて、新しい商売や協業のきっかけをつなぎます。</p></details>
       <details><summary>無料で利用できますか？</summary><p>無料プランがあります。各プランで利用できる機能や料金は、<a href="#plans">料金プラン</a>をご覧ください。</p></details>
-      <details><summary>登録に必要なものは何ですか？</summary><p>8桁の招待コードとGoogleアカウントが必要です。招待リンクからGoogleで登録すると、利用を始められます。</p></details>
-      <details><summary>招待コードを持っていない場合は？</summary><p>招待してくれる会員に、招待リンクまたは招待コードをご確認ください。ご不明な点は<a href="/support">運営窓口</a>へお問い合わせください。</p></details>
+      <details><summary>登録に必要なものは何ですか？</summary><p>Googleアカウントが必要です。招待コードは必要ありません。登録後、運営確認が完了すると利用できます。</p></details>
+      <details><summary>登録後、すぐに利用できますか？</summary><p>安心して利用できる環境を保つため、登録後に運営が確認します。確認についてご不明な点は<a href="/support">運営窓口</a>へお問い合わせください。</p></details>
     </section>
-    <section className={styles.start} id="start" aria-labelledby="start-title"><div className={styles.startInner}><div className={styles.startCopy}><p className={styles.eyebrow}>LET’S CONNECT</p><h2 id="start-title">次のご縁は、<br/>あなたの<br/>つながりから。</h2><p>仲間からの招待を受け取ったら、<br/>TASUKIで最初の一歩を。</p></div><div className={styles.startCard}><p className={styles.smallLabel}>INVITATION ONLY</p><h3>TASUKIを始める</h3><LandingInvite/><a className={styles.memberLogin} href="/api/auth/google/start">登録済みの方：Googleでログイン ↗</a></div></div></section>
+    <section className={styles.start} id="start" aria-labelledby="start-title"><div className={styles.startInner}><div className={styles.startCopy}><p className={styles.eyebrow}>LET’S CONNECT</p><h2 id="start-title">次のご縁は、<br/>あなたの<br/>つながりから。</h2><p>招待コードなしでアカウント登録。<br/>TASUKIで最初の一歩を。</p></div><div className={styles.startCard}><p className={styles.smallLabel}>FREE ACCOUNT</p><h3>TASUKIを始める</h3><a className={styles.primary} href="/api/auth/google/start?signup=1">Googleで無料登録 <span aria-hidden="true">↗</span></a><p className={styles.memberLogin}>登録後、運営確認が完了するとご利用いただけます。</p><a className={styles.memberLogin} href="/api/auth/google/start">登録済みの方：Googleでログイン ↗</a></div></div></section>
     <footer className={styles.footer}><a className={styles.brand} href="#top"><BrandMark/><b>{serviceName}</b></a><p>人から人へ。商売のたすきをつなぐ。</p><nav aria-label="規約とお問い合わせ"><a href="/terms">利用規約</a><a href="/privacy">プライバシーポリシー</a><a href="/refund">返金・キャンセル</a><a href="/tokushoho">特定商取引法に基づく表記</a><a href="/support">お問い合わせ</a></nav><small>運営：株式会社ColourJam</small></footer>
   </main>;
 }

@@ -41,7 +41,6 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
   const [offer, setOffer] = useState(false);
   const [draft, setDraft] = useState('お店のホームページを作れる方を探しています');
   const [preview, setPreview] = useState(false);
-  const [invite, setInvite] = useState('');
   const [login, setLogin] = useState(!!initialMessage);
   const item = selected === null ? null : examples[selected];
 
@@ -62,7 +61,7 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         <h1>その日だけだった<br />商売の機会を、毎日へ。</h1>
         <p className="welcome-lead">あなたの「できます」と、<br />誰かの「お願いしたい」が出会う場所。</p>
         <p className="welcome-description">TASUKIなら、仕事を探すのも、依頼するのもスマホから。会員同士で直接つながり、次の商談を始められます。</p><div className="welcome-hero-points"><span><WelcomeIcon name="search" />仕事を見つける</span><span><WelcomeIcon name="send" />仕事を頼む</span><span><WelcomeIcon name="chat" />直接相談する</span></div>
-        <a className="welcome-primary" href="#start">招待コードで登録する <span aria-hidden="true">→</span></a>
+        <a className="welcome-primary" href="#start">無料でアカウント登録 <span aria-hidden="true">→</span></a>
         <a className="welcome-try" href="#try">まずは操作を試す ↓</a>
         <p className="welcome-note">無料プランあり · 登録後、運営確認を経て利用開始</p>
       </section>
@@ -119,8 +118,12 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         <p className="welcome-demo-disclaimer">架空の案件・金額による操作イメージです。会員情報は表示していません。</p>
       </section>
     </section>
-    <section className="welcome-start" id="start"><div><p className="welcome-kicker"><WelcomeIcon name="check" />次は、あなたの仕事で。</p><h2>つながりを、商売の機会に。</h2><p>招待コードを入力して登録へ。<br />Googleアカウントで登録後、運営確認を経てご利用いただけます。</p><small>無料プランあり。オファーなどの利用範囲はプランによって異なります。</small></div><form onSubmit={event => { event.preventDefault(); window.location.assign(`/join/${encodeURIComponent(invite)}`); }}><label htmlFor="welcome-invite">招待コード（8桁）</label><input id="welcome-invite" value={invite} onChange={event => setInvite(event.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 8))} placeholder="例：AB12CD34" pattern="[A-Za-z0-9]{8}" minLength={8} maxLength={8} autoCapitalize="characters" autoComplete="off" required /><button className="welcome-primary" type="submit">登録へ進む →</button><p className="welcome-note">コードをお持ちでない方は、招待してくれた会員にお尋ねください。</p></form></section>
+    <section className="welcome-start" id="start"><div><p className="welcome-kicker"><WelcomeIcon name="check" />次は、あなたの仕事で。</p><h2>つながりを、商売の機会に。</h2><p>招待コードは必要ありません。<br />Googleアカウントで登録後、運営確認を経てご利用いただけます。</p><small>無料プランあり。オファーなどの利用範囲はプランによって異なります。</small></div><div className="welcome-signup"><a className="welcome-primary" href="/api/auth/google/start?signup=1"><GoogleMark />Googleで無料登録 <span aria-hidden="true">→</span></a><p className="welcome-note">登録後、運営確認が完了するとご利用いただけます。</p></div></section>
     <section id="member-login" className="welcome-login"><button className="welcome-login-toggle" onClick={() => setLogin(!login)} aria-expanded={login} aria-controls="login-content">すでに会員の方はこちら <span>{login ? '−' : 'ログイン →'}</span></button><div id="login-content" hidden={!login}>{children}</div></section>
     <footer className="welcome-footer"><a href="/lp">TASUKIについて</a><a href="mailto:info@tasuki.club">お問い合わせ</a><span>© TASUKI</span><LegalLinks /></footer>
   </main>;
+}
+
+function GoogleMark() {
+  return <svg className="welcome-google-mark" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.7-2.1 5-4.4 6.6v5.5h7.1c4.2-3.8 6.6-9.5 6.6-16.1z"/><path fill="#34A853" d="M24 46c6 0 11-2 14.5-5.4l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.6-3.9-12.3-9.1H4.4v5.7C7.9 41 15.4 46 24 46z"/><path fill="#FBBC05" d="M11.7 28.1c-.4-1.3-.7-2.7-.7-4.1s.2-2.8.7-4.1v-5.7H4.4C2.9 17.1 2 20.4 2 24s.9 6.9 2.4 9.8l7.3-5.7z"/><path fill="#EA4335" d="M24 10.8c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.2 30 2 24 2 15.4 2 7.9 7 4.4 14.2l7.3 5.7c1.7-5.2 6.6-9.1 12.3-9.1z"/></svg>;
 }

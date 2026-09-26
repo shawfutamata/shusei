@@ -3888,6 +3888,22 @@ export async function registerEarlyAccessMember(rawEmail: string, displayName: s
   return result.meta.changes > 0 ? { email } : null;
 }
 
+/** LPからの直接登録。招待コードも人数上限も使わず、承認待ちで作る。 */
+export async function registerDirectMember(rawEmail: string, displayName: string) {
+  await ensureDatabase();
+  const email = normalizeAuthEmail(rawEmail);
+  if (!email) return null;
+
+  const now = new Date().toISOString();
+  const result = await env.DB.prepare(`INSERT INTO members
+    (id, email, display_name, membership_status, membership_source, activated_at, created_at)
+    SELECT ?, ?, ?, 'invited', 'lp_signup', '', ?
+    WHERE NOT EXISTS (SELECT 1 FROM members WHERE email = ?)`)
+    .bind(`signup-${crypto.randomUUID()}`, email, displayName.trim() || email.split('@')[0], now, email)
+    .run();
+  return result.meta.changes > 0 ? { email } : null;
+}
+
 export async function registerInvitedMember(rawEmail: string, displayName: string, code: string) {
   await ensureDatabase();
   const email = rawEmail.trim().toLowerCase();

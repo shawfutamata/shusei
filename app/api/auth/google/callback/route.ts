@@ -1,14 +1,15 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE } from '@/app/app-auth';
-import { GOOGLE_INVITE_COOKIE, GOOGLE_RETURN_COOKIE, GOOGLE_STATE_COOKIE, exchangeGoogleCode, googleRedirectUri, safeReturnPath } from '@/app/google-auth';
-import { registerEarlyAccessMember, registerInvitedMember, startMemberSessionByEmail } from '@/db/data';
+import { GOOGLE_INVITE_COOKIE, GOOGLE_RETURN_COOKIE, GOOGLE_SIGNUP_COOKIE, GOOGLE_STATE_COOKIE, exchangeGoogleCode, googleRedirectUri, safeReturnPath } from '@/app/google-auth';
+import { registerDirectMember, registerEarlyAccessMember, registerInvitedMember, startMemberSessionByEmail } from '@/db/data';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const jar = await cookies();
   const expectedState = jar.get(GOOGLE_STATE_COOKIE)?.value ?? '';
   const inviteCode = jar.get(GOOGLE_INVITE_COOKIE)?.value ?? '';
+  const directSignup = jar.get(GOOGLE_SIGNUP_COOKIE)?.value === '1';
   // 入ってきた場所。無ければ掲示板のトップ。
   const back = safeReturnPath(jar.get(GOOGLE_RETURN_COOKIE)?.value ?? '');
   const state = url.searchParams.get('state') ?? '';
@@ -30,7 +31,9 @@ export async function GET(request: Request) {
   try {
     session = await startMemberSessionByEmail(account.email);
   } catch (error) {
-    if (error instanceof Error && error.message.includes('利用権限')) return redirectHome(request, 'denied');
+    if (error instanceof Error && error.message.includes('利用権限')) {
+      return redirectHome(request, directSignup ? 'pending' : 'denied');
+    }
     // 会員ではない。招待コード（＝招待リンク）から来ていれば、そこで登録する。
     // 登録できた人はそのまま使えるようにする。`registerInvitedMember()` は
     // 利用中の会員として書いているので、ここで入口を閉じると「登録は済んで
@@ -54,6 +57,11 @@ export async function GET(request: Request) {
           return redirectHome(request, 'pending');
         }
       }
+    }
+    // LPからは招待コードなしで登録できる。承認前にセッションは発行しない。
+    if (directSignup) {
+      const registered = await registerDirectMember(account.email, account.name);
+      return redirectHome(request, registered ? 'pending' : 'failed');
     }
     // 先行テストの枠（先着50名）。空いていれば、そのまま会員として入れる。
     // 埋まったらこの経路は閉じ、招待リンク経由だけになる。
@@ -81,7 +89,7 @@ function redirectHome(request: Request, login?: string, back = '') {
   // 「入れませんでした」を管理画面の404の上に重ねても伝わらないため。
   const target = new URL(login ? `/?login=${login}` : back || '/', request.url);
   const response = NextResponse.redirect(target);
-  for (const name of [GOOGLE_STATE_COOKIE, GOOGLE_INVITE_COOKIE, GOOGLE_RETURN_COOKIE]) {
+  for (const name of [GOOGLE_STATE_COOKIE, GOOGLE_INVITE_COOKIE, GOOGLE_SIGNUP_COOKIE, GOOGLE_RETURN_COOKIE]) {
     response.cookies.set(name, '', { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 0 });
   }
   return response;

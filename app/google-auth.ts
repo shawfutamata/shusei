@@ -3,6 +3,7 @@ import { env } from 'cloudflare:workers';
 export const GOOGLE_STATE_COOKIE = 'google_oauth_state';
 export const GOOGLE_INVITE_COOKIE = 'google_oauth_invite';
 export const GOOGLE_RETURN_COOKIE = 'google_oauth_return';
+export const GOOGLE_SIGNUP_COOKIE = 'google_oauth_signup';
 
 /**
  * ログインのあとに戻す先。**自分のサイトの中だけ**を通す。

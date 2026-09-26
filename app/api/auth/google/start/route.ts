@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { NextResponse } from 'next/server';
-import { GOOGLE_INVITE_COOKIE, GOOGLE_RETURN_COOKIE, GOOGLE_STATE_COOKIE, googleRedirectUri, safeReturnPath } from '@/app/google-auth';
+import { GOOGLE_INVITE_COOKIE, GOOGLE_RETURN_COOKIE, GOOGLE_SIGNUP_COOKIE, GOOGLE_STATE_COOKIE, googleRedirectUri, safeReturnPath } from '@/app/google-auth';
 
 export async function GET(request: Request) {
   if (!env.GOOGLE_CLIENT_ID) {
@@ -29,6 +29,11 @@ export async function GET(request: Request) {
   const invite = (new URL(request.url).searchParams.get('invite') ?? '').trim().toUpperCase().slice(0, 16);
   response.cookies.set(GOOGLE_INVITE_COOKIE, invite, {
     httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: invite ? 600 : 0,
+  });
+  // LPの登録と通常ログインを区別し、ログイン操作だけで会員登録しない。
+  const signup = new URL(request.url).searchParams.get('signup') === '1';
+  response.cookies.set(GOOGLE_SIGNUP_COOKIE, signup ? '1' : '', {
+    httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: signup ? 600 : 0,
   });
   return response;
 }
