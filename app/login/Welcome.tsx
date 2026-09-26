@@ -18,6 +18,16 @@ function WelcomeIcon({ name }: { name: IconName }) {
   return <svg className="welcome-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
 
+function Recording({ name, label }: { name: 'find' | 'post'; label: string }) {
+  const [playing, setPlaying] = useState(false);
+  return <figure className="welcome-recording">
+    {/* Actual browser captures of the public sample, with no member data. */}
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img src={`/welcome/${name}${playing ? '.gif' : '-poster.webp'}`} alt={label} width={520} height={700} loading="lazy" />
+    <figcaption><span>サンプル画面の操作録画</span><button type="button" onClick={() => setPlaying(!playing)} aria-label={`${label}を${playing ? '停止' : '再生'}`}>{playing ? 'Ⅱ 停止' : '▶ GIFを再生'}</button></figcaption>
+  </figure>;
+}
+
 // Public examples only. Never load member posts or profiles before authentication.
 const examples = [
   { tag: 'Web・デザイン', title: '新しいお店のホームページをお願いしたい', budget: '20〜40万円', area: 'オンライン可', detail: '店舗の雰囲気が伝わるサイトを作りたいです。構成の相談から制作まで、相談できる方を探しています。', offer: '店舗サイトの制作をしています。ご希望の雰囲気や公開時期を伺えますか？' },
@@ -56,6 +66,37 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         <a className="welcome-try" href="#try">まずは操作を試す ↓</a>
         <p className="welcome-note">無料プランあり · 登録後、運営確認を経て利用開始</p>
       </section>
+      <div className="welcome-keyvisual">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/welcome/connections-hero.webp" width={1536} height={1024} alt="仕事を探す人と頼む人のつながりを表す、青い二つの帯のオブジェ" fetchPriority="high" />
+        <div className="welcome-visual-caption"><span>できる人。</span><BrandMark /><span>頼みたい人。</span></div>
+      </div>
+    </div></div>
+    <section className="welcome-metrics" aria-labelledby="metrics-heading">
+      <div className="welcome-section-heading"><p className="welcome-kicker">小さく始めて、仕事の可能性を広げる。</p><h2 id="metrics-heading">まずは無料で。<br />依頼も、つながりづくりも。</h2></div>
+      <div className="welcome-metric-grid">
+        <article><span>無料プランの月額</span><strong>0<small>円</small></strong><h3>固定費をかけずに始める。</h3><p>まずは登録して、自分の仕事に合う使い方を見つけられます。</p></article>
+        <article><span>案件の投稿件数</span><strong className="metric-word">上限なし</strong><h3>頼みたい仕事を、ため込まない。</h3><p>無料プランでも投稿件数は無制限。案件ごとに依頼内容を共有できます。</p></article>
+        <article><span>無料プランの新規メッセージ</span><strong>3<small>人／月</small></strong><h3>次の相手に、直接話しかける。</h3><p>返信と、すでに会話している相手とのやり取りは、この人数に含みません。</p></article>
+      </div><p className="welcome-metric-note">サービスの利用条件を示した数字です。導入後の成果実績ではありません。オファーなどの利用範囲はプランによって異なります。</p>
+    </section>
+    <section className="welcome-walkthrough" aria-labelledby="walkthrough-heading">
+      <div className="welcome-section-heading"><p className="welcome-kicker">使い方が見える、操作ムービー。</p><h2 id="walkthrough-heading">次の仕事は、<br />こんな操作から始まります。</h2><p>再生ボタンで、サンプル画面の操作GIFをご覧いただけます。</p></div>
+      <article className="welcome-step"><div className="welcome-step-copy"><p className="welcome-step-number">STEP 01 <span>仕事を受けたい方へ</span></p><h3>「うちならできる」案件に、<br />自分からアプローチ。</h3><p>依頼内容・予算・エリアを見て、自社の得意が活きる仕事を探す。気になる案件から詳細を確認し、オファーへ進めます。</p><ul><li><WelcomeIcon name="check" />具体的な依頼を見てから提案できる</li><li><WelcomeIcon name="check" />条件を確かめて、商談を始められる</li></ul><a href="#try" onClick={() => { setMode('find'); setSelected(null); setOffer(false); }}>自分で操作してみる →</a></div><Recording name="find" label="案件を探してオファーの流れを見る" /></article>
+      <article className="welcome-step reverse"><div className="welcome-step-copy"><p className="welcome-step-number">STEP 02 <span>仕事を頼みたい方へ</span></p><h3>任せたい仕事を投稿。<br />対応できる相手と、つながる。</h3><p>「誰にお願いしよう」と思ったら、まず依頼を掲示板へ。会員からのオファーをきっかけに、条件や進め方を相談できます。</p><ul><li><WelcomeIcon name="check" />仕事内容をまとめて伝えられる</li><li><WelcomeIcon name="check" />メッセージで具体的な相談へ進める</li></ul><a href="#try" onClick={() => setMode('post')}>依頼の掲載イメージを試す →</a></div><Recording name="post" label="依頼を入力して掲載イメージを見る" /></article>
+      <p className="welcome-metric-note">録画は公開サンプルの操作です。架空の案件・金額を使用し、実際の投稿や送信は行っていません。</p>
+    </section>
+    <section className="welcome-features" aria-labelledby="features-heading"><div className="welcome-section-heading"><p className="welcome-kicker">FEATURES</p><h2 id="features-heading">仕事の出会いから相談まで。<br />TASUKIの主な機能</h2><p>受注も発注も、日々のやり取りも。スマホで使える機能をひとつに。</p></div><div className="welcome-feature-grid">
+      {([
+        ['search', '案件を探す', '業種・エリア・予算などを手がかりに、自社に合う案件を見つける。'],
+        ['briefcase', '依頼を投稿', '発注先・協業先・相談相手など、探している相手を会員に伝える。'],
+        ['send', 'オファー', '対応できる仕事に、自分の得意や提案を届けて商談のきっかけに。'],
+        ['chat', 'メッセージ', 'つながった相手と、条件や進め方について直接やり取りする。'],
+        ['check', '会員プロフィール', '会社や事業内容を伝え、どんな相手かを知ってもらう。'],
+        ['phone', 'お気に入り', '気になる案件を保存して、あとから見返す。'],
+      ] as [IconName, string, string][]).map(([icon, title, description]) => <article key={title}><div className="welcome-feature-art"><WelcomeIcon name={icon} /></div><div><h3>{title}</h3><p>{description}</p></div></article>)}
+    </div><p className="welcome-feature-note">機能の利用範囲は、ご利用のプランによって異なります。</p></section>
+    <section className="welcome-hands-on"><div className="welcome-section-heading"><p className="welcome-kicker">登録前に、触ってみよう。</p><h2>次は、あなたの指で。</h2><p>案件をタップしたり、依頼文を入力したり。操作感を体験できます。</p></div>
       <section className="welcome-demo" id="try" aria-label="TASUKIの操作体験">
         <div className="welcome-demo-top"><b><WelcomeIcon name="briefcase" />仕事の掲示板</b><span>サンプル体験</span></div>
         <div className="welcome-tabs" aria-label="体験する機能">
@@ -77,19 +118,6 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         </div>
         <p className="welcome-demo-disclaimer">架空の案件・金額による操作イメージです。会員情報は表示していません。</p>
       </section>
-    </div>
-    </div>
-    <section className="welcome-value">
-      <div className="welcome-section-heading"><p className="welcome-kicker">こんなとき、TASUKI。</p><h2>次の仕事も、頼れる相手も。<br />出会いの入口を、ひとつに。</h2><p>受注する側にも、依頼する側にも。あなたの商売を前に進める使い方があります。</p></div>
-      <div className="welcome-benefits">
-        <article><div className="welcome-benefit-icon"><WelcomeIcon name="search" /></div><span>仕事を受けたいあなたへ</span><h3>「うちならできる」を、<br />新しい商談に。</h3><p className="welcome-pain">次の営業先を、どこで探そう？</p><p>今まさに仕事を頼みたい会員の案件から、自社の得意が活きる仕事を探せます。予算や依頼内容を見てから、オファーへ。</p><a href="#try" onClick={() => { setMode('find'); setSelected(null); setOffer(false); }}>案件を探す体験へ <span aria-hidden="true">→</span></a></article>
-        <article><div className="welcome-benefit-icon"><WelcomeIcon name="briefcase" /></div><span>仕事を頼みたいあなたへ</span><h3>ひとりで探す時間を、<br />話を進める時間に。</h3><p className="welcome-pain">この仕事、誰にお願いしよう？</p><p>任せたい内容を掲示板に投稿。対応できる会員からオファーを受け取り、条件や進め方を相談できます。</p><a href="#try" onClick={() => setMode('post')}>依頼を作る体験へ <span aria-hidden="true">→</span></a></article>
-      </div>
-    </section>
-    <section className="welcome-flow">
-      <div className="welcome-section-heading"><p className="welcome-kicker">スマホひとつで、次の一歩。</p><h2>出会って終わりにしない。<br />仕事の話を、そのまま続けよう。</h2></div>
-      <ol><li><div><WelcomeIcon name="search" /><span>01</span></div><h3>探す・投稿する</h3><p>自分に合う案件を探す。<br />頼みたい仕事を投稿する。</p></li><li><div><WelcomeIcon name="send" /><span>02</span></div><h3>オファーでつながる</h3><p>得意や提案を伝えて、<br />商談のきっかけをつくる。</p></li><li><div><WelcomeIcon name="chat" /><span>03</span></div><h3>メッセージで相談</h3><p>条件や進め方を確認。<br />空いた時間にやり取りする。</p></li></ol>
-      <p className="welcome-flow-note"><WelcomeIcon name="phone" />移動中も、仕事の合間も。商売の機会を手のひらに。</p>
     </section>
     <section className="welcome-start" id="start"><div><p className="welcome-kicker"><WelcomeIcon name="check" />次は、あなたの仕事で。</p><h2>つながりを、商売の機会に。</h2><p>招待コードを入力して登録へ。<br />Googleアカウントで登録後、運営確認を経てご利用いただけます。</p><small>無料プランあり。オファーなどの利用範囲はプランによって異なります。</small></div><form onSubmit={event => { event.preventDefault(); window.location.assign(`/join/${encodeURIComponent(invite)}`); }}><label htmlFor="welcome-invite">招待コード（8桁）</label><input id="welcome-invite" value={invite} onChange={event => setInvite(event.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 8))} placeholder="例：AB12CD34" pattern="[A-Za-z0-9]{8}" minLength={8} maxLength={8} autoCapitalize="characters" autoComplete="off" required /><button className="welcome-primary" type="submit">登録へ進む →</button><p className="welcome-note">コードをお持ちでない方は、招待してくれた会員にお尋ねください。</p></form></section>
     <section id="member-login" className="welcome-login"><button className="welcome-login-toggle" onClick={() => setLogin(!login)} aria-expanded={login} aria-controls="login-content">すでに会員の方はこちら <span>{login ? '−' : 'ログイン →'}</span></button><div id="login-content" hidden={!login}>{children}</div></section>
