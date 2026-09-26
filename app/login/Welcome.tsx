@@ -19,12 +19,11 @@ function WelcomeIcon({ name }: { name: IconName }) {
 }
 
 function Recording({ name, label }: { name: 'find' | 'post'; label: string }) {
-  const [playing, setPlaying] = useState(false);
   return <figure className="welcome-recording">
     {/* Actual browser captures of the public sample, with no member data. */}
     {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img src={`/welcome/${name}${playing ? '.gif' : '-poster.webp'}`} alt={label} width={520} height={700} loading="lazy" />
-    <figcaption><span>サンプル画面の操作録画</span><button type="button" onClick={() => setPlaying(!playing)} aria-label={`${label}を${playing ? '停止' : '再生'}`}>{playing ? 'Ⅱ 停止' : '▶ GIFを再生'}</button></figcaption>
+    <img src={`/welcome/${name}.gif`} alt={label} width={520} height={700} loading="lazy" />
+    <figcaption><span>サンプル画面の操作録画</span><span className="welcome-recording-status"><i aria-hidden="true" />自動再生</span></figcaption>
   </figure>;
 }
 
@@ -80,7 +79,7 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
       </div><p className="welcome-metric-note">サービスの利用条件を示した数字です。導入後の成果実績ではありません。オファーなどの利用範囲はプランによって異なります。</p>
     </section>
     <section className="welcome-walkthrough" aria-labelledby="walkthrough-heading">
-      <div className="welcome-section-heading"><p className="welcome-kicker">使い方が見える、操作ムービー。</p><h2 id="walkthrough-heading">次の仕事は、<br />こんな操作から始まります。</h2><p>再生ボタンで、サンプル画面の操作GIFをご覧いただけます。</p></div>
+      <div className="welcome-section-heading"><p className="welcome-kicker">使い方が見える、操作ムービー。</p><h2 id="walkthrough-heading">次の仕事は、<br />こんな操作から始まります。</h2><p>操作の流れを短いムービーで自動再生します。</p></div>
       <article className="welcome-step"><div className="welcome-step-copy"><p className="welcome-step-number">STEP 01 <span>仕事を受けたい方へ</span></p><h3>「うちならできる」案件に、<br />自分からアプローチ。</h3><p>依頼内容・予算・エリアを見て、自社の得意が活きる仕事を探す。気になる案件から詳細を確認し、オファーへ進めます。</p><ul><li><WelcomeIcon name="check" />具体的な依頼を見てから提案できる</li><li><WelcomeIcon name="check" />条件を確かめて、商談を始められる</li></ul><a href="#try" onClick={() => { setMode('find'); setSelected(null); setOffer(false); }}>自分で操作してみる →</a></div><Recording name="find" label="案件を探してオファーの流れを見る" /></article>
       <article className="welcome-step reverse"><div className="welcome-step-copy"><p className="welcome-step-number">STEP 02 <span>仕事を頼みたい方へ</span></p><h3>任せたい仕事を投稿。<br />対応できる相手と、つながる。</h3><p>「誰にお願いしよう」と思ったら、まず依頼を掲示板へ。会員からのオファーをきっかけに、条件や進め方を相談できます。</p><ul><li><WelcomeIcon name="check" />仕事内容をまとめて伝えられる</li><li><WelcomeIcon name="check" />メッセージで具体的な相談へ進める</li></ul><a href="#try" onClick={() => setMode('post')}>依頼の掲載イメージを試す →</a></div><Recording name="post" label="依頼を入力して掲載イメージを見る" /></article>
       <p className="welcome-metric-note">録画は公開サンプルの操作です。架空の案件・金額を使用し、実際の投稿や送信は行っていません。</p>
