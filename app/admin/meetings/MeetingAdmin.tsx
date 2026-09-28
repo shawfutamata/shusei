@@ -5,7 +5,8 @@ import RosterImport from './RosterImport';
 const labels={open:'受付中',analyzing:'分析中',review:'候補確認',published:'公開済み'};
 export default function MeetingAdmin() {
   const [events,setEvents]=useState<Meeting[]>([]), [event,setEvent]=useState<Meeting|null>(null), [people,setPeople]=useState<Attendee[]>([]),[roster,setRoster]=useState<RosterPerson[]>([]);
-  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[origin,setOrigin]=useState('');
+  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[origin,setOrigin]=useState(''),[now,setNow]=useState(0);
+  useEffect(()=>{const update=()=>setNow(Date.now());const start=setTimeout(update,0),timer=setInterval(update,1000);return()=>{clearTimeout(start);clearInterval(timer);};},[]);
   async function request(body?:Record<string,unknown>,id?:string) {
     const r=await fetch('/api/admin/meetings'+(id?'?id='+encodeURIComponent(id):''),body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{cache:'no-store'});
     const data=await r.json() as {error?:string;event:Meeting;attendees:Attendee[];roster:RosterPerson[];events:Meeting[];id:string}; if(!r.ok) throw new Error(data.error||'読み込めませんでした。'); return data;
@@ -30,7 +31,7 @@ export default function MeetingAdmin() {
     <details><summary>新しい例会を作成</summary><form onSubmit={create}><label>例会名<input name="title" required maxLength={120}/></label><label>会場<input name="venue" required maxLength={120}/></label><label>回答締切（日本時間）<input name="closesAt" type="datetime-local" required/></label><button disabled={busy}>受付URLを作成</button></form></details>
     <label>例会を選択<select value={event?.id||''} disabled={busy} onChange={e=>void select(e.target.value)}><option value="" disabled>選択してください</option>{events.map(e=><option key={e.id} value={e.id}>{e.title}</option>)}</select></label>
     {error&&<p role="alert" className="meeting-error">{error}　回答は保持されています。再読み込み・再開できます。</p>}
-    {event&&<><h2>{event.title}</h2><p>{event.venue} · {labels[event.state]}<br/>締切：{new Date(event.closesAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'})}</p>
+    {event&&<><h2>{event.title}</h2><p>{event.venue} · {event.state==='open'&&now>=event.closesAt?'受付終了':labels[event.state]}<br/>締切：{new Date(event.closesAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'})}</p>
     {!event.rosterCount&&event.state==='open'&&people.length===0&&<RosterImport busy={busy} onImport={async profiles=>{setBusy(true);try{apply(await request({action:'import',id:event.id,people:profiles,consent:true}));}finally{setBusy(false);}}}/>}
     {!!event.rosterCount&&<details><summary>本日の名簿 {roster.length}人を確認</summary>{roster.map(p=><p key={p.id}>{p.name} · {p.company} · {p.industry}{p.table&&` ／ ${p.table}`}</p>)}</details>}
     <p className="meeting-link">ログイン不要の受付URL（名簿の取り込み後に共有）<br/><a href={'/meeting/'+event.id} target="_blank" rel="noreferrer">{origin}/meeting/{event.id}</a></p>
@@ -38,7 +39,7 @@ export default function MeetingAdmin() {
     <p>名簿 {roster.length}人 ／ 回答 {people.length}人 ／ 出席確認 {confirmed.length}人 ／ 分析済み {confirmed.filter(p=>p.analyzed).length}人</p>
     <p className="meeting-help">1例会100人まで。重複・欠席を確認し、実際に来場した方だけチェックしてください。集計開始後は回答と出席者を固定します。分析中はこの画面を開いたままにしてください。中断した場合は続きから再開できます。</p>
     <div className="meeting-admin-tools"><button disabled={busy} className="meeting-secondary" onClick={()=>void select(event.id)}>回答を再読み込み</button>
-    {(event.state==='open'||event.state==='analyzing')&&<button disabled={busy||!confirmed.length} onClick={()=>void act('analyze')}>{busy?'処理中…':event.state==='analyzing'?'分析を再開':'締切後に集計・分析する'}</button>}
+    {(event.state==='open'||event.state==='analyzing')&&<button disabled={busy||!confirmed.length||(event.state==='open'&&now<event.closesAt)} onClick={()=>void act('analyze')}>{busy?'処理中…':event.state==='analyzing'?'分析を再開':'締切後に集計・分析する'}</button>}
     {event.state==='review'&&<button disabled={busy} onClick={()=>void act('publish')}>確認した候補を本人に公開する</button>}</div>
     {event.state==='review'&&<p>回答原文と必須条件を確認してください。紹介が難しい候補は外せます。「候補なし」も正常な結果です。</p>}
     {people.map(p=><article className="meeting-admin-row" key={p.id}><label><input type="checkbox" checked={p.present===1} disabled={busy||event.state!=='open'} onChange={e=>void act('attendance',{personId:p.id,present:e.target.checked})}/>{p.name} · {p.company} {p.table&&'／席 '+p.table}</label>{p.walkIn&&<p><b>当日参加・本人入力</b>（お名前と事業内容を受付で確認してください）</p>}
