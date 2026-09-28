@@ -185,9 +185,15 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         <p className="welcome-demo-disclaimer">公開用のサンプル案件による操作イメージです。実在する会員の投稿・情報は表示していません。</p>
       </section>
     </section>
-    <section className="welcome-safety" id="safety" aria-labelledby="safety-heading"><div className="welcome-safety-card">
-      <div className="welcome-safety-icon"><WelcomeIcon name="check" /></div>
-      <div><p className="welcome-kicker">安心して使える場を守るために</p><h2 id="safety-heading"><span className="welcome-desktop-only">仕事の話ができる、安心な場所へ。</span><span className="welcome-mobile-only">安心して使うために</span></h2><p>政治・宗教活動やネットワークビジネスへの勧誘、外部コミュニティへの誘導など、会員の安心を損なう行為は禁止しています。</p><small>気になる案件は、案件詳細から運営へ異議申し立てできます。</small></div>
+    <section className="welcome-safety" id="safety" aria-labelledby="safety-heading"><div className="welcome-safety-inner">
+      <div className="welcome-safety-copy"><p className="welcome-kicker">TASUKI ご利用ルール</p><h2 id="safety-heading">安心して仕事を話せる場を、<br />みんなで守るために。</h2><p>仕事の相談や商談を目的とした会員サービスです。次の行為は、TASUKI内で禁止しています。</p></div>
+      <div className="welcome-prohibited"><h3>禁止事項</h3><ol>
+        <li><span>01</span><strong>政治活動・宗教活動への勧誘</strong></li>
+        <li><span>02</span><strong>ネットワークビジネスへの勧誘</strong></li>
+        <li><span>03</span><strong>外部コミュニティや別サービスへの誘導</strong></li>
+        <li><span>04</span><strong>会員への迷惑行為や、安心を損なう行為</strong></li>
+      </ol></div>
+      <p className="welcome-safety-report"><strong>気になる案件を見つけたら</strong><span>案件詳細の「異議申し立て」から運営へお知らせください。</span></p>
     </div></section>
     <section className="welcome-pricing" id="plans" aria-labelledby="pricing-heading">
       <div className="welcome-section-heading"><p className="welcome-kicker">PLANS &amp; CAMPAIGN</p><h2 id="pricing-heading"><span className="welcome-desktop-only">使い方を見てから、<br />プランを選べます。</span><span className="welcome-mobile-only">まずは無料で始められます。</span></h2><p className="welcome-desktop-only">登録前にサービスの中身を確認できるから、自分の仕事に合うかを判断してから始められます。</p></div>
