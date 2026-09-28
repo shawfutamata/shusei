@@ -136,6 +136,11 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
     </div></div>
     <section className="welcome-metrics" aria-labelledby="metrics-heading">
       <div className="welcome-section-heading"><p className="welcome-kicker">TASUKIでできること</p><h2 id="metrics-heading">仕事の機会を、<br />待つだけにしない。</h2></div>
+      <figure className="welcome-match-visual">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/welcome/owner-matching.webp" width={1672} height={941} alt="経営者同士が商談を経て握手し、新しい仕事のつながりをつくる様子" loading="lazy" />
+        <figcaption><span>BUSINESS MATCHING</span><strong>できる人と、<br />頼みたい人が出会う。</strong><p>仕事の相談から、次の商談へ。</p></figcaption>
+      </figure>
       <div className="welcome-metric-grid">
         <article><span>受注のきっかけを増やす</span><strong className="metric-word">見つける</strong><h3>得意を活かせる仕事へ。</h3><p>依頼内容・予算・エリアを見て、自社に合う案件へオファーできます。</p></article>
         <article><span>発注先探しを進める</span><strong className="metric-word">頼める</strong><h3>探している相手を、会員へ。</h3><p>仕事や相談を掲示板へ投稿し、対応できる相手とつながれます。</p></article>
