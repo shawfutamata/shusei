@@ -126,7 +126,8 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         <p className="welcome-kicker"><WelcomeIcon name="briefcase" /><span className="welcome-desktop-only">経営者・事業者のビジネスマッチング</span><span className="welcome-mobile-only">仕事でつながる会員サービス</span></p>
         <h1><span className="welcome-desktop-only">その日だけだった<br />商売の機会を、毎日へ。</span><span className="welcome-mobile-only">商売の機会を、<br />毎日へ。</span></h1>
         <p className="welcome-lead"><span className="welcome-desktop-only">あなたの「できます」と、<br />誰かの「お願いしたい」が出会う場所。</span><span className="welcome-mobile-only">仕事を探す・頼む・相談する。<br />スマホひとつで。</span></p>
-        <p className="welcome-description welcome-desktop-only"><strong>パソコンやネットの操作が苦手でも大丈夫。</strong>TASUKIは、スマホで「探す」「頼む」「話す」を順番に進めるだけ。見やすい文字とわかりやすいボタンで、迷いにくく使えます。</p><div className="welcome-hero-points"><span><WelcomeIcon name="check" />スマホだけで使える</span><span><WelcomeIcon name="check" />かんたん操作</span><span><WelcomeIcon name="chat" />困ったときは相談できる</span></div>
+        <div className="welcome-easy"><WelcomeIcon name="check" /><span><strong>パソコンやネットの操作が苦手でも大丈夫。</strong><small>見やすい文字とボタンで、順番に進めるだけです。</small></span></div>
+        <div className="welcome-hero-points"><span><WelcomeIcon name="check" />スマホだけで使える</span><span><WelcomeIcon name="check" />かんたん操作</span><span><WelcomeIcon name="chat" />困ったときは相談できる</span></div>
         <a className="welcome-primary" href="#start">アカウントを作成 <span aria-hidden="true">→</span></a>
       </section>
       <div className="welcome-keyvisual">
@@ -188,6 +189,10 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         <p className="welcome-demo-disclaimer">公開用のサンプル案件による操作イメージです。実在する会員の投稿・情報は表示していません。</p>
       </section>
     </section>
+    <section className="welcome-safety" id="safety" aria-labelledby="safety-heading"><div className="welcome-safety-card">
+      <div className="welcome-safety-icon"><WelcomeIcon name="check" /></div>
+      <div><p className="welcome-kicker">安心して使える場を守るために</p><h2 id="safety-heading"><span className="welcome-desktop-only">仕事の話ができる、安心な場所へ。</span><span className="welcome-mobile-only">安心して使うために</span></h2><p>政治・宗教活動やネットワークビジネスへの勧誘、外部コミュニティへの誘導など、会員の安心を損なう行為は禁止しています。</p><small>気になる案件は、案件詳細から運営へ異議申し立てできます。</small></div>
+    </div></section>
     <section className="welcome-pricing" id="plans" aria-labelledby="pricing-heading">
       <div className="welcome-section-heading"><p className="welcome-kicker">PLANS &amp; CAMPAIGN</p><h2 id="pricing-heading"><span className="welcome-desktop-only">使い方を見てから、<br />プランを選べます。</span><span className="welcome-mobile-only">まずは無料で始められます。</span></h2><p className="welcome-desktop-only">登録前にサービスの中身を確認できるから、自分の仕事に合うかを判断してから始められます。</p></div>
       {campaignActive && <div className="welcome-pricing-campaign">
