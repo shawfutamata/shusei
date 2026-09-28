@@ -45,13 +45,13 @@ export default function LandingPage({ error = '', pending = false }: { error?: s
           <h1 id="lp-title">紹介が、<br/>次の商売に<br/>つながる。</h1>
           <p className={styles.heroLead}>あの人の「困った」に、あなたのつながりを。<br/>会員同士の紹介とオファーで、<br className={styles.mobileBreak}/>商売の可能性を広げよう。</p>
           <div className={styles.actions}><a className={styles.primary} href="#start">無料で始める <span aria-hidden="true">↗</span></a><a className={styles.secondary} href="#about">TASUKIを知る <span aria-hidden="true">↓</span></a></div>
-          <p className={styles.fine}>無料プランあり · Googleアカウントで登録</p>
+          <p className={styles.fine}>Googleアカウントで登録 · 招待コード不要</p>
           {error && <p className={styles.notice} role={pending ? 'status' : 'alert'}>{error}</p>}
         </div>
         <ConnectionSculpture/>
       </div>
     </section>
-    <div className={styles.introStrip}><span>経営者・事業者向け</span><span>招待コードなしで登録</span><span>無料プランあり</span></div>
+    <div className={styles.introStrip}><span>経営者・事業者向け</span><span>招待コードなしで登録</span><span>スマホから受注・発注</span></div>
     <section className={styles.productEvidence} aria-labelledby="product-title">
       <div><p className={styles.eyebrow}>CONNECTIONS INTO ACTION</p><h2 id="product-title">つながりを、<br/>動き出す商売へ。</h2><p>案件を探す。仲間を紹介する。<br/>TASUKIの実際の画面をご覧ください。</p><a className={styles.secondary} href="#start">無料で始める ↗</a></div>
       <ProductShowcase/>
@@ -79,18 +79,18 @@ export default function LandingPage({ error = '', pending = false }: { error?: s
     <section className={styles.plans} id="plans" aria-labelledby="plans-title">
       <div className={styles.sectionTop}><span>03 / MEMBERSHIP</span><span>紹介は無料。もっと使うならスタンダード。</span></div>
       <div className={styles.planHeading}><h2 id="plans-title">あなたのペースで、<br/>商売を広げよう。</h2></div>
-      {activeCampaign && <div className={styles.campaign}><b>{freeCampaign.name}</b><p><strong>{campaignUntilLabel()}まで、スタンダード機能が無料。</strong><br/>期間中は契約なしで利用できます。以下は通常料金です。広告掲載は別料金です。</p></div>}
+      {activeCampaign && <div className={styles.campaign}><b>{freeCampaign.name}</b><p><strong>{campaignUntilLabel()}まで、全機能と広告掲載料が完全無料。</strong><br/>お申し込みもお支払いも不要です。終了後に自動で有料契約へ切り替わることはありません。以下は通常料金です。</p></div>}
       <div className={styles.planCards}>
         <article className={styles.planCard}><span className={styles.smallLabel}>FREE</span><h3>まずは、つながる。</h3><div className={styles.price}>0<span>円</span></div><p>無料プラン</p><ul><li>掲示板の閲覧・会員検索</li><li>知り合いを紹介するオファー</li><li>案件の投稿は何件でも</li><li>メッセージは月3人まで新しく送れる</li></ul><p className={styles.planNote}>通常、届いたオファーの内容確認・返信と、自社で請け負うオファーにはスタンダードが必要です。お返事と、すでにやり取りしている方へのメッセージは、いつでもお送りいただけます。</p><a href="#start" className={styles.secondary}>無料で始める ↗</a></article>
         <article className={`${styles.planCard} ${styles.standard}`}><span className={styles.smallLabel}>STANDARD</span><h3>もっと、商売につなぐ。</h3><div className={styles.price}>{planCatalog.standard.monthlyYen.toLocaleString('ja-JP')}<span>円 / 月</span></div><p>年払い {yearlyYen('standard').toLocaleString('ja-JP')}円 / 年 <b className={styles.discount}>{YEARLY_DISCOUNT * 100}%OFF</b></p><ul><li>無料プランの機能すべて</li><li>案件の投稿は何件でも</li><li>届いたオファーの内容確認・返信</li><li>自社で請け負うオファー</li><li>メッセージは何人にでも送れる</li></ul><a href="#start" className={styles.primary}>{activeCampaign ? '無料で試す' : 'アカウント登録'} ↗</a></article>
       </div>
-      <div className={styles.ads} id="advertising"><div><span className={styles.smallLabel}>LET YOUR BUSINESS BE SEEN</span><h3>あなたの商売を、<br/>会員に届ける広告枠。</h3><p>掲載日数に応じた日割り料金。<br/>最短{AD_MIN_DAYS}日〜最長{AD_MAX_DAYS}日で掲載できます。</p></div><div className={styles.adPrices}><div><span>バナー広告 · {placementSlots('banner')}枠</span><b>{AD_DAILY_YEN.banner}円<small> / 日</small></b></div><div><span>掲示板上位 · {placementSlots('list')}枠</span><b>{AD_DAILY_YEN.list}円<small> / 日</small></b></div><p>出稿条件・空き枠は、ログイン後の広告申込画面でご確認ください。</p></div></div>
+      <div className={styles.ads} id="advertising"><div><span className={styles.smallLabel}>LET YOUR BUSINESS BE SEEN</span><h3>あなたの商売を、<br/>会員に届ける広告枠。</h3><p>{activeCampaign ? <>{campaignUntilLabel()}まで、広告掲載料も無料。<br/>最短{AD_MIN_DAYS}日〜最長{AD_MAX_DAYS}日で掲載できます。</> : <>掲載日数に応じた日割り料金。<br/>最短{AD_MIN_DAYS}日〜最長{AD_MAX_DAYS}日で掲載できます。</>}</p></div><div className={styles.adPrices}><div><span>バナー広告 · {placementSlots('banner')}枠</span><b>{activeCampaign ? 0 : AD_DAILY_YEN.banner}円<small> / 日</small></b></div><div><span>掲示板上位 · {placementSlots('list')}枠</span><b>{activeCampaign ? 0 : AD_DAILY_YEN.list}円<small> / 日</small></b></div><p>{activeCampaign ? `${freeCampaign.name}期間中の料金です。出稿条件・空き枠はログイン後にご確認ください。` : '出稿条件・空き枠は、ログイン後の広告申込画面でご確認ください。'}</p></div></div>
     </section>
     <section className={styles.faq} aria-labelledby="faq-title">
       <p className={styles.eyebrow}>QUESTIONS & ANSWERS</p>
       <h2 id="faq-title">はじめる前に、知っておきたいこと。</h2>
       <details><summary>TASUKIはどんなサービスですか？</summary><p>経営者・事業者向けの招待制ビジネスマッチングサービスです。案件の投稿や会員検索、知り合いの紹介を通じて、新しい商売や協業のきっかけをつなぎます。</p></details>
-      <details><summary>無料で利用できますか？</summary><p>無料プランがあります。各プランで利用できる機能や料金は、<a href="#plans">料金プラン</a>をご覧ください。</p></details>
+      <details><summary>無料で利用できますか？</summary><p>{campaignUntilLabel()}までのキャンペーン期間中は、全機能と広告掲載料が無料です。お支払い手続きは不要で、終了後に自動課金されることもありません。通常のプランは<a href="#plans">料金プラン</a>をご覧ください。</p></details>
       <details><summary>登録に必要なものは何ですか？</summary><p>Googleアカウントが必要です。招待コードは必要ありません。登録後、運営確認が完了すると利用できます。</p></details>
       <details><summary>登録後、すぐに利用できますか？</summary><p>安心して利用できる環境を保つため、登録後に運営が確認します。確認についてご不明な点は<a href="/support">運営窓口</a>へお問い合わせください。</p></details>
     </section>

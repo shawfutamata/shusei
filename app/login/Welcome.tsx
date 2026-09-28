@@ -3,9 +3,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import BrandMark from '../BrandMark';
 import LegalLinks from '../LegalLinks';
+import { campaignRunning, campaignUntilLabel } from '../campaign';
+import { planCatalog, yearlyYen, YEARLY_DISCOUNT } from '../plan-catalog';
 import './welcome.css';
 
 type IconName = 'search' | 'briefcase' | 'chat' | 'phone' | 'send' | 'check';
+const campaignUntil = campaignUntilLabel();
 function WelcomeIcon({ name }: { name: IconName }) {
   const paths: Record<IconName, ReactNode> = {
     search: <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></>,
@@ -35,6 +38,7 @@ const examples = [
 ];
 
 export default function Welcome({ children, initialMessage }: { children: ReactNode; initialMessage: string }) {
+  const campaignActive = campaignRunning();
   const [mode, setMode] = useState<'find' | 'post'>('find');
   const [selected, setSelected] = useState<number | null>(null);
   const [offer, setOffer] = useState(false);
@@ -56,13 +60,13 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
     <header className="welcome-nav"><a href="/login" className="welcome-brand"><BrandMark /><span>TASUKI</span></a><button onClick={openLogin}>会員ログイン <span aria-hidden="true">↗</span></button></header>
     <div className="welcome-hero"><div className="welcome-intro">
       <section className="welcome-copy">
-        <p className="welcome-kicker"><WelcomeIcon name="briefcase" /> 招待制のビジネスマッチング</p>
+        <p className="welcome-kicker"><WelcomeIcon name="briefcase" /> 経営者・事業者のビジネスマッチング</p>
         <h1>その日だけだった<br />商売の機会を、毎日へ。</h1>
         <p className="welcome-lead">あなたの「できます」と、<br />誰かの「お願いしたい」が出会う場所。</p>
         <p className="welcome-description">TASUKIなら、仕事を探すのも、依頼するのもスマホから。会員同士で直接つながり、次の商談を始められます。</p><div className="welcome-hero-points"><span><WelcomeIcon name="search" />仕事を見つける</span><span><WelcomeIcon name="send" />仕事を頼む</span><span><WelcomeIcon name="chat" />直接相談する</span></div>
-        <a className="welcome-primary" href="#start">無料でアカウント登録 <span aria-hidden="true">→</span></a>
+        <a className="welcome-primary" href="#start">アカウントを作成 <span aria-hidden="true">→</span></a>
         <a className="welcome-try" href="#try">まずは操作を試す ↓</a>
-        <p className="welcome-note">無料プランあり · 登録後、運営確認を経て利用開始</p>
+        <p className="welcome-note">招待コード不要 · Googleアカウントで登録 · 運営確認後に利用開始</p>
       </section>
       <div className="welcome-keyvisual">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -71,12 +75,12 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
       </div>
     </div></div>
     <section className="welcome-metrics" aria-labelledby="metrics-heading">
-      <div className="welcome-section-heading"><p className="welcome-kicker">小さく始めて、仕事の可能性を広げる。</p><h2 id="metrics-heading">まずは無料で。<br />依頼も、つながりづくりも。</h2></div>
+      <div className="welcome-section-heading"><p className="welcome-kicker">TASUKIでできること</p><h2 id="metrics-heading">仕事の機会を、<br />待つだけにしない。</h2></div>
       <div className="welcome-metric-grid">
-        <article><span>無料プランの月額</span><strong>0<small>円</small></strong><h3>固定費をかけずに始める。</h3><p>まずは登録して、自分の仕事に合う使い方を見つけられます。</p></article>
-        <article><span>案件の投稿件数</span><strong className="metric-word">上限なし</strong><h3>頼みたい仕事を、ため込まない。</h3><p>無料プランでも投稿件数は無制限。案件ごとに依頼内容を共有できます。</p></article>
-        <article><span>無料プランの新規メッセージ</span><strong>3<small>人／月</small></strong><h3>次の相手に、直接話しかける。</h3><p>返信と、すでに会話している相手とのやり取りは、この人数に含みません。</p></article>
-      </div><p className="welcome-metric-note">サービスの利用条件を示した数字です。導入後の成果実績ではありません。オファーなどの利用範囲はプランによって異なります。</p>
+        <article><span>受注のきっかけを増やす</span><strong className="metric-word">見つける</strong><h3>得意を活かせる仕事へ。</h3><p>依頼内容・予算・エリアを見て、自社に合う案件へオファーできます。</p></article>
+        <article><span>発注先探しを進める</span><strong className="metric-word">頼める</strong><h3>探している相手を、会員へ。</h3><p>仕事や相談を掲示板へ投稿し、対応できる相手とつながれます。</p></article>
+        <article><span>商談を前へ進める</span><strong className="metric-word">話せる</strong><h3>条件や進め方を、直接相談。</h3><p>オファーからメッセージへ進み、スマホで具体的なやり取りを始められます。</p></article>
+      </div>
     </section>
     <section className="welcome-walkthrough" aria-labelledby="walkthrough-heading">
       <div className="welcome-section-heading"><p className="welcome-kicker">使い方が見える、操作ムービー。</p><h2 id="walkthrough-heading">次の仕事は、<br />こんな操作から始まります。</h2><p>操作の流れを短いムービーで自動再生します。</p></div>
@@ -93,8 +97,8 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         ['check', '会員プロフィール', '会社や事業内容を伝え、どんな相手かを知ってもらう。'],
         ['phone', 'お気に入り', '気になる案件を保存して、あとから見返す。'],
       ] as [IconName, string, string][]).map(([icon, title, description]) => <article key={title}><div className="welcome-feature-art"><WelcomeIcon name={icon} /></div><div><h3>{title}</h3><p>{description}</p></div></article>)}
-    </div><p className="welcome-feature-note">機能の利用範囲は、ご利用のプランによって異なります。</p></section>
-    <section className="welcome-hands-on"><div className="welcome-section-heading"><p className="welcome-kicker">登録前に、触ってみよう。</p><h2>次は、あなたの指で。</h2><p>案件をタップしたり、依頼文を入力したり。操作感を体験できます。</p></div>
+    </div><p className="welcome-feature-note">仕事を探すところから相談まで、スマホでひとつにつながります。</p></section>
+    <section className="welcome-hands-on"><div className="welcome-section-heading"><p className="welcome-kicker">登録前に、触ってみよう。</p><h2>TASUKIの操作を、ここで体験。</h2><p>案件をタップしたり、依頼文を入力したり。実際の流れを試せます。</p></div>
       <section className="welcome-demo" id="try" aria-label="TASUKIの操作体験">
         <div className="welcome-demo-top"><b><WelcomeIcon name="briefcase" />仕事の掲示板</b><span>サンプル体験</span></div>
         <div className="welcome-tabs" aria-label="体験する機能">
@@ -117,7 +121,20 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         <p className="welcome-demo-disclaimer">架空の案件・金額による操作イメージです。会員情報は表示していません。</p>
       </section>
     </section>
-    <section className="welcome-start" id="start"><div><p className="welcome-kicker"><WelcomeIcon name="check" />次は、あなたの仕事で。</p><h2>つながりを、商売の機会に。</h2><p>招待コードは必要ありません。<br />Googleアカウントで登録後、運営確認を経てご利用いただけます。</p><small>無料プランあり。オファーなどの利用範囲はプランによって異なります。</small></div><div className="welcome-signup"><a className="welcome-primary" href="/api/auth/google/start?signup=1"><GoogleMark />Googleで無料登録 <span aria-hidden="true">→</span></a><p className="welcome-note">登録後、運営確認が完了するとご利用いただけます。</p></div></section>
+    <section className="welcome-pricing" id="plans" aria-labelledby="pricing-heading">
+      <div className="welcome-section-heading"><p className="welcome-kicker">PLANS &amp; CAMPAIGN</p><h2 id="pricing-heading">使い方を見てから、<br />プランを選べます。</h2><p>登録前にサービスの中身を確認できるから、自分の仕事に合うかを判断してから始められます。</p></div>
+      {campaignActive && <div className="welcome-pricing-campaign">
+        <div><span>{campaignUntil}まで</span><h3>年内は、全機能を完全無料で。</h3><p>通常はスタンダードで利用できる機能に加え、広告掲載料も0円。お申し込みもお支払いも必要ありません。</p></div>
+        <div className="welcome-campaign-price"><small>通常 月額</small><s>{planCatalog.standard.monthlyYen.toLocaleString('ja-JP')}円</s><strong>0<em>円</em></strong><b>自動課金なし</b></div>
+        <ul><li><WelcomeIcon name="check" />オファーの送受信</li><li><WelcomeIcon name="check" />新規メッセージ無制限</li><li><WelcomeIcon name="check" />案件投稿・会員検索</li><li><WelcomeIcon name="check" />バナー・掲示板上位広告</li></ul>
+      </div>}
+      <div className="welcome-regular-plans">
+        <article><span>FREE</span><h3>無料プラン</h3><strong>0<small>円 / 月</small></strong><p>キャンペーン終了後も、基本機能を無料で利用できます。</p></article>
+        <article><span>STANDARD</span><h3>スタンダード</h3><strong>{planCatalog.standard.monthlyYen.toLocaleString('ja-JP')}<small>円 / 月</small></strong><p>年払い {yearlyYen('standard').toLocaleString('ja-JP')}円（{YEARLY_DISCOUNT * 100}%OFF）。全機能を利用できます。</p></article>
+      </div>
+      <p className="welcome-pricing-note">キャンペーン終了後、自動で有料プランへ切り替わることはありません。スタンダードの継続を希望する場合だけ、ご自身でお申し込みいただきます。</p>
+    </section>
+    <section className="welcome-start" id="start"><div><p className="welcome-kicker"><WelcomeIcon name="check" />全機能無料キャンペーン</p><h2>つながりを、商売の機会に。</h2><p>招待コードは必要ありません。<br />Googleアカウントで登録後、運営確認を経てご利用いただけます。</p><small>{campaignUntil}まで全機能・広告掲載料が完全無料。終了後も自動課金はありません。</small></div><div className="welcome-signup"><a className="welcome-primary" href="/api/auth/google/start?signup=1"><GoogleMark />Googleで無料登録 <span aria-hidden="true">→</span></a><p className="welcome-note">登録後、運営確認が完了するとご利用いただけます。</p></div></section>
     <section id="member-login" className="welcome-login"><button className="welcome-login-toggle" onClick={() => setLogin(!login)} aria-expanded={login} aria-controls="login-content">すでに会員の方はこちら <span>{login ? '−' : 'ログイン →'}</span></button><div id="login-content" hidden={!login}>{children}</div></section>
     <footer className="welcome-footer"><a href="/lp">TASUKIについて</a><a href="mailto:info@tasuki.club">お問い合わせ</a><span>© TASUKI</span><LegalLinks /></footer>
   </main>;
