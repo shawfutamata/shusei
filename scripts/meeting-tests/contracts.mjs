@@ -18,7 +18,7 @@ const ai={async run(_model,input){calls++;const data=JSON.parse(input.messages[1
 assert.equal((await matchAttendee(ai,seeker,[seeker,provider]))[0].id,'p');assert.equal(calls,3);
 assert.deepEqual(await matchAttendee(ai,{...seeker,need:''},[provider]),[]);assert.equal(calls,3);
 await assert.rejects(()=>matchAttendee({async run(){return {response:'invalid json'}}},seeker,[provider]));
-await assert.rejects(()=>matchAttendee({async run(){return {response:JSON.stringify({matches:[{...candidate,id:'forged'}]})}}},seeker,[provider]));
+assert.deepEqual(await matchAttendee({async run(){return {response:JSON.stringify({matches:[{...candidate,id:'forged'}]})}}},seeker,[provider]),[]);
 console.log('PASS: answer validation, event isolation, attendance, self-match, exact evidence, referral evidence, duplicate removal, identity exclusion, independent verification, no-need, malformed output, forged ID');
 
 assert.equal((await matchAttendee(ai,seeker,[seeker,{...provider,industry:'',walkIn:true}]))[0].id,'p');
