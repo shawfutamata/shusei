@@ -127,7 +127,7 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
       </section>
       <div className="welcome-keyvisual">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/welcome/friendly-matching-hero-v3.webp" width={1122} height={1402} alt="スマートフォンだけで仕事を探せたと話す3人の事業者" fetchPriority="high" />
+        <img src="/welcome/job-matching-hero-v2.webp" width={1536} height={1024} alt="TASUKI上で仕事を頼みたい事業者と対応できる事業者がマッチングする様子" fetchPriority="high" />
       </div>
     </div></div>
     <section className="welcome-metrics" aria-labelledby="metrics-heading">
