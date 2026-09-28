@@ -128,6 +128,7 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
       <div className="welcome-keyvisual">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/welcome/friendly-matching-hero-v2.webp" width={1122} height={1402} alt="スマートフォンを使いながら、仕事探し、オファー、相談へ楽しく進む3人の事業者" fetchPriority="high" />
+        <blockquote className="welcome-keyvisual-quote"><strong>「スマホだけでできた！」</strong><span>パソコンが使えなくても、<br />仕事を探せます。</span></blockquote>
       </div>
     </div></div>
     <section className="welcome-metrics" aria-labelledby="metrics-heading">
