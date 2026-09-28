@@ -40,7 +40,7 @@ function FeatureArt({ name }: { name: IconName }) {
       <circle className="art-blue" cx="70" cy="51" r="5" /><path className="art-line" d="M81 48h56M81 54h38" />
       <rect className="art-paper" x="57" y="69" width="126" height="16" rx="6" /><rect className="art-paper" x="57" y="91" width="126" height="16" rx="6" />
       <circle className="art-accent" cx="169" cy="77" r="4" /><circle className="art-mint" cx="169" cy="99" r="4" />
-      <circle className="art-focus" cx="180" cy="42" r="20" /><path className="art-focus-line" d="m194 56 13 13" />
+      <circle className="art-focus" cx="168" cy="44" r="18" /><path className="art-focus-line" d="m181 57 12 12" />
     </>}
     {name === 'briefcase' && <>
       <rect className="art-card art-shadow" x="51" y="22" width="138" height="104" rx="13" />
@@ -53,8 +53,8 @@ function FeatureArt({ name }: { name: IconName }) {
       <rect className="art-card art-shadow" x="39" y="28" width="154" height="94" rx="14" />
       <circle className="art-soft" cx="60" cy="50" r="10" /><path className="art-line" d="M78 46h74M78 54h49" />
       <rect className="art-paper" x="53" y="72" width="91" height="30" rx="8" /><path className="art-line" d="M65 82h56M65 91h38" />
-      <rect className="art-blue" x="137" y="66" width="63" height="43" rx="9" />
-      <path className="art-white-line" d="m147 78 21 15 22-15M147 99l14-12M190 99l-14-12" />
+      <rect className="art-blue" x="134" y="66" width="66" height="43" rx="9" />
+      <path className="art-white-line" d="m146 78 21 15 21-15M151 97l12-10M185 97l-12-10" />
       <circle className="art-mint" cx="192" cy="40" r="13" /><path className="art-white-line" d="m186 40 4 4 8-9" />
     </>}
     {name === 'chat' && <>
@@ -73,13 +73,13 @@ function FeatureArt({ name }: { name: IconName }) {
       <circle className="art-mint" cx="177" cy="39" r="13" /><path className="art-white-line" d="m171 39 4 4 8-9" />
     </>}
     {name === 'ads' && <>
-      <rect className="art-card art-card-back" x="38" y="35" width="128" height="76" rx="12" />
-      <rect className="art-card art-shadow" x="58" y="23" width="145" height="92" rx="13" />
-      <rect className="art-soft" x="74" y="39" width="78" height="10" rx="5" /><path className="art-line" d="M74 59h108M74 69h74" />
-      <rect className="art-blue" x="72" y="82" width="71" height="25" rx="8" /><path className="art-white-line" d="M87 94h40" />
-      <path className="art-accent" d="M154 82h12l23-12v28l-23-10h-12z" /><path className="art-accent" d="m162 88 5 17h9l-5-15" />
-      <path className="art-line" d="M194 78c4 4 4 9 0 13M201 73c7 7 7 17 0 24" />
-      <circle className="art-mint" cx="56" cy="106" r="13" /><path className="art-white-line" d="m50 106 4 4 8-9" />
+      <rect className="art-card art-card-back" x="34" y="36" width="126" height="76" rx="12" />
+      <rect className="art-card art-shadow" x="46" y="23" width="165" height="94" rx="13" />
+      <rect className="art-soft" x="62" y="39" width="82" height="10" rx="5" /><path className="art-line" d="M62 59h99M62 69h72" />
+      <rect className="art-blue" x="60" y="82" width="76" height="25" rx="8" /><path className="art-white-line" d="M76 94h44" />
+      <path className="art-accent" d="M146 80h13l27-13v34l-27-13h-13z" /><path className="art-accent" d="m154 88 5 19h11l-6-17" />
+      <path className="art-line" d="M191 78c5 5 5 13 0 18M199 72c9 9 9 23 0 31" />
+      <circle className="art-mint" cx="52" cy="106" r="13" /><path className="art-white-line" d="m46 106 4 4 8-9" />
     </>}
   </svg>;
 }
