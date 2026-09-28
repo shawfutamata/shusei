@@ -5,7 +5,7 @@ import Welcome from './Welcome';
 import BrandMark from '../BrandMark';
 import LegalLinks from '../LegalLinks';
 
-export default function LoginForm({ initialMessage = '' }: { initialMessage?: string }) {
+export default function LoginForm({ initialMessage = '', standalone = false }: { initialMessage?: string; standalone?: boolean }) {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'email' | 'code'>('email');
@@ -33,9 +33,12 @@ export default function LoginForm({ initialMessage = '' }: { initialMessage?: st
     }
   }
 
-  return <Welcome initialMessage={initialMessage}><form className="signin-card" onSubmit={submit}><BrandMark /><p className="eyebrow">MEMBERS ONLY</p><h2>{step === 'email' ? 'ログイン' : '認証コードを入力'}</h2><p>{step === 'email' ? 'ご登録済みのGoogleアカウント、またはメールアドレスでログインできます。' : `${email} 宛に6桁のコードを送りました。10分以内に入力してください。`}</p>{step === 'email' && <><a className="primary-button google-button" href="/api/auth/google/start"><GoogleMark />Googleでログイン</a><div className="login-divider"><span>または</span></div></>}<label className="login-field"><span>{step === 'email' ? 'メールアドレス' : '認証コード'}</span>{step === 'email'
+  const form = <form className="signin-card" onSubmit={submit}><BrandMark /><p className="eyebrow">MEMBERS ONLY</p><h2>{step === 'email' ? 'ログイン' : '認証コードを入力'}</h2><p>{step === 'email' ? 'ご登録済みのGoogleアカウント、またはメールアドレスでログインできます。' : `${email} 宛に6桁のコードを送りました。10分以内に入力してください。`}</p>{step === 'email' && <><a className="primary-button google-button" href={standalone ? '/api/auth/google/start?return_to=/login/member' : '/api/auth/google/start'}><GoogleMark />Googleでログイン</a><div className="login-divider"><span>または</span></div></>}<label className="login-field"><span>{step === 'email' ? 'メールアドレス' : '認証コード'}</span>{step === 'email'
     ? <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" placeholder="you@example.com" required />
-    : <input className="login-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="000000" maxLength={6} required />}</label>{!!message && <p className="login-message" role="status">{message}</p>}<button className="primary-button" disabled={busy}>{busy ? '処理しています…' : step === 'email' ? '認証コードを送る' : 'ログインする'}</button>{step === 'code' && <button type="button" className="login-back" onClick={() => { setStep('email'); setCode(''); setMessage(''); }}>メールアドレスを変更</button>}<small>登録済み会員専用です。ログインできない場合は運営窓口へお問い合わせください。</small><LegalLinks /></form></Welcome>;
+    : <input className="login-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="000000" maxLength={6} required />}</label>{!!message && <p className="login-message" role="status">{message}</p>}<button className="primary-button" disabled={busy}>{busy ? '処理しています…' : step === 'email' ? '認証コードを送る' : 'ログインする'}</button>{step === 'code' && <button type="button" className="login-back" onClick={() => { setStep('email'); setCode(''); setMessage(''); }}>メールアドレスを変更</button>}<small>登録済み会員専用です。ログインできない場合は運営窓口へお問い合わせください。</small><LegalLinks /></form>;
+
+  if (standalone) return <main className="member-login-page"><header><a href="/login" className="welcome-brand"><BrandMark /><span>TASUKI</span></a><a href="/login">サービス紹介へ戻る</a></header><section className="member-login-shell">{form}</section></main>;
+  return <Welcome initialMessage={initialMessage}>{form}</Welcome>;
 }
 
 function GoogleMark() {

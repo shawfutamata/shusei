@@ -114,13 +114,8 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
     if (initialMessage) document.getElementById('member-login')?.scrollIntoView({ block: 'start' });
   }, [initialMessage]);
 
-  function openLogin() {
-    setLogin(true);
-    requestAnimationFrame(() => document.getElementById('member-login')?.scrollIntoView({ block: 'start' }));
-  }
-
   return <main className="welcome">
-    <header className="welcome-nav"><a href="/login" className="welcome-brand"><BrandMark /><span>TASUKI</span></a><button onClick={openLogin}>会員ログイン <span aria-hidden="true">↗</span></button></header>
+    <header className="welcome-nav"><a href="/login" className="welcome-brand"><BrandMark /><span>TASUKI</span></a><a className="welcome-login-link" href="/login/member">会員ログイン <span aria-hidden="true">↗</span></a></header>
     <div className="welcome-hero"><div className="welcome-intro">
       <section className="welcome-copy">
         <p className="welcome-kicker"><WelcomeIcon name="briefcase" /><span className="welcome-desktop-only">経営者・事業者のビジネスマッチング</span><span className="welcome-mobile-only">仕事でつながる会員サービス</span></p>
