@@ -17,6 +17,7 @@ const faqItems = [
   { question: 'キャンペーン終了後、自動で課金されますか？', answer: '自動で有料プランに切り替わることはありません。キャンペーン終了後も無料プランを利用でき、スタンダードを希望する場合だけご自身で申し込みます。' },
   { question: '無料プランでは何ができますか？', answer: '掲示板の閲覧、会員検索、リファラル、案件投稿、メッセージの返信などを利用できます。はじめての相手への新規メッセージは月3人までです。オファーの送受信はスタンダードで利用できます。' },
   { question: 'スマートフォンから利用できますか？', answer: 'はい。スマートフォンのブラウザに合わせた画面で、案件の閲覧や投稿、会員検索、メッセージなどを利用できます。' },
+  { question: 'パソコンやネットの操作が苦手でも使えますか？', answer: 'はい。スマートフォンで、見やすい文字と大きなボタンを順番に操作できる画面です。使い方に迷った場合は、お問い合わせ窓口へご相談いただけます。' },
   { question: 'このページのデモで入力した内容は公開されますか？', answer: '公開されません。デモで入力した内容は保存・送信されず、表示される案件や会社名も操作体験用のサンプルです。' },
 ];
 function WelcomeIcon({ name }: { name: IconName }) {
@@ -125,7 +126,7 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         <p className="welcome-kicker"><WelcomeIcon name="briefcase" /> 経営者・事業者のビジネスマッチング</p>
         <h1>その日だけだった<br />商売の機会を、毎日へ。</h1>
         <p className="welcome-lead">あなたの「できます」と、<br />誰かの「お願いしたい」が出会う場所。</p>
-        <p className="welcome-description">TASUKIなら、仕事を探すのも、依頼するのもスマホから。会員同士で直接つながり、次の商談を始められます。</p><div className="welcome-hero-points"><span><WelcomeIcon name="search" />仕事を見つける</span><span><WelcomeIcon name="send" />仕事を頼む</span><span><WelcomeIcon name="chat" />直接相談する</span></div>
+        <p className="welcome-description"><strong>パソコンやネットの操作が苦手でも大丈夫。</strong>TASUKIは、スマホで「探す」「頼む」「話す」を順番に進めるだけ。見やすい文字とわかりやすいボタンで、迷いにくく使えます。</p><div className="welcome-hero-points"><span><WelcomeIcon name="check" />スマホだけで使える</span><span><WelcomeIcon name="check" />文字とボタンが見やすい</span><span><WelcomeIcon name="chat" />困ったときは相談できる</span></div>
         <a className="welcome-primary" href="#start">アカウントを作成 <span aria-hidden="true">→</span></a>
       </section>
       <div className="welcome-keyvisual">
