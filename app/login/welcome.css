@@ -240,13 +240,27 @@ body:has(.welcome) { padding:0; background:#f8fafc; }
 .welcome-pricing-campaign ul { grid-column:1/-1; margin:0; padding:20px 0 0; border-top:1px solid #ffffff24; list-style:none; display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
 .welcome-pricing-campaign li { display:flex; align-items:center; gap:8px; color:#eef7ff; font-size:12px; font-weight:700; }
 .welcome-pricing-campaign li .welcome-icon { width:18px; height:18px; color:#8ee5c5; }
-.welcome-regular-plans { max-width:960px; margin:0 auto; display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-.welcome-regular-plans article { padding:24px 26px; border:1px solid #dce6ef; border-radius:18px; background:#fff; }
-.welcome-regular-plans article>span { color:#126bc3; font-size:10px; font-weight:900; letter-spacing:.1em; }
-.welcome-regular-plans h3 { margin:8px 0 12px; font-size:19px; }
-.welcome-regular-plans strong { display:block; color:#0f5fc4; font-size:32px; letter-spacing:-.04em; }
-.welcome-regular-plans strong small { margin-left:4px; font-size:12px; letter-spacing:0; }
-.welcome-regular-plans p { margin:10px 0 0; color:#5a6c81; font-size:12px; line-height:1.8; }
+.welcome-plan-table-wrap { max-width:960px; margin:0 auto; border:1px solid #d8e3f1; border-radius:22px; background:#fff; overflow:hidden; }
+.welcome-plan-table { width:100%; border-collapse:collapse; table-layout:fixed; }
+.welcome-plan-table caption { padding:20px 26px; border-bottom:1px solid #dce6f1; background:#f7f9fc; color:#263a57; font-size:18px; font-weight:900; text-align:left; }
+.welcome-plan-table th,.welcome-plan-table td { padding:16px 18px; border-bottom:1px solid #e3eaf3; line-height:1.45; }
+.welcome-plan-table thead th { color:#5d7089; font-size:13px; font-weight:900; text-align:center; background:#fbfcfe; }
+.welcome-plan-table thead th:first-child { width:auto; text-align:left; }
+.welcome-plan-table thead th+th { width:150px; }
+.welcome-plan-table tbody th,.welcome-plan-table tfoot th { color:#293e5c; text-align:left; }
+.welcome-plan-table tbody th b,.welcome-plan-table tfoot th b { display:block; font-size:15px; font-weight:900; }
+.welcome-plan-table tbody th small,.welcome-plan-table tfoot th small { display:block; margin-top:2px; color:#8191a7; font-size:11px; font-weight:700; }
+.welcome-plan-table td { color:#0f65ca; font-size:20px; font-weight:900; text-align:center; }
+.welcome-plan-table td em { font-size:13px; font-style:normal; white-space:nowrap; }
+.welcome-plan-table td.is-no { color:#c93750; }
+.welcome-plan-table .is-standard { background:#eef6ff; }
+.welcome-plan-table thead .is-standard { color:#0c4e9e; }
+.welcome-plan-table thead .is-standard em { display:block; margin-top:3px; color:#1674d1; font-size:10px; font-style:normal; }
+.welcome-plan-table tfoot th,.welcome-plan-table tfoot td { border-bottom:0; background:#f8fafc; }
+.welcome-plan-table tfoot td.is-standard { background:#e7f2ff; }
+.welcome-plan-table tfoot strong { display:block; color:#0f5fc4; font-size:23px; letter-spacing:-.04em; }
+.welcome-plan-table tfoot strong small { margin-left:3px; font-size:10px; letter-spacing:0; }
+.welcome-plan-table .welcome-plan-yearly { display:block; margin-top:3px; color:#5f7692; font-size:9px; font-weight:700; line-height:1.45; }
 .welcome-pricing-note { max-width:960px; margin:18px auto 0; color:#5a6c81; font-size:12px; line-height:1.8; text-align:center; }
 .welcome-start { margin-top:56px; }
 @media(max-width:700px) {
@@ -280,8 +294,20 @@ body:has(.welcome) { padding:0; background:#f8fafc; }
  .welcome-campaign-price strong { grid-column:2; grid-row:1/4; font-size:48px; }
  .welcome-pricing-campaign ul { grid-template-columns:1fr 1fr; padding-top:17px; }
  .welcome-pricing-campaign li { align-items:flex-start; font-size:11px; line-height:1.5; }
- .welcome-regular-plans { grid-template-columns:1fr; gap:12px; }
- .welcome-regular-plans article { padding:20px; }
+ .welcome-plan-table-wrap { border-radius:18px; }
+ .welcome-plan-table caption { padding:14px 16px; font-size:15px; }
+ .welcome-plan-table th,.welcome-plan-table td { padding:12px 8px; }
+ .welcome-plan-table thead th { font-size:10px; white-space:nowrap; }
+ .welcome-plan-table thead th:first-child { padding-left:14px; }
+ .welcome-plan-table thead th+th { width:78px; }
+ .welcome-plan-table tbody th,.welcome-plan-table tfoot th { padding-left:14px; }
+ .welcome-plan-table tbody th b,.welcome-plan-table tfoot th b { font-size:12px; }
+ .welcome-plan-table tbody th small,.welcome-plan-table tfoot th small { font-size:9px; }
+ .welcome-plan-table td { font-size:16px; }
+ .welcome-plan-table td em { font-size:10px; }
+ .welcome-plan-table tfoot strong { font-size:16px; }
+ .welcome-plan-table tfoot strong small { display:block; margin:1px 0 0; font-size:8px; }
+ .welcome-plan-table .welcome-plan-yearly { font-size:7.5px; }
  .welcome-pricing-note { text-align:left; }
  .welcome-start { margin-top:32px; }
 }

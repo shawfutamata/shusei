@@ -179,9 +179,22 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         <div className="welcome-campaign-price"><small>通常 月額</small><s>{planCatalog.standard.monthlyYen.toLocaleString('ja-JP')}円</s><strong>0<em>円</em></strong><b>自動課金なし</b></div>
         <ul><li><WelcomeIcon name="check" />オファーの送受信</li><li><WelcomeIcon name="check" />新規メッセージ無制限</li><li><WelcomeIcon name="check" />案件投稿・会員検索</li><li><WelcomeIcon name="check" />バナー・掲示板上位広告</li></ul>
       </div>}
-      <div className="welcome-regular-plans">
-        <article><span>FREE</span><h3>無料プラン</h3><strong>0<small>円 / 月</small></strong><p>キャンペーン終了後も、基本機能を無料で利用できます。</p></article>
-        <article><span>STANDARD</span><h3>スタンダード</h3><strong>{planCatalog.standard.monthlyYen.toLocaleString('ja-JP')}<small>円 / 月</small></strong><p>年払い {yearlyYen('standard').toLocaleString('ja-JP')}円（{YEARLY_DISCOUNT * 100}%OFF）。全機能を利用できます。</p></article>
+      <div className="welcome-plan-table-wrap">
+        <table className="welcome-plan-table">
+          <caption>プランでできること</caption>
+          <thead><tr><th scope="col">できること</th><th scope="col">無料</th><th scope="col" className="is-standard">スタンダード{campaignActive && <em>年内無料</em>}</th></tr></thead>
+          <tbody>
+            <tr><th scope="row"><b>掲示板を見る</b></th><td><span aria-label="使えます">○</span></td><td className="is-standard"><span aria-label="使えます">○</span></td></tr>
+            <tr><th scope="row"><b>会員を探す</b><small>業種・エリア</small></th><td><span aria-label="使えます">○</span></td><td className="is-standard"><span aria-label="使えます">○</span></td></tr>
+            <tr><th scope="row"><b>リファラルを送る</b><small>知り合いの紹介</small></th><td><span aria-label="使えます">○</span></td><td className="is-standard"><span aria-label="使えます">○</span></td></tr>
+            <tr><th scope="row"><b>案件の投稿</b></th><td><em>何件でも</em></td><td className="is-standard"><em>何件でも</em></td></tr>
+            <tr><th scope="row"><b>オファーを受け取る</b><small>中身を読む・返事する</small></th><td className="is-no"><span aria-label="使えません">×</span></td><td className="is-standard"><span aria-label="使えます">○</span></td></tr>
+            <tr><th scope="row"><b>オファーを送る</b><small>自社で請け負う</small></th><td className="is-no"><span aria-label="使えません">×</span></td><td className="is-standard"><span aria-label="使えます">○</span></td></tr>
+            <tr><th scope="row"><b>メッセージを送る</b><small>はじめての相手へ</small></th><td><em>月3人まで</em></td><td className="is-standard"><em>何人でも</em></td></tr>
+            <tr><th scope="row"><b>メッセージの返事</b><small>一度話した相手へ</small></th><td><span aria-label="使えます">○</span></td><td className="is-standard"><span aria-label="使えます">○</span></td></tr>
+          </tbody>
+          <tfoot><tr><th scope="row"><b>通常料金</b><small>キャンペーン終了後</small></th><td><strong>0<small>円 / 月</small></strong></td><td className="is-standard"><strong>{planCatalog.standard.monthlyYen.toLocaleString('ja-JP')}<small>円 / 月</small></strong><small className="welcome-plan-yearly">年払い {yearlyYen('standard').toLocaleString('ja-JP')}円<br />（{YEARLY_DISCOUNT * 100}%OFF）</small></td></tr></tfoot>
+        </table>
       </div>
       <p className="welcome-pricing-note">キャンペーン終了後、自動で有料プランへ切り替わることはありません。スタンダードの継続を希望する場合だけ、ご自身でお申し込みいただきます。</p>
     </section>
