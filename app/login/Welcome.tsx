@@ -131,7 +131,6 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
       <div className="welcome-keyvisual">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/welcome/platform-matching-hero.webp" width={1672} height={941} alt="TASUKIの画面で仕事の依頼、会員プロフィール、オファー、メッセージがつながる様子" fetchPriority="high" />
-        <div className="welcome-visual-caption"><span>できる人。</span><BrandMark /><span>頼みたい人。</span></div>
       </div>
     </div></div>
     <section className="welcome-metrics" aria-labelledby="metrics-heading">
