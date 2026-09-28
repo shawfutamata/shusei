@@ -21,6 +21,55 @@ function WelcomeIcon({ name }: { name: IconName }) {
   return <svg className="welcome-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
 
+function FeatureArt({ name }: { name: IconName }) {
+  return <svg className="welcome-feature-illustration" viewBox="0 0 240 140" fill="none" aria-hidden="true">
+    {name === 'search' && <>
+      <rect className="art-card art-shadow" x="42" y="28" width="156" height="92" rx="13" />
+      <rect className="art-soft" x="57" y="42" width="126" height="18" rx="9" />
+      <circle className="art-blue" cx="70" cy="51" r="5" /><path className="art-line" d="M81 48h56M81 54h38" />
+      <rect className="art-paper" x="57" y="69" width="126" height="16" rx="6" /><rect className="art-paper" x="57" y="91" width="126" height="16" rx="6" />
+      <circle className="art-accent" cx="169" cy="77" r="4" /><circle className="art-mint" cx="169" cy="99" r="4" />
+      <circle className="art-focus" cx="180" cy="42" r="20" /><path className="art-focus-line" d="m194 56 13 13" />
+    </>}
+    {name === 'briefcase' && <>
+      <rect className="art-card art-shadow" x="51" y="22" width="138" height="104" rx="13" />
+      <rect className="art-soft" x="67" y="39" width="78" height="9" rx="4.5" /><rect className="art-line-fill" x="67" y="56" width="106" height="6" rx="3" /><rect className="art-line-fill" x="67" y="69" width="89" height="6" rx="3" />
+      <rect className="art-paper" x="67" y="86" width="49" height="24" rx="7" /><rect className="art-blue" x="123" y="86" width="50" height="24" rx="7" />
+      <path className="art-white-line" d="M138 98h20M148 93v10" />
+      <circle className="art-accent" cx="180" cy="29" r="13" /><path className="art-white-line" d="m175 29 4 4 7-8" />
+    </>}
+    {name === 'send' && <>
+      <rect className="art-card art-shadow" x="39" y="38" width="142" height="82" rx="13" />
+      <circle className="art-soft" cx="59" cy="59" r="10" /><path className="art-line" d="M76 55h63M76 63h46" />
+      <rect className="art-paper" x="53" y="79" width="93" height="24" rx="8" /><path className="art-line" d="M65 88h54M65 95h35" />
+      <path className="art-plane" d="m145 22 59 22-30 10-11 31-18-63Z" /><path className="art-plane-line" d="m163 53 41-31-30 32" />
+      <circle className="art-mint" cx="183" cy="102" r="13" /><path className="art-white-line" d="m177 102 4 4 8-9" />
+    </>}
+    {name === 'chat' && <>
+      <rect className="art-card art-shadow" x="49" y="24" width="142" height="102" rx="14" />
+      <circle className="art-blue" cx="72" cy="49" r="11" /><path className="art-line" d="M91 45h65M91 53h45" />
+      <path className="art-bubble-soft" d="M67 70h76a9 9 0 0 1 9 9v10a9 9 0 0 1-9 9H94l-14 10 3-10H67a9 9 0 0 1-9-9V79a9 9 0 0 1 9-9Z" />
+      <path className="art-line" d="M76 80h54M76 88h39" />
+      <path className="art-bubble-blue" d="M139 91h42a9 9 0 0 1 9 9v7a9 9 0 0 1-9 9h-19l-9 7 2-7h-16a9 9 0 0 1-9-9v-7a9 9 0 0 1 9-9Z" />
+      <path className="art-white-line" d="M145 102h28M145 108h19" />
+    </>}
+    {name === 'check' && <>
+      <rect className="art-card art-shadow" x="48" y="25" width="144" height="104" rx="14" />
+      <rect className="art-blue" x="48" y="25" width="144" height="31" rx="14" /><path className="art-blue" d="M48 42h144v14H48z" />
+      <circle className="art-avatar" cx="82" cy="78" r="19" /><circle className="art-paper" cx="82" cy="72" r="7" /><path className="art-paper-fill" d="M68 91c3-9 25-9 28 0" />
+      <path className="art-line" d="M112 72h55M112 81h42" /><rect className="art-soft" x="112" y="93" width="43" height="15" rx="7.5" />
+      <circle className="art-mint" cx="177" cy="39" r="13" /><path className="art-white-line" d="m171 39 4 4 8-9" />
+    </>}
+    {name === 'phone' && <>
+      <rect className="art-card art-card-back" x="38" y="36" width="130" height="72" rx="12" />
+      <rect className="art-card art-shadow" x="60" y="24" width="142" height="88" rx="13" />
+      <rect className="art-soft" x="76" y="40" width="76" height="10" rx="5" /><path className="art-line" d="M76 62h92M76 72h68M76 88h48" />
+      <path className="art-heart" d="M173 58c-13-15-31 5 0 28 31-23 13-43 0-28Z" />
+      <circle className="art-accent" cx="57" cy="105" r="13" /><path className="art-white-line" d="m51 105 4 4 8-9" />
+    </>}
+  </svg>;
+}
+
 function Recording({ name, label }: { name: 'find' | 'post'; label: string }) {
   return <figure className="welcome-recording">
     {/* Actual browser captures of the public sample, with no member data. */}
@@ -95,7 +144,7 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         ['chat', 'メッセージ', 'つながった相手と、条件や進め方について直接やり取りする。'],
         ['check', '会員プロフィール', '会社や事業内容を伝え、どんな相手かを知ってもらう。'],
         ['phone', 'お気に入り', '気になる案件を保存して、あとから見返す。'],
-      ] as [IconName, string, string][]).map(([icon, title, description]) => <article key={title}><div className="welcome-feature-art"><WelcomeIcon name={icon} /></div><div><h3>{title}</h3><p>{description}</p></div></article>)}
+      ] as [IconName, string, string][]).map(([icon, title, description]) => <article key={title}><div className="welcome-feature-art"><FeatureArt name={icon} /></div><div><h3>{title}</h3><p>{description}</p></div></article>)}
     </div><p className="welcome-feature-note">仕事を探すところから相談まで、スマホでひとつにつながります。</p></section>
     <section className="welcome-hands-on"><div className="welcome-section-heading"><p className="welcome-kicker">登録前に、触ってみよう。</p><h2>TASUKIの操作を、ここで体験。</h2><p>案件をタップしたり、依頼文を入力したり。実際の流れを試せます。</p></div>
       <section className="welcome-demo" id="try" aria-label="TASUKIの操作体験">
