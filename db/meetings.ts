@@ -14,6 +14,7 @@ export function ensureMeetings() {
       answer TEXT NOT NULL, present INTEGER NOT NULL DEFAULT 0, analyzed INTEGER NOT NULL DEFAULT 0,
       candidates TEXT NOT NULL DEFAULT '[]', created_at INTEGER NOT NULL)`),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS meeting_answers_event ON meeting_answers(event_id)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS meeting_wish_shares (answer_id TEXT PRIMARY KEY,shared INTEGER NOT NULL DEFAULT 0)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS meeting_submit_limits (id TEXT PRIMARY KEY, count INTEGER NOT NULL, expires INTEGER NOT NULL)'),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_roster (id TEXT PRIMARY KEY,event_id TEXT NOT NULL,profile TEXT NOT NULL,name_key TEXT NOT NULL)`),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS meeting_roster_event ON meeting_roster(event_id)'),
@@ -182,7 +183,8 @@ export async function ownResult(id:string,token:string) {
   }) : [];
   const claim=await env.DB.prepare('SELECT roster_id FROM meeting_roster_claims WHERE answer_id=?').bind(row.id).first<{roster_id:string}>();
   const guest=await env.DB.prepare('SELECT answer_id FROM meeting_guest_claims WHERE event_id=? AND answer_id=?').bind(id,row.id).first();
-  return {event,answer:JSON.parse(row.answer) as Answer,rosterId:claim?.roster_id??'',walkIn:!!guest,present:row.present,matches};
+  const share=await env.DB.prepare('SELECT shared FROM meeting_wish_shares WHERE answer_id=?').bind(row.id).first<{shared:number}>();
+  return {event,shareWish:share?.shared===1,answer:JSON.parse(row.answer) as Answer,rosterId:claim?.roster_id??'',walkIn:!!guest,present:row.present,matches};
 }
 export async function confirmAttendance(id:string,personId:string,present:boolean) {
   const result = await env.DB.prepare(`UPDATE meeting_answers SET present=? WHERE event_id=? AND id=? AND EXISTS
@@ -250,4 +252,23 @@ export async function checkSubmissionLimit(eventId:string,ip:string,kind:'read'|
   await env.DB.prepare('DELETE FROM meeting_submit_limits WHERE expires<?').bind(Date.now()-600000).run();
   // Shared venue Wi-Fi can serve every attendee. No raw IP address is retained.
   return !!row && row.count<=(kind==='read'?400:200);
+}
+
+export async function setWishSharing(id:string,token:string,shared:boolean) {
+  if(!/^[a-f0-9]{64}$/.test(token)||typeof shared!=='boolean')throw new Error('回答用キーと掲載設定を確認してください。');
+  await ensureMeetings();
+  const row=await env.DB.prepare('SELECT id FROM meeting_answers WHERE event_id=? AND token_hash=?').bind(id,await hash(token)).first<{id:string}>();
+  if(!row)throw new Error('回答が見つかりません。');
+  await env.DB.prepare('INSERT INTO meeting_wish_shares (answer_id,shared) VALUES (?,?) ON CONFLICT(answer_id) DO UPDATE SET shared=excluded.shared').bind(row.id,shared?1:0).run();
+}
+export async function wishBoard(id:string,token:string) {
+  if(!/^[a-f0-9]{64}$/.test(token))throw new Error('回答した端末で、結果ページから開いてください。');
+  const event=await meeting(id);
+  const own=await env.DB.prepare('SELECT id,present FROM meeting_answers WHERE event_id=? AND token_hash=?').bind(id,await hash(token)).first<{id:string;present:number}>();
+  if(!event||!own)throw new Error('回答した端末で、結果ページから開いてください。');
+  if(event.state!=='published')throw new Error('結果の公開後に見られます。');
+  if(own.present!==1)throw new Error('受付係に出席確認をお願いしてください。');
+  const rows=await env.DB.prepare(`SELECT a.id,a.answer FROM meeting_answers a JOIN meeting_wish_shares s ON s.answer_id=a.id
+    WHERE a.event_id=? AND a.present=1 AND s.shared=1 AND a.id<>? ORDER BY a.created_at,a.id`).bind(id,own.id).all<{id:string;answer:string}>();
+  return {people:rows.results.flatMap(row=>{const a=JSON.parse(row.answer) as Answer;return a.need.trim()?[{id:row.id,name:a.name,company:a.company,need:a.need}]:[];})};
 }

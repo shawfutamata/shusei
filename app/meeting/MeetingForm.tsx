@@ -3,7 +3,7 @@ import { useEffect,useState } from 'react';
 import BrandMark from '../BrandMark';
 import type { Answer,Candidate,Meeting,RosterPerson } from './types';
 const empty:Answer={name:'',company:'',table:'',industry:'',services:'',referrals:'',need:'',area:'',timing:'',budget:'',conditions:''};
-type Result={event:Meeting;answer:Answer;rosterId:string;walkIn?:boolean;present:number;matches:(Candidate & {name:string;company:string;table:string;industry:string})[]};
+type Result={event:Meeting;answer:Answer;rosterId:string;walkIn?:boolean;shareWish:boolean;present:number;matches:(Candidate & {name:string;company:string;table:string;industry:string})[]};
 export default function MeetingForm({event:initial}:{event:Meeting}) {
   const [event,setEvent]=useState(initial),[answer,setAnswer]=useState(empty),[token,setToken]=useState('');
   const [selected,setSelected]=useState<RosterPerson|null>(null),[options,setOptions]=useState<Pick<RosterPerson,'id'|'name'|'company'>[]>([]),[walkIn,setWalkIn]=useState(false),[loadingNames,setLoadingNames]=useState(true);
@@ -45,6 +45,11 @@ export default function MeetingForm({event:initial}:{event:Meeting}) {
       setResult(await own.json() as Result);setEditing(false);
     }catch(error){setMessage(error instanceof Error?error.message:'通信できませんでした。再試行してください。');}finally{setBusy(false);}
   }
+  async function shareWish(shared:boolean){
+    setBusy(true);setMessage('');
+    try{const r=await fetch(`/api/meeting/${event.id}/requests`,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`},body:JSON.stringify({shared})});const d=await r.json() as {error?:string};if(!r.ok)throw new Error(d.error);setResult(prev=>prev?{...prev,shareWish:shared}:prev);setMessage(shared?'希望の掲載を設定しました。':'希望の掲載を取り消しました。');}
+    catch(e){setMessage(e instanceof Error?e.message:'保存できませんでした。');}finally{setBusy(false);}
+  }
   const closed=now>=event.closesAt||event.state!=='open';
   return <main className="meeting-page meeting-survey"><header><BrandMark/><b>TASUKI</b><span>例会アンケート</span></header><section className="meeting-shell">
     <p className="meeting-eyebrow">{event.venue} · {event.title}</p>
@@ -71,6 +76,10 @@ export default function MeetingForm({event:initial}:{event:Meeting}) {
     <details><summary>回答済みの方：回答用キーで結果を開く</summary><label>回答用キー<input value={restore} onChange={e=>setRestore(e.target.value.trim())}/></label><button onClick={()=>{if(/^[a-f0-9]{64}$/.test(restore)){setToken(restore);setMessage('回答が見つからない場合はキーをご確認ください。');}else setMessage('64文字の回答用キーを入力してください。');}}>結果を開く</button></details></>:<>
       <section className="meeting-own-request" aria-labelledby="meeting-own-request-title"><h2 id="meeting-own-request-title">あなたの希望</h2><p>{result.answer.need||'つながりたい相手の希望は未入力です。'}</p></section>
       {event.state!=='published'?<><h2>回答を受け付けました</h2>{!closed&&(!!result.rosterId||!!result.walkIn)&&<button className="meeting-secondary" onClick={()=>{setEditing(true);setConsent(false);}}>締切前に回答を修正する</button>}<p>締切後、出席確認ができた方の回答をもとに候補を調べます。運営の確認が終わると、この画面に結果が表示されます。</p>{!result.present&&<p>受付係に出席確認をお願いしてください。</p>}<p className="meeting-help">この画面は15秒ごとに更新されます。結果が出るまで例会をお楽しみください。</p></>:<><h2>本日の紹介候補</h2>{!result.matches.length&&<p>{!result.present?'出席確認ができなかったため、紹介候補はありません。受付係にお声がけください。':!answer.need?'今回は提供できる仕事を受け付けました。条件が合えば、相手の紹介候補に表示されます。':'今回は、回答内容から確かな候補が見つかりませんでした。無理な紹介は行っていません。受付係へのご相談も可能です。'}</p>}{result.matches.map(p=><article className="meeting-match" key={p.id}><small>{p.kind==='direct'?'つながりの候補':'紹介を相談できる候補'}</small><h3>{p.name}さん</h3><p>{p.company}{p.table&&` · ${p.table}`}</p><p>{p.reason}</p><blockquote>「{p.offerQuote}」</blockquote>{!!p.questions.length&&<><b>まず確認したいこと</b><ul>{p.questions.map(q=><li key={q}>{q}</li>)}</ul></>}<p className="meeting-help">回答に基づく紹介候補です。受注・紹介の可否や条件は、ご本人とお確かめください。</p></article>)}</>}
+      <section className="meeting-wishes"><h2>会話から、ご縁を広げる</h2><p className="meeting-help">ほかの参加者の希望を見て、紹介できそうな人が思い浮かんだら、ご本人や受付係に声をかけてみてください。</p>
+        {event.state==='published'&&result.present===1?<a className="meeting-board-link" href={`/meeting/${event.id}/requests`}>参加者の希望を見る →</a>:<p className="meeting-help">結果の公開後、出席確認済みの参加者が見られます。</p>}
+        {!!result.answer.need.trim()&&<label className="meeting-consent"><input type="checkbox" disabled={busy} checked={result.shareWish} onChange={e=>void shareWish(e.target.checked)}/><span>私の名前・会社名・希望を、同じ例会の参加者向けページに掲載する（任意・あとから取り消せます）</span></label>}
+      </section>
       <button className="meeting-secondary" onClick={async()=>{try{await navigator.clipboard.writeText(location.origin+location.pathname+'#receipt='+token);setMessage('結果を見る専用リンクをコピーしました。メモに保存し、他の方には渡さないでください。');}catch{setMessage('下の回答用キーを保存してください。');}}}>結果を見るリンクをコピー</button><details><summary>回答用キーを保存する</summary><p>この端末で結果を見られます。別の端末ではこのキーを使ってください。他の方には渡さないでください。</p><code className="meeting-token">{token}</code><button onClick={async()=>{try{await navigator.clipboard.writeText(token);setMessage('回答用キーをコピーしました。');}catch{setMessage('キーを長押ししてコピーしてください。');}}}>キーをコピー</button></details>
       {event.state==='published'&&<aside className="meeting-next"><h2>例会のあとも、仕事のご縁を。</h2><p>例会以外の時間もビジネスをつなげるために、TASUKIを活用してみませんか？ スマホから仕事を探したり、依頼や相談を続けられます。</p><a href="/login#start">TASUKIを使ってみる →</a><small>登録は任意です。アンケート結果の閲覧に登録は必要ありません。</small></aside>}
     </>}{message&&<p role="status" className="meeting-error">{message}</p>}

@@ -1,9 +1,11 @@
+import {wishesTest} from './wishes';
 import {guestTest} from './guests';
 import { rosterTest } from './roster';
 import { storageTest, pipelineTest } from './storage';
 import { matchAttendee, type AIClient } from '../../app/meeting/matching';
 import { fixtures } from './fixtures';
 const worker={async fetch(request:Request,env:{MEETING_AI:AIClient}) {
+ if(new URL(request.url).pathname==='/wishes')return Response.json(await wishesTest());
  if(new URL(request.url).pathname==='/guests')return Response.json(await guestTest());
  if(new URL(request.url).pathname==='/roster')return Response.json(await rosterTest());
  if(new URL(request.url).pathname==='/pipeline')return Response.json(await pipelineTest());
