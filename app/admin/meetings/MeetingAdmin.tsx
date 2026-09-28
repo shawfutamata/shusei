@@ -46,7 +46,7 @@ export default function MeetingAdmin() {
     <p>{p.industry} ／ {p.area||'地域未記入'}</p><p><b>できる仕事：</b>{p.services}</p>{p.referrals&&<p><b>紹介できる相手：</b>{p.referrals}</p>}<p><b>つながりたい相手：</b>{p.need||'今回はなし'}</p>
     {(p.timing||p.budget||p.conditions)&&<p><b>条件：</b>{[p.timing,p.budget,p.conditions].filter(Boolean).join(' ／ ')}</p>}
     {p.analyzed===1&&p.candidates.length===0&&<p>候補なし{!p.need?'（依頼なし）':''}</p>}
-    {p.candidates.map(c=>{const other=people.find(x=>x.id===c.id);return <div className="meeting-match" key={c.id}><b>→ {other?.name}（{c.kind==='direct'?'直接依頼':'紹介の相談'}）</b><p>{c.reason}</p><blockquote>探す仕事：「{c.needQuote}」<br/>候補の回答：「{c.offerQuote}」</blockquote>{c.questions.length>0&&<p>要確認：{c.questions.join(' ／ ')}</p>}{event.state==='review'&&<button disabled={busy} className="meeting-secondary" onClick={()=>void act('remove',{personId:p.id,candidateId:c.id})}>この候補を外す</button>}</div>;})}</article>)}
+    {p.candidates.map(c=>{const other=people.find(x=>x.id===c.id);return <div className="meeting-match" key={c.id}><b>→ {other?.name}（{c.kind==='related'?'関連する仕事の相談':c.kind==='direct'?'直接依頼':'紹介の相談'}）</b><p>{c.reason}</p><blockquote>探す仕事：「{c.needQuote}」<br/>候補の回答：「{c.offerQuote}」</blockquote>{c.questions.length>0&&<p>要確認：{c.questions.join(' ／ ')}</p>}{event.state==='review'&&<button disabled={busy} className="meeting-secondary" onClick={()=>void act('remove',{personId:p.id,candidateId:c.id})}>この候補を外す</button>}</div>;})}</article>)}
     </>}
   </div></main>;
 }

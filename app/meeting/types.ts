@@ -5,8 +5,8 @@ export type Answer = {
 };
 export type Attendee = Answer & { id: string; present: number; analyzed: number; candidates: Candidate[]; walkIn?: boolean };
 export type Candidate = {
-  id: string; kind: 'direct' | 'referral'; reason: string;
-  needQuote: string; offerQuote: string; questions: string[];
+  id: string; kind: 'direct' | 'referral' | 'related'; reason: string;
+  needQuote: string; offerQuote: string; questions: string[]; step?: string;
 };
 export type Meeting = {
   id: string; title: string; venue: string; closesAt: number;
@@ -36,13 +36,14 @@ export function validateCandidates(raw: unknown, seeker: Attendee, attendees: At
   return raw.flatMap((row: Record<string, unknown>) => {
     if (!row || typeof row !== 'object' || typeof row.id !== 'string' || seen.has(row.id) || row.id === seeker.id) return [];
     const person = attendees.find(a => a.id === row.id && a.present === 1);
-    if (!person || (row.kind !== 'direct' && row.kind !== 'referral')) return [];
-    const source = row.kind === 'direct' ? person.industry+'\n'+person.services : person.referrals;
+    if (!person || (row.kind !== 'direct' && row.kind !== 'referral' && row.kind !== 'related')) return [];
+    const source = row.kind !== 'referral' ? person.industry+'\n'+person.services : person.referrals;
     if (typeof row.needQuote !== 'string' || row.needQuote.trim().length < 2 || !seeker.need.includes(row.needQuote)) return [];
     if (typeof row.offerQuote !== 'string' || row.offerQuote.trim().length < 2 || !source.includes(row.offerQuote)) return [];
     if (typeof row.reason !== 'string' || !row.reason.trim() || row.reason.length > 400) return [];
     if (!Array.isArray(row.questions) || row.questions.some(q => typeof q !== 'string' || q.length > 200)) return [];
+    if(row.kind==='related'&&(typeof row.step!=='string'||!row.step.trim()||row.step.length>100))return [];
     seen.add(row.id);
-    return [{id:row.id,kind:row.kind,reason:row.reason,needQuote:row.needQuote,offerQuote:row.offerQuote,questions:row.questions.slice(0,4)} as Candidate];
+    return [{id:row.id,kind:row.kind,reason:row.reason,needQuote:row.needQuote,offerQuote:row.offerQuote,questions:row.questions.slice(0,4),...(row.kind==='related'?{step:row.step}: {})} as Candidate];
   }).sort((a,b) => Number(a.kind === 'referral') - Number(b.kind === 'referral')).slice(0,3);
 }
