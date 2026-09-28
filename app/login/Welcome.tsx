@@ -7,7 +7,7 @@ import { campaignRunning, campaignUntilLabel } from '../campaign';
 import { planCatalog, yearlyYen, YEARLY_DISCOUNT } from '../plan-catalog';
 import './welcome.css';
 
-type IconName = 'search' | 'briefcase' | 'chat' | 'phone' | 'send' | 'check';
+type IconName = 'search' | 'briefcase' | 'chat' | 'ads' | 'send' | 'check';
 const campaignUntil = campaignUntilLabel();
 const faqItems = [
   { question: 'TASUKIはどんなサービスですか？', answer: '経営者・事業者が、仕事を探す、依頼を投稿する、会員を探す、オファーや紹介を送る、メッセージで相談するといった商談のきっかけをつくれるビジネスマッチングサービスです。' },
@@ -24,7 +24,7 @@ function WelcomeIcon({ name }: { name: IconName }) {
     search: <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></>,
     briefcase: <><rect x="3" y="7" width="18" height="14" rx="3" /><path d="M8 7V4h8v3M3 12c5 4 13 4 18 0M10 13h4" /></>,
     chat: <><path d="M21 11a8 8 0 0 1-8 8H7l-4 3V11a9 9 0 0 1 18 0Z" /><path d="M7 10h10M7 14h6" /></>,
-    phone: <><rect x="6" y="2" width="12" height="20" rx="3" /><path d="M10 5h4M11 18h2" /></>,
+    ads: <><path d="M4 10h4l9-5v14l-9-5H4zM8 14l2 6h3" /><path d="M19 8c1 1 1 5 0 6" /></>,
     send: <><path d="m3 10 18-7-7 18-3-8-8-3Z M11 13 21 3" /></>,
     check: <><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" /></>,
   };
@@ -71,12 +71,14 @@ function FeatureArt({ name }: { name: IconName }) {
       <path className="art-line" d="M112 72h55M112 81h42" /><rect className="art-soft" x="112" y="93" width="43" height="15" rx="7.5" />
       <circle className="art-mint" cx="177" cy="39" r="13" /><path className="art-white-line" d="m171 39 4 4 8-9" />
     </>}
-    {name === 'phone' && <>
-      <rect className="art-card art-card-back" x="38" y="36" width="130" height="72" rx="12" />
-      <rect className="art-card art-shadow" x="60" y="24" width="142" height="88" rx="13" />
-      <rect className="art-soft" x="76" y="40" width="76" height="10" rx="5" /><path className="art-line" d="M76 62h92M76 72h68M76 88h48" />
-      <path className="art-heart" d="M173 58c-13-15-31 5 0 28 31-23 13-43 0-28Z" />
-      <circle className="art-accent" cx="57" cy="105" r="13" /><path className="art-white-line" d="m51 105 4 4 8-9" />
+    {name === 'ads' && <>
+      <rect className="art-card art-card-back" x="38" y="35" width="128" height="76" rx="12" />
+      <rect className="art-card art-shadow" x="58" y="23" width="145" height="92" rx="13" />
+      <rect className="art-soft" x="74" y="39" width="78" height="10" rx="5" /><path className="art-line" d="M74 59h108M74 69h74" />
+      <rect className="art-blue" x="72" y="82" width="71" height="25" rx="8" /><path className="art-white-line" d="M87 94h40" />
+      <path className="art-accent" d="M154 82h12l23-12v28l-23-10h-12z" /><path className="art-accent" d="m162 88 5 17h9l-5-15" />
+      <path className="art-line" d="M194 78c4 4 4 9 0 13M201 73c7 7 7 17 0 24" />
+      <circle className="art-mint" cx="56" cy="106" r="13" /><path className="art-white-line" d="m50 106 4 4 8-9" />
     </>}
   </svg>;
 }
@@ -158,7 +160,7 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         ['send', 'オファー', '対応できる仕事に、自分の得意や提案を届けて商談のきっかけに。'],
         ['chat', 'メッセージ', 'つながった相手と、条件や進め方について直接やり取りする。'],
         ['check', '会員プロフィール', '会社や事業内容を伝え、どんな相手かを知ってもらう。'],
-        ['phone', 'お気に入り', '気になる案件を保存して、あとから見返す。'],
+        ['ads', '広告出稿', 'バナー広告や掲示板の上位枠に掲載し、自社のサービスを会員へ届ける。'],
       ] as [IconName, string, string][]).map(([icon, title, description]) => <article key={title}><div className="welcome-feature-art"><FeatureArt name={icon} /></div><div><h3>{title}</h3><p>{description}</p></div></article>)}
     </div><p className="welcome-feature-note">仕事を探すところから相談まで、スマホでひとつにつながります。</p></section>
     <section className="welcome-hands-on"><div className="welcome-section-heading"><p className="welcome-kicker">登録前に、触ってみよう。</p><h2>TASUKIの操作を、ここで体験。</h2><p>案件をタップしたり、依頼文を入力したり。実際の流れを試せます。</p></div>
