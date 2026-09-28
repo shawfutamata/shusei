@@ -131,20 +131,20 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
       </section>
       <div className="welcome-keyvisual">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/welcome/friendly-matching-hero.webp" width={1672} height={941} alt="スマートフォンを使いながら、仕事探し、オファー、相談へ楽しく進む事業者の様子" fetchPriority="high" />
+        <img src="/welcome/friendly-matching-hero-v2.webp" width={1122} height={1402} alt="スマートフォンを使いながら、仕事探し、オファー、相談へ楽しく進む3人の事業者" fetchPriority="high" />
       </div>
     </div></div>
     <section className="welcome-metrics" aria-labelledby="metrics-heading">
       <div className="welcome-section-heading"><p className="welcome-kicker">TASUKIでできること</p><h2 id="metrics-heading">仕事の機会を、<br />待つだけにしない。</h2></div>
       <figure className="welcome-match-visual">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/welcome/owner-matching.webp" width={1672} height={941} alt="経営者同士が商談を経て握手し、新しい仕事のつながりをつくる様子" loading="lazy" />
+        <img src="/welcome/platform-conversation-v2.webp" width={1672} height={941} alt="タブレットの案件情報を囲み、新しい仕事について相談する事業者たち" loading="lazy" />
         <figcaption><span>BUSINESS MATCHING</span><strong>できる人と、<br />頼みたい人が出会う。</strong><p>仕事の相談から、次の商談へ。</p></figcaption>
       </figure>
       <div className="welcome-metric-grid">
-        <article><span>受注のきっかけを増やす</span><strong className="metric-word">見つける</strong><h3>得意を活かせる仕事へ。</h3><p>依頼内容・予算・エリアを見て、自社に合う案件へオファーできます。</p></article>
-        <article><span>発注先探しを進める</span><strong className="metric-word">頼める</strong><h3>探している相手を、会員へ。</h3><p>仕事や相談を掲示板へ投稿し、対応できる相手とつながれます。</p></article>
-        <article><span>商談を前へ進める</span><strong className="metric-word">話せる</strong><h3>条件や進め方を、直接相談。</h3><p>オファーからメッセージへ進み、スマホで具体的なやり取りを始められます。</p></article>
+        <article>{/* eslint-disable-next-line @next/next/no-img-element */}<img className="welcome-metric-photo" src="/welcome/work-cleaning.webp" alt="店舗清掃の仕事風景" loading="lazy" /><span>受注のきっかけを増やす</span><strong className="metric-word">見つける</strong><h3>得意を活かせる仕事へ。</h3><p>依頼内容・予算・エリアを見て、自社に合う案件へオファーできます。</p></article>
+        <article>{/* eslint-disable-next-line @next/next/no-img-element */}<img className="welcome-metric-photo" src="/welcome/work-office.webp" alt="内装や移転の相談につながるオフィス" loading="lazy" /><span>発注先探しを進める</span><strong className="metric-word">頼める</strong><h3>探している相手を、会員へ。</h3><p>仕事や相談を掲示板へ投稿し、対応できる相手とつながれます。</p></article>
+        <article>{/* eslint-disable-next-line @next/next/no-img-element */}<img className="welcome-metric-photo" src="/welcome/work-event.webp" alt="企業イベントで商談する事業者たち" loading="lazy" /><span>商談を前へ進める</span><strong className="metric-word">話せる</strong><h3>条件や進め方を、直接相談。</h3><p>オファーからメッセージへ進み、スマホで具体的なやり取りを始められます。</p></article>
       </div>
     </section>
     <section className="welcome-walkthrough" aria-labelledby="walkthrough-heading">
