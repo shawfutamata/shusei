@@ -73,3 +73,39 @@ body:has(.meeting-survey){background:#fbf8f2;color:#161918}
 .meeting-survey .meeting-person-option{background:#fff}
 .meeting-survey .meeting-wish-edit button{background:transparent;color:#d91f2e;border-color:#c9c3ba}
 .meeting-survey .meeting-wish-edit button:hover{background:#f4f0e8}
+
+/* Mobile wish directory: compact identity + two-line request, expandable in place. */
+.meeting-wish-board .meeting-wish-expand{display:none}
+@media(max-width:680px){
+ .meeting-wish-board .meeting-shell{padding:12px 16px 32px}
+ .meeting-wish-back{font-size:13px;min-height:44px}
+ .meeting-wish-heading{padding:8px 0 16px;gap:12px}
+ .meeting-wish-heading .meeting-eyebrow{font-size:12px;margin-bottom:4px}
+ .meeting-wish-heading h1{font-size:24px}
+ .meeting-wish-heading p:last-child{display:none}
+ .meeting-wish-search{margin:16px 0}
+ .meeting-wish-search label{font-size:13px;margin-bottom:6px}
+ .meeting-wish-board .meeting-wish-input input{min-height:46px;padding:10px 12px 10px 40px;font-size:16px;border-radius:6px}
+ .meeting-wish-input svg{width:18px;height:18px;left:13px;top:14px}
+ .meeting-wish-list-heading{margin-bottom:10px}
+ .meeting-wish-list-heading h2{font-size:15px}
+ .meeting-wish-list-heading strong{font-size:19px}
+ .meeting-wish-grid{gap:8px;align-items:start}
+ .meeting-wish-card{position:relative;padding:12px 14px 8px;border-radius:6px;gap:0}
+ .meeting-wish-card-person{order:0;padding:0;border:0;gap:0}
+ .meeting-wish-card-person>div{width:100%}
+ .meeting-wish-card-person h3{font-size:16px;padding-right:78px;line-height:1.4}
+ .meeting-wish-card-person h3 small{font-size:11px}
+ .meeting-wish-card-person p{font-size:12px;line-height:1.5;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .meeting-wish-card.is-expanded .meeting-wish-card-person p{white-space:normal}
+ .meeting-wish-card-label{position:absolute;top:12px;right:14px}
+ .meeting-wish-card-label>span{display:none}
+ .meeting-wish-test{font-size:10px;padding:2px 6px}
+ .meeting-wish-board .meeting-wish-card-text{order:1;font-size:16px;font-weight:400;line-height:1.55;margin:8px 0 4px;flex:none;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+ .meeting-wish-board .meeting-wish-card.is-expanded .meeting-wish-card-text{display:block;overflow:visible}
+ .meeting-wish-board .meeting-wish-expand{order:2;display:flex;align-items:center;justify-content:flex-end;gap:6px;align-self:flex-end;min-height:44px;margin:-4px 0 -4px;padding:8px 0 8px 16px;border-radius:0;background:transparent;color:#aa1420;font-size:12px;font-weight:600;touch-action:manipulation}
+ .meeting-wish-expand span{font-size:16px}
+ .meeting-wish-board .meeting-wish-expand:hover{background:transparent}
+ .meeting-wish-board .meeting-wish-expand:focus-visible{outline:2px solid #d91f2e;outline-offset:2px}
+ .meeting-wish-note{font-size:12px;margin-top:18px;padding-top:14px}
+}
