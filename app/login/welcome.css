@@ -29,23 +29,48 @@
 .welcome-demo-hint { color:#5c6c80; font-size:12px; margin:0 0 14px; line-height:1.7; }
 .welcome-job { display:block; width:100%; text-align:left; background:#fff; border:1px solid #dee7f0; border-radius:14px; padding:17px; margin:0 0 10px; cursor:pointer; transition:border-color .15s,transform .15s; }
 .welcome-job:hover { border-color:#1478d6; transform:translateY(-2px); }
+.welcome-job-card { display:grid; grid-template-columns:minmax(0,1fr) 90px; gap:13px; align-items:start; }
+.welcome-job-card>span { min-width:0; }
+.welcome-job-card>img { width:90px; aspect-ratio:4/3; border-radius:9px; object-fit:cover; }
 .welcome-job-tag { display:block; font-size:11px; color:#0960ad; font-weight:700; }
 .welcome-job-tag>span { color:#66778a; font-weight:500; }
+.welcome-job-tag>em { display:inline-block; margin-left:5px; padding:2px 5px; border-radius:999px; background:#eef3f8; color:#62748b; font-size:8px; font-style:normal; letter-spacing:.04em; vertical-align:1px; }
 .welcome-job strong { display:block; font-size:16px; line-height:1.65; margin:8px 0 12px; }
 .welcome-job-bottom { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:11px; color:#68778b; }
 .welcome-job-bottom b { font-size:14px; color:#155d9e; }
 .welcome-job-bottom i { font-size:17px; font-style:normal; margin-left:8px; }
+.welcome-job-meta { margin-top:12px; padding-top:10px; border-top:1px solid #edf1f6; display:flex; align-items:center; justify-content:space-between; gap:8px; color:#718096; font-size:9px; font-weight:700; }
+.welcome-job-meta span { color:#126bc3; }
 .welcome-demo-disclaimer { padding:0 22px; margin:13px 0 17px; font-size:11px; line-height:1.7; color:#68778b; }
 .welcome-back { border:0; background:none; color:#126bc3; min-height:44px; padding:0; font-size:13px!important; margin-bottom:10px; cursor:pointer; }
 .welcome-detail h2,.welcome-post-result h2 { font-size:20px; margin:12px 0; line-height:1.6; overflow-wrap:anywhere; }
+.welcome-detail-image { width:100%; aspect-ratio:3/2; display:block; margin:0 0 16px; border-radius:12px; object-fit:cover; }
 .welcome-detail>p { font-size:14px; line-height:1.9; color:#53657b; }
 .welcome-detail dl { margin:20px 0; font-size:13px; }
 .welcome-detail dl>div { display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid #dce6ef; }
 .welcome-detail dt { color:#68778b; }.welcome-detail dd { margin:0; font-weight:700; }
+.welcome-detail .welcome-detail-author { margin:0 0 18px; padding:11px 13px; display:flex; align-items:center; justify-content:space-between; gap:10px; border-radius:10px; background:#fff; color:#40536a; font-size:11px; }
+.welcome-detail-author span { color:#126bc3; font-weight:700; }
 .welcome-conversation { font-size:14px; line-height:1.8; }.welcome-conversation>p { padding:16px; border-radius:16px 16px 0 16px; background:#e4f0fc; margin:12px 0; }.welcome-conversation small { display:block; color:#5d6d80; margin-bottom:16px; }
 .welcome-post label,.welcome-start label { display:block; font-weight:700; font-size:14px; margin-bottom:10px; }
 .welcome-post textarea,.welcome-start input { width:100%; border:1px solid #b9cce0; border-radius:10px; padding:14px; background:#fff; color:#13233f; font-size:16px; }
-.welcome-post textarea { resize:vertical; margin-bottom:14px; line-height:1.8; }.welcome-post-result { background:#fff; padding:18px; margin-top:18px; border:1px solid #dce6ef; border-radius:12px; }.welcome-post-result p,.welcome-post-result b,.welcome-post-result a { font-size:13px; line-height:1.8; display:block; }.welcome-post-result a { color:#126bc3; margin-top:15px; }
+.welcome-post textarea { resize:vertical; margin-bottom:12px; line-height:1.8; }
+.welcome-post-presets { margin:0 0 18px; }
+.welcome-post-presets>span { display:block; margin-bottom:8px; color:#40536a; font-size:11px; font-weight:800; }
+.welcome-post-presets>div { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
+.welcome-post-presets button { min-width:0; padding:0; overflow:hidden; border:1px solid #d8e4ef; border-radius:10px; background:#fff; color:#273b55; text-align:left; cursor:pointer; }
+.welcome-post-presets button.active { border-color:#1478d6; box-shadow:0 0 0 2px #1478d622; }
+.welcome-post-presets img { width:100%; aspect-ratio:4/3; display:block; object-fit:cover; }
+.welcome-post-presets button>span { display:block; padding:7px; color:#126bc3; font-size:8px; font-weight:800; }
+.welcome-post-presets button b { display:-webkit-box; margin-top:3px; overflow:hidden; color:#273b55; font-size:9px; line-height:1.45; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
+.welcome-post-fields { margin:0 0 14px; display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
+.welcome-post-fields>span { min-width:0; padding:9px; border:1px solid #dce6ef; border-radius:9px; background:#fff; }
+.welcome-post-fields small,.welcome-post-fields b { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.welcome-post-fields small { color:#7b899b; font-size:8px; }
+.welcome-post-fields b { margin-top:3px; color:#31465f; font-size:9px; }
+.welcome-post-result { background:#fff; padding:18px; margin-top:18px; border:1px solid #dce6ef; border-radius:12px; }
+.welcome-post-result>img { width:100%; aspect-ratio:3/2; display:block; margin:0 0 14px; border-radius:10px; object-fit:cover; }
+.welcome-post-result p,.welcome-post-result b,.welcome-post-result a { font-size:13px; line-height:1.8; display:block; }.welcome-post-result a { color:#126bc3; margin-top:15px; }
 .welcome-benefits { max-width:1120px; margin:0 auto 70px; border-top:1px solid #dce6ef; padding-top:34px; display:grid; grid-template-columns:repeat(3,1fr); gap:44px; }.welcome-benefits span { font-size:12px; color:#126bc3; font-weight:700; }.welcome-benefits h2 { font-size:21px; margin:12px 0; }.welcome-benefits p { font-size:14px; line-height:1.9; color:#53657b; margin:0; }
 .welcome-start { max-width:1120px; margin:0 auto 36px; padding:40px; border-radius:24px; background:#eaf3fd; display:grid; grid-template-columns:1.2fr 1fr; gap:50px; align-items:center; }.welcome-start h2 { font-size:26px; margin:0 0 16px; }.welcome-start p { font-size:14px; line-height:1.9; }.welcome-start small { font-size:12px; color:#52657c; line-height:1.8; display:block; }.welcome-start input { margin-bottom:12px; letter-spacing:.12em; }.welcome-start .welcome-kicker { margin-bottom:10px; }
 .welcome-signup .welcome-primary { width:100%; background:#fff; color:#173255; border:1px solid #c8d8e8; }

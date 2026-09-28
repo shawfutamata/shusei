@@ -80,9 +80,9 @@ function Recording({ name, label }: { name: 'find' | 'post'; label: string }) {
 
 // Public examples only. Never load member posts or profiles before authentication.
 const examples = [
-  { tag: 'Web・デザイン', title: '新しいお店のホームページをお願いしたい', budget: '20〜40万円', area: 'オンライン可', detail: '店舗の雰囲気が伝わるサイトを作りたいです。構成の相談から制作まで、相談できる方を探しています。', offer: '店舗サイトの制作をしています。ご希望の雰囲気や公開時期を伺えますか？' },
-  { tag: '清掃・設備', title: '店舗の定期清掃をお願いできる会社を探しています', budget: '月額5〜10万円', area: '東京都', detail: '営業前の時間帯に、床や水回りの定期清掃をお願いしたいです。まずは頻度や作業範囲をご相談させてください。', offer: '店舗の定期清掃に対応しています。場所とご希望の頻度を教えていただけますか？' },
-  { tag: '動画・撮影', title: 'サービス紹介の短い動画を制作したい', budget: '10〜30万円', area: 'オンライン可', detail: 'WebサイトやSNSで使う紹介動画を検討しています。企画や撮影方法から相談できる方を探しています。', offer: 'サービス紹介動画を制作しています。伝えたい内容について、一度お話しできますか？' },
+  { kind: '発注先', tag: '清掃・クリーニング', title: '店舗の定期清掃をお願いできる会社を探しています', budget: '月額5〜10万円（3店舗ぶん）', area: '東京都', detail: '都内3店舗の床とトイレの清掃を、週1回でお願いできる会社を探しています。閉店後の作業になります。まずは1店舗から試させていただけると助かります。', offer: '店舗の定期清掃に対応しています。店舗の場所とご希望の曜日を伺えますか？', image: '/samples/cleaning-thumb.webp', imageLarge: '/samples/cleaning.webp', company: 'サンプル商事株式会社', response: 'オファー2件・紹介1件' },
+  { kind: '協業先', tag: '内装・リフォーム', title: 'オフィス移転を一緒に進めてくれる内装会社を探しています', budget: '300〜500万円', area: '東京都', detail: '来春に事務所を移転します。引越しの手配はこちらで進めますが、レイアウトの設計と内装工事をお願いできる方を探しています。20名ほどの規模です。', offer: 'オフィス内装の設計・施工に対応しています。移転時期と候補物件についてお話を伺えますか？', image: '/samples/moving-thumb.webp', imageLarge: '/samples/moving.webp', company: 'サンプル製作所', response: 'オファー1件・紹介3件' },
+  { kind: '相談相手', tag: 'イベント企画・運営', title: '創立20周年の記念パーティーについて相談させてください', budget: '相談して決めたい', area: '東京都', detail: '来年で創立20周年になります。取引先を80名ほどお招きしての式を考えていて、会場とお食事の手配をどう進めればよいか、経験のある方にお話を伺いたいです。', offer: '企業イベントの企画・運営をしています。人数と開催時期を伺い、会場選びからご提案できます。', image: '/samples/catering-thumb.webp', imageLarge: '/samples/catering.webp', company: '株式会社サンプル工業', response: '紹介2件' },
 ];
 
 export default function Welcome({ children, initialMessage }: { children: ReactNode; initialMessage: string }) {
@@ -90,7 +90,8 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
   const [mode, setMode] = useState<'find' | 'post'>('find');
   const [selected, setSelected] = useState<number | null>(null);
   const [offer, setOffer] = useState(false);
-  const [draft, setDraft] = useState('お店のホームページを作れる方を探しています');
+  const [draft, setDraft] = useState(examples[0].title);
+  const [postSample, setPostSample] = useState<number | null>(0);
   const [preview, setPreview] = useState(false);
   const [login, setLogin] = useState(!!initialMessage);
   const item = selected === null ? null : examples[selected];
@@ -156,17 +157,19 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         <div className="welcome-demo-body">
           {mode === 'find' && !item && <>
             <p className="welcome-demo-hint">気になる案件をタップしてみてください。</p>
-            {examples.map((entry, index) => <button className="welcome-job" key={entry.tag} onClick={() => { setSelected(index); setOffer(false); }}><span className="welcome-job-tag">発注先を募集 <span>／ {entry.tag}</span></span><strong>{entry.title}</strong><span className="welcome-job-bottom"><b>{entry.budget}</b><span>{entry.area} <i aria-hidden="true">↗</i></span></span></button>)}
+            {examples.map((entry, index) => <button className="welcome-job" key={entry.tag} onClick={() => { setSelected(index); setOffer(false); }}><span className="welcome-job-card"><span><span className="welcome-job-tag">{entry.kind} <em>サンプル</em><span>／ {entry.tag}</span></span><strong>{entry.title}</strong><span className="welcome-job-bottom"><b>{entry.budget}</b><span>{entry.area} <i aria-hidden="true">↗</i></span></span></span>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={entry.image} alt="" /></span><small className="welcome-job-meta">{entry.company}<span>{entry.response}</span></small></button>)}
           </>}
           {mode === 'find' && item && <div className="welcome-detail">
             <button className="welcome-back" onClick={() => { setSelected(null); setOffer(false); }}>← 案件一覧に戻る</button>
-            <span className="welcome-job-tag">発注先を募集 ／ {item.tag}</span><h2>{item.title}</h2><p>{item.detail}</p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}<img className="welcome-detail-image" src={item.imageLarge} alt="" />
+            <span className="welcome-job-tag">{item.kind} <em>サンプル</em> ／ {item.tag}</span><h2>{item.title}</h2><p>{item.detail}</p>
             <dl><div><dt>予算の目安</dt><dd>{item.budget}</dd></div><div><dt>エリア</dt><dd>{item.area}</dd></div></dl>
+            <p className="welcome-detail-author"><b>{item.company}</b><span>{item.response}</span></p>
             {!offer ? <><button className="welcome-primary" onClick={() => setOffer(true)}>オファーの流れを見る →</button><p className="welcome-note">得意を伝えて、具体的な商談のきっかけに。</p></> : <div className="welcome-conversation"><b>こんなふうに、仕事の話を始められます</b><p>{item.offer}</p><small>やり取りの例です。実際には送信されません。</small><a className="welcome-primary" href="#start">登録して、自分の仕事を探す →</a></div>}
           </div>}
-          {mode === 'post' && <div className="welcome-post"><p className="welcome-demo-hint">依頼を入力して、掲載イメージを見てみましょう。</p><label htmlFor="demo-title">どんな仕事をお願いしたいですか？</label><textarea id="demo-title" rows={3} maxLength={100} value={draft} onChange={event => { setDraft(event.target.value); setPreview(false); }} /><button className="welcome-primary" disabled={!draft.trim()} onClick={() => setPreview(true)}>掲載イメージを見る →</button>{preview && <div className="welcome-post-result" aria-live="polite"><span className="welcome-job-tag">発注先を募集</span><h2>{draft}</h2><p>相談しながら決めたい ／ エリア応相談</p><b>依頼内容を見た会員から、オファーが届くきっかけに。</b><a href="#start">登録して依頼を投稿する →</a></div>}<p className="welcome-note">体験用です。入力内容は保存・公開されません。</p></div>}
+          {mode === 'post' && <div className="welcome-post"><p className="welcome-demo-hint">公開用のサンプル案件を選ぶか、自由に入力して掲載カードを作れます。</p><div className="welcome-post-presets"><span>サンプル案件から試す</span><div>{examples.map((entry, index) => <button className={postSample === index ? 'active' : ''} key={entry.tag} onClick={() => { setPostSample(index); setDraft(entry.title); setPreview(false); }}>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={entry.image} alt="" /><span>{entry.kind}<b>{entry.title}</b></span></button>)}</div></div><label htmlFor="demo-title">どんな仕事をお願いしたいですか？</label><textarea id="demo-title" rows={3} maxLength={100} value={draft} onChange={event => { setDraft(event.target.value); setPostSample(null); setPreview(false); }} /><div className="welcome-post-fields"><span><small>募集する相手</small><b>{postSample === null ? '相談相手' : examples[postSample].kind}</b></span><span><small>予算</small><b>{postSample === null ? '相談して決めたい' : examples[postSample].budget}</b></span><span><small>エリア</small><b>{postSample === null ? 'エリア応相談' : examples[postSample].area}</b></span></div><button className="welcome-primary" disabled={!draft.trim()} onClick={() => setPreview(true)}>掲載イメージを見る →</button>{preview && <div className="welcome-post-result" aria-live="polite">{postSample !== null && <>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={examples[postSample].imageLarge} alt="" /></>}<span className="welcome-job-tag">{postSample === null ? '相談相手' : examples[postSample].kind} <em>サンプル</em></span><h2>{draft}</h2><p>{postSample === null ? '相談して決めたい ／ エリア応相談' : `${examples[postSample].budget} ／ ${examples[postSample].area}`}</p><b>依頼内容を見た会員から、オファーが届くきっかけに。</b><a href="#start">登録して依頼を投稿する →</a></div>}<p className="welcome-note">体験用です。入力内容は保存・公開されません。</p></div>}
         </div>
-        <p className="welcome-demo-disclaimer">架空の案件・金額による操作イメージです。会員情報は表示していません。</p>
+        <p className="welcome-demo-disclaimer">公開用のサンプル案件による操作イメージです。実在する会員の投稿・情報は表示していません。</p>
       </section>
     </section>
     <section className="welcome-pricing" id="plans" aria-labelledby="pricing-heading">
