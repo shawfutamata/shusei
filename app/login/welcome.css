@@ -167,10 +167,6 @@ body:has(.welcome) { padding:0; background:#f8fafc; }
 .welcome-step-copy>a { display:inline-flex; align-items:center; min-height:48px; color:#126bc3; font-size:14px; font-weight:700; }
 .welcome-recording { margin:0; background:#fff; padding:12px; border:1px solid #dce6ef; border-radius:20px; box-shadow:0 20px 55px #183f6c14; }
 .welcome-recording>img { width:100%; height:auto; display:block; border-radius:12px; }
-.welcome-recording figcaption { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 4px 0; font-size:11px; color:#617389; }
-.welcome-recording-status { display:inline-flex; align-items:center; gap:6px; color:#0f5fc4; font-weight:700; }
-.welcome-recording-status i { width:7px; height:7px; border-radius:50%; background:#36c991; box-shadow:0 0 0 4px #36c9911f; animation:welcome-recording-pulse 1.2s ease-in-out infinite; }
-@keyframes welcome-recording-pulse { 50% { opacity:.45; transform:scale(.8); } }
 .welcome-features { background:#082c64; color:#fff; padding:80px 24px; }
 .welcome-features .welcome-kicker { color:#90c8ff; }
 .welcome-features .welcome-section-heading>p:last-child { color:#d4e3f6; }
