@@ -320,8 +320,8 @@ body:has(.welcome) { padding:0; background:#f8fafc; }
 @media(max-width:700px) {
  .welcome-desktop-only { display:none!important; }
  .welcome-mobile-only { display:inline; }
- .welcome-hero .welcome-intro { padding-bottom:24px; }
- .welcome-keyvisual { margin-top:12px; overflow:hidden; border-radius:20px; background:#bfeaff; }
+ .welcome-hero .welcome-intro { display:flex; flex-direction:column; padding-bottom:24px; }
+ .welcome-keyvisual { order:-1; margin:0 0 22px; overflow:hidden; border-radius:20px; background:#bfeaff; }
  .welcome-keyvisual>picture>img { width:100%; margin-left:0; mask-image:none; }
  .welcome-keyvisual-caption { display:block; margin:0; padding:14px 18px 17px; color:#12345c; text-align:center; }
  .welcome-keyvisual-caption strong,.welcome-keyvisual-caption span { display:block; }
