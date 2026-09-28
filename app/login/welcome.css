@@ -168,7 +168,7 @@ body:has(.welcome) { padding:0; background:#f8fafc; }
 .welcome-keyvisual { position:relative; min-width:0; }
 .welcome-keyvisual>img { width:130%; max-width:none; margin-left:-25%; height:auto; display:block; }
 @media(min-width:1200px) {
- .welcome-hero .welcome-intro { max-width:1280px; padding:48px 0 48px 32px; grid-template-columns:minmax(430px,.88fr) minmax(0,1.12fr); gap:16px; }
+ .welcome-hero .welcome-intro { max-width:1280px; padding:32px 0 32px 32px; grid-template-columns:minmax(430px,.88fr) minmax(0,1.12fr); gap:16px; }
  .welcome-keyvisual>img { width:132%; margin-left:-25%; }
 }
 .welcome-metrics { background:#f3f6fa; padding:80px 24px; }
