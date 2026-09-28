@@ -139,9 +139,9 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         <figcaption><span>BUSINESS MATCHING</span><strong>できる人と、<br />頼みたい人が出会う。</strong><p>仕事の相談から、次の商談へ。</p></figcaption>
       </figure>
       <div className="welcome-metric-grid">
-        <article>{/* eslint-disable-next-line @next/next/no-img-element */}<img className="welcome-metric-photo" src="/welcome/work-cleaning.webp" alt="店舗清掃の仕事風景" loading="lazy" /><span>受注のきっかけを増やす</span><strong className="metric-word">見つける</strong><h3>得意を活かせる仕事へ。</h3><p>依頼内容・予算・エリアを見て、自社に合う案件へオファーできます。</p></article>
-        <article>{/* eslint-disable-next-line @next/next/no-img-element */}<img className="welcome-metric-photo" src="/welcome/work-office.webp" alt="内装や移転の相談につながるオフィス" loading="lazy" /><span>発注先探しを進める</span><strong className="metric-word">頼める</strong><h3>探している相手を、会員へ。</h3><p>仕事や相談を掲示板へ投稿し、対応できる相手とつながれます。</p></article>
-        <article>{/* eslint-disable-next-line @next/next/no-img-element */}<img className="welcome-metric-photo" src="/welcome/work-event.webp" alt="企業イベントで商談する事業者たち" loading="lazy" /><span>商談を前へ進める</span><strong className="metric-word">話せる</strong><h3>条件や進め方を、直接相談。</h3><p>オファーからメッセージへ進み、スマホで具体的なやり取りを始められます。</p></article>
+        <article>{/* eslint-disable-next-line @next/next/no-img-element */}<img className="welcome-metric-photo" src="/welcome/work-construction-v2.webp" alt="住宅改修現場で作業する建築職人" loading="lazy" /><span>受注のきっかけを増やす</span><strong className="metric-word">見つける</strong><h3>得意を活かせる仕事へ。</h3><p>依頼内容・予算・エリアを見て、自社に合う案件へオファーできます。</p></article>
+        <article>{/* eslint-disable-next-line @next/next/no-img-element */}<img className="welcome-metric-photo" src="/welcome/work-handshake-v2.webp" alt="商談がまとまり握手を交わす事業者" loading="lazy" /><span>発注先探しを進める</span><strong className="metric-word">頼める</strong><h3>探している相手を、会員へ。</h3><p>仕事や相談を掲示板へ投稿し、対応できる相手とつながれます。</p></article>
+        <article>{/* eslint-disable-next-line @next/next/no-img-element */}<img className="welcome-metric-photo" src="/welcome/work-chat-v2.webp" alt="スマートフォンのチャット画面で仕事の相談を進める様子" loading="lazy" /><span>商談を前へ進める</span><strong className="metric-word">話せる</strong><h3>条件や進め方を、直接相談。</h3><p>オファーからメッセージへ進み、スマホで具体的なやり取りを始められます。</p></article>
       </div>
     </section>
     <section className="welcome-walkthrough" aria-labelledby="walkthrough-heading">
