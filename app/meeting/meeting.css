@@ -128,3 +128,10 @@ body:has(.meeting-survey){background:#fbf8f2;color:#161918}
  .meeting-tasuki-banner .meeting-ui-icon{width:20px;height:20px}
  .meeting-results .meeting-tasuki-banner .meeting-tasuki-note{font-size:10px}
 }
+
+/* Keep result recovery as one quiet utility action, not a separate section. */
+.meeting-results .meeting-result-save{border:0;margin-top:8px;padding:0;justify-content:flex-end;gap:0}
+.meeting-results .meeting-result-save .meeting-secondary{width:auto;min-height:44px;padding:8px 0 8px 12px;border:0;border-radius:0;background:transparent;color:#6d706d;font-size:12px;font-weight:500;gap:6px}
+.meeting-results .meeting-result-save .meeting-ui-icon{width:16px;height:16px}
+.meeting-results .meeting-copy-fallback{flex-basis:100%;text-align:right;font-size:13px;padding:8px 0;overflow-wrap:anywhere}
+.meeting-results .meeting-tasuki-banner{margin-top:16px}
