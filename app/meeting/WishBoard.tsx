@@ -18,9 +18,9 @@ export default function WishBoard({event}:{event:Meeting}) {
    {loading?<div className="meeting-wish-empty" role="status">参加者の希望を読み込んでいます…</div>:message?<div className="meeting-wish-empty" role="status"><h2>一覧を表示できませんでした</h2><p>{message}</p></div>:<>
     <div className="meeting-wish-list-heading"><h2>{query.trim()?'検索結果':'みなさんが探している相手'}</h2><p role="status"><strong>{visible.length}</strong>人{query.trim()&&<span> ／ 全{people.length}人</span>}</p></div>
     <div className="meeting-wish-grid">{visible.map(p=><article className="meeting-wish-card" key={p.id}>
-      <div className="meeting-wish-card-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 13a3 3 0 0 1-3 3H9l-6 5V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3z"/><path d="M7 7h10M7 11h6"/></svg><span>こんな方とつながりたい</span></div>
-      <p className="meeting-wish-card-text">{p.need}</p>
-      <div className="meeting-wish-card-person"><span className="meeting-wish-avatar" aria-hidden="true">{Array.from(p.name.trim())[0]||'人'}</span><div><h3>{p.name}<small>さん</small></h3><p>{p.company}</p></div></div>
+      <div className="meeting-wish-card-label"><span>希望する相手</span>{p.need.startsWith('【テスト回答】')&&<small className="meeting-wish-test">テスト回答</small>}</div>
+      <p className="meeting-wish-card-text">{p.need.replace(/^【テスト回答】\s*/, '')}</p>
+      <div className="meeting-wish-card-person"><div><h3>{p.name}<small>さん</small></h3><p>{p.company}</p></div></div>
     </article>)}</div>
     {!visible.length&&<div className="meeting-wish-empty"><h2>{people.length?'該当する希望はありません':'希望はまだ掲載されていません'}</h2><p>{people.length?'別の業種や短い言葉で探してみてください。':'参加者が希望を掲載すると、ここに表示されます。'}</p>{query.trim()&&<button type="button" className="meeting-secondary" onClick={()=>setQuery('')}>すべての希望を見る</button>}</div>}
     <p className="meeting-wish-note">紹介できそうな方が思い浮かんだら、ご本人や受付係に声をかけてみてください。</p>
