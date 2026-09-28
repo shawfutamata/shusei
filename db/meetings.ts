@@ -18,6 +18,7 @@ export function ensureMeetings() {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_roster (id TEXT PRIMARY KEY,event_id TEXT NOT NULL,profile TEXT NOT NULL,name_key TEXT NOT NULL)`),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS meeting_roster_event ON meeting_roster(event_id)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS meeting_roster_claims (roster_id TEXT PRIMARY KEY,answer_id TEXT NOT NULL UNIQUE)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS meeting_guest_claims (event_id TEXT NOT NULL,identity_key TEXT NOT NULL,answer_id TEXT NOT NULL UNIQUE,PRIMARY KEY(event_id,identity_key))'),
   ]).catch(error => { ready = undefined; throw error; });
 }
 const selectEvent = 'SELECT id,title,venue,closes_at AS closesAt,state,created_at AS createdAt,(SELECT COUNT(*) FROM meeting_roster WHERE event_id=meeting_events.id) AS rosterCount FROM meeting_events';
@@ -33,6 +34,17 @@ export async function findRoster(id:string,name:string) {
   if(!event||event.state!=='open'||event.closesAt<=Date.now())return [];
   // No public full directory, contacts, or arbitrary prefix search.
   return (await roster(id)).filter(p=>normalizedName(p.name)===key).slice(0,10);
+}
+// The participant selector exposes names and companies only, while受付 is open.
+export async function rosterOptions(id:string) {
+  const event=await meeting(id);
+  if(!event||event.state!=='open'||event.closesAt<=Date.now())return [];
+  return (await roster(id)).map(p=>({id:p.id,name:p.name,company:p.company}));
+}
+export async function selectedRoster(id:string,personId:string) {
+  const event=await meeting(id);
+  if(!event||event.state!=='open'||event.closesAt<=Date.now())return null;
+  return (await roster(id)).find(p=>p.id===personId)??null;
 }
 export async function importRoster(id:string,raw:unknown,consent:unknown) {
   if(consent!==true)throw new Error('名簿をこのアンケートに利用する許可を確認してください。');
@@ -55,9 +67,9 @@ export async function meeting(id: string) {
 }
 export async function attendees(id: string): Promise<Attendee[]> {
   await ensureMeetings();
-  const rows = await env.DB.prepare('SELECT id,answer,present,analyzed,candidates FROM meeting_answers WHERE event_id=? ORDER BY created_at,id').bind(id)
-    .all<{id:string;answer:string;present:number;analyzed:number;candidates:string}>();
-  return rows.results.map(row => ({...JSON.parse(row.answer) as Answer,id:row.id,present:row.present,analyzed:row.analyzed,candidates:JSON.parse(row.candidates) as Candidate[]}));
+  const rows = await env.DB.prepare('SELECT id,answer,present,analyzed,candidates,EXISTS(SELECT 1 FROM meeting_guest_claims WHERE answer_id=meeting_answers.id) AS walkIn FROM meeting_answers WHERE event_id=? ORDER BY created_at,id').bind(id)
+    .all<{id:string;answer:string;present:number;analyzed:number;candidates:string;walkIn:number}>();
+  return rows.results.map(row => ({...JSON.parse(row.answer) as Answer,id:row.id,present:row.present,analyzed:row.analyzed,candidates:JSON.parse(row.candidates) as Candidate[],walkIn:!!row.walkIn}));
 }
 export async function listMeetings() {
   await ensureMeetings();
@@ -83,7 +95,17 @@ export async function submitAnswer(id:string,body:Record<string,unknown>) {
   if (body.website) throw new Error('送信できませんでした。');
   let answer:Answer;
   let rosterId='';
-  if(event.rosterCount) {
+  const walkIn=body.walkIn===true;
+  let identity='';
+  if(walkIn) {
+    if(body.rosterId)throw new Error('参加方法を選び直してください。');
+    const raw=body.answer as Record<string,unknown>|undefined;
+    if(!raw||typeof raw!=='object')throw new Error('お名前・会社名・事業内容を入力してください。');
+    answer=validateAnswer(rosterAnswer({name:typeof raw.name==='string'?raw.name:'',company:typeof raw.company==='string'?raw.company:'',services:typeof raw.services==='string'?raw.services:'',industry:'',table:'',area:''},typeof raw.need==='string'?raw.need:''),true);
+    if(answer.services.length<2)throw new Error('できる仕事・事業内容をひと言入力してください。');
+    identity=normalizedName(answer.name)+'|'+normalizedName(answer.company);
+    if((await roster(id)).some(p=>normalizedName(p.name)+'|'+normalizedName(p.company)===identity))throw new Error('名簿にお名前があります。名簿から選んでください。');
+  } else if(event.rosterCount) {
     rosterId=typeof body.rosterId==='string'?body.rosterId:'';
     const profile=(await roster(id)).find(p=>p.id===rosterId);
     if(!profile)throw new Error('名簿からご本人を選んでください。');
@@ -98,6 +120,29 @@ export async function submitAnswer(id:string,body:Record<string,unknown>) {
   const digest = await hash(token);
   // One answer per receipt; retry safely updates it, but never crosses the deadline or analysis freeze.
   const prior = await env.DB.prepare('SELECT id FROM meeting_answers WHERE event_id=? AND token_hash=?').bind(id,digest).first<{id:string}>();
+  if(!walkIn&&!rosterId&&prior&&await env.DB.prepare('SELECT answer_id FROM meeting_guest_claims WHERE answer_id=?').bind(prior.id).first())throw new Error('回答済みの参加方法は変更できません。');
+  if(walkIn) {
+    const claim=await env.DB.prepare('SELECT answer_id FROM meeting_guest_claims WHERE event_id=? AND identity_key=?').bind(id,identity).first<{answer_id:string}>();
+    if(claim&&claim.answer_id!==prior?.id)throw new Error('このお名前・会社名の回答は受け付け済みです。回答した端末でご確認ください。');
+    if(prior) {
+      const ownClaim=await env.DB.prepare('SELECT identity_key FROM meeting_guest_claims WHERE event_id=? AND answer_id=?').bind(id,prior.id).first<{identity_key:string}>();
+      if(ownClaim?.identity_key!==identity)throw new Error('回答済みのお名前・参加方法は変更できません。受付係にご相談ください。');
+    } else {
+      const answerId=crypto.randomUUID(),submittedAt=Date.now();
+      try {
+        const inserted=await env.DB.batch([
+          env.DB.prepare(`INSERT INTO meeting_answers(id,event_id,token_hash,answer,created_at) SELECT ?,?,?,?,?
+            WHERE EXISTS(SELECT 1 FROM meeting_events WHERE id=? AND state='open' AND closes_at>?)
+            AND (SELECT COUNT(*) FROM meeting_answers WHERE event_id=?)<100
+            AND NOT EXISTS(SELECT 1 FROM meeting_roster WHERE event_id=? AND name_key=? AND json_extract(profile,'$.company')=?)`)
+            .bind(answerId,id,digest,JSON.stringify(answer),submittedAt,id,submittedAt,id,id,normalizedName(answer.name),answer.company),
+          env.DB.prepare('INSERT INTO meeting_guest_claims(event_id,identity_key,answer_id) SELECT ?,?,? WHERE EXISTS(SELECT 1 FROM meeting_answers WHERE id=?)').bind(id,identity,answerId,answerId),
+        ]);
+        if(!inserted[0].meta.changes)throw new Error('締切・人数上限・名簿を確認してください。');
+      }catch(error){if(String(error).includes('UNIQUE'))throw new Error('回答は受け付け済みです。回答した端末でご確認ください。');throw error;}
+      return;
+    }
+  }
   if(rosterId) {
     const claim=await env.DB.prepare('SELECT answer_id FROM meeting_roster_claims WHERE roster_id=?').bind(rosterId).first<{answer_id:string}>();
     if(claim&&claim.answer_id!==prior?.id)throw new Error('この方の回答は受け付け済みです。修正は回答した端末で行うか、受付係にご相談ください。');
@@ -136,7 +181,8 @@ export async function ownResult(id:string,token:string) {
     return p ? [{...c,name:p.name,company:p.company,table:p.table,industry:p.industry}] : [];
   }) : [];
   const claim=await env.DB.prepare('SELECT roster_id FROM meeting_roster_claims WHERE answer_id=?').bind(row.id).first<{roster_id:string}>();
-  return {event,answer:JSON.parse(row.answer) as Answer,rosterId:claim?.roster_id??'',present:row.present,matches};
+  const guest=await env.DB.prepare('SELECT answer_id FROM meeting_guest_claims WHERE event_id=? AND answer_id=?').bind(id,row.id).first();
+  return {event,answer:JSON.parse(row.answer) as Answer,rosterId:claim?.roster_id??'',walkIn:!!guest,present:row.present,matches};
 }
 export async function confirmAttendance(id:string,personId:string,present:boolean) {
   const result = await env.DB.prepare(`UPDATE meeting_answers SET present=? WHERE event_id=? AND id=? AND EXISTS
@@ -195,13 +241,13 @@ export async function publishMeeting(id:string) {
   if(!result.meta.changes) throw new Error('全員分の集計を終えてから公開してください。');
 }
 
-export async function checkSubmissionLimit(eventId:string,ip:string) {
+export async function checkSubmissionLimit(eventId:string,ip:string,kind:'read'|'submit'='submit') {
   await ensureMeetings();
   const bucket=Math.floor(Date.now()/600000);
-  const key=await hash(eventId+':'+ip+':'+bucket);
+  const key=await hash(eventId+':'+kind+':'+ip+':'+bucket);
   const row=await env.DB.prepare(`INSERT INTO meeting_submit_limits(id,count,expires) VALUES(?,1,?)
     ON CONFLICT(id) DO UPDATE SET count=count+1 RETURNING count`).bind(key,(bucket+1)*600000).first<{count:number}>();
   await env.DB.prepare('DELETE FROM meeting_submit_limits WHERE expires<?').bind(Date.now()-600000).run();
   // Shared venue Wi-Fi can serve every attendee. No raw IP address is retained.
-  return !!row && row.count<=200;
+  return !!row && row.count<=(kind==='read'?400:200);
 }

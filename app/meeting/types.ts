@@ -3,7 +3,7 @@ export type Answer = {
   services: string; referrals: string; need: string;
   area: string; timing: string; budget: string; conditions: string;
 };
-export type Attendee = Answer & { id: string; present: number; analyzed: number; candidates: Candidate[] };
+export type Attendee = Answer & { id: string; present: number; analyzed: number; candidates: Candidate[]; walkIn?: boolean };
 export type Candidate = {
   id: string; kind: 'direct' | 'referral'; reason: string;
   needQuote: string; offerQuote: string; questions: string[];

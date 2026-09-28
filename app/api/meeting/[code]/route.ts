@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { meeting, ownResult, submitAnswer, checkSubmissionLimit, findRoster } from '@/db/meetings';
+import { meeting, ownResult, submitAnswer, checkSubmissionLimit, findRoster, rosterOptions, selectedRoster } from '@/db/meetings';
 const noCache = {'Cache-Control':'no-store','Referrer-Policy':'no-referrer'};
 export async function GET(request:Request,{params}:{params:Promise<{code:string}>}) {
   const {code}=await params;
@@ -10,8 +10,14 @@ export async function GET(request:Request,{params}:{params:Promise<{code:string}
     return result ? NextResponse.json(result,{headers:noCache}) : NextResponse.json({error:'回答が見つかりません。'},{status:404,headers:noCache});
   }
   const event=await meeting(code);
-  const name=new URL(request.url).searchParams.get('name');
-  if(event&&name!==null){if(!await checkSubmissionLimit(code,request.headers.get('cf-connecting-ip')||'local'))return NextResponse.json({error:'検索が集中しています。少し待って再試行してください。'},{status:429,headers:noCache});return NextResponse.json({people:await findRoster(code,name)},{headers:noCache});}
+  const query=new URL(request.url).searchParams;
+  const name=query.get('name');
+  if(event&&(query.has('people')||query.has('rosterId'))) {
+    if(!await checkSubmissionLimit(code,request.headers.get('cf-connecting-ip')||'local','read'))return NextResponse.json({error:'アクセスが集中しています。少し待って再試行してください。'},{status:429,headers:noCache});
+    if(query.has('rosterId')) {const person=await selectedRoster(code,query.get('rosterId')??'');return person?NextResponse.json({person},{headers:noCache}):NextResponse.json({error:'名簿の選択を確認してください。'},{status:404,headers:noCache});}
+    return NextResponse.json({people:await rosterOptions(code)},{headers:noCache});
+  }
+  if(event&&name!==null){if(!await checkSubmissionLimit(code,request.headers.get('cf-connecting-ip')||'local','read'))return NextResponse.json({error:'検索が集中しています。少し待って再試行してください。'},{status:429,headers:noCache});return NextResponse.json({people:await findRoster(code,name)},{headers:noCache});}
   return event ? NextResponse.json({event},{headers:noCache}) : NextResponse.json({error:'アンケートが見つかりません。'},{status:404,headers:noCache});
 }
 export async function POST(request:Request,{params}:{params:Promise<{code:string}>}) {

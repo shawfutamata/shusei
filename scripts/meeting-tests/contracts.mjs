@@ -20,3 +20,6 @@ assert.deepEqual(await matchAttendee(ai,{...seeker,need:''},[provider]),[]);asse
 await assert.rejects(()=>matchAttendee({async run(){return {response:'invalid json'}}},seeker,[provider]));
 await assert.rejects(()=>matchAttendee({async run(){return {response:JSON.stringify({matches:[{...candidate,id:'forged'}]})}}},seeker,[provider]));
 console.log('PASS: answer validation, event isolation, attendance, self-match, exact evidence, referral evidence, duplicate removal, identity exclusion, independent verification, no-need, malformed output, forged ID');
+
+assert.equal((await matchAttendee(ai,seeker,[seeker,{...provider,industry:'',walkIn:true}]))[0].id,'p');
+console.log('PASS: self-entered walk-in business evidence participates in matching');

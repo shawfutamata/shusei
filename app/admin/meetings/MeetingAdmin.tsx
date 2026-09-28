@@ -41,7 +41,7 @@ export default function MeetingAdmin() {
     {(event.state==='open'||event.state==='analyzing')&&<button disabled={busy||!confirmed.length} onClick={()=>void act('analyze')}>{busy?'処理中…':event.state==='analyzing'?'分析を再開':'締切後に集計・分析する'}</button>}
     {event.state==='review'&&<button disabled={busy} onClick={()=>void act('publish')}>確認した候補を本人に公開する</button>}</div>
     {event.state==='review'&&<p>回答原文と必須条件を確認してください。紹介が難しい候補は外せます。「候補なし」も正常な結果です。</p>}
-    {people.map(p=><article className="meeting-admin-row" key={p.id}><label><input type="checkbox" checked={p.present===1} disabled={busy||event.state!=='open'} onChange={e=>void act('attendance',{personId:p.id,present:e.target.checked})}/>{p.name} · {p.company} {p.table&&'／席 '+p.table}</label>
+    {people.map(p=><article className="meeting-admin-row" key={p.id}><label><input type="checkbox" checked={p.present===1} disabled={busy||event.state!=='open'} onChange={e=>void act('attendance',{personId:p.id,present:e.target.checked})}/>{p.name} · {p.company} {p.table&&'／席 '+p.table}</label>{p.walkIn&&<p><b>当日参加・本人入力</b>（お名前と事業内容を受付で確認してください）</p>}
     <p>{p.industry} ／ {p.area||'地域未記入'}</p><p><b>できる仕事：</b>{p.services}</p>{p.referrals&&<p><b>紹介できる相手：</b>{p.referrals}</p>}<p><b>つながりたい相手：</b>{p.need||'今回はなし'}</p>
     {(p.timing||p.budget||p.conditions)&&<p><b>条件：</b>{[p.timing,p.budget,p.conditions].filter(Boolean).join(' ／ ')}</p>}
     {p.analyzed===1&&p.candidates.length===0&&<p>候補なし{!p.need?'（依頼なし）':''}</p>}
