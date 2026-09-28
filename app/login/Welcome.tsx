@@ -115,12 +115,12 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
   }, [initialMessage]);
 
   return <main className="welcome">
-    <header className="welcome-nav"><a href="/login" className="welcome-brand"><BrandMark /><span>TASUKI</span></a><a className="welcome-login-link" href="/login/member">会員ログイン <span aria-hidden="true">↗</span></a></header>
+    <header className="welcome-nav"><a href="/login" className="welcome-brand"><BrandMark /><span>TASUKI</span></a><a className="welcome-login-link" href="/login/member"><span className="welcome-desktop-only">会員ログイン <span aria-hidden="true">↗</span></span><span className="welcome-mobile-only">ログイン</span></a></header>
     <div className="welcome-hero"><div className="welcome-intro">
       <section className="welcome-copy">
         <p className="welcome-kicker"><WelcomeIcon name="briefcase" /><span className="welcome-desktop-only">経営者・事業者のビジネスマッチング</span><span className="welcome-mobile-only">仕事でつながる会員サービス</span></p>
         <h1><span className="welcome-desktop-only">その日だけだった<br />商売の機会を、毎日へ。</span><span className="welcome-mobile-only">商売の機会を、<br />毎日へ。</span></h1>
-        <p className="welcome-lead"><span className="welcome-desktop-only">あなたの「できます」と、<br />誰かの「お願いしたい」が出会う場所。</span><span className="welcome-mobile-only">仕事を探す・頼む・相談する。<br />スマホひとつで。</span></p>
+        <p className="welcome-lead"><span className="welcome-desktop-only">あなたの「できます」と、<br />誰かの「お願いしたい」が出会う場所。</span><span className="welcome-mobile-only">パソコン操作が苦手でも、<br />スマホだけで使えます。</span></p>
         <div className="welcome-easy"><WelcomeIcon name="check" /><span><strong>パソコンやネットの操作が苦手でも大丈夫。</strong><small>見やすい文字とボタンで、順番に進めるだけです。</small></span></div>
         <div className="welcome-hero-points"><span><WelcomeIcon name="check" />スマホだけで使える</span><span><WelcomeIcon name="check" />かんたん操作</span><span><WelcomeIcon name="chat" />困ったときは相談できる</span></div>
         <a className="welcome-primary" href="#start">アカウントを作成 <span aria-hidden="true">→</span></a>
@@ -132,6 +132,7 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         </picture>
         <p className="welcome-keyvisual-caption"><strong>スマホだけで、仕事がつながる。</strong><span>依頼も相手探しも、順番にタップするだけ。</span></p>
       </div>
+      <div className="welcome-mobile-hero-cta"><a href="#start"><small>2026年12月31日まで全機能無料</small><strong>無料でアカウントを作成 <span aria-hidden="true">→</span></strong></a></div>
     </div></div>
     <section className="welcome-metrics" aria-labelledby="metrics-heading">
       <div className="welcome-section-heading"><p className="welcome-kicker">TASUKIでできること</p><h2 id="metrics-heading"><span className="welcome-desktop-only">仕事の機会を、<br />待つだけにしない。</span><span className="welcome-mobile-only">見つける・頼む・話す</span></h2></div>
