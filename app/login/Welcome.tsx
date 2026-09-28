@@ -119,7 +119,7 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
     <div className="welcome-hero"><div className="welcome-intro">
       <section className="welcome-copy">
         <p className="welcome-kicker"><WelcomeIcon name="briefcase" /><span className="welcome-desktop-only">経営者・事業者のビジネスマッチング</span><span className="welcome-mobile-only">仕事でつながる会員サービス</span></p>
-        <h1><span className="welcome-desktop-only">その日だけだった<br />商売の機会を、毎日へ。</span><span className="welcome-mobile-only">商売の機会を、<br />毎日へ。</span></h1>
+        <h1><span className="welcome-desktop-only">その日だけだった<br />商売の機会を、毎日へ。</span><span className="welcome-mobile-only">商売のきっかけを、<br />毎日の仕事につなげる。</span></h1>
         <p className="welcome-lead"><span className="welcome-desktop-only">あなたの「できます」と、<br />誰かの「お願いしたい」が出会う場所。</span><span className="welcome-mobile-only">パソコン操作が苦手でも、<br />スマホだけで使えます。</span></p>
         <div className="welcome-easy"><WelcomeIcon name="check" /><span><strong>パソコンやネットの操作が苦手でも大丈夫。</strong><small>見やすい文字とボタンで、順番に進めるだけです。</small></span></div>
         <div className="welcome-hero-points"><span><WelcomeIcon name="check" />スマホだけで使える</span><span><WelcomeIcon name="check" />かんたん操作</span><span><WelcomeIcon name="chat" />困ったときは相談できる</span></div>
