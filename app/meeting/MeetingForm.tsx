@@ -1,6 +1,5 @@
 'use client';
 import { useEffect,useState } from 'react';
-import BrandMark from '../BrandMark';
 import MeetingResult from './MeetingResult';
 import type { Answer,Candidate,Meeting,RosterPerson } from './types';
 const empty:Answer={name:'',company:'',table:'',industry:'',services:'',referrals:'',need:'',area:'',timing:'',budget:'',conditions:''};
@@ -52,7 +51,7 @@ export default function MeetingForm({event:initial}:{event:Meeting}) {
     catch(e){setMessage(e instanceof Error?e.message:'保存できませんでした。');}finally{setBusy(false);}
   }
   const closed=now>=event.closesAt||event.state!=='open';
-  return <main className={`meeting-page meeting-survey${result&&!editing?' meeting-results':''}`}><header><BrandMark/><b>TASUKI</b><span>例会アンケート</span></header><section className="meeting-shell">
+  return <main className={`meeting-page meeting-survey${result&&!editing?' meeting-results':''}`}><section className="meeting-shell">
     {(!result||editing)&&<><p className="meeting-eyebrow">{event.venue} · {event.title}</p><h1>今日、つながりたい相手は？</h1></>}
     {(!result||editing)?<><p className="meeting-lead">お名前を選んで、つながりたい相手をひと言。ログインは不要です。</p><p className="meeting-help">受付締切：{new Date(event.closesAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'})}（日本時間）</p>
     {closed?<p role="status">受付は締め切りました。回答済みの方は、この下から結果を開けます。</p>:<form onSubmit={submit}><fieldset disabled={!token||busy}>
