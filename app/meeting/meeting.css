@@ -109,3 +109,22 @@ body:has(.meeting-survey){background:#fbf8f2;color:#161918}
  .meeting-wish-board .meeting-wish-expand:focus-visible{outline:2px solid #d91f2e;outline-offset:2px}
  .meeting-wish-note{font-size:12px;margin-top:18px;padding-top:14px}
 }
+
+/* Match the Hiru homepage TASUKI teaser: blue canvas, existing logo, white CTA. */
+.meeting-results .meeting-tasuki-banner{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px 32px;align-items:center;margin-top:28px;padding:28px 32px;border:0;background:#0754a1;color:#fff}
+.meeting-tasuki-banner .meeting-tasuki-logo{display:block;width:150px;height:auto;padding:6px 8px;background:#fff;border-radius:6px;margin:0 0 16px}
+.meeting-results .meeting-tasuki-banner h2{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;font-size:28px;font-weight:600;line-height:1.45;letter-spacing:0;color:#fff;margin:0}
+.meeting-results .meeting-tasuki-banner p{font-size:14px;line-height:1.65;color:#e1effa;margin:10px 0 0}
+.meeting-results .meeting-tasuki-banner>a{display:flex;justify-content:space-between;gap:24px;min-height:54px;padding:14px 20px;background:#fff;color:#0754a1;border-radius:0;font-size:15px;font-weight:700;text-decoration:none}
+.meeting-results .meeting-tasuki-banner>a:hover{background:#e9f6ff}
+.meeting-results .meeting-tasuki-banner>a:focus-visible{outline:3px solid #58cfff;outline-offset:4px}
+.meeting-results .meeting-tasuki-banner .meeting-tasuki-note{grid-column:1/-1;font-size:11px;line-height:1.6;color:#e1effa}
+@media(max-width:760px){
+ .meeting-results .meeting-tasuki-banner{grid-template-columns:minmax(0,1fr);gap:14px;padding:22px 20px}
+ .meeting-tasuki-banner .meeting-tasuki-logo{width:124px;margin-bottom:12px}
+ .meeting-results .meeting-tasuki-banner h2{font-size:24px;line-height:1.4}
+ .meeting-results .meeting-tasuki-banner p{font-size:13px;margin-top:8px}
+ .meeting-results .meeting-tasuki-banner>a{width:100%;min-height:48px;padding:12px 14px;font-size:14px}
+ .meeting-tasuki-banner .meeting-ui-icon{width:20px;height:20px}
+ .meeting-results .meeting-tasuki-banner .meeting-tasuki-note{font-size:10px}
+}

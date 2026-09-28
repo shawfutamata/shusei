@@ -36,6 +36,9 @@ export default function MeetingResult({event,result,token,busy,closed,onShare,on
    </div>
   </div>
   <div className="meeting-result-save"><div><strong>あとから結果を確認する</strong><p>この端末で、いつでも見返せます。</p></div><button className="meeting-secondary" onClick={()=>void copyLink()}><Icon name="copy"/>専用リンクをコピー</button><details><summary>別の端末で見るための回答用キー</summary><p>他の方には渡さず、ご自身で保存してください。</p><code className="meeting-token">{token}</code><button onClick={async()=>{try{await navigator.clipboard.writeText(token);onMessage('回答用キーをコピーしました。');}catch{onMessage('キーを長押ししてコピーしてください。');}}}>キーをコピー</button></details></div>
-  {published&&<aside className="meeting-result-next"><div><span>TASUKI</span><h2>もっと詳しく、相手を探したい方へ。</h2><p>例会での出会いをきっかけに、仕事の内容や条件を相談したいときは、ビジネスマッチングサービス「TASUKI」もご活用ください。</p><small>登録は任意。結果を見るための登録は不要です。</small></div><a href="/login#start">TASUKIを使ってみる<Icon name="arrow"/></a></aside>}
+  {published&&<aside className="meeting-result-next meeting-tasuki-banner" aria-label="TASUKIのご案内"><div>
+   {/* eslint-disable-next-line @next/next/no-img-element */}
+   <img className="meeting-tasuki-logo" src="/lp/hiru-tasuki-logo.png" alt="TASUKI" width={1615} height={557}/>
+   <h2>例会のあとも、<br/>仕事のつながりを。</h2><p>仕事を探す・頼む・相談する。<br/>スマホで、いつでも。</p></div><a href="/login#start">TASUKIを使ってみる<Icon name="arrow"/></a><small className="meeting-tasuki-note">登録は任意。アンケートの結果は登録なしで確認できます。</small></aside>}
  </>;
 }
