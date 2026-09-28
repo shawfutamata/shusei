@@ -126,8 +126,11 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         <a className="welcome-primary" href="#start">アカウントを作成 <span aria-hidden="true">→</span></a>
       </section>
       <div className="welcome-keyvisual">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/welcome/friendly-matching-hero-v4.webp" width={1122} height={1402} alt="スマートフォンを使う3人の事業者とTASUKI上で仕事が成立する流れ" fetchPriority="high" />
+        <picture>
+          <source media="(max-width: 700px)" srcSet="/welcome/friendly-matching-mobile-v1.webp" />
+          <img src="/welcome/friendly-matching-hero-v4.webp" width={1122} height={1402} alt="スマートフォンを使う3人の事業者とTASUKI上で仕事が成立する流れ" fetchPriority="high" />
+        </picture>
+        <p className="welcome-keyvisual-caption"><strong>スマホだけで、仕事がつながる。</strong><span>依頼も相手探しも、順番にタップするだけ。</span></p>
       </div>
     </div></div>
     <section className="welcome-metrics" aria-labelledby="metrics-heading">
