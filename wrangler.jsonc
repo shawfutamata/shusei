@@ -34,5 +34,7 @@
     }
   ],
 
+  "ai": { "binding": "MEETING_AI" },
+
   "observability": { "enabled": true }
 }

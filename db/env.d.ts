@@ -1,6 +1,7 @@
 declare namespace Cloudflare {
   interface Env {
     DB: D1Database;
+    MEETING_AI: { run(model: string, inputs: { messages: { role: string; content: string }[]; max_tokens: number; temperature: number }): Promise<unknown> };
     AVATARS: R2Bucket;
     VAPID_PUBLIC_KEY: string;
     VAPID_PRIVATE_KEY: string;

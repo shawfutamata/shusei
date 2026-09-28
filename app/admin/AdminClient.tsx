@@ -488,7 +488,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       </li>)}
     </ul>}
 
-    {tab === 'surveys' && <section className="survey-admin-list">
+    {tab === 'surveys' && <section className="survey-admin-list"><a href="/admin/meetings">ログイン不要の例会アンケートを管理する →</a>
       {!data.surveys.length && <p className="admin-empty">まだアンケート回答は届いていません。</p>}
       {data.surveys.map((survey) => <article key={survey.id} className={`survey-admin-card is-${survey.status}`}>
         <div className="admin-row-top">
