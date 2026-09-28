@@ -16,7 +16,6 @@
 .welcome-primary:hover { background:#0758ac; }
 .welcome-primary:disabled { opacity:.5; cursor:default; }
 .welcome-copy>.welcome-primary { width:fit-content; }
-.welcome-try { display:inline-block; padding:18px 0 4px; color:#126bc3; font-size:14px; font-weight:700; }
 .welcome-note { font-size:12px; color:#5d6d80; line-height:1.7; margin:12px 0 0; }
 .welcome-demo { border:1px solid #dbe5ef; border-radius:24px; background:#fff; box-shadow:0 18px 50px #254f8510; overflow:hidden; }
 .welcome-demo-top { display:flex; justify-content:space-between; align-items:center; padding:22px 24px 16px; gap:12px; }
@@ -163,7 +162,6 @@ body:has(.welcome) { padding:0; background:#f8fafc; }
 .welcome-hero h1,.welcome-hero .welcome-lead { color:#fff; }
 .welcome-hero .welcome-description { color:#d8e8fb; }
 .welcome-hero .welcome-kicker,.welcome-hero .welcome-hero-points span,.welcome-hero .welcome-note { color:#bddaff; }
-.welcome-hero .welcome-try { color:#fff; }
 .welcome-hero .welcome-primary { background:#fff; color:#0d4da0; box-shadow:0 8px 24px #001d4b25; }
 .welcome-keyvisual { position:relative; min-width:0; }
 .welcome-keyvisual>img { width:150%; max-width:none; margin-left:-25%; height:auto; display:block; mask-image:linear-gradient(to right,transparent,#000 15%,#000 90%,transparent); }

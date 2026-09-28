@@ -125,8 +125,6 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         <p className="welcome-lead">あなたの「できます」と、<br />誰かの「お願いしたい」が出会う場所。</p>
         <p className="welcome-description">TASUKIなら、仕事を探すのも、依頼するのもスマホから。会員同士で直接つながり、次の商談を始められます。</p><div className="welcome-hero-points"><span><WelcomeIcon name="search" />仕事を見つける</span><span><WelcomeIcon name="send" />仕事を頼む</span><span><WelcomeIcon name="chat" />直接相談する</span></div>
         <a className="welcome-primary" href="#start">アカウントを作成 <span aria-hidden="true">→</span></a>
-        <a className="welcome-try" href="#try">まずは操作を試す ↓</a>
-        <p className="welcome-note">招待コード不要 · Googleアカウントで登録 · 運営確認後に利用開始</p>
       </section>
       <div className="welcome-keyvisual">
         {/* eslint-disable-next-line @next/next/no-img-element */}
