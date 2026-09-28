@@ -157,18 +157,19 @@ body:has(.welcome) { padding:0; background:#f8fafc; }
  .welcome-start h2 { font-size:23px; }
 }
 /* Sales-led presentation: campaign visual, evidence, recorded product, features. */
-.welcome-hero { background:#073477; border:0; overflow:hidden; }
+.welcome-hero { background:linear-gradient(135deg,#f8fcff 0%,#ebf7ff 52%,#dff3ff 100%); border:0; overflow:hidden; }
 .welcome-hero .welcome-copy { position:relative; z-index:1; }
-.welcome-hero h1,.welcome-hero .welcome-lead { color:#fff; }
-.welcome-hero .welcome-description { color:#d8e8fb; }
-.welcome-hero .welcome-description strong { display:block; margin-bottom:4px; color:#fff; }
-.welcome-hero .welcome-kicker,.welcome-hero .welcome-hero-points span,.welcome-hero .welcome-note { color:#bddaff; }
-.welcome-hero .welcome-primary { background:#fff; color:#0d4da0; box-shadow:0 8px 24px #001d4b25; }
+.welcome-hero h1,.welcome-hero .welcome-lead { color:#10294f; }
+.welcome-hero .welcome-description { color:#405f7e; }
+.welcome-hero .welcome-description strong { display:block; margin-bottom:4px; color:#17395f; }
+.welcome-hero .welcome-kicker,.welcome-hero .welcome-note { color:#2674ad; }
+.welcome-hero .welcome-hero-points span { padding:8px 12px; border:1px solid #d3e8f6; border-radius:999px; background:#fff; color:#245f8d; box-shadow:0 6px 18px #326d9b12; }
+.welcome-hero .welcome-primary { background:#126bc3; color:#fff; border-radius:999px; box-shadow:0 10px 24px #126bc32b; }
 .welcome-keyvisual { position:relative; min-width:0; }
 .welcome-keyvisual>img { width:130%; max-width:none; margin-left:-25%; height:auto; display:block; }
 @media(min-width:1200px) {
  .welcome-hero .welcome-intro { max-width:1280px; padding-left:32px; padding-right:0; grid-template-columns:minmax(430px,.88fr) minmax(0,1.12fr); gap:16px; }
- .welcome-keyvisual>img { width:150%; margin-left:-35%; }
+ .welcome-keyvisual>img { width:132%; margin-left:-25%; }
 }
 .welcome-metrics { background:#f3f6fa; padding:80px 24px; }
 .welcome-match-visual { max-width:1120px; height:540px; margin:48px auto 24px; position:relative; overflow:hidden; border-radius:28px; background:#073477; box-shadow:0 24px 60px #143c6f24; }
@@ -351,4 +352,4 @@ body:has(.welcome) { padding:0; background:#f8fafc; }
  .welcome-faq-contact { text-align:left; line-height:1.8; }
  .welcome-start { margin-top:32px; }
 }
-.welcome-keyvisual>img { mask-image:linear-gradient(to right,transparent,#000 18%,#000 100%),linear-gradient(to bottom,transparent,#000 7%,#000 89%,transparent); mask-composite:intersect; }
+.welcome-keyvisual>img { mask-image:linear-gradient(to bottom,#000 0%,#000 90%,transparent 100%); }
