@@ -49,11 +49,12 @@ function FeatureArt({ name }: { name: IconName }) {
       <circle className="art-accent" cx="180" cy="29" r="13" /><path className="art-white-line" d="m175 29 4 4 7-8" />
     </>}
     {name === 'send' && <>
-      <rect className="art-card art-shadow" x="39" y="38" width="142" height="82" rx="13" />
-      <circle className="art-soft" cx="59" cy="59" r="10" /><path className="art-line" d="M76 55h63M76 63h46" />
-      <rect className="art-paper" x="53" y="79" width="93" height="24" rx="8" /><path className="art-line" d="M65 88h54M65 95h35" />
-      <path className="art-plane" d="m145 22 59 22-30 10-11 31-18-63Z" /><path className="art-plane-line" d="m163 53 41-31-30 32" />
-      <circle className="art-mint" cx="183" cy="102" r="13" /><path className="art-white-line" d="m177 102 4 4 8-9" />
+      <rect className="art-card art-shadow" x="39" y="28" width="154" height="94" rx="14" />
+      <circle className="art-soft" cx="60" cy="50" r="10" /><path className="art-line" d="M78 46h74M78 54h49" />
+      <rect className="art-paper" x="53" y="72" width="91" height="30" rx="8" /><path className="art-line" d="M65 82h56M65 91h38" />
+      <rect className="art-blue" x="137" y="66" width="63" height="43" rx="9" />
+      <path className="art-white-line" d="m147 78 21 15 22-15M147 99l14-12M190 99l-14-12" />
+      <circle className="art-mint" cx="192" cy="40" r="13" /><path className="art-white-line" d="m186 40 4 4 8-9" />
     </>}
     {name === 'chat' && <>
       <rect className="art-card art-shadow" x="49" y="24" width="142" height="102" rx="14" />
