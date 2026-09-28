@@ -123,10 +123,10 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
     <header className="welcome-nav"><a href="/login" className="welcome-brand"><BrandMark /><span>TASUKI</span></a><button onClick={openLogin}>会員ログイン <span aria-hidden="true">↗</span></button></header>
     <div className="welcome-hero"><div className="welcome-intro">
       <section className="welcome-copy">
-        <p className="welcome-kicker"><WelcomeIcon name="briefcase" /> 経営者・事業者のビジネスマッチング</p>
-        <h1>その日だけだった<br />商売の機会を、毎日へ。</h1>
-        <p className="welcome-lead">あなたの「できます」と、<br />誰かの「お願いしたい」が出会う場所。</p>
-        <p className="welcome-description"><strong>パソコンやネットの操作が苦手でも大丈夫。</strong>TASUKIは、スマホで「探す」「頼む」「話す」を順番に進めるだけ。見やすい文字とわかりやすいボタンで、迷いにくく使えます。</p><div className="welcome-hero-points"><span><WelcomeIcon name="check" />スマホだけで使える</span><span><WelcomeIcon name="check" />文字とボタンが見やすい</span><span><WelcomeIcon name="chat" />困ったときは相談できる</span></div>
+        <p className="welcome-kicker"><WelcomeIcon name="briefcase" /><span className="welcome-desktop-only">経営者・事業者のビジネスマッチング</span><span className="welcome-mobile-only">仕事でつながる会員サービス</span></p>
+        <h1><span className="welcome-desktop-only">その日だけだった<br />商売の機会を、毎日へ。</span><span className="welcome-mobile-only">商売の機会を、<br />毎日へ。</span></h1>
+        <p className="welcome-lead"><span className="welcome-desktop-only">あなたの「できます」と、<br />誰かの「お願いしたい」が出会う場所。</span><span className="welcome-mobile-only">仕事を探す・頼む・相談する。<br />スマホひとつで。</span></p>
+        <p className="welcome-description welcome-desktop-only"><strong>パソコンやネットの操作が苦手でも大丈夫。</strong>TASUKIは、スマホで「探す」「頼む」「話す」を順番に進めるだけ。見やすい文字とわかりやすいボタンで、迷いにくく使えます。</p><div className="welcome-hero-points"><span><WelcomeIcon name="check" />スマホだけで使える</span><span><WelcomeIcon name="check" />かんたん操作</span><span><WelcomeIcon name="chat" />困ったときは相談できる</span></div>
         <a className="welcome-primary" href="#start">アカウントを作成 <span aria-hidden="true">→</span></a>
       </section>
       <div className="welcome-keyvisual">
@@ -135,7 +135,7 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
       </div>
     </div></div>
     <section className="welcome-metrics" aria-labelledby="metrics-heading">
-      <div className="welcome-section-heading"><p className="welcome-kicker">TASUKIでできること</p><h2 id="metrics-heading">仕事の機会を、<br />待つだけにしない。</h2></div>
+      <div className="welcome-section-heading"><p className="welcome-kicker">TASUKIでできること</p><h2 id="metrics-heading"><span className="welcome-desktop-only">仕事の機会を、<br />待つだけにしない。</span><span className="welcome-mobile-only">見つける・頼む・話す</span></h2></div>
       <figure className="welcome-match-visual">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/welcome/platform-conversation-v2.webp" width={1672} height={941} alt="タブレットの案件情報を囲み、新しい仕事について相談する事業者たち" loading="lazy" />
@@ -148,12 +148,12 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
       </div>
     </section>
     <section className="welcome-walkthrough" aria-labelledby="walkthrough-heading">
-      <div className="welcome-section-heading"><p className="welcome-kicker">使い方が見える、操作ムービー。</p><h2 id="walkthrough-heading">次の仕事は、<br />こんな操作から始まります。</h2><p>操作の流れを短いムービーで自動再生します。</p></div>
-      <article className="welcome-step"><div className="welcome-step-copy"><p className="welcome-step-number">STEP 01 <span>仕事を受けたい方へ</span></p><h3>「うちならできる」案件に、<br />自分からアプローチ。</h3><p>依頼内容・予算・エリアを見て、自社の得意が活きる仕事を探す。気になる案件から詳細を確認し、オファーへ進めます。</p><ul><li><WelcomeIcon name="check" />具体的な依頼を見てから提案できる</li><li><WelcomeIcon name="check" />条件を確かめて、商談を始められる</li></ul><a href="#try" onClick={() => { setMode('find'); setSelected(null); setOffer(false); }}>自分で操作してみる →</a></div><Recording name="find" label="案件を探してオファーの流れを見る" /></article>
-      <article className="welcome-step reverse"><div className="welcome-step-copy"><p className="welcome-step-number">STEP 02 <span>仕事を頼みたい方へ</span></p><h3>任せたい仕事を投稿。<br />対応できる相手と、つながる。</h3><p>「誰にお願いしよう」と思ったら、まず依頼を掲示板へ。会員からのオファーをきっかけに、条件や進め方を相談できます。</p><ul><li><WelcomeIcon name="check" />仕事内容をまとめて伝えられる</li><li><WelcomeIcon name="check" />メッセージで具体的な相談へ進める</li></ul><a href="#try" onClick={() => setMode('post')}>依頼の掲載イメージを試す →</a></div><Recording name="post" label="依頼を入力して掲載イメージを見る" /></article>
+      <div className="welcome-section-heading"><p className="welcome-kicker"><span className="welcome-desktop-only">使い方が見える、操作ムービー。</span><span className="welcome-mobile-only">かんたん3ステップ</span></p><h2 id="walkthrough-heading"><span className="welcome-desktop-only">次の仕事は、<br />こんな操作から始まります。</span><span className="welcome-mobile-only">使い方を動画で見る</span></h2><p className="welcome-desktop-only">操作の流れを短いムービーで自動再生します。</p></div>
+      <article className="welcome-step"><div className="welcome-step-copy"><p className="welcome-step-number">STEP 01 <span>仕事を受けたい方へ</span></p><h3><span className="welcome-desktop-only">「うちならできる」案件に、<br />自分からアプローチ。</span><span className="welcome-mobile-only">案件を探して、<br />オファーする。</span></h3><p><span className="welcome-desktop-only">依頼内容・予算・エリアを見て、自社の得意が活きる仕事を探す。気になる案件から詳細を確認し、オファーへ進めます。</span><span className="welcome-mobile-only">気になる仕事を選ぶだけ。</span></p><ul className="welcome-desktop-only"><li><WelcomeIcon name="check" />具体的な依頼を見てから提案できる</li><li><WelcomeIcon name="check" />条件を確かめて、商談を始められる</li></ul><a href="#try" onClick={() => { setMode('find'); setSelected(null); setOffer(false); }}>操作を試す →</a></div><Recording name="find" label="案件を探してオファーの流れを見る" /></article>
+      <article className="welcome-step reverse"><div className="welcome-step-copy"><p className="welcome-step-number">STEP 02 <span>仕事を頼みたい方へ</span></p><h3><span className="welcome-desktop-only">任せたい仕事を投稿。<br />対応できる相手と、つながる。</span><span className="welcome-mobile-only">依頼を投稿して、<br />相談する。</span></h3><p><span className="welcome-desktop-only">「誰にお願いしよう」と思ったら、まず依頼を掲示板へ。会員からのオファーをきっかけに、条件や進め方を相談できます。</span><span className="welcome-mobile-only">内容を入力して待つだけ。</span></p><ul className="welcome-desktop-only"><li><WelcomeIcon name="check" />仕事内容をまとめて伝えられる</li><li><WelcomeIcon name="check" />メッセージで具体的な相談へ進める</li></ul><a href="#try" onClick={() => setMode('post')}>投稿を試す →</a></div><Recording name="post" label="依頼を入力して掲載イメージを見る" /></article>
       <p className="welcome-metric-note">録画は公開サンプルの操作です。架空の案件・金額を使用し、実際の投稿や送信は行っていません。</p>
     </section>
-    <section className="welcome-features" aria-labelledby="features-heading"><div className="welcome-section-heading"><p className="welcome-kicker">FEATURES</p><h2 id="features-heading">仕事の出会いから相談まで。<br />TASUKIの主な機能</h2><p>受注も発注も、日々のやり取りも。スマホで使える機能をひとつに。</p></div><div className="welcome-feature-grid">
+    <section className="welcome-features" aria-labelledby="features-heading"><div className="welcome-section-heading"><p className="welcome-kicker">FEATURES</p><h2 id="features-heading"><span className="welcome-desktop-only">仕事の出会いから相談まで。<br />TASUKIの主な機能</span><span className="welcome-mobile-only">TASUKIの主な機能</span></h2><p className="welcome-desktop-only">受注も発注も、日々のやり取りも。スマホで使える機能をひとつに。</p></div><div className="welcome-feature-grid">
       {([
         ['search', '案件を探す', '業種・エリア・予算などを手がかりに、自社に合う案件を見つける。'],
         ['briefcase', '依頼を投稿', '発注先・協業先・相談相手など、探している相手を会員に伝える。'],
@@ -163,7 +163,7 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         ['ads', '広告出稿', 'バナー広告や掲示板の上位枠に掲載し、自社のサービスを会員へ届ける。'],
       ] as [IconName, string, string][]).map(([icon, title, description]) => <article key={title}><div className="welcome-feature-art"><FeatureArt name={icon} /></div><div><h3>{title}</h3><p>{description}</p></div></article>)}
     </div><p className="welcome-feature-note">仕事を探すところから相談まで、スマホでひとつにつながります。</p></section>
-    <section className="welcome-hands-on"><div className="welcome-section-heading"><p className="welcome-kicker">登録前に、触ってみよう。</p><h2>TASUKIの操作を、ここで体験。</h2><p>案件をタップしたり、依頼文を入力したり。実際の流れを試せます。</p></div>
+    <section className="welcome-hands-on"><div className="welcome-section-heading"><p className="welcome-kicker"><span className="welcome-desktop-only">登録前に、触ってみよう。</span><span className="welcome-mobile-only">操作体験</span></p><h2><span className="welcome-desktop-only">TASUKIの操作を、ここで体験。</span><span className="welcome-mobile-only">実際に触ってみる</span></h2><p className="welcome-desktop-only">案件をタップしたり、依頼文を入力したり。実際の流れを試せます。</p></div>
       <section className="welcome-demo" id="try" aria-label="TASUKIの操作体験">
         <div className="welcome-demo-top"><b><WelcomeIcon name="briefcase" />仕事の掲示板</b><span>サンプル体験</span></div>
         <div className="welcome-tabs" aria-label="体験する機能">
@@ -189,9 +189,9 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
       </section>
     </section>
     <section className="welcome-pricing" id="plans" aria-labelledby="pricing-heading">
-      <div className="welcome-section-heading"><p className="welcome-kicker">PLANS &amp; CAMPAIGN</p><h2 id="pricing-heading">使い方を見てから、<br />プランを選べます。</h2><p>登録前にサービスの中身を確認できるから、自分の仕事に合うかを判断してから始められます。</p></div>
+      <div className="welcome-section-heading"><p className="welcome-kicker">PLANS &amp; CAMPAIGN</p><h2 id="pricing-heading"><span className="welcome-desktop-only">使い方を見てから、<br />プランを選べます。</span><span className="welcome-mobile-only">まずは無料で始められます。</span></h2><p className="welcome-desktop-only">登録前にサービスの中身を確認できるから、自分の仕事に合うかを判断してから始められます。</p></div>
       {campaignActive && <div className="welcome-pricing-campaign">
-        <div><span>{campaignUntil}まで</span><h3>年内は、全機能を完全無料で。</h3><p>通常はスタンダードで利用できる機能に加え、広告掲載料も0円。お申し込みもお支払いも必要ありません。</p></div>
+        <div><span>{campaignUntil}まで</span><h3><span className="welcome-desktop-only">年内は、全機能を完全無料で。</span><span className="welcome-mobile-only">全機能 0円</span></h3><p className="welcome-desktop-only">通常はスタンダードで利用できる機能に加え、広告掲載料も0円。お申し込みもお支払いも必要ありません。</p></div>
         <div className="welcome-campaign-price"><small>通常 月額</small><s>{planCatalog.standard.monthlyYen.toLocaleString('ja-JP')}円</s><strong>0<em>円</em></strong><b>自動課金なし</b></div>
         <ul><li><WelcomeIcon name="check" />オファーの送受信</li><li><WelcomeIcon name="check" />新規メッセージ無制限</li><li><WelcomeIcon name="check" />案件投稿・会員検索</li><li><WelcomeIcon name="check" />バナー・掲示板上位広告</li></ul>
       </div>}
@@ -215,7 +215,7 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
       <p className="welcome-pricing-note">キャンペーン終了後、自動で有料プランへ切り替わることはありません。スタンダードの継続を希望する場合だけ、ご自身でお申し込みいただきます。</p>
     </section>
     <section className="welcome-faq" aria-labelledby="faq-heading">
-      <div className="welcome-section-heading"><p className="welcome-kicker">FAQ</p><h2 id="faq-heading">よくある質問</h2><p>登録や料金、利用方法についての疑問にお答えします。</p></div>
+      <div className="welcome-section-heading"><p className="welcome-kicker">FAQ</p><h2 id="faq-heading">よくある質問</h2><p className="welcome-desktop-only">登録や料金、利用方法についての疑問にお答えします。</p></div>
       <div className="welcome-faq-list">
         {faqItems.map((item, index) => <details key={item.question} open={index === 0}>
           <summary><span>Q</span>{item.question}<i aria-hidden="true" /></summary>
