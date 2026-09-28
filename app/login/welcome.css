@@ -262,6 +262,21 @@ body:has(.welcome) { padding:0; background:#f8fafc; }
 .welcome-plan-table tfoot strong small { margin-left:3px; font-size:10px; letter-spacing:0; }
 .welcome-plan-table .welcome-plan-yearly { display:block; margin-top:3px; color:#5f7692; font-size:9px; font-weight:700; line-height:1.45; }
 .welcome-pricing-note { max-width:960px; margin:18px auto 0; color:#5a6c81; font-size:12px; line-height:1.8; text-align:center; }
+.welcome-faq { padding:80px 24px; background:#fff; }
+.welcome-faq-list { max-width:860px; margin:38px auto 0; border-top:1px solid #dce5ef; }
+.welcome-faq-list details { border-bottom:1px solid #dce5ef; }
+.welcome-faq-list summary { min-height:76px; padding:19px 54px 19px 4px; display:flex; align-items:center; gap:16px; position:relative; color:#223751; font-size:16px; font-weight:800; line-height:1.6; cursor:pointer; list-style:none; }
+.welcome-faq-list summary::-webkit-details-marker { display:none; }
+.welcome-faq-list summary>span,.welcome-faq-list details>div>span { width:30px; height:30px; border-radius:9px; display:inline-flex; align-items:center; justify-content:center; flex:none; background:#e8f3ff; color:#126bc3; font-size:13px; font-weight:900; }
+.welcome-faq-list summary i { width:18px; height:18px; position:absolute; right:12px; top:50%; transform:translateY(-50%); }
+.welcome-faq-list summary i::before,.welcome-faq-list summary i::after { content:''; width:16px; height:2px; position:absolute; left:1px; top:8px; border-radius:2px; background:#126bc3; transition:transform .18s ease; }
+.welcome-faq-list summary i::after { transform:rotate(90deg); }
+.welcome-faq-list details[open] summary i::after { transform:rotate(0); }
+.welcome-faq-list details>div { padding:0 56px 24px 50px; display:flex; align-items:flex-start; gap:16px; }
+.welcome-faq-list details>div>span { background:#126bc3; color:#fff; }
+.welcome-faq-list details p { margin:2px 0 0; color:#52657b; font-size:14px; line-height:2; }
+.welcome-faq-contact { margin:24px auto 0; color:#66778b; font-size:12px; text-align:center; }
+.welcome-faq-contact a { color:#126bc3; font-weight:800; }
 .welcome-start { margin-top:56px; }
 @media(max-width:700px) {
  .welcome-hero .welcome-intro { padding-bottom:24px; }
@@ -309,6 +324,14 @@ body:has(.welcome) { padding:0; background:#f8fafc; }
  .welcome-plan-table tfoot strong small { display:block; margin:1px 0 0; font-size:8px; }
  .welcome-plan-table .welcome-plan-yearly { font-size:7.5px; }
  .welcome-pricing-note { text-align:left; }
+ .welcome-faq { padding:48px 20px; }
+ .welcome-faq-list { margin-top:28px; }
+ .welcome-faq-list summary { min-height:68px; padding:16px 40px 16px 0; gap:11px; font-size:14px; }
+ .welcome-faq-list summary>span,.welcome-faq-list details>div>span { width:27px; height:27px; border-radius:8px; font-size:11px; }
+ .welcome-faq-list summary i { right:4px; }
+ .welcome-faq-list details>div { padding:0 4px 20px 0; gap:11px; }
+ .welcome-faq-list details p { font-size:13px; line-height:1.9; }
+ .welcome-faq-contact { text-align:left; line-height:1.8; }
  .welcome-start { margin-top:32px; }
 }
 .welcome-keyvisual>img { mask-image:linear-gradient(to right,transparent,#000 15%,#000 90%,transparent),linear-gradient(to bottom,transparent,#000 10%,#000 86%,transparent); mask-composite:intersect; }

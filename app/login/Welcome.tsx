@@ -9,6 +9,16 @@ import './welcome.css';
 
 type IconName = 'search' | 'briefcase' | 'chat' | 'phone' | 'send' | 'check';
 const campaignUntil = campaignUntilLabel();
+const faqItems = [
+  { question: 'TASUKIはどんなサービスですか？', answer: '経営者・事業者が、仕事を探す、依頼を投稿する、会員を探す、オファーや紹介を送る、メッセージで相談するといった商談のきっかけをつくれるビジネスマッチングサービスです。' },
+  { question: 'アカウント登録に招待コードは必要ですか？', answer: 'このLPから登録する場合、招待コードは必要ありません。Googleアカウントで登録し、運営確認が完了すると利用を開始できます。' },
+  { question: '登録後、すぐに利用できますか？', answer: '安心して利用できる場を保つため、登録後に運営確認を行います。確認が完了すると、掲示板や会員検索などの機能を利用できます。' },
+  { question: '全機能無料キャンペーンでは何が使えますか？', answer: `${campaignUntil}までは、通常のスタンダードプランで提供するオファーの送受信、新規メッセージ無制限、案件投稿、会員検索などの全機能と広告掲載を無料で利用できます。` },
+  { question: 'キャンペーン終了後、自動で課金されますか？', answer: '自動で有料プランに切り替わることはありません。キャンペーン終了後も無料プランを利用でき、スタンダードを希望する場合だけご自身で申し込みます。' },
+  { question: '無料プランでは何ができますか？', answer: '掲示板の閲覧、会員検索、リファラル、案件投稿、メッセージの返信などを利用できます。はじめての相手への新規メッセージは月3人までです。オファーの送受信はスタンダードで利用できます。' },
+  { question: 'スマートフォンから利用できますか？', answer: 'はい。スマートフォンのブラウザに合わせた画面で、案件の閲覧や投稿、会員検索、メッセージなどを利用できます。' },
+  { question: 'このページのデモで入力した内容は公開されますか？', answer: '公開されません。デモで入力した内容は保存・送信されず、表示される案件や会社名も操作体験用のサンプルです。' },
+];
 function WelcomeIcon({ name }: { name: IconName }) {
   const paths: Record<IconName, ReactNode> = {
     search: <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></>,
@@ -197,6 +207,17 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         </table>
       </div>
       <p className="welcome-pricing-note">キャンペーン終了後、自動で有料プランへ切り替わることはありません。スタンダードの継続を希望する場合だけ、ご自身でお申し込みいただきます。</p>
+    </section>
+    <section className="welcome-faq" aria-labelledby="faq-heading">
+      <div className="welcome-section-heading"><p className="welcome-kicker">FAQ</p><h2 id="faq-heading">よくある質問</h2><p>登録や料金、利用方法についての疑問にお答えします。</p></div>
+      <div className="welcome-faq-list">
+        {faqItems.map((item, index) => <details key={item.question} open={index === 0}>
+          <summary><span>Q</span>{item.question}<i aria-hidden="true" /></summary>
+          <div><span>A</span><p>{item.answer}</p></div>
+        </details>)}
+      </div>
+      <p className="welcome-faq-contact">解決しない場合は、<a href="mailto:info@tasuki.club">info@tasuki.club</a> までお問い合わせください。</p>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faqItems.map(item => ({ '@type': 'Question', name: item.question, acceptedAnswer: { '@type': 'Answer', text: item.answer } })) }) }} />
     </section>
     <section className="welcome-start" id="start"><div><p className="welcome-kicker"><WelcomeIcon name="check" />全機能無料キャンペーン</p><h2>つながりを、商売の機会に。</h2><p>招待コードは必要ありません。<br />Googleアカウントで登録後、運営確認を経てご利用いただけます。</p><small>{campaignUntil}まで全機能・広告掲載料が完全無料。終了後も自動課金はありません。</small></div><div className="welcome-signup"><a className="welcome-primary" href="/api/auth/google/start?signup=1"><GoogleMark />Googleで無料登録 <span aria-hidden="true">→</span></a><p className="welcome-note">登録後、運営確認が完了するとご利用いただけます。</p></div></section>
     <section id="member-login" className="welcome-login"><button className="welcome-login-toggle" onClick={() => setLogin(!login)} aria-expanded={login} aria-controls="login-content">すでに会員の方はこちら <span>{login ? '−' : 'ログイン →'}</span></button><div id="login-content" hidden={!login}>{children}</div></section>
