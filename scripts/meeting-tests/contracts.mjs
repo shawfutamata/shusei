@@ -9,12 +9,12 @@ const base={name:'仮名',company:'架空社',table:'1',industry:'建築',servic
 const seeker={...base,id:'s'}, provider={...base,id:'p',need:''};
 const candidate={id:'p',kind:'direct',reason:'給排水工事の対応が一致',needQuote:'給排水工事',offerQuote:'給排水工事',questions:[]};
 assert.equal(validateAnswer(base).company,'架空社');
-assert.throws(()=>validateAnswer({...base,services:'曖昧'}));
+assert.throws(()=>validateAnswer({...base,services:''}));
 for(const row of [{...candidate,id:'other-event'},{...candidate,id:'s'},{...candidate,offerQuote:'一級建築士'},{...candidate,kind:'referral'}])assert.equal(validateCandidates([row],seeker,[provider]).length,0);
 assert.equal(validateCandidates([candidate],seeker,[{...provider,present:0}]).length,0);
 assert.equal(validateCandidates([candidate,candidate],seeker,[provider]).length,1);
 let calls=0;
-const ai={async run(_model,input){calls++;const data=JSON.parse(input.messages[1].content);if(data.requester){assert(!('name' in data.requester));assert(!('company' in data.requester));}return {response:JSON.stringify(data.request ? {decision:'accept',serviceMatch:true,hardConstraints:'satisfied',reason:'ok'} : {matches:[candidate]})};}};
+const ai={async run(_model,input){calls++;const data=JSON.parse(input.messages[1].content);if(data.requester){assert(!('name' in data.requester));assert(!('company' in data.requester));}return {response:JSON.stringify(data.request ? {decision:'accept',serviceMatch:true,hardConstraints:'satisfied',reason:'ok'} : {matches:[{...candidate,id:data.attendees[0].id}]})};}};
 assert.equal((await matchAttendee(ai,seeker,[seeker,provider]))[0].id,'p');assert.equal(calls,3);
 assert.deepEqual(await matchAttendee(ai,{...seeker,need:''},[provider]),[]);assert.equal(calls,3);
 await assert.rejects(()=>matchAttendee({async run(){return {response:'invalid json'}}},seeker,[provider]));

@@ -1,0 +1,15 @@
+import {readFileSync} from 'node:fs';
+import {stripTypeScriptTypes} from 'node:module';
+import assert from 'node:assert/strict';
+const source=stripTypeScriptTypes(readFileSync(new URL('../../app/meeting/roster.ts',import.meta.url),'utf8'));
+const {parseDelimited,validateRoster,rosterAnswer,guessColumns}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+const rows=parseDelimited('\uFEFF氏名,会社名,業種,事業内容\r\n山田 太郎,"架空,会社",建築,"内装工事\nリフォーム"\r\n');
+assert.equal(rows.length,2);assert.equal(rows[1][1],'架空,会社');assert.equal(rows[1][3],'内装工事\nリフォーム');
+assert.equal(parseDelimited('氏名\t会社名\n山田\t架空社')[1][1],'架空社');
+assert.throws(()=>parseDelimited('"unclosed'));
+assert.equal(guessColumns(rows[0]).services,3);
+const profile={name:'仮名',company:'架空社',industry:'歯科',services:'',table:'',area:''};
+const validated=validateRoster([profile]);assert.equal(validated[0].services,'歯科');
+assert.throws(()=>validateRoster([profile,{...profile,name:'仮 名'}]));assert.throws(()=>validateRoster([{...profile,name:''}]));assert.throws(()=>validateRoster([]));
+const answer=rosterAnswer(validated[0],'飲食店');assert.equal(answer.need,'飲食店');assert.equal(answer.services,'歯科');assert.equal(answer.conditions,'');
+console.log('PASS: CSV quoted commas, multiline, BOM, tab paste, header mapping, short industry, duplicate/missing rows, profile preservation');

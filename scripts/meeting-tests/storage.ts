@@ -7,7 +7,7 @@ export async function storageTest() {
  async function rejects(fn:()=>Promise<unknown>,name:string){let failed=false;try{await fn();}catch{failed=true;}ok(failed,name);}
  const id=await createMeeting({title:'検証専用',venue:'架空会場',closesAt:Date.now()+600000});
  const other=await createMeeting({title:'別会場検証専用',venue:'架空会場2',closesAt:Date.now()+600000});
- const token='a'.repeat(64),answer=person('not-used');
+ const token=crypto.randomUUID().replaceAll('-','').repeat(2),answer=person('not-used');
  try {
   await rejects(()=>submitAnswer(id,{token,answer,consent:false}),'consent required');
   await submitAnswer(id,{token,answer,consent:true});
@@ -35,7 +35,7 @@ export async function storageTest() {
 
 export async function pipelineTest(){
  const id=await createMeeting({title:'AI一貫検証専用',venue:'架空会場',closesAt:Date.now()+600000});
- const token='d'.repeat(64),providerToken='e'.repeat(64);
+ const token=crypto.randomUUID().replaceAll('-','').repeat(2),providerToken=crypto.randomUUID().replaceAll('-','').repeat(2);
  try {
   await submitAnswer(id,{token,consent:true,answer:person('unused',{name:'検証依頼者',need:'目黒区の飲食店の給排水工事を頼める方を探しています。'})});
   await submitAnswer(id,{token:providerToken,consent:true,answer:person('unused2',{name:'検証設備業者',services:'東京都内全域で飲食店の給排水工事を施工できます。'})});

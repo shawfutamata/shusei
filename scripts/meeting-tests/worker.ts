@@ -1,7 +1,9 @@
+import { rosterTest } from './roster';
 import { storageTest, pipelineTest } from './storage';
 import { matchAttendee, type AIClient } from '../../app/meeting/matching';
 import { fixtures } from './fixtures';
 const worker={async fetch(request:Request,env:{MEETING_AI:AIClient}) {
+ if(new URL(request.url).pathname==='/roster')return Response.json(await rosterTest());
  if(new URL(request.url).pathname==='/pipeline')return Response.json(await pipelineTest());
  if(new URL(request.url).pathname==='/storage')return Response.json(await storageTest());
  const index=Number(new URL(request.url).searchParams.get('case')||0);const test=fixtures[index];

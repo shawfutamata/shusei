@@ -10,8 +10,9 @@ export type Candidate = {
 };
 export type Meeting = {
   id: string; title: string; venue: string; closesAt: number;
-  state: 'open' | 'analyzing' | 'review' | 'published'; createdAt: number;
+  state: 'open' | 'analyzing' | 'review' | 'published'; createdAt: number; rosterCount?: number;
 };
+export type RosterPerson = Pick<Answer,'name'|'company'|'table'|'industry'|'services'|'area'> & {id:string};
 export const answerFields = ['name','company','table','industry','services','referrals','need','area','timing','budget','conditions'] as const;
 export function validateAnswer(raw: unknown): Answer {
   if (!raw || typeof raw !== 'object') throw new Error('回答を入力してください。');
@@ -24,8 +25,8 @@ export function validateAnswer(raw: unknown): Answer {
     if (value.length > max) throw new Error(`${key} の文字数が多すぎます。`);
     output[key] = value;
   }
-  if (!output.name || !output.company || !output.industry || output.services.length < 8) throw new Error('お名前・会社名・業種と、できる仕事を具体的に入力してください。');
-  if (output.need && output.need.length < 8) throw new Error('探している仕事をもう少し具体的に入力してください。');
+  if (!output.name || !output.company || !output.industry || output.services.length < 2) throw new Error('名簿のお名前・会社名・業種・事業内容を確認してください。');
+  if (output.need && output.need.length < 2) throw new Error('つながりたい業種・相手を入力してください。');
   return output;
 }
 // Model prose is not a source of truth: IDs and both quotes must exist in this event's frozen answers.
@@ -36,9 +37,9 @@ export function validateCandidates(raw: unknown, seeker: Attendee, attendees: At
     if (!row || typeof row !== 'object' || typeof row.id !== 'string' || seen.has(row.id) || row.id === seeker.id) return [];
     const person = attendees.find(a => a.id === row.id && a.present === 1);
     if (!person || (row.kind !== 'direct' && row.kind !== 'referral')) return [];
-    const source = row.kind === 'direct' ? person.services : person.referrals;
-    if (typeof row.needQuote !== 'string' || row.needQuote.trim().length < 4 || !seeker.need.includes(row.needQuote)) return [];
-    if (typeof row.offerQuote !== 'string' || row.offerQuote.trim().length < 4 || !source.includes(row.offerQuote)) return [];
+    const source = row.kind === 'direct' ? person.industry+'\n'+person.services : person.referrals;
+    if (typeof row.needQuote !== 'string' || row.needQuote.trim().length < 2 || !seeker.need.includes(row.needQuote)) return [];
+    if (typeof row.offerQuote !== 'string' || row.offerQuote.trim().length < 2 || !source.includes(row.offerQuote)) return [];
     if (typeof row.reason !== 'string' || !row.reason.trim() || row.reason.length > 400) return [];
     if (!Array.isArray(row.questions) || row.questions.some(q => typeof q !== 'string' || q.length > 200)) return [];
     seen.add(row.id);
