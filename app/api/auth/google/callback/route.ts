@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { SESSION_COOKIE } from '@/app/app-auth';
 import { GOOGLE_INVITE_COOKIE, GOOGLE_RETURN_COOKIE, GOOGLE_SIGNUP_COOKIE, GOOGLE_STATE_COOKIE, exchangeGoogleCode, googleRedirectUri, safeReturnPath } from '@/app/google-auth';
 import { registerDirectMember, registerEarlyAccessMember, registerInvitedMember, startMemberSessionByEmail } from '@/db/data';
+import { memberLoginPath } from '@/app/auth-return';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -85,10 +86,10 @@ export async function GET(request: Request) {
 }
 
 function redirectHome(request: Request, login?: string, back = '') {
-  // 入ってきた場所に戻す。ただし**お知らせを出すときは掲示板のトップへ**。
-  // 「入れませんでした」を管理画面の404の上に重ねても伝わらないため。
-  const loginPath = back.startsWith('/login/member') ? '/login/member' : '/';
-  const target = new URL(login ? `${loginPath}?login=${encodeURIComponent(login)}` : back || '/', request.url);
+  // Show failures in the login form and preserve the intended destination for retry.
+  const target = new URL(login && login !== 'early' && login !== 'invited'
+    ? memberLoginPath(back, login)
+    : login ? `/?login=${encodeURIComponent(login)}` : back || '/', request.url);
   const response = NextResponse.redirect(target);
   for (const name of [GOOGLE_STATE_COOKIE, GOOGLE_INVITE_COOKIE, GOOGLE_SIGNUP_COOKIE, GOOGLE_RETURN_COOKIE]) {
     response.cookies.set(name, '', { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 0 });

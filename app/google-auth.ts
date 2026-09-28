@@ -1,23 +1,10 @@
 import { env } from 'cloudflare:workers';
+export { safeReturnPath } from './auth-return';
 
 export const GOOGLE_STATE_COOKIE = 'google_oauth_state';
 export const GOOGLE_INVITE_COOKIE = 'google_oauth_invite';
 export const GOOGLE_RETURN_COOKIE = 'google_oauth_return';
 export const GOOGLE_SIGNUP_COOKIE = 'google_oauth_signup';
-
-/**
- * ログインのあとに戻す先。**自分のサイトの中だけ**を通す。
- *
- * `//example.com` のような、スラッシュ2つで始まる書き方は
- * 「別のサイト」を指す。素通しにすると、ログインの直後に
- * よそへ飛ばす踏み台に使える。始まりが `/` で、2文字目が
- * `/` でも `\` でもないものだけを受ける。
- */
-export function safeReturnPath(value: string | null) {
-  const path = (value ?? '').trim();
-  if (!path.startsWith('/') || path.startsWith('//') || path.startsWith('/\\')) return '';
-  return path.slice(0, 200);
-}
 
 export function googleRedirectUri(request: Request) {
   return `${new URL(request.url).origin}/api/auth/google/callback`;

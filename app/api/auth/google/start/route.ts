@@ -1,10 +1,11 @@
 import { env } from 'cloudflare:workers';
 import { NextResponse } from 'next/server';
 import { GOOGLE_INVITE_COOKIE, GOOGLE_RETURN_COOKIE, GOOGLE_SIGNUP_COOKIE, GOOGLE_STATE_COOKIE, googleRedirectUri, safeReturnPath } from '@/app/google-auth';
+import { memberLoginPath } from '@/app/auth-return';
 
 export async function GET(request: Request) {
   if (!env.GOOGLE_CLIENT_ID) {
-    return NextResponse.redirect(new URL('/?login=unconfigured', request.url));
+    return NextResponse.redirect(new URL(memberLoginPath(new URL(request.url).searchParams.get('return_to') ?? '', 'unconfigured'), request.url));
   }
   const state = crypto.randomUUID();
   const authorize = new URL('https://accounts.google.com/o/oauth2/v2/auth');
