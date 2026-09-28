@@ -23,7 +23,7 @@ export default function MeetingResult({event,result,token,busy,closed,onShare,on
    <aside className="meeting-result-profile">
     <div className="meeting-result-person"><span className="meeting-person-symbol"><Icon name="person"/></span><div><strong>{result.answer.name}さん</strong><p>{result.answer.company}</p></div></div>
     <section className="meeting-result-wish" aria-labelledby="meeting-own-request-title"><h2 id="meeting-own-request-title">あなたの希望</h2><p>{result.answer.need||'つながりたい相手の希望は未入力です。'}</p></section>
-    {!closed&&(!!result.rosterId||!!result.walkIn)&&<button className="meeting-secondary" onClick={onEdit}>回答を修正する</button>}
+    {!closed&&(!!result.rosterId||!!result.walkIn)&&<div className="meeting-wish-edit"><button className="meeting-secondary" onClick={onEdit}>希望を編集する</button><p>締切までは何度でも変更できます。</p><small>締切：{new Date(event.closesAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'})}</small></div>}
     {!!result.answer.need.trim()&&<div className="meeting-sharing"><label className="meeting-consent"><input type="checkbox" disabled={busy} checked={result.shareWish} onChange={e=>void onShare(e.target.checked)}/><span><strong>参加者に私の希望を掲載する</strong><small>名前・会社名・希望を同じ例会の参加者に表示します。</small></span></label><p>任意です。あとから取り消せます。</p></div>}
    </aside>
    <div className="meeting-result-main">
