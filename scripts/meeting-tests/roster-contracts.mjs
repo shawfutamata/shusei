@@ -2,7 +2,7 @@ import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
 import assert from 'node:assert/strict';
 const source=stripTypeScriptTypes(readFileSync(new URL('../../app/meeting/roster.ts',import.meta.url),'utf8'));
-const {parseDelimited,validateRoster,rosterAnswer,guessColumns}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+const {parseDelimited,validateRoster,rosterAnswer,guessColumns,prepareRosterRows}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
 const rows=parseDelimited('\uFEFF氏名,会社名,業種,事業内容\r\n山田 太郎,"架空,会社",建築,"内装工事\nリフォーム"\r\n');
 assert.equal(rows.length,2);assert.equal(rows[1][1],'架空,会社');assert.equal(rows[1][3],'内装工事\nリフォーム');
 assert.equal(parseDelimited('氏名\t会社名\n山田\t架空社')[1][1],'架空社');
@@ -13,3 +13,20 @@ const validated=validateRoster([profile]);assert.equal(validated[0].services,'�
 assert.throws(()=>validateRoster([profile,{...profile,name:'仮 名'}]));assert.throws(()=>validateRoster([{...profile,name:''}]));assert.throws(()=>validateRoster([]));
 const answer=rosterAnswer(validated[0],'飲食店');assert.equal(answer.need,'飲食店');assert.equal(answer.services,'歯科');assert.equal(answer.conditions,'');
 console.log('PASS: CSV quoted commas, multiline, BOM, tab paste, header mapping, short industry, duplicate/missing rows, profile preservation');
+
+const exportRow=['1','B','C','#','架空会場','架空会社','代表','検証 太郎','内装工事を提供しています。','◎','ケンショウ タロウ'];
+const prepared=prepareRosterRows([exportRow,['2','#','','','架空会場','架空屋号','代表','検証 花子','','◎','ケンショウ ハナコ']]);
+assert.equal(prepared.format,'meeting-export');assert.equal(prepared.rows.length,3);
+assert.equal(prepared.columns.name,7);assert.equal(prepared.columns.company,5);assert.equal(prepared.columns.services,8);assert.equal(prepared.columns.industry,-1);assert.equal(prepared.columns.table,-1);
+const imported=validateRoster(prepared.rows.slice(1).map(row=>({name:row[7],company:row[5],services:row[8],industry:'',table:'',area:''})));
+assert.equal(imported[0].services,exportRow[8]);assert.equal(imported[1].services,'');assert.equal(imported[1].industry,'');
+assert.equal(prepareRosterRows([exportRow.slice(0,10)]).format,'standard');
+assert.equal(prepareRosterRows([exportRow,[...exportRow.slice(0,10),'']]).format,'standard');
+assert.equal(prepareRosterRows(rows).rows[0][0],'氏名');
+console.log('PASS: headerless meeting TXT, first person preserved, no tables, original description, missing information remains empty');
+
+const typesSource=stripTypeScriptTypes(readFileSync(new URL('../../app/meeting/types.ts',import.meta.url),'utf8'));
+const {validateAnswer}=await import('data:text/javascript;base64,'+Buffer.from(typesSource).toString('base64'));
+const missing=rosterAnswer(imported[1],'建築業者');
+assert.equal(validateAnswer(missing,true).services,'');assert.throws(()=>validateAnswer(missing));
+console.log('PASS: canonical roster accepts missing evidence; legacy answer validation remains strict');

@@ -14,7 +14,7 @@ export type Meeting = {
 };
 export type RosterPerson = Pick<Answer,'name'|'company'|'table'|'industry'|'services'|'area'> & {id:string};
 export const answerFields = ['name','company','table','industry','services','referrals','need','area','timing','budget','conditions'] as const;
-export function validateAnswer(raw: unknown): Answer {
+export function validateAnswer(raw: unknown, rosterProfile=false): Answer {
   if (!raw || typeof raw !== 'object') throw new Error('回答を入力してください。');
   const data = raw as Record<string, unknown>;
   const output = {} as Answer;
@@ -25,7 +25,7 @@ export function validateAnswer(raw: unknown): Answer {
     if (value.length > max) throw new Error(`${key} の文字数が多すぎます。`);
     output[key] = value;
   }
-  if (!output.name || !output.company || !output.industry || output.services.length < 2) throw new Error('名簿のお名前・会社名・業種・事業内容を確認してください。');
+  if (!output.name || !output.company || (!rosterProfile && (!output.industry || output.services.length < 2))) throw new Error('名簿のお名前・会社名・業種・事業内容を確認してください。');
   if (output.need && output.need.length < 2) throw new Error('つながりたい業種・相手を入力してください。');
   return output;
 }

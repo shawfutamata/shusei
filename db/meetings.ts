@@ -88,7 +88,7 @@ export async function submitAnswer(id:string,body:Record<string,unknown>) {
     const profile=(await roster(id)).find(p=>p.id===rosterId);
     if(!profile)throw new Error('名簿からご本人を選んでください。');
     const need=typeof body.need==='string'?body.need:'';
-    answer=validateAnswer(rosterAnswer(profile,need));
+    answer=validateAnswer(rosterAnswer(profile,need),true);
   }else {
     if(body.rosterId!==undefined)throw new Error('名簿の準備中です。受付係にお声がけください。');
     answer=validateAnswer(body.answer);

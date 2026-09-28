@@ -22,6 +22,21 @@ export function parseDelimited(text:string):string[][] {
   row.push(cell);if(row.some(v=>v.trim()))rows.push(row);
   return rows.map(r=>r.map(v=>v.replace(/^\uFEFF/,'').trim()));
 }
+// The meeting export has no header: number, first/second table, mark, venue,
+// company, role, full name, original business description, status/inviter, reading.
+// Detect every row rather than guessing from a single person's data.
+export function prepareRosterRows(data:string[][]) {
+  const exported=data.length>0&&data.every((r,i)=>r.length===11&&r[0]===String(i+1)&&
+    /^[A-H](?:★)?$|^#$|^$/.test(r[1])&&/^[A-H](?:★)?$|^$/.test(r[2])&&
+    (r[3]==='#'||r[3]==='')&&!!r[4]&&!!r[5]&&!!r[7]&&!!r[10]);
+  if(exported) {
+    const headers=['番号','テーブル1','テーブル2','印','所属会場','会社名','役職','氏名','事業内容','会員区分・紹介者','ふりがな'];
+    const columns=guessColumns(headers);
+    // There are two table assignments. The operator explicitly chooses one.
+    return {rows:[headers,...data],columns,format:'meeting-export' as const};
+  }
+  return {rows:data,columns:guessColumns(data[0]??[]),format:'standard' as const};
+}
 export function validateRoster(raw:unknown):Omit<RosterPerson,'id'>[] {
   if(!Array.isArray(raw)||!raw.length||raw.length>100)throw new Error('名簿は1〜100人で取り込んでください。');
   const seen=new Set<string>();
@@ -29,10 +44,11 @@ export function validateRoster(raw:unknown):Omit<RosterPerson,'id'>[] {
     if(!row||typeof row!=='object')throw new Error(`${index+1}行目の形式を確認してください。`);
     const p={} as Omit<RosterPerson,'id'>;
     for(const key of profileFields){const v=(row as Record<string,unknown>)[key];p[key]=typeof v==='string'?v.trim():'';if(p[key].length>(key==='services'?500:120))throw new Error(`${index+1}行目の${rosterLabels[key]}が長すぎます。`);}
-    if(!p.name||!p.company||!p.industry)throw new Error(`${index+1}行目の氏名・会社名・業種を確認してください。`);
+    if(!p.name||!p.company)throw new Error(`${index+1}行目の氏名・会社名を確認してください。`);
     // An industry-only roster is valid; keep it as the sole capability evidence.
     p.services ||= p.industry;
-    if(p.services.length<2)throw new Error(`${index+1}行目の事業内容を確認してください。`);
+    // Missing business information stays empty: the person may request an introduction,
+    // but is not evidence of an offer or an industry.
     const key=normalizedName(p.name)+'|'+normalizedName(p.company);
     if(seen.has(key))throw new Error(`${index+1}行目に同じ氏名・会社名があります。重複を確認してください。`);
     seen.add(key);return p;

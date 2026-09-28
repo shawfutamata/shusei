@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import {createMeeting,importRoster,roster,findRoster,attendees,submitAnswer,ownResult,confirmAttendance,analyzeNext,meeting,publishMeeting} from '../../db/meetings';
 export async function rosterTest(){
  const checks:string[]=[];
- const receipt=Object.fromEntries(['a','b','c','d'].map(key=>[key,crypto.randomUUID().replaceAll('-','').repeat(2)]));
+ const receipt=Object.fromEntries(['a','b','c','d','e'].map(key=>[key,crypto.randomUUID().replaceAll('-','').repeat(2)]));
  const ok=(value:unknown,name:string)=>{if(!value)throw new Error(name);checks.push(name);};
  async function rejects(fn:()=>Promise<unknown>,name:string){let failed=false;try{await fn();}catch{failed=true;}ok(failed,name);}
  const id=await createMeeting({title:'名簿検証専用',venue:'架空会場',closesAt:Date.now()+600000});
@@ -16,6 +16,10 @@ export async function rosterTest(){
   ok(people.find(p=>p.industry==='歯科')?.services==='歯科','short industry preserved without invented capabilities');
   const first=people.find(p=>p.name==='名簿 太郎')!,another=people.find(p=>p.id!==first.id)!;
   await rejects(()=>submitAnswer(second,{token:receipt.a,rosterId:first.id,need:'歯科',consent:true}),'roster isolated by meeting');
+  await importRoster(second,[{name:'事業 未記載',company:'架空会社',industry:'',services:'',table:'',area:''}],true);
+  const missing=(await roster(second))[0];
+  await submitAnswer(second,{token:receipt.e,rosterId:missing.id,need:'建築',consent:true});
+  ok((await ownResult(second,receipt.e))?.answer.services===''&&(await ownResult(second,receipt.e))?.answer.industry==='','missing business preserved through stored response');
   await rejects(()=>submitAnswer(id,{token:receipt.a,rosterId:first.id,need:'歯科',consent:false}),'participant consent required');
   await submitAnswer(id,{token:receipt.a,rosterId:first.id,need:'歯科',consent:true,answer:{name:'改ざん',services:'資格を創作'}});
   const own=await ownResult(id,receipt.a);ok(own?.answer.name==='名簿 太郎'&&own.answer.services===first.services,'profile always comes from server roster');ok(own?.rosterId===first.id,'receipt retains roster identity');
