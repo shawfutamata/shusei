@@ -6,7 +6,8 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function MemberLoginPage({ searchParams }: { searchParams: Promise<{ login?: string }> }) {
-  const { login = '' } = await searchParams;
-  return <LoginForm initialMessage={loginMessage(login)} standalone />;
+export default async function MemberLoginPage({ searchParams }: { searchParams: Promise<{ login?: string; return_to?: string }> }) {
+  const { login = '', return_to: requestedReturn = '' } = await searchParams;
+  const returnTo = requestedReturn === '/?tab=survey' ? requestedReturn : '/';
+  return <LoginForm initialMessage={loginMessage(login)} standalone returnTo={returnTo} />;
 }

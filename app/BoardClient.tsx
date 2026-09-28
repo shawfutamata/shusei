@@ -291,7 +291,7 @@ type MyRequest = {
   thumbUrl: string; imageCount: number; hasVideo: boolean;
 };
 
-export default function BoardClient({ initialRequests, initialStats, initialAds, userName, adReturn = '' }: { initialRequests: BoardRequest[]; initialStats: MemberStats; initialAds: AdSlot[]; userName: string; adReturn?: string }) {
+export default function BoardClient({ initialRequests, initialStats, initialAds, userName, adReturn = '', initialTab }: { initialRequests: BoardRequest[]; initialStats: MemberStats; initialAds: AdSlot[]; userName: string; adReturn?: string; initialTab?: MyTab }) {
   const [requests, setRequests] = useState(initialRequests);
   const [stats, setStats] = useState(initialStats);
   const [ads, setAds] = useState(initialAds);
@@ -311,7 +311,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // 顔写真がまだの人は先にプロフィール設定へ。出稿枠を買って戻ってきた人は、
   // 入稿できるマイページから始める。
   const [activeTab, setActiveTab] = useState<MyTab>(
-    !initialStats.avatarUrl ? 'profile' : adReturn === 'done' ? 'mypage' : 'home');
+    initialTab ?? (!initialStats.avatarUrl ? 'profile' : adReturn === 'done' ? 'mypage' : 'home'));
   const [myRequests, setMyRequests] = useState<MyRequest[]>([]);
   /** 編集中の投稿。null なら新規投稿。投稿のモーダルを両方で使い回す。 */
   const [editingRequest, setEditingRequest] = useState<MyRequest | null>(null);
