@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { AdminAd, AdminAnalytics, AdminFeedback, AdminMember, AdminRequest, AdminSummary } from '@/db/admin';
+import type { AdminAd, AdminAnalytics, AdminFeedback, AdminMember, AdminRequest, AdminRequestReport, AdminSummary } from '@/db/admin';
 import type { BackupEntry } from '@/db/backup';
 import { placementName } from '@/app/ad-options';
 import { rankNames } from '@/app/rank-perks';
@@ -9,6 +9,7 @@ import BrandMark from '@/app/BrandMark';
 import { memberNoLabel } from '@/app/brand';
 import { BarList, TrendChart } from './Charts';
 import MemberDetail from './MemberDetail';
+import { requestReportReasonLabel } from '@/app/request-policy';
 
 type GachaSummary = {
   name: string; open: boolean; seasonName: string; month: string;
@@ -20,7 +21,7 @@ type GachaSummary = {
 
 type AdminData = {
   summary: AdminSummary; members: AdminMember[]; requests: AdminRequest[];
-  ads: AdminAd[]; feedback: AdminFeedback[]; gacha?: GachaSummary;
+  ads: AdminAd[]; feedback: AdminFeedback[]; reports: AdminRequestReport[]; gacha?: GachaSummary;
 };
 
 // short は、下の帯に出す短い呼び名。狭いところで「ダッシュボ…」と
@@ -29,6 +30,7 @@ const tabs = [
   { key: 'analytics', label: 'ダッシュボード', short: 'ホーム' },
   { key: 'members', label: '会員' },
   { key: 'requests', label: '投稿' },
+  { key: 'reports', label: '異議申立' },
   { key: 'ads', label: '広告' },
   { key: 'feedback', label: 'ご意見' },
   { key: 'backup', label: 'バックアップ', short: '控え' },
@@ -227,11 +229,13 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   const { summary, gacha } = data;
   const countFor = (key: (typeof tabs)[number]['key']) => key === 'members' ? data.members.length
     : key === 'requests' ? data.requests.length : key === 'ads' ? data.ads.length
+    : key === 'reports' ? data.reports.filter((row) => row.status === 'new').length
     : key === 'feedback' ? data.feedback.filter((row) => row.status === 'new').length : 0;
   // 要対応。**数を並べるだけにしない。** 押すとその一覧へ飛ぶ、次の手が決まっている
   // ものだけを置く。数が0のものは出さない（片付いた列は見る必要がない）。
   const waitingRequests = data.requests.filter((row) => row.status === 'open' && row.introCount === 0).length;
   const queue = [
+    { key: 'reports', tone: 'is-red', icon: 'feedback', label: '未対応の異議申し立て', value: summary.newReports, to: 'reports' as const },
     { key: 'feedback', tone: 'is-red', icon: 'feedback', label: '未読のご意見', value: summary.newFeedback, to: 'feedback' as const },
     { key: 'waiting', tone: 'is-amber', icon: 'requests', label: 'オファーがまだ0件の募集', value: waitingRequests, to: 'requests' as const },
     { key: 'off', tone: 'is-blue', icon: 'members', label: '停止中の会員', value: summary.suspendedMembers, to: 'members' as const },
@@ -480,6 +484,28 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       </li>)}
     </ul>}
 
+    {tab === 'reports' && <ul className="admin-list">
+      {!data.reports.length && <li className="admin-empty">異議申し立ては届いていません。</li>}
+      {data.reports.map((row) => <li key={row.id} className={row.status === 'new' ? '' : 'is-off'}>
+        <div className="admin-row-top">
+          <b>{requestReportReasonLabel(row.reason)}</b>
+          <span className={`admin-state ${row.status === 'new' ? 'is-new' : 'is-off'}`}>{row.status === 'new' ? '未対応' : '対応済み'}</span>
+        </div>
+        <p className="admin-body"><b>対象：</b>{row.requestTitle}</p>
+        {row.details && <p className="admin-body">{row.details}</p>}
+        <p className="admin-meta"><span>投稿者 {row.authorName}</span><span>{row.authorEmail}</span></p>
+        <p className="admin-meta"><span>申立者 {row.reporterName}</span><span>{row.reporterEmail}</span><span>{row.createdAt.slice(0, 10).replace(/-/g, '/')}</span></p>
+        <div className="admin-actions">
+          <button disabled={busy === row.id}
+            onClick={() => act(row.id, `/api/admin/reports/${row.id}`, { done: row.status === 'new' }, 'POST',
+              row.status === 'new' ? '対応済みにしました。' : '未対応に戻しました。')}>
+            {busy === row.id ? '…' : row.status === 'new' ? '対応済みにする' : '未対応に戻す'}
+          </button>
+          <button onClick={() => { goTab('requests'); setKeyword(row.requestTitle); window.setTimeout(() => reload(row.requestTitle), 0); }}>対象案件を確認</button>
+        </div>
+      </li>)}
+    </ul>}
+
     {/* 止めた枠は下にまとめる。**上の一覧はいま動いているものだけ。**
         混ぜてあると「掲載を戻す」が並んで、どれが生きている枠なのか一目で
         分からなかった。戻す操作は、下のまとまりの中だけに置く。 */}
@@ -637,6 +663,7 @@ function SideIcon({ name }: { name: string }) {
     requests: <><path d="M5 4h11l3 3v13H5z" /><path d="M8 10h8M8 14h5" /></>,
     ads: <><rect x="3" y="5" width="18" height="12" rx="2" /><path d="M8 21h8" /></>,
     feedback: <><path d="M4 5h16v11H9l-5 4z" /></>,
+    reports: <><path d="M12 3 4.5 6v5.5c0 4.5 3.1 7.7 7.5 9.5 4.4-1.8 7.5-5 7.5-9.5V6z" /><path d="M12 8v5M12 16h.01" /></>,
     // 金庫。控えがしまってある場所、という気持ちで。
     backup: <><rect x="3.5" y="4.5" width="17" height="15" rx="2.2" /><circle cx="12" cy="12" r="3.2" /><path d="M12 7.6v1.2M12 15.2v1.2" /></>,
   };

@@ -122,3 +122,16 @@ export const feedback = sqliteTable('feedback', {
 }, (table) => [
   index('idx_feedback_created_at').on(table.createdAt),
 ]);
+
+export const requestReports = sqliteTable('request_reports', {
+  id: text('id').primaryKey(),
+  requestId: text('request_id').notNull().references(() => requests.id),
+  reporterId: text('reporter_id').notNull().references(() => members.id),
+  reason: text('reason').notNull(),
+  details: text('details').notNull().default(''),
+  status: text('status').notNull().default('new'),
+  createdAt: text('created_at').notNull(),
+}, (table) => [
+  index('idx_request_reports_status_created_at').on(table.status, table.createdAt),
+  index('idx_request_reports_request_id').on(table.requestId),
+]);

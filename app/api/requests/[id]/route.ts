@@ -4,6 +4,7 @@ import { deleteRequest, updateRequest, type RequestImageUpload } from '@/db/data
 import { toBudgetBand } from '@/app/budget-options';
 import { isIndustry } from '@/app/industry-options';
 import { descriptionLimit } from '@/app/rank-perks';
+import { hasExternalCommunitySolicitation, requestPostingRule } from '@/app/request-policy';
 
 // 自分が出した案件を直す／消す。
 //
@@ -40,6 +41,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   // 投稿をあとから開いたときに、書いていない欄のせいで保存できないと困る。
   if (!['project', 'collaboration', 'consultation'].includes(category) || !title) {
     return NextResponse.json({ error: '探しているものと、タイトルを入力してください。' }, { status: 400 });
+  }
+  if (hasExternalCommunitySolicitation(`${title}\n${description}`)) {
+    return NextResponse.json({ error: requestPostingRule }, { status: 400 });
   }
   const filledBand = budgetBand || 'negotiable';
   const filledDeadline = /^\d{4}-\d{2}-\d{2}$/.test(deadline) ? deadline : defaultDeadline();

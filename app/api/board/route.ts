@@ -6,6 +6,7 @@ import { toBudgetBand } from '@/app/budget-options';
 import { VIDEO_MAX_BYTES } from '@/app/compress-video';
 import { isIndustry } from '@/app/industry-options';
 import { descriptionLimit } from '@/app/rank-perks';
+import { hasExternalCommunitySolicitation, requestPostingRule } from '@/app/request-policy';
 
 // 画像は投稿する人の端末で縮小してから送る。ここでは受け取るだけで変換しない。
 // 一覧用は長辺480px・詳細用は長辺1400pxを想定していて、この上限は
@@ -54,6 +55,9 @@ export async function POST(request: Request) {
   // 絞り込みが期限と予算を見ているため）。
   if (!['project', 'collaboration', 'consultation'].includes(category) || !title) {
     return NextResponse.json({ error: '探しているものと、タイトルを入力してください。' }, { status: 400 });
+  }
+  if (hasExternalCommunitySolicitation(`${title}\n${description}`)) {
+    return NextResponse.json({ error: requestPostingRule }, { status: 400 });
   }
   // 予算を決めていない人は「応相談」。期限を決めていない人は30日後。
   const filledBand = budgetBand || 'negotiable';

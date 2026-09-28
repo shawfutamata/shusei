@@ -4,6 +4,7 @@ import type { SessionUser } from '@/app/session-user';
 import { cleanFacebookUrl } from '@/app/social-links';
 import { serviceName, serviceUrl } from '@/app/brand';
 import { FEEDBACK_PER_DAY, type FeedbackCategory } from '@/app/feedback-options';
+import { type RequestReportReason } from '@/app/request-policy';
 import { AD_DESCRIPTION_MAX, AD_RESERVATION_MINUTES, AD_TITLE_MAX, DEFAULT_PLACEMENT, placementSlots } from '@/app/ad-options';
 import { UNLIMITED, bonusPlan, campaignPlan, can, contractedPlan, currentPlan, extendedPlanEnd, hasPaidContract, isPaid, limits, planLimits, remainingRequests, toBillingCycle, toPlan, type BillingCycle, type Plan, type PlanState } from '@/app/entitlements';
 import { adGacha, consolationPrize, drawPrize, gachaOpen, gachaSeason, giftExpiryFrom, jstDate, jstMonth, previousDay } from '@/app/gacha';
@@ -383,6 +384,16 @@ const statements = [
     status TEXT NOT NULL DEFAULT 'new',
     created_at TEXT NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS request_reports (
+    id TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL REFERENCES requests(id),
+    reporter_id TEXT NOT NULL REFERENCES members(id),
+    reason TEXT NOT NULL,
+    details TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'new',
+    created_at TEXT NOT NULL,
+    UNIQUE(request_id, reporter_id)
+  )`,
   `CREATE TABLE IF NOT EXISTS introductions (
     id TEXT PRIMARY KEY,
     request_id TEXT NOT NULL REFERENCES requests(id),
@@ -584,6 +595,8 @@ const statements = [
   'CREATE INDEX IF NOT EXISTS idx_ad_gifts_member ON ad_gifts(member_id)',
   'CREATE INDEX IF NOT EXISTS idx_gacha_days_campaign ON gacha_days(campaign_key)',
   'CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_request_reports_status_created_at ON request_reports(status, created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_request_reports_request_id ON request_reports(request_id)',
   'CREATE INDEX IF NOT EXISTS idx_requests_status_created_at ON requests(status, created_at)',
   'CREATE INDEX IF NOT EXISTS idx_requests_category ON requests(category)',
   'CREATE INDEX IF NOT EXISTS idx_introductions_introducer_id ON introductions(introducer_id)',
@@ -1073,6 +1086,8 @@ export async function deleteMobileAccount(user: SessionUser) {
     env.DB.prepare('DELETE FROM mobile_sessions WHERE member_id = ?').bind(user.userId),
     env.DB.prepare('DELETE FROM attendance_people WHERE owner_id = ?').bind(user.userId),
     env.DB.prepare('DELETE FROM attendance_events WHERE owner_id = ?').bind(user.userId),
+    env.DB.prepare('DELETE FROM request_reports WHERE reporter_id = ?').bind(user.userId),
+    ...requestIds.results.map(({ id }) => env.DB.prepare('DELETE FROM request_reports WHERE request_id = ?').bind(id)),
     env.DB.prepare('DELETE FROM request_comments WHERE author_id = ?').bind(user.userId),
     env.DB.prepare('DELETE FROM requests WHERE author_id = ?').bind(user.userId),
     env.DB.prepare('DELETE FROM ad_slots WHERE member_id = ?').bind(user.userId),
@@ -1478,6 +1493,7 @@ export async function deleteRequest(user: SessionUser, id: string) {
   if (!own) throw new Error('この案件は削除できません。');
 
   await env.DB.batch([
+    env.DB.prepare('DELETE FROM request_reports WHERE request_id = ?').bind(id),
     env.DB.prepare('DELETE FROM request_comments WHERE request_id = ?').bind(id),
     // やり取りは紹介にぶら下がっている。**紹介より先に消す。**
     env.DB.prepare('DELETE FROM introduction_messages WHERE introduction_id IN (SELECT id FROM introductions WHERE request_id = ?)').bind(id),
@@ -3339,6 +3355,38 @@ export async function countFeedback(memberId: string) {
   return Number(row?.count ?? 0);
 }
 // --- 機能改善の受け口 ここまで ------------------------------------------------
+
+// --- 案件への異議申し立て ここから --------------------------------------------
+
+export async function createRequestReport(user: SessionUser, requestId: string, input: { reason: RequestReportReason; details: string }) {
+  await upsertMember(user);
+  const target = await env.DB.prepare('SELECT author_id AS authorId FROM requests WHERE id = ?')
+    .bind(requestId).first<{ authorId: string }>();
+  if (!target) throw new Error('この案件は見つかりませんでした。');
+  if (target.authorId === user.userId) throw new Error('自分の案件には異議申し立てできません。');
+
+  const details = input.details.trim().slice(0, 1000);
+  if (input.reason === 'other' && details.length < 5) {
+    throw new Error('理由をもう少し詳しく入力してください。');
+  }
+
+  const existing = await env.DB.prepare('SELECT id FROM request_reports WHERE request_id = ? AND reporter_id = ?')
+    .bind(requestId, user.userId).first<{ id: string }>();
+  if (existing) throw new Error('この案件への異議申し立ては、すでに運営へ届いています。');
+
+  const dayAgo = new Date(Date.now() - 86400000).toISOString();
+  const recent = await env.DB.prepare('SELECT COUNT(*) AS count FROM request_reports WHERE reporter_id = ? AND created_at >= ?')
+    .bind(user.userId, dayAgo).first<{ count: number }>();
+  if (Number(recent?.count ?? 0) >= 10) throw new Error('1日に送れる異議申し立ては10件までです。');
+
+  await env.DB.prepare(`INSERT INTO request_reports
+    (id, request_id, reporter_id, reason, details, status, created_at)
+    VALUES (?, ?, ?, ?, ?, 'new', ?)`).bind(
+      crypto.randomUUID(), requestId, user.userId, input.reason, details, new Date().toISOString(),
+    ).run();
+}
+
+// --- 案件への異議申し立て ここまで --------------------------------------------
 
 // --- 案件へのコメント（廃止）------------------------------------------
 // コメント欄はやめた。にぎわいは、実際に人が動いた数（オファーとリファラルの

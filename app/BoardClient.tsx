@@ -11,6 +11,7 @@ import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-op
 import { budgetBandLabel, budgetBands } from './budget-options';
 import { UNLIMITED, can, plans, type BillingCycle, type Feature, type Plan } from './entitlements';
 import { feedbackCategories } from './feedback-options';
+import { requestPostingRule, requestReportReasons } from './request-policy';
 import { adsFreeNow, campaignRunning, campaignUntilLabel, freeCampaign } from './campaign';
 import { gachaDateLabel } from './gacha';
 import type { GachaView } from './gacha-view';
@@ -395,7 +396,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [cropping, setCropping] = useState(false);
   /** 選んだ写真が端末で読めるか確かめているあいだ。大きい写真だと少し待つ。 */
   const [photoChecking, setPhotoChecking] = useState(false);
-  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'thread' | 'responses' | 'ads' | 'perks' | 'categories' | 'upgrade' | 'adDetail' | 'member' | 'gacha' | null>(null);
+  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'report' | 'thread' | 'responses' | 'ads' | 'perks' | 'categories' | 'upgrade' | 'adDetail' | 'member' | 'gacha' | null>(null);
   /**
    * オファーの種類。**知り合いの紹介は無料、自社で請け負う（受注）は有料。**
    * 画面はここで出し分けるだけで、実際に止めているのは `createIntroduction()`。
@@ -425,6 +426,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [requestPhotoPreviews, setRequestPhotoPreviews] = useState<string[]>([]);
   const [planCycle, setPlanCycle] = useState<BillingCycle>('month');
   const [feedbackSent, setFeedbackSent] = useState(false);
+  const [reportSent, setReportSent] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
   const [referral, setReferral] = useState<(ReferralSummary & { url: string; billing?: { ready: boolean; yearly: boolean; hasCustomer: boolean; cycle: BillingCycle; creditedYen: number; creditPerReferralYen: number } }) | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [adInfo, setAdInfo] = useState<AdOffer | null>(null);
@@ -1841,6 +1844,28 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     form.reset(); setFeedbackSent(true); showToast('ありがとうございます。いただいたご意見は必ず読みます。');
   }
 
+  async function submitRequestReport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selected || reportBusy) return;
+    const form = new FormData(event.currentTarget);
+    setReportBusy(true);
+    try {
+      const response = await fetch(`/api/requests/${selected.id}/report`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ reason: form.get('reason'), details: form.get('details') }),
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error || '異議申し立てを送れませんでした。');
+      setReportSent(true);
+      showToast('異議申し立てを運営へ送りました。');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '異議申し立てを送れませんでした。');
+    } finally {
+      setReportBusy(false);
+    }
+  }
+
   async function copyInviteLink() {
     if (!referral) return;
     try {
@@ -2457,7 +2482,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {modal === 'request' && !canPostRequest && !editingRequest && <Modal title="今月分の投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる案件は月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p>{referral?.freeMonths && <p>仲間を1人招待して{referral.qualifyDays}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p>}<button className="submit-button" onClick={() => { setModal(null); showMyPage(); }}>マイページを開く</button></div></Modal>}
 
-      {modal === 'request' && (canPostRequest || editingRequest) && <Modal title={editingRequest ? '案件を編集' : 'こんな人を探しています'} lead={editingRequest ? '直したいところを書き替えて、保存してください。' : 'ひとことで大丈夫です。「〇〇できる方いませんか」だけでも出せます。'} onClose={closeRequestModal}><form className="form" key={editingRequest?.id ?? 'new'} onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue={editingRequest?.category ?? ''}><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" defaultValue={editingRequest?.title ?? ''} /></label>{/* **ここから下は任意。** 良い投稿の条件ではあるが、投稿がある条件では
+      {modal === 'request' && (canPostRequest || editingRequest) && <Modal title={editingRequest ? '案件を編集' : 'こんな人を探しています'} lead={editingRequest ? '直したいところを書き替えて、保存してください。' : 'ひとことで大丈夫です。「〇〇できる方いませんか」だけでも出せます。'} onClose={closeRequestModal}><form className="form" key={editingRequest?.id ?? 'new'} onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue={editingRequest?.category ?? ''}><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" defaultValue={editingRequest?.title ?? ''} /></label><p className="request-policy-note"><b>投稿ルール</b>{requestPostingRule}</p>{/* **ここから下は任意。** 良い投稿の条件ではあるが、投稿がある条件では
           ない。予算も期限もまだ決まっていないから探しているので、決めさせない。
           書きたい人だけが開く（直すときは開いた状態で出す）。 */}
         {!requestDetail && <button type="button" className="request-more" onClick={() => setRequestDetail(true)}>
@@ -3098,7 +3123,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           : selected.sample
             ? <p className="sample-note">これは掲示板の見本です。実在の会員の投稿ではないので、オファーは送れません。
                 本物の投稿には、ここに「この人にオファーする」が出ます。</p>
-            : <button className="submit-button" onClick={() => openIntroduction(selected)}>この人にオファーする</button>}
+            : <><button className="submit-button" onClick={() => openIntroduction(selected)}>この人にオファーする</button><button className="detail-report-button" onClick={() => { setReportSent(false); setModal('report'); }}>この案件に異議申し立て</button></>}
         {(selected.myIntroCount > 0 || (selected.mine && selected.introCount > 0)) && <div className="intro-notice">
           <span aria-hidden="true">✓</span>
           {selected.mine
@@ -3107,6 +3132,16 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           {selected.mine && <button type="button" onClick={() => { setSelected(null); setModal('responses'); }}>届いたオファーを見る</button>}
         </div>}
       </article></Modal>}
+      {modal === 'report' && selected && <Modal title="この案件への異議申し立て" lead="内容を運営が確認します。申し立てたことや、申し立てた方のお名前は投稿者には表示されません。" onClose={() => setModal('detail')}>
+        {reportSent ? <div className="report-success"><b>運営へ送信しました</b><p>内容を確認し、必要に応じて掲載停止などの対応を行います。</p><button onClick={() => setModal('detail')}>案件へ戻る</button></div>
+          : <form className="form report-form" onSubmit={submitRequestReport}>
+            <p className="report-target">対象案件：<b>{selected.title}</b></p>
+            <label>異議申し立ての理由<select name="reason" required defaultValue="external_community">{requestReportReasons.map((reason) => <option key={reason.value} value={reason.value}>{reason.label}</option>)}</select></label>
+            <label>詳しい内容 <small>任意（「その他」を選ぶ場合は必須）</small><textarea name="details" rows={5} maxLength={1000} placeholder="どの部分に問題があるか、わかる範囲で入力してください。" /></label>
+            <p className="report-privacy">運営確認用です。投稿者には申立者の情報を表示しません。</p>
+            <button className="submit-button" type="submit" disabled={reportBusy}>{reportBusy ? '送信中…' : '運営へ送る'}</button>
+          </form>}
+      </Modal>}
 
       {/* メッセージの一覧から開くやり取り。**ここで完結する。**
           相手の名前を見出しに、何についての話かを下に添える。 */}

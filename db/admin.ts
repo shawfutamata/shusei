@@ -13,7 +13,7 @@ import { planCatalog, yearlyYen } from '../app/plan-catalog';
 
 export type AdminSummary = {
   members: number; activeMembers: number; suspendedMembers: number;
-  requests: number; openRequests: number;
+  requests: number; openRequests: number; newReports: number;
   introductions: number;
   /** 内訳。オファー（自社で請け負う）と、リファラル（知り合いの紹介）。 */
   offers: number; referrals: number;
@@ -77,6 +77,12 @@ export type AdminFeedback = {
   memberName: string; memberEmail: string;
 };
 
+export type AdminRequestReport = {
+  id: string; requestId: string; requestTitle: string; reason: string; details: string;
+  status: string; createdAt: string;
+  reporterName: string; reporterEmail: string; authorName: string; authorEmail: string;
+};
+
 /** 上に出す数字。1画面ぶんの様子が分かればよいので、細かくは出さない。 */
 export async function adminSummary(): Promise<AdminSummary> {
   await ensureDatabase();
@@ -85,7 +91,7 @@ export async function adminSummary(): Promise<AdminSummary> {
     const row = await env.DB.prepare(sql).bind(...binds).first<{ count: number }>();
     return Number(row?.count ?? 0);
   };
-  const [members, activeMembers, requests, openRequests, introductions, offers, referrals, liveAds, newFeedback] = await Promise.all([
+  const [members, activeMembers, requests, openRequests, introductions, offers, referrals, liveAds, newFeedback, newReports] = await Promise.all([
     one('SELECT COUNT(*) AS count FROM members'),
     one("SELECT COUNT(*) AS count FROM members WHERE membership_status = 'active'"),
     one('SELECT COUNT(*) AS count FROM requests'),
@@ -95,6 +101,7 @@ export async function adminSummary(): Promise<AdminSummary> {
     one("SELECT COUNT(*) AS count FROM introductions WHERE kind != 'self'"),
     one("SELECT COUNT(*) AS count FROM ad_slots WHERE status = 'active' AND start_date <= ? AND end_date >= ?", today, today),
     one("SELECT COUNT(*) AS count FROM feedback WHERE status = 'new'"),
+    one("SELECT COUNT(*) AS count FROM request_reports WHERE status = 'new'"),
   ]);
   // 課金。運営の特典で開いている人は外す。特典は売上ではないため。
   const payerRows = await env.DB.prepare(`SELECT email, plan_interval AS interval FROM members
@@ -123,7 +130,7 @@ export async function adminSummary(): Promise<AdminSummary> {
   }
 
   return { members, activeMembers, suspendedMembers: members - activeMembers,
-    requests, openRequests, introductions, offers, referrals, liveAds, newFeedback,
+    requests, openRequests, introductions, offers, referrals, liveAds, newFeedback, newReports,
     paidMembers: payers.length, monthlyPayers, yearlyPayers, mrrYen,
     adRevenueTotalYen: Number(adRevenue?.total ?? 0), adRevenueThisMonthYen: Number(adRevenue?.thisMonth ?? 0),
     rankCounts };
@@ -232,6 +239,7 @@ export async function adminDeleteRequest(requestId: string) {
     .bind(requestId).first<{ imageCount: number }>();
   if (!row) throw new Error('その案件は見つかりませんでした。');
   await env.DB.batch([
+    env.DB.prepare('DELETE FROM request_reports WHERE request_id = ?').bind(requestId),
     env.DB.prepare('DELETE FROM request_comments WHERE request_id = ?').bind(requestId),
     // やり取りは紹介にぶら下がっている。**紹介より先に消す。**
     env.DB.prepare('DELETE FROM introduction_messages WHERE introduction_id IN (SELECT id FROM introductions WHERE request_id = ?)').bind(requestId),
@@ -244,6 +252,28 @@ export async function adminDeleteRequest(requestId: string) {
     keys.push(index === 0 ? `request-images/${requestId}` : `request-images/${requestId}/${index}`);
   }
   await Promise.allSettled(keys.map((key) => env.AVATARS.delete(key)));
+}
+
+/** 案件への異議申し立て。未対応を先に、新しい順で返す。 */
+export async function adminRequestReports(limit = 200): Promise<AdminRequestReport[]> {
+  await ensureDatabase();
+  const rows = await env.DB.prepare(`SELECT rr.id, rr.request_id AS requestId,
+    r.title AS requestTitle, rr.reason, rr.details, rr.status, rr.created_at AS createdAt,
+    reporter.display_name AS reporterName, reporter.email AS reporterEmail,
+    author.display_name AS authorName, author.email AS authorEmail
+    FROM request_reports rr
+    JOIN requests r ON r.id = rr.request_id
+    JOIN members reporter ON reporter.id = rr.reporter_id
+    JOIN members author ON author.id = r.author_id
+    ORDER BY CASE WHEN rr.status = 'new' THEN 0 ELSE 1 END, rr.created_at DESC
+    LIMIT ${Number(limit)}`).all<AdminRequestReport>();
+  return rows.results;
+}
+
+export async function adminSetRequestReportDone(reportId: string, done: boolean) {
+  await ensureDatabase();
+  await env.DB.prepare('UPDATE request_reports SET status = ? WHERE id = ?')
+    .bind(done ? 'done' : 'new', reportId).run();
 }
 
 /** 広告枠の一覧。新しい掲載から順に出す。 */
