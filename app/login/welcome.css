@@ -173,11 +173,6 @@ body:has(.welcome) { padding:0; background:#f8fafc; }
 .welcome-hero .welcome-primary { background:#126bc3; color:#fff; border-radius:999px; box-shadow:0 10px 24px #126bc32b; }
 .welcome-keyvisual { position:relative; min-width:0; }
 .welcome-keyvisual>img { width:130%; max-width:none; margin-left:-25%; height:auto; display:block; }
-.welcome-keyvisual-quote { position:absolute; z-index:2; top:31%; right:4%; width:min(45%,270px); margin:0; padding:15px 18px; border-radius:22px 22px 4px 22px; background:#fff2b8; color:#14375e; box-shadow:0 12px 30px #345c7829; transform:rotate(1.5deg); }
-.welcome-keyvisual-quote::after { content:''; position:absolute; right:20%; bottom:-17px; border:10px solid transparent; border-top-color:#fff2b8; transform:rotate(-12deg); }
-.welcome-keyvisual-quote strong,.welcome-keyvisual-quote span { display:block; }
-.welcome-keyvisual-quote strong { color:#096bc1; font-size:17px; line-height:1.45; }
-.welcome-keyvisual-quote span { margin-top:5px; font-size:12px; font-weight:800; line-height:1.6; }
 @media(min-width:701px) {
  .welcome-hero .welcome-intro { padding-top:0; padding-bottom:0; align-items:stretch; }
  .welcome-hero .welcome-copy { padding:32px 0; align-self:center; }
@@ -337,10 +332,6 @@ body:has(.welcome) { padding:0; background:#f8fafc; }
  .welcome-hero-points span { padding:0!important; font-size:10px; }
  .welcome-hero-points span:nth-child(3) { display:none; }
  .welcome-hero-points .welcome-icon { width:18px; height:18px; }
- .welcome-keyvisual-quote { top:57%; right:4%; width:61%; padding:12px 14px; border-radius:18px 4px 18px 18px; }
- .welcome-keyvisual-quote::after { top:-17px; right:20%; bottom:auto; border-top-color:transparent; border-bottom-color:#fff2b8; }
- .welcome-keyvisual-quote strong { font-size:14px; }
- .welcome-keyvisual-quote span { font-size:10px; }
  .welcome-metrics,.welcome-walkthrough,.welcome-features,.welcome-hands-on { padding:42px 20px; }
  .welcome-section-heading { margin-bottom:22px; }
  .welcome-section-heading .welcome-kicker { margin-bottom:9px; font-size:11px; }
