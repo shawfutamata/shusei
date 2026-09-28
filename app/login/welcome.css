@@ -164,7 +164,7 @@ body:has(.welcome) { padding:0; background:#f8fafc; }
 .welcome-hero .welcome-kicker,.welcome-hero .welcome-hero-points span,.welcome-hero .welcome-note { color:#bddaff; }
 .welcome-hero .welcome-primary { background:#fff; color:#0d4da0; box-shadow:0 8px 24px #001d4b25; }
 .welcome-keyvisual { position:relative; min-width:0; }
-.welcome-keyvisual>img { width:150%; max-width:none; margin-left:-25%; height:auto; display:block; mask-image:linear-gradient(to right,transparent,#000 15%,#000 90%,transparent); }
+.welcome-keyvisual>img { width:130%; max-width:none; margin-left:-25%; height:auto; display:block; }
 .welcome-visual-caption { display:flex; align-items:center; justify-content:center; gap:20px; color:#fff; font-size:15px; font-weight:700; margin-top:-18px; position:relative; }
 .welcome-visual-caption .brand-mark { width:28px; height:28px; }
 .welcome-metrics { background:#f3f6fa; padding:80px 24px; }
@@ -286,7 +286,7 @@ body:has(.welcome) { padding:0; background:#f8fafc; }
 @media(max-width:700px) {
  .welcome-hero .welcome-intro { padding-bottom:24px; }
  .welcome-keyvisual { margin-top:12px; }
- .welcome-keyvisual>img { width:120%; margin-left:-10%; }
+ .welcome-keyvisual>img { width:145%; margin-left:-33%; }
  .welcome-visual-caption { margin-top:-12px; font-size:13px; }
  .welcome-metrics,.welcome-walkthrough,.welcome-features,.welcome-hands-on { padding:48px 20px; }
  .welcome-match-visual { height:430px; margin:30px auto 14px; border-radius:20px; }
@@ -346,4 +346,4 @@ body:has(.welcome) { padding:0; background:#f8fafc; }
  .welcome-faq-contact { text-align:left; line-height:1.8; }
  .welcome-start { margin-top:32px; }
 }
-.welcome-keyvisual>img { mask-image:linear-gradient(to right,transparent,#000 15%,#000 90%,transparent),linear-gradient(to bottom,transparent,#000 10%,#000 86%,transparent); mask-composite:intersect; }
+.welcome-keyvisual>img { mask-image:linear-gradient(to right,transparent,#000 18%,#000 100%),linear-gradient(to bottom,transparent,#000 7%,#000 89%,transparent); mask-composite:intersect; }

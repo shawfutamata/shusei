@@ -130,7 +130,7 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
       </section>
       <div className="welcome-keyvisual">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/welcome/connections-hero.webp" width={1536} height={1024} alt="仕事を探す人と頼む人のつながりを表す、青い二つの帯のオブジェ" fetchPriority="high" />
+        <img src="/welcome/platform-matching-hero.webp" width={1672} height={941} alt="TASUKIの画面で仕事の依頼、会員プロフィール、オファー、メッセージがつながる様子" fetchPriority="high" />
         <div className="welcome-visual-caption"><span>できる人。</span><BrandMark /><span>頼みたい人。</span></div>
       </div>
     </div></div>
