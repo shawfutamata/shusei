@@ -10,6 +10,7 @@ import { bonusPlan, contractedPlan, type Plan } from '../app/entitlements';
 import { isAdminEmail } from '../app/admin-emails';
 import { MAX_LEVEL, levelFor, rankNames } from '../app/rank-perks';
 import { planCatalog, yearlyYen } from '../app/plan-catalog';
+import { getIndustryGroup } from '../app/industry-options';
 
 export type AdminSummary = {
   members: number; activeMembers: number; suspendedMembers: number;
@@ -82,6 +83,81 @@ export type AdminRequestReport = {
   status: string; createdAt: string;
   reporterName: string; reporterEmail: string; authorName: string; authorEmail: string;
 };
+
+export type AdminSurveyCandidate = {
+  id: string; displayName: string; company: string; primaryIndustry: string; venue: string;
+  introduced: boolean;
+};
+
+export type AdminMatchingSurvey = {
+  id: string; title: string; details: string; industryTags: string[]; status: string; createdAt: string;
+  memberId: string; memberName: string; memberCompany: string; memberEmail: string; venue: string;
+  candidates: AdminSurveyCandidate[];
+};
+
+/** アンケート回答と、同じ会場で業種が近い紹介候補。 */
+export async function adminMatchingSurveys(limit = 200): Promise<AdminMatchingSurvey[]> {
+  await ensureDatabase();
+  const surveys = await env.DB.prepare(`SELECT s.id, s.member_id AS memberId, s.title, s.details,
+      s.industry_tags AS industryTagsJson, s.status, s.created_at AS createdAt,
+      m.display_name AS memberName, m.company AS memberCompany, m.email AS memberEmail, m.venue
+    FROM matching_surveys s JOIN members m ON m.id = s.member_id
+    ORDER BY CASE s.status WHEN 'new' THEN 0 WHEN 'introduced' THEN 1 ELSE 2 END, s.created_at DESC
+    LIMIT ${Number(limit)}`)
+    .all<{ id: string; memberId: string; title: string; details: string; industryTagsJson: string;
+      status: string; createdAt: string; memberName: string; memberCompany: string; memberEmail: string; venue: string }>();
+  if (!surveys.results.length) return [];
+
+  const introduced = await env.DB.prepare(`SELECT survey_id AS surveyId, member_id AS memberId
+    FROM survey_introductions WHERE survey_id IN (${surveys.results.map(() => '?').join(',')})`)
+    .bind(...surveys.results.map((row) => row.id)).all<{ surveyId: string; memberId: string }>();
+
+  const venues = [...new Set(surveys.results.map((row) => row.venue))];
+  const members = await env.DB.prepare(`SELECT id, display_name AS displayName, company,
+      primary_industry AS primaryIndustry, venue FROM members
+    WHERE membership_status IN ('active','past_due') AND venue IN (${venues.map(() => '?').join(',')})`)
+    .bind(...venues).all<Omit<AdminSurveyCandidate, 'introduced'>>();
+
+  return surveys.results.map(({ industryTagsJson, ...survey }) => {
+    const industryTags = (() => { try { return JSON.parse(industryTagsJson) as string[]; } catch { return []; } })();
+    const wantedGroups = new Set(industryTags.map((tag) => getIndustryGroup(tag)?.name ?? tag));
+    const introducedIds = new Set(introduced.results.filter((row) => row.surveyId === survey.id).map((row) => row.memberId));
+    const candidates = members.results
+      .filter((member) => member.venue === survey.venue && member.id !== survey.memberId)
+      .map((member) => ({ ...member, introduced: introducedIds.has(member.id),
+        score: industryTags.includes(member.primaryIndustry) ? 2
+          : wantedGroups.has(getIndustryGroup(member.primaryIndustry)?.name ?? member.primaryIndustry) ? 1 : 0 }))
+      .filter((member) => member.score > 0 || member.introduced)
+      .sort((a, b) => Number(b.introduced) - Number(a.introduced) || b.score - a.score || a.displayName.localeCompare(b.displayName, 'ja'))
+      .slice(0, 20)
+      .map((member) => ({ id: member.id, displayName: member.displayName, company: member.company,
+        primaryIndustry: member.primaryIndustry, venue: member.venue, introduced: member.introduced }));
+    return { ...survey, industryTags, candidates };
+  });
+}
+
+export async function adminIntroduceSurveyMember(surveyId: string, memberId: string, note: string) {
+  await ensureDatabase();
+  const pair = await env.DB.prepare(`SELECT s.member_id AS requesterId, s.status AS surveyStatus, requester.venue AS requesterVenue,
+      candidate.venue AS candidateVenue, candidate.membership_status AS candidateStatus
+    FROM matching_surveys s
+    JOIN members requester ON requester.id = s.member_id
+    JOIN members candidate ON candidate.id = ?
+    WHERE s.id = ?`).bind(memberId, surveyId)
+    .first<{ requesterId: string; surveyStatus: string; requesterVenue: string; candidateVenue: string; candidateStatus: string }>();
+  if (!pair) throw new Error('回答または会員が見つかりません。');
+  if (pair.surveyStatus === 'closed') throw new Error('終了した回答には紹介できません。');
+  if (pair.requesterId === memberId) throw new Error('回答したご本人は紹介できません。');
+  if (pair.requesterVenue !== pair.candidateVenue) throw new Error('同じ会場の会員だけを紹介できます。');
+  if (pair.candidateStatus !== 'active' && pair.candidateStatus !== 'past_due') throw new Error('利用中の会員だけを紹介できます。');
+  const now = new Date().toISOString();
+  await env.DB.batch([
+    env.DB.prepare(`INSERT OR IGNORE INTO survey_introductions (id, survey_id, member_id, note, created_at)
+      VALUES (?, ?, ?, ?, ?)`).bind(crypto.randomUUID(), surveyId, memberId, note.trim().slice(0, 300), now),
+    env.DB.prepare("UPDATE matching_surveys SET status = 'introduced', updated_at = ? WHERE id = ?")
+      .bind(now, surveyId),
+  ]);
+}
 
 /** 上に出す数字。1画面ぶんの様子が分かればよいので、細かくは出さない。 */
 export async function adminSummary(): Promise<AdminSummary> {

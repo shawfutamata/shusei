@@ -13,7 +13,7 @@ import { isAdminEmail } from '@/app/admin-emails';
 import { sampleRequests } from './sample-requests';
 import { effectivePlanState, isPlanOverridden } from '@/app/effective-plan';
 import { freeCampaign } from '@/app/campaign';
-import { matchesIndustry } from '@/app/industry-options';
+import { isIndustry, matchesIndustry } from '@/app/industry-options';
 import { MESSAGE_IMAGE_DAYS } from '@/app/message-options';
 import { toBudgetBand } from '@/app/budget-options';
 
@@ -394,6 +394,25 @@ const statements = [
     created_at TEXT NOT NULL,
     UNIQUE(request_id, reporter_id)
   )`,
+  // 会員が「こんな仕事・業種ができる人を探しています」と運営へ伝えるアンケート。
+  // 掲示板へ公開する案件とは分け、自会場の会員を個別に紹介するために使う。
+  `CREATE TABLE IF NOT EXISTS matching_surveys (
+    id TEXT PRIMARY KEY,
+    member_id TEXT NOT NULL REFERENCES members(id),
+    title TEXT NOT NULL,
+    industry_tags TEXT NOT NULL DEFAULT '[]',
+    details TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'new',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS survey_introductions (
+    id TEXT PRIMARY KEY,
+    survey_id TEXT NOT NULL REFERENCES matching_surveys(id),
+    member_id TEXT NOT NULL REFERENCES members(id),
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS introductions (
     id TEXT PRIMARY KEY,
     request_id TEXT NOT NULL REFERENCES requests(id),
@@ -597,6 +616,10 @@ const statements = [
   'CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at)',
   'CREATE INDEX IF NOT EXISTS idx_request_reports_status_created_at ON request_reports(status, created_at)',
   'CREATE INDEX IF NOT EXISTS idx_request_reports_request_id ON request_reports(request_id)',
+  'CREATE INDEX IF NOT EXISTS idx_matching_surveys_status_created_at ON matching_surveys(status, created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_matching_surveys_member_id ON matching_surveys(member_id)',
+  'CREATE UNIQUE INDEX IF NOT EXISTS idx_survey_introductions_unique ON survey_introductions(survey_id, member_id)',
+  'CREATE INDEX IF NOT EXISTS idx_survey_introductions_survey_id ON survey_introductions(survey_id)',
   'CREATE INDEX IF NOT EXISTS idx_requests_status_created_at ON requests(status, created_at)',
   'CREATE INDEX IF NOT EXISTS idx_requests_category ON requests(category)',
   'CREATE INDEX IF NOT EXISTS idx_introductions_introducer_id ON introductions(introducer_id)',
@@ -1088,6 +1111,9 @@ export async function deleteMobileAccount(user: SessionUser) {
     env.DB.prepare('DELETE FROM attendance_events WHERE owner_id = ?').bind(user.userId),
     env.DB.prepare('DELETE FROM request_reports WHERE reporter_id = ?').bind(user.userId),
     ...requestIds.results.map(({ id }) => env.DB.prepare('DELETE FROM request_reports WHERE request_id = ?').bind(id)),
+    env.DB.prepare('DELETE FROM survey_introductions WHERE member_id = ?').bind(user.userId),
+    env.DB.prepare('DELETE FROM survey_introductions WHERE survey_id IN (SELECT id FROM matching_surveys WHERE member_id = ?)').bind(user.userId),
+    env.DB.prepare('DELETE FROM matching_surveys WHERE member_id = ?').bind(user.userId),
     env.DB.prepare('DELETE FROM request_comments WHERE author_id = ?').bind(user.userId),
     env.DB.prepare('DELETE FROM requests WHERE author_id = ?').bind(user.userId),
     env.DB.prepare('DELETE FROM ad_slots WHERE member_id = ?').bind(user.userId),
@@ -3326,6 +3352,94 @@ function cleanAdLink(value: string) {
   }
 }
 // --- トップバナーの出稿枠 ここまで ---------------------------------------------
+
+// --- 探している人アンケート ここから ------------------------------------------
+
+export type SurveyIntroduction = {
+  id: string;
+  memberId: string;
+  displayName: string;
+  company: string;
+  positionTitle: string;
+  venue: string;
+  primaryIndustry: string;
+  avatarUrl: string;
+  note: string;
+  createdAt: string;
+};
+
+export type MatchingSurvey = {
+  id: string;
+  title: string;
+  industryTags: string[];
+  details: string;
+  status: 'new' | 'introduced' | 'closed';
+  createdAt: string;
+  introductions: SurveyIntroduction[];
+};
+
+/** 自分が答えたアンケートと、運営から紹介された同じ会場の会員。 */
+export async function getMatchingSurveys(memberId: string): Promise<MatchingSurvey[]> {
+  await ensureDatabase();
+  const surveys = await env.DB.prepare(`SELECT id, title, industry_tags AS industryTagsJson,
+      details, status, created_at AS createdAt
+    FROM matching_surveys WHERE member_id = ? ORDER BY created_at DESC LIMIT 30`)
+    .bind(memberId).all<{ id: string; title: string; industryTagsJson: string; details: string; status: string; createdAt: string }>();
+  if (!surveys.results.length) return [];
+
+  const introductions = await env.DB.prepare(`SELECT si.id, si.survey_id AS surveyId,
+      m.id AS memberId, m.display_name AS displayName, m.company, m.position_title AS positionTitle,
+      m.venue, m.primary_industry AS primaryIndustry, m.avatar_key AS avatarKey,
+      m.avatar_version AS avatarVersion, si.note, si.created_at AS createdAt
+    FROM survey_introductions si JOIN members m ON m.id = si.member_id
+    WHERE si.survey_id IN (${surveys.results.map(() => '?').join(',')})
+    ORDER BY si.created_at`)
+    .bind(...surveys.results.map((row) => row.id))
+    .all<{ id: string; surveyId: string; memberId: string; displayName: string; company: string;
+      positionTitle: string; venue: string; primaryIndustry: string; avatarKey: string;
+      avatarVersion: number; note: string; createdAt: string }>();
+
+  return surveys.results.map(({ industryTagsJson, status, ...survey }) => ({
+    ...survey,
+    industryTags: parseStringArray(industryTagsJson),
+    status: status === 'introduced' || status === 'closed' ? status : 'new',
+    introductions: introductions.results.filter((row) => row.surveyId === survey.id).map((row) => ({
+      id: row.id, memberId: row.memberId, displayName: row.displayName, company: row.company,
+      positionTitle: row.positionTitle, venue: row.venue, primaryIndustry: row.primaryIndustry,
+      avatarUrl: avatarUrl(row.memberId, row.avatarKey, row.avatarVersion), note: row.note, createdAt: row.createdAt,
+    })),
+  }));
+}
+
+export async function createMatchingSurvey(user: SessionUser, input: { title: string; industryTags: string[]; details: string }) {
+  await upsertMember(user);
+  const title = input.title.trim().slice(0, 120);
+  const details = input.details.trim().slice(0, 800);
+  const industryTags = [...new Set(input.industryTags.filter(isIndustry))].slice(0, 3);
+  if (title.length < 5) throw new Error('探している仕事や相手を、もう少し詳しく入力してください。');
+  if (!industryTags.length) throw new Error('探している業種を1つ以上選んでください。');
+
+  const dayAgo = new Date(Date.now() - 86400000).toISOString();
+  const recent = await env.DB.prepare('SELECT COUNT(*) AS count FROM matching_surveys WHERE member_id = ? AND created_at >= ?')
+    .bind(user.userId, dayAgo).first<{ count: number }>();
+  if (Number(recent?.count ?? 0) >= 5) throw new Error('1日に送れるアンケートは5件までです。');
+
+  const now = new Date().toISOString();
+  const id = crypto.randomUUID();
+  await env.DB.prepare(`INSERT INTO matching_surveys
+      (id, member_id, title, industry_tags, details, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, 'new', ?, ?)`)
+    .bind(id, user.userId, title, JSON.stringify(industryTags), details, now, now).run();
+  return id;
+}
+
+export async function closeMatchingSurvey(memberId: string, surveyId: string) {
+  await ensureDatabase();
+  await env.DB.prepare("UPDATE matching_surveys SET status = 'closed', updated_at = ? WHERE id = ? AND member_id = ?")
+    .bind(new Date().toISOString(), surveyId, memberId).run();
+}
+
+// --- 探している人アンケート ここまで ------------------------------------------
 
 // --- 機能改善の受け口 ここから ------------------------------------------------
 // 会員が「こうしてほしい」を送れるようにする。運営はD1を見て拾う。

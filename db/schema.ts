@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const members = sqliteTable('members', {
   id: text('id').primaryKey(),
@@ -134,4 +134,29 @@ export const requestReports = sqliteTable('request_reports', {
 }, (table) => [
   index('idx_request_reports_status_created_at').on(table.status, table.createdAt),
   index('idx_request_reports_request_id').on(table.requestId),
+]);
+
+export const matchingSurveys = sqliteTable('matching_surveys', {
+  id: text('id').primaryKey(),
+  memberId: text('member_id').notNull().references(() => members.id),
+  title: text('title').notNull(),
+  industryTags: text('industry_tags').notNull().default('[]'),
+  details: text('details').notNull().default(''),
+  status: text('status').notNull().default('new'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  index('idx_matching_surveys_status_created_at').on(table.status, table.createdAt),
+  index('idx_matching_surveys_member_id').on(table.memberId),
+]);
+
+export const surveyIntroductions = sqliteTable('survey_introductions', {
+  id: text('id').primaryKey(),
+  surveyId: text('survey_id').notNull().references(() => matchingSurveys.id),
+  memberId: text('member_id').notNull().references(() => members.id),
+  note: text('note').notNull().default(''),
+  createdAt: text('created_at').notNull(),
+}, (table) => [
+  uniqueIndex('idx_survey_introductions_unique').on(table.surveyId, table.memberId),
+  index('idx_survey_introductions_survey_id').on(table.surveyId),
 ]);

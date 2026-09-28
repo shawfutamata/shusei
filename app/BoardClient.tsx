@@ -2,7 +2,7 @@
 
 import { ChangeEvent, CSSProperties, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
-import type { AdSlot, BoardRequest, MemberCard, MemberProfile, MemberStats, MessageThread, ReferralSummary } from '@/db/data';
+import type { AdSlot, BoardRequest, MatchingSurvey, MemberCard, MemberProfile, MemberStats, MessageThread, ReferralSummary } from '@/db/data';
 import ReceivedIntroductions from './ReceivedIntroductions';
 import IntroductionChat from './IntroductionChat';
 import FacebookLink from './FacebookLink';
@@ -281,7 +281,7 @@ function weekdayOf(date: string) {
 }
 
 /** 下のメニューの「マイページ」の中で行き来する画面。 */
-type MyTab = 'home' | 'search' | 'recommend' | 'messages' | 'mypage' | 'profile' | 'posts' | 'offers' | 'plan' | 'invite' | 'receipts' | 'feedback';
+type MyTab = 'home' | 'search' | 'recommend' | 'messages' | 'mypage' | 'profile' | 'posts' | 'offers' | 'plan' | 'invite' | 'receipts' | 'feedback' | 'survey';
 
 /** マイページの「自分の投稿」に出す1件。掲示板の一覧とは別に読む。 */
 type MyRequest = {
@@ -426,6 +426,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [requestPhotoPreviews, setRequestPhotoPreviews] = useState<string[]>([]);
   const [planCycle, setPlanCycle] = useState<BillingCycle>('month');
   const [feedbackSent, setFeedbackSent] = useState(false);
+  const [surveys, setSurveys] = useState<MatchingSurvey[] | null>(null);
+  const [surveyIndustries, setSurveyIndustries] = useState<string[]>([]);
+  const [surveyIndustryGroup, setSurveyIndustryGroup] = useState('IT・システム');
   const [reportSent, setReportSent] = useState(false);
   const [reportBusy, setReportBusy] = useState(false);
   const [referral, setReferral] = useState<(ReferralSummary & { url: string; billing?: { ready: boolean; yearly: boolean; hasCustomer: boolean; cycle: BillingCycle; creditedYen: number; creditPerReferralYen: number } }) | null>(null);
@@ -1844,6 +1847,50 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     form.reset(); setFeedbackSent(true); showToast('ありがとうございます。いただいたご意見は必ず読みます。');
   }
 
+  async function loadSurveys() {
+    const response = await fetch('/api/matching-survey');
+    if (!response.ok) throw new Error('アンケートを読み込めませんでした。');
+    const payload = await response.json() as { surveys: MatchingSurvey[] };
+    setSurveys(payload.surveys ?? []);
+  }
+
+  async function submitSurvey(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true);
+    const form = event.currentTarget;
+    const raw = Object.fromEntries(new FormData(form));
+    const response = await fetch('/api/matching-survey', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: raw.title, details: raw.details, industryTags: surveyIndustries }),
+    });
+    const result = await response.json() as { error?: string }; setBusy(false);
+    if (!response.ok) return showToast(result.error ?? '送信できませんでした。');
+    form.reset(); setSurveyIndustries([]); await loadSurveys();
+    showToast('運営へ届きました。同じ会場の会員から候補を探します。');
+  }
+
+  async function closeSurvey(id: string) {
+    setBusy(true);
+    const response = await fetch('/api/matching-survey', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ closeId: id }),
+    });
+    setBusy(false);
+    if (!response.ok) return showToast('終了できませんでした。');
+    await loadSurveys(); showToast('この募集を終了しました。');
+  }
+
+  useEffect(() => {
+    if (activeTab !== 'survey' || surveys !== null) return;
+    let alive = true;
+    fetch('/api/matching-survey')
+      .then(async (response) => {
+        if (!response.ok) throw new Error();
+        return await response.json() as { surveys?: MatchingSurvey[] };
+      })
+      .then((payload) => { if (alive) setSurveys(payload.surveys ?? []); })
+      .catch(() => { if (alive) setSurveys([]); });
+    return () => { alive = false; };
+  }, [activeTab, surveys]);
+
   async function submitRequestReport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected || reportBusy) return;
@@ -2176,6 +2223,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div className="rank-next-copy"><b>{stats.level >= rankThresholds.length ? '最高ランクに到達' : `あと${invitesToNextRank}人の招待でランクアップ`}</b><span>参加した仲間 {stats.inviteCount}人・オファー {stats.introCount}件</span></div>
           <span className="rank-next-track"><i style={{ width: `${rankProgress}%` }} /></span>
         </button>
+        <button className="mypage-survey" onClick={() => goTab('survey')}>
+          <span className="mypage-survey-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h5M8 16h7" /></svg>
+          </span>
+          <span><b>こんな人を探しています</b><small>探している仕事や業種を答えると、同じ会場から運営がご紹介します</small></span>
+          <i aria-hidden="true">›</i>
+        </button>
         <nav className="mypage-grid" aria-label="マイページのメニュー">
           {mypageTiles.map((tile) => <button key={tile.key} className="mypage-tile" onClick={tile.go}>
             <span className="mypage-tile-icon" aria-hidden="true">{tile.icon}
@@ -2323,6 +2377,51 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             </li>)}</ul>}
         </section>
 
+        <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
+      </section> : activeTab === 'survey' ? <section className="profile-page survey-page" aria-labelledby="survey-title">
+        <header className="profile-page-heading">
+          <p>MATCHING QUESTIONNAIRE</p><h1 id="survey-title">こんな人を探しています</h1>
+          <span>探している仕事や業種を教えてください。運営が同じ会場の会員から、力になれそうな方を探します。</span>
+        </header>
+        <section className="survey-form-card">
+          <p className="survey-privacy"><b>回答は掲示板には公開されません</b>運営だけが確認し、ご紹介に必要な内容だけを候補の方へお伝えします。</p>
+          <form className="survey-form" onSubmit={submitSurvey}>
+            <label>どんな人・仕事を探していますか？
+              <input name="title" required minLength={5} maxLength={120} placeholder="例：店舗のホームページを作れる方を探しています" />
+            </label>
+            <IndustryPicker legend="探している業種" note="1〜3個" selected={surveyIndustries}
+              activeGroup={surveyIndustryGroup} onGroupChange={setSurveyIndustryGroup}
+              onToggle={(value) => setSurveyIndustries((current) => current.includes(value)
+                ? current.filter((item) => item !== value) : current.length < 3 ? [...current, value] : current)} />
+            <label>もう少し詳しく <small>任意</small>
+              <textarea name="details" maxLength={800} rows={4} placeholder="時期、場所、予算、相談したいことなど" />
+            </label>
+            <button className="submit-button" disabled={busy || surveyIndustries.length === 0}>
+              {busy ? '送っています…' : '運営に相談する'}
+            </button>
+          </form>
+        </section>
+        <section className="survey-history" aria-labelledby="survey-history-title">
+          <h2 id="survey-history-title">これまでの回答</h2>
+          {surveys === null ? <p className="survey-empty">読み込んでいます…</p>
+            : !surveys.length ? <p className="survey-empty">まだ回答はありません。探している相手ができたら、ここから運営へ相談できます。</p>
+            : surveys.map((survey) => <article className={`survey-card is-${survey.status}`} key={survey.id}>
+              <div className="survey-card-head"><div><time>{shortDate(survey.createdAt)}</time><h3>{survey.title}</h3></div>
+                <span>{survey.status === 'closed' ? '終了' : survey.introductions.length ? `${survey.introductions.length}人ご紹介` : '運営が探しています'}</span></div>
+              <div className="survey-tags">{survey.industryTags.map((tag) => <span key={tag}>{tag}</span>)}</div>
+              {survey.details && <p className="survey-details">{survey.details}</p>}
+              {!!survey.introductions.length && <div className="survey-introductions">
+                <h4>ご紹介した会員</h4>
+                {survey.introductions.map((member) => <button key={member.id} className="survey-intro-card" onClick={() => openMember(member.memberId)}>
+                  <Avatar src={member.avatarUrl} name={member.displayName} className="member-avatar" />
+                  <span><b>{member.displayName}</b><small>{[member.company, member.primaryIndustry].filter(Boolean).join(' · ')}</small><em>{member.note}</em></span>
+                  <i aria-hidden="true">›</i>
+                </button>)}
+                <p>プロフィールから、そのままメッセージを送れます。</p>
+              </div>}
+              {survey.status !== 'closed' && <button className="survey-close" onClick={() => closeSurvey(survey.id)} disabled={busy}>この相談を終了する</button>}
+            </article>)}
+        </section>
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section> : activeTab === 'feedback' ? <section className="profile-page" aria-labelledby="feedback-title">
         <header className="profile-page-heading"><p>YOUR VOICE</p><h1 id="feedback-title">こうしてほしい、を聞かせてください</h1><span>{serviceName}は作っている途中です。足りないところ、使いにくいところを教えてください。</span></header>

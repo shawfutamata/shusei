@@ -1246,6 +1246,29 @@ body { font-weight:600; }
 .admin-actions button.is-danger { border-color:#f0cdc4; color:#b4380f; }
 .admin-actions button:disabled { opacity:.5; cursor:wait; }
 
+/* 紹介アンケート。回答ごとに候補を縦に並べ、運営が名前を見てその場で紹介する。 */
+.survey-admin-list { margin-top:14px; display:grid; gap:12px; }
+.survey-admin-card { padding:17px; display:grid; gap:10px; border:1px solid #dce5f0; border-radius:15px; background:#fff; }
+.survey-admin-card.is-closed { background:#fafbfd; }
+.survey-admin-card>.survey-tags { display:flex; flex-wrap:wrap; gap:6px; }
+.survey-admin-card>.survey-tags span { padding:4px 9px; border-radius:99px; background:#edf5ff; color:#215c9f; font-size:10px; font-weight:800; }
+.survey-candidates { margin-top:3px; padding:13px; border-radius:12px; background:#f6f9fd; }
+.survey-candidates h3 { margin:0 0 8px; color:#33445d; font-size:12px; }
+.survey-candidates>p { margin:0; color:#7b8ca4; font-size:11px; }
+.survey-candidates ul { margin:0; padding:0; list-style:none; display:grid; gap:6px; }
+.survey-candidates li { padding:9px 10px; display:flex; align-items:center; gap:10px; border:1px solid #e0e7f1; border-radius:10px; background:#fff; }
+.survey-candidates li>span { min-width:0; flex:1; display:grid; gap:2px; }
+.survey-candidates li b { color:#263750; font-size:12px; }
+.survey-candidates li small { overflow:hidden; color:#8390a3; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+.survey-candidates li button { min-height:36px; padding:0 12px; flex:0 0 auto; border:0; border-radius:9px; background:#0f67c8; color:#fff; font-size:10px; font-weight:900; cursor:pointer; }
+.survey-candidates li button:disabled { opacity:.55; cursor:wait; }
+.survey-candidates li>em { flex:0 0 auto; padding:4px 8px; border-radius:99px; background:#e5f5ec; color:#267449; font-size:9px; font-style:normal; font-weight:900; }
+@media(max-width:620px){
+  .survey-admin-card { padding:14px; }
+  .survey-candidates li { align-items:flex-start; flex-wrap:wrap; }
+  .survey-candidates li button,.survey-candidates li>em { margin-left:auto; }
+}
+
 .admin-confirm-backdrop { position:fixed; inset:0; z-index:80; display:grid; place-items:center; padding:20px; background:rgba(15,32,69,.53); }
 .admin-confirm { box-shadow:0 22px 60px rgba(10,30,70,.28); width:min(100%,420px); padding:22px; display:grid; gap:12px; border-radius:18px; background:#fff; }
 .admin-confirm h2 { margin:0; font-size:19px; }
@@ -1446,6 +1469,13 @@ body { font-weight:600; }
    狭い画面でも3列。日本語の見出しは短いので、3列でも読める。 */
 /* 3列。タイルはちょうど6つで、2段にきれいに収まる。増やすときは3の倍数で。 */
 .mypage-grid { margin:14px 14px 0; display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.mypage-survey { width:calc(100% - 28px); margin:12px 14px 0; padding:15px; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:12px; border:1px solid #aed4ff; border-radius:16px; background:#eaf5ff; color:var(--navy); text-align:left; cursor:pointer; }
+.mypage-survey-mark { width:44px; height:44px; display:grid; place-items:center; border-radius:14px; background:#0f6fce; color:#fff; }
+.mypage-survey-mark svg { width:25px; height:25px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.mypage-survey>span:nth-child(2) { min-width:0; display:grid; gap:4px; }
+.mypage-survey b { font-size:14px; font-weight:900; }
+.mypage-survey small { color:#4d6e94; font-size:10px; font-weight:800; line-height:1.55; }
+.mypage-survey>i { color:#0f6fce; font-size:22px; font-style:normal; font-weight:900; }
 /* 招待だけはタイルではなく1本の帯。ランクが上がる唯一の道なので目立たせる。 */
 .mypage-invite { width:calc(100% - 28px); margin:10px 14px 0; padding:14px 15px; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:12px; border:1px solid #cfe0f7; border-radius:16px; background:linear-gradient(135deg,#eff6ff,#fff); text-align:left; cursor:pointer; }
 .mypage-invite-icon { width:42px; height:42px; display:grid; place-items:center; border-radius:13px; background:#dbeafe; }
@@ -1466,10 +1496,55 @@ body { font-weight:600; }
 .mypage-tile small { min-height:13px; color:#93a0b3; font-size:9px; font-weight:700; line-height:1.4; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
 .mypage-tile:active { background:#f7f9fc; }
 
+/* 「探している人」の回答と、運営から届いた紹介。掲示板の投稿フォームより
+   項目を減らし、まず短い一文と業種だけで相談できるようにする。 */
+.survey-page { padding-bottom:28px; }
+.survey-form-card { margin:14px; padding:16px; border:1px solid #cfe0f7; border-radius:18px; background:#f7fbff; }
+.survey-privacy { margin:0 0 15px; padding-left:12px; border-left:4px solid #0f6fce; color:#61728a; font-size:11px; line-height:1.7; }
+.survey-privacy b { display:block; color:#173c69; font-size:12px; }
+.survey-form { display:grid; gap:14px; }
+.survey-form>label { display:grid; gap:7px; color:#31435c; font-size:11px; font-weight:900; }
+.survey-form>label small { color:#91a0b5; font-size:9px; }
+.survey-form input,.survey-form textarea { width:100%; padding:12px; border:1px solid #cdd9e8; border-radius:11px; background:#fff; color:var(--ink); font:inherit; font-size:13px; line-height:1.7; outline:none; resize:vertical; }
+.survey-form input { min-height:48px; }
+.survey-form input:focus,.survey-form textarea:focus { border-color:#3b8edf; box-shadow:0 0 0 3px #dbeafe; }
+.survey-form .tag-field { margin:0; }
+.survey-history { margin:22px 14px 0; display:grid; gap:10px; }
+.survey-history>h2 { margin:0 0 2px; color:var(--navy); font-size:17px; }
+.survey-empty { margin:0; padding:20px 14px; border-radius:14px; background:#f6f8fb; color:#74849a; font-size:12px; line-height:1.8; text-align:center; }
+.survey-card { padding:15px; display:grid; gap:11px; border:1px solid #dbe4f0; border-radius:16px; background:#fff; }
+.survey-card.is-closed { background:#f8fafc; }
+.survey-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.survey-card-head>div { min-width:0; }
+.survey-card-head time { color:#91a0b5; font-size:9px; font-weight:800; }
+.survey-card-head h3 { margin:4px 0 0; color:var(--navy); font-size:14px; line-height:1.55; }
+.survey-card-head>span { flex:0 0 auto; padding:4px 9px; border-radius:99px; background:#e7f2ff; color:#0f5fc4; font-size:9px; font-weight:900; }
+.survey-card.is-closed .survey-card-head>span { background:#edf0f4; color:#7e8999; }
+.survey-tags { display:flex; flex-wrap:wrap; gap:6px; }
+.survey-tags>span { padding:4px 8px; border-radius:99px; background:#edf5ff; color:#215c9f; font-size:9px; font-weight:800; }
+.survey-details { margin:0; color:#52647c; font-size:11px; line-height:1.75; white-space:pre-wrap; }
+.survey-introductions { padding-top:11px; display:grid; gap:8px; border-top:1px solid #edf1f6; }
+.survey-introductions h4 { margin:0; color:#173c69; font-size:12px; }
+.survey-introductions>p { margin:0; color:#8391a5; font-size:9px; }
+.survey-intro-card { width:100%; padding:10px; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:10px; border:1px solid #cfe0f7; border-radius:13px; background:#f8fbff; color:inherit; text-align:left; cursor:pointer; }
+.survey-intro-card .member-avatar { width:42px; height:42px; }
+.survey-intro-card>span { min-width:0; display:grid; gap:2px; }
+.survey-intro-card b { color:var(--navy); font-size:12px; }
+.survey-intro-card small { overflow:hidden; color:#6b7c92; font-size:9px; text-overflow:ellipsis; white-space:nowrap; }
+.survey-intro-card em { margin-top:3px; color:#4c6480; font-size:9px; font-style:normal; line-height:1.5; }
+.survey-intro-card>i { color:#0f6fce; font-size:20px; font-style:normal; }
+.survey-close { justify-self:start; min-height:38px; padding:0 12px; border:1px solid #d5dce7; border-radius:9px; background:#fff; color:#6b7789; font-size:10px; font-weight:800; cursor:pointer; }
+.survey-close:disabled { opacity:.5; }
+
 @media(min-width:481px) {
   .mypage-grid { grid-template-columns:repeat(4,1fr); }
   .mypage-tile b { font-size:13px; }
   .mypage-tile small { font-size:10px; }
+  .mypage-survey b { font-size:15px; }
+  .mypage-survey small { font-size:11px; }
+  .survey-form-card,.survey-history { max-width:760px; margin-left:auto; margin-right:auto; }
+  .survey-form>label,.survey-privacy { font-size:12px; }
+  .survey-card-head h3 { font-size:16px; }
 }
 
 /* オファーの種類えらび（紹介 or 自社で請け負う）。

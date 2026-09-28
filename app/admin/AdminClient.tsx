@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { AdminAd, AdminAnalytics, AdminFeedback, AdminMember, AdminRequest, AdminRequestReport, AdminSummary } from '@/db/admin';
+import type { AdminAd, AdminAnalytics, AdminFeedback, AdminMatchingSurvey, AdminMember, AdminRequest, AdminRequestReport, AdminSummary } from '@/db/admin';
 import type { BackupEntry } from '@/db/backup';
 import { placementName } from '@/app/ad-options';
 import { rankNames } from '@/app/rank-perks';
@@ -21,7 +21,8 @@ type GachaSummary = {
 
 type AdminData = {
   summary: AdminSummary; members: AdminMember[]; requests: AdminRequest[];
-  ads: AdminAd[]; feedback: AdminFeedback[]; reports: AdminRequestReport[]; gacha?: GachaSummary;
+  ads: AdminAd[]; feedback: AdminFeedback[]; reports: AdminRequestReport[];
+  surveys: AdminMatchingSurvey[]; gacha?: GachaSummary;
 };
 
 // short は、下の帯に出す短い呼び名。狭いところで「ダッシュボ…」と
@@ -30,6 +31,7 @@ const tabs = [
   { key: 'analytics', label: 'ダッシュボード', short: 'ホーム' },
   { key: 'members', label: '会員' },
   { key: 'requests', label: '投稿' },
+  { key: 'surveys', label: '紹介アンケート', short: '回答' },
   { key: 'reports', label: '異議申立' },
   { key: 'ads', label: '広告' },
   { key: 'feedback', label: 'ご意見' },
@@ -229,6 +231,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   const { summary, gacha } = data;
   const countFor = (key: (typeof tabs)[number]['key']) => key === 'members' ? data.members.length
     : key === 'requests' ? data.requests.length : key === 'ads' ? data.ads.length
+    : key === 'surveys' ? data.surveys.filter((row) => row.status === 'new').length
     : key === 'reports' ? data.reports.filter((row) => row.status === 'new').length
     : key === 'feedback' ? data.feedback.filter((row) => row.status === 'new').length : 0;
   // 要対応。**数を並べるだけにしない。** 押すとその一覧へ飛ぶ、次の手が決まっている
@@ -236,6 +239,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   const waitingRequests = data.requests.filter((row) => row.status === 'open' && row.introCount === 0).length;
   const queue = [
     { key: 'reports', tone: 'is-red', icon: 'feedback', label: '未対応の異議申し立て', value: summary.newReports, to: 'reports' as const },
+    { key: 'surveys', tone: 'is-blue', icon: 'surveys', label: '紹介候補を探す回答', value: data.surveys.filter((row) => row.status === 'new').length, to: 'surveys' as const },
     { key: 'feedback', tone: 'is-red', icon: 'feedback', label: '未読のご意見', value: summary.newFeedback, to: 'feedback' as const },
     { key: 'waiting', tone: 'is-amber', icon: 'requests', label: 'オファーがまだ0件の募集', value: waitingRequests, to: 'requests' as const },
     { key: 'off', tone: 'is-blue', icon: 'members', label: '停止中の会員', value: summary.suspendedMembers, to: 'members' as const },
@@ -484,6 +488,31 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       </li>)}
     </ul>}
 
+    {tab === 'surveys' && <section className="survey-admin-list">
+      {!data.surveys.length && <p className="admin-empty">まだアンケート回答は届いていません。</p>}
+      {data.surveys.map((survey) => <article key={survey.id} className={`survey-admin-card is-${survey.status}`}>
+        <div className="admin-row-top">
+          <b>{survey.title}</b>
+          <span className={`admin-state ${survey.status === 'new' ? 'is-new' : survey.status === 'closed' ? 'is-off' : 'is-on'}`}>
+            {survey.status === 'new' ? '候補を探す' : survey.status === 'closed' ? '終了' : '紹介済み'}
+          </span>
+        </div>
+        <p className="admin-meta"><span>{survey.memberName}</span><span>{survey.memberCompany || '会社名なし'}</span><span>{survey.venue}</span><span>{survey.memberEmail}</span></p>
+        <div className="survey-tags">{survey.industryTags.map((tag) => <span key={tag}>{tag}</span>)}</div>
+        {survey.details && <p className="admin-body">{survey.details}</p>}
+        <div className="survey-candidates">
+          <h3>同じ会場の紹介候補</h3>
+          {!survey.candidates.length ? <p>登録業種が近い会員は、まだ見つかりません。</p>
+            : <ul>{survey.candidates.map((candidate) => <li key={candidate.id}>
+              <span><b>{candidate.displayName}</b><small>{candidate.company || '会社名なし'} · {candidate.primaryIndustry || '業種未登録'}</small></span>
+              {candidate.introduced ? <em>紹介済み</em> : <button disabled={busy === `${survey.id}:${candidate.id}`}
+                onClick={() => act(`${survey.id}:${candidate.id}`, `/api/admin/surveys/${survey.id}`, { memberId: candidate.id, note: '同じ会場で、ご希望の業種に近い会員です。' }, 'POST', `${candidate.displayName}さんを紹介しました。`)}>
+                {busy === `${survey.id}:${candidate.id}` ? '…' : 'この会員を紹介'}</button>}
+            </li>)}</ul>}
+        </div>
+      </article>)}
+    </section>}
+
     {tab === 'reports' && <ul className="admin-list">
       {!data.reports.length && <li className="admin-empty">異議申し立ては届いていません。</li>}
       {data.reports.map((row) => <li key={row.id} className={row.status === 'new' ? '' : 'is-off'}>
@@ -661,6 +690,7 @@ function SideIcon({ name }: { name: string }) {
     analytics: <><path d="M3 13h4v8H3zM10 3h4v18h-4zM17 9h4v12h-4z" /></>,
     members: <><circle cx="9" cy="8" r="3.4" /><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5" /><path d="M16 5.5a3 3 0 010 5.6M17.5 15c2.2.5 3.5 2 3.5 5" /></>,
     requests: <><path d="M5 4h11l3 3v13H5z" /><path d="M8 10h8M8 14h5" /></>,
+    surveys: <><path d="M5 4h14v16H5z" /><path d="M8 8h8M8 12h5M8 16h7" /><path d="m16 11 1.5 1.5L21 9" /></>,
     ads: <><rect x="3" y="5" width="18" height="12" rx="2" /><path d="M8 21h8" /></>,
     feedback: <><path d="M4 5h16v11H9l-5 4z" /></>,
     reports: <><path d="M12 3 4.5 6v5.5c0 4.5 3.1 7.7 7.5 9.5 4.4-1.8 7.5-5 7.5-9.5V6z" /><path d="M12 8v5M12 16h.01" /></>,
