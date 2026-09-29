@@ -19,6 +19,8 @@ async function outbound(request){
  if(u.pathname.endsWith('/menu.php'))return new Response('管理メニュー');
  if(u.pathname.endsWith('/set_info.php'))return new Response('<table><tr><th>最終名簿テーブル数</th><td>8 [H]</td></tr></table><a href="./list_download-MS.php?id=11636&cd=U">UTF-8形式名簿データ</a>');
  if(u.pathname.endsWith('/list_download-MS.php'))return new Response('1\tA\tH\t\tひるのめぐろ\tテスト印刷会社\t代表\t試験 一郎\tチラシ印刷\t会員\tしけんいちろう\n2\tI\tZ\t\tひるのめぐろ\tテスト建築会社\t代表\t試験 二郎\t内装工事\t会員\tしけんじろう');
+ if(u.pathname.endsWith('/member/index.php')){assert.equal(request.method,'POST');assert.ok(['sel_key=1','sel_key=2','sel_key=3'].includes(await request.text()));return new Response('会員一覧<a href="./member_detail.php?id=1&amp;sk=1">試験 一郎<br>シケン イチロウ</a><a href="./member_detail.php?id=2&amp;sk=2">試験 二郎<br>シケン ジロウ</a>');}
+ if(u.pathname.endsWith('/member_detail.php')){const one=u.searchParams.get('id')==='1';return new Response(`<input name="member[company_name]" value="${one?'テスト印刷会社':'別会社'}"><input name="member[member_namel]" value="試験"><input name="member[member_namef]" value="${one?'一郎':'二郎'}"><input name="member[company_type]" value="印刷"><textarea name="member[company_pr]">チラシ印刷と商品のケース印刷</textarea>`);}
  return new Response('Not Found',{status:404});
 }
 const rawKey=webcrypto.getRandomValues(new Uint8Array(32));
@@ -36,7 +38,8 @@ try{
  await Promise.all([worker.scheduled(due),worker.scheduled(due)]);
  assert.equal((await db.prepare('SELECT id FROM meeting_events').all()).results.length,1);
  const state=await db.prepare('SELECT status,tables,error FROM meeting_preparations').first();assert.equal(state.status,'ready',state.error);assert.equal(state.tables,8);
- const roster=(await db.prepare('SELECT profile FROM meeting_roster').all()).results;assert.equal(roster.length,2);assert.equal(JSON.parse(roster[0].profile).table,'');assert.equal(JSON.parse(roster[0].profile).services,'チラシ印刷');
+ const roster=(await db.prepare('SELECT profile FROM meeting_roster').all()).results;assert.equal(roster.length,2);assert.equal(JSON.parse(roster[0].profile).table,'');assert.equal(JSON.parse(roster[0].profile).services,'チラシ印刷と商品のケース印刷');
+ assert.equal(JSON.parse(roster[1].profile).services,'内装工事');assert.equal(JSON.parse(roster[1].profile).industry,'');
  await worker.scheduled(due);assert.equal((await db.prepare('SELECT profile FROM meeting_roster').all()).results.length,2);
  assert.ok(authenticatedRequests>=3);
  console.log('Verified cron timing, encrypted login, session redirects, UTF-8 roster import, table count, hidden seats and concurrent retries.');

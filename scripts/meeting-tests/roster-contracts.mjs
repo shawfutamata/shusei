@@ -30,3 +30,17 @@ const {validateAnswer}=await import('data:text/javascript;base64,'+Buffer.from(t
 const missing=rosterAnswer(imported[1],'建築業者');
 assert.equal(validateAnswer(missing,true).services,'');assert.throws(()=>validateAnswer(missing));
 console.log('PASS: canonical roster accepts missing evidence; legacy answer validation remains strict');
+
+const businessSource=stripTypeScriptTypes(readFileSync(new URL('../../app/meeting/legacy-business.ts',import.meta.url),'utf8'));
+const {parseLegacyBusiness,legacyBusinessLinks,enrichLegacyBusiness}=await import('data:text/javascript;base64,'+Buffer.from(businessSource).toString('base64'));
+const form=`<input value="架空&amp;会社" name="member[company_name]"><input name='member[member_namel]' value='山田'><input name='member[member_namef]' value='太郎'><input name='member[company_type]' value='印刷'><textarea name="member[company_pr]">チラシ印刷\nケース&amp;包装の製作</textarea><input name="member[email]" value="excluded@example.invalid">`;
+const detail=parseLegacyBusiness(form);assert.deepEqual(detail,{name:'山田 太郎',company:'架空&会社',industry:'印刷',pr:'チラシ印刷\nケース&包装の製作'});assert.throws(()=>parseLegacyBusiness('<h1>ログイン</h1>'));
+const base={...profile,name:'山田 太郎',company:'架空&会社',industry:'',services:'チラシ印刷'};
+assert.equal(enrichLegacyBusiness(base,[detail]).services,detail.pr);assert.equal(enrichLegacyBusiness(base,[detail]).industry,'印刷');
+assert.equal(enrichLegacyBusiness(base,[{...detail,company:'別会社'}]),base);assert.equal(enrichLegacyBusiness(base,[detail,detail]),base);
+assert.equal(enrichLegacyBusiness({...base,services:detail.pr},[detail]).services,detail.pr);
+assert.equal(enrichLegacyBusiness({...base,services:'チラシ 印刷'},[{...detail,pr:'チラシ  印刷'}]).services,'チラシ 印刷');
+assert.equal(guessColumns(['事業内容','事業概要']).services,1);assert.equal(guessColumns(['会社PR']).services,0);
+const links=legacyBusinessLinks('<a href="./member_detail.php?id=1&amp;sk=1">山田 太郎<br>ヤマダ タロウ</a><a href="https://evil.invalid/member_detail.php?id=1">山田 太郎</a><a href="./member_detail.php?id=2">別人</a>', ['山田太郎']);assert.deepEqual(links,['https://www.shuseiclub.jp/hirunomeguro/___STAFF___/member/member_detail.php?id=1&sk=1']);
+assert.equal(validateAnswer(rosterAnswer(enrichLegacyBusiness(base,[detail]),'印刷'),true).services,detail.pr);
+console.log('PASS: business PR, entities/newlines, exact company identity, duplicate guard, safe links and full matching evidence');

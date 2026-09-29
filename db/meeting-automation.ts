@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 import { ensureMeetings, importRoster, meeting } from './meetings';
 import { parseSchedule, scheduleSource, type ScheduledMeeting } from '@/app/meeting/schedule';
 import { parseDelimited,prepareRosterRows,validateRoster } from '@/app/meeting/roster';
+import {parseLegacyBusiness,legacyBusinessLinks,enrichLegacyBusiness,type LegacyBusiness} from '@/app/meeting/legacy-business';
 
 type Settings={enabled:boolean;minutes:number;tables:number;connection:string};
 export type Preparation=ScheduledMeeting & {meetingId:string|null;tables:number;status:string;error:string;};
@@ -39,11 +40,11 @@ export async function syncSchedule(now=Date.now()){
 // A fresh session for each run. Never stores browser cookies or logs login URLs.
 async function legacyRoster(sourceId:string,connection:string){
   const base='https://www.shuseiclub.jp';let cookie='';
-  async function get(url:string){for(let i=0;i<8;i++){
+  async function get(url:string,filter?:number){for(let i=0;i<8;i++){
     const u=new URL(url);if(u.origin!==base||!u.pathname.startsWith('/hirunomeguro/___STAFF___/'))throw new Error('名簿取得先を確認できません。');
-    const response=await fetch(url,{redirect:'manual',headers:cookie?{Cookie:cookie}:{},signal:AbortSignal.timeout(20000)});
+    const response=await fetch(url,{redirect:'manual',method:filter?'POST':'GET',body:filter?new URLSearchParams({sel_key:String(filter)}):undefined,headers:{...(cookie?{Cookie:cookie}:{}),...(filter?{'Content-Type':'application/x-www-form-urlencoded'}:{})},signal:AbortSignal.timeout(20000)});
     const set=response.headers.getSetCookie();if(set.length){const jar=new Map(cookie.split('; ').filter(Boolean).map(c=>[c.split('=')[0],c]));for(const c of set){const value=c.split(';')[0];jar.set(value.split('=')[0],value);}cookie=[...jar.values()].join('; ');}
-    if(response.status>=300&&response.status<400&&response.headers.get('location')){url=new URL(response.headers.get('location')!,url).href;continue;}
+    if(response.status>=300&&response.status<400&&response.headers.get('location')){url=new URL(response.headers.get('location')!,url).href;filter=undefined;continue;}
     if(!response.ok)throw new Error('名簿取得に失敗しました。再接続してください。');return response;
   }throw new Error('とみざわシステムへの接続を確認してください。');}
   await get(await unseal(connection));
@@ -55,7 +56,15 @@ async function legacyRoster(sourceId:string,connection:string){
   const prepared=prepareRosterRows(parseDelimited(new TextDecoder('utf-8',{fatal:true}).decode(await file.arrayBuffer())));
   if(prepared.format!=='meeting-export')throw new Error('まちださがみ形式の名簿を確認できません。');
   const profiles=validateRoster(prepared.rows.slice(1).map(r=>({name:r[7],company:r[5],table:'',industry:'',services:r[8],area:''})));
-  return {profiles,tables};
+  const links=new Set<string>();
+  for(const category of [1,2,3]){
+    const html=await(await get(base+'/hirunomeguro/___STAFF___/member/index.php',category)).text();
+    if(!html.includes('会員一覧'))throw new Error('会員一覧の取得に失敗しました。再接続してください。');
+    for(const link of legacyBusinessLinks(html,profiles.map(p=>p.name)))links.add(link);
+  }
+  const details:LegacyBusiness[]=[];
+  for(const link of links)details.push(parseLegacyBusiness(await(await get(link)).text()));
+  return {profiles:validateRoster(profiles.map(p=>enrichLegacyBusiness(p,details))),tables};
 }
 export async function prepareScheduled(key:string,force=false,now=Date.now()){
  const s=await settings();const row=await env.DB.prepare('SELECT schedule,meeting_id,status FROM meeting_preparations WHERE source_key=?').bind(key).first<{schedule:string;meeting_id:string|null;status:string}>();if(!row)throw new Error('開催日を選んでください。');

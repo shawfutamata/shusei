@@ -1,10 +1,10 @@
 import type { Answer, RosterPerson } from './types';
 export const profileFields = ['name','company','table','industry','services','area'] as const;
 export const rosterLabels = {name:'氏名',company:'会社名',table:'テーブル',industry:'業種',services:'事業内容',area:'対応地域'};
-const aliases = {name:['氏名','名前','お名前','会員名','参加者名'],company:['会社名','会社','企業名','屋号','会社・屋号'],table:['テーブル','テーブル番号','席番号','テーブル・席番号'],industry:['業種','業種名','ご自身の業種'],services:['事業内容','仕事内容','取扱商品','提供サービス','できる仕事','業種詳細'],area:['対応地域','対応エリア','活動エリア','エリア']};
+const aliases = {name:['氏名','名前','お名前','会員名','参加者名'],company:['会社名','会社','企業名','屋号','会社・屋号'],table:['テーブル','テーブル番号','席番号','テーブル・席番号'],industry:['業種','業種名','ご自身の業種'],services:['事業概要','会社PR','事業内容','仕事内容','取扱商品','提供サービス','できる仕事','業種詳細'],area:['対応地域','対応エリア','活動エリア','エリア']};
 export function normalizedName(value:string) {return value.normalize('NFKC').replace(/[\s　]/g,'').toLowerCase();}
 export function guessColumns(headers:string[]) {
-  return Object.fromEntries(profileFields.map(key=>[key,headers.findIndex(h=>aliases[key].includes(h.trim()))])) as Record<typeof profileFields[number],number>;
+  return Object.fromEntries(profileFields.map(key=>[key,aliases[key].map(alias=>headers.findIndex(h=>h.trim()===alias)).find(i=>i>=0)??-1])) as Record<typeof profileFields[number],number>;
 }
 // CSV quotes, embedded newlines and tab-separated Excel paste are handled without executing cells.
 export function parseDelimited(text:string):string[][] {
