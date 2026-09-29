@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 const moduleUrl=source=>'data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes(source)).toString('base64');
 const typesUrl=moduleUrl(readFileSync(new URL('../../app/meeting/types.ts',import.meta.url),'utf8'));
 const {validateCandidates,validateAnswer}=await import(typesUrl);
-const {matchAttendee}=await import(moduleUrl(readFileSync(new URL('../../app/meeting/matching.ts',import.meta.url),'utf8').replace("'./types'",JSON.stringify(typesUrl))));
+const {matchAttendee,inferObject}=await import(moduleUrl(readFileSync(new URL('../../app/meeting/matching.ts',import.meta.url),'utf8').replace("'./types'",JSON.stringify(typesUrl))));
 const base={name:'仮名',company:'架空社',table:'1',industry:'建築',services:'飲食店の給排水工事を行います。',referrals:'',need:'飲食店の給排水工事を依頼したい',area:'東京',timing:'',budget:'',conditions:'',present:1,analyzed:0,candidates:[]};
 const seeker={...base,id:'s'}, provider={...base,id:'p',need:''};
 const candidate={id:'p',kind:'direct',reason:'給排水工事の対応が一致',needQuote:'給排水工事',offerQuote:'給排水工事',questions:[]};
@@ -23,3 +23,22 @@ console.log('PASS: answer validation, event isolation, attendance, self-match, e
 
 assert.equal((await matchAttendee(ai,seeker,[seeker,{...provider,industry:'',walkIn:true}]))[0].id,'p');
 console.log('PASS: self-entered walk-in business evidence participates in matching');
+
+// A malformed output retries the failed step, not earlier validated inferences.
+const checkpoint=new Map();let runs=0;
+const resumable={
+ async readInference(key){return checkpoint.get(key);},
+ async writeInference(key,value){checkpoint.set(key,value);},
+ async run(){runs++;return {response:runs===1?'truncated {':runs===2?'{"wrong":[]}':'{"matches":[]}'};},
+};
+const validate=value=>Array.isArray(value.matches);
+assert.deepEqual(await inferObject(resumable,'fixture',{batch:1},validate),{matches:[]});
+assert.equal(runs,3);assert.equal(checkpoint.size,1);
+await inferObject(resumable,'fixture',{batch:1},validate);assert.equal(runs,3);
+let failures=0;
+await assert.rejects(()=>inferObject({...resumable,async run(){failures++;throw new Error('temporary failure');}},'fixture',{batch:2},validate));
+assert.equal(failures,3);assert.equal(checkpoint.size,1);
+await inferObject(resumable,'fixture',{batch:1},validate);assert.equal(runs,3);
+assert.deepEqual(await inferObject(resumable,'fixture',{batch:2},validate),{matches:[]});
+assert.equal(runs,4);assert.equal(checkpoint.size,2);
+console.log('PASS: malformed JSON and invalid schema retry only one step; validated checkpoints survive later failure and resume without repeated calls');

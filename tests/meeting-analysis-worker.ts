@@ -17,11 +17,23 @@ export default {async fetch(){
  const first=await processAnalysisJob(id+':a0',{async run(){throw new Error('transient');}});
  ok(first==='retry'&&(await meetingAnalysisProgress(id)).completed===0,'transient error is retried without saving false empty result');
  ok((await meetingAnalysisProgress(id)).retrying===1,'retry status is visible');
+ ok((await env.DB.prepare("SELECT error FROM meeting_analysis_jobs WHERE answer_id='a0'").first<{error:string}>())?.error==='inference_failure:direct_ranking','safe failure category and analysis stage are persisted');
  ok(await processAnalysisJob(id+':a1',ai)==='done','other participant continues despite failed peer');
  ok((await meetingAnalysisProgress(id)).completed===1&&(await meeting(id))?.state==='analyzing','event is not complete while one answer is pending');
  ok(await processAnalysisJob(id+':a0',ai)==='done','failed participant succeeds on later delivery');
  ok((await meeting(id))?.state==='review'&&(await meetingAnalysisProgress(id)).completed===2,'last successful delivery moves event to review');
  const previousCalls=calls;await processAnalysisJob(id+':a0',ai);ok(calls===previousCalls,'duplicate delivery does not reanalyze completed answer');
+ // Validated D1 checkpoints survive a later invalid model response.
+ await env.DB.prepare("UPDATE meeting_events SET state='analyzing' WHERE id=?").bind(id).run();
+ await env.DB.prepare("UPDATE meeting_answers SET analyzed=0 WHERE id='a0'").run();
+ await env.DB.prepare("UPDATE meeting_analysis_jobs SET status='queued',attempts=0,lease_until=0 WHERE answer_id='a0'").run();
+ let interruptedCalls=0;
+ ok(await processAnalysisJob(id+':a0',{async run(){interruptedCalls++;return {response:interruptedCalls===1?'{"matches":[]}':'broken JSON'};}})==='retry','malformed later inference remains incomplete');
+ ok(interruptedCalls===4,'invalid inference is retried locally three times');
+ ok((await env.DB.prepare('SELECT COUNT(*) AS n FROM meeting_analysis_cache WHERE job_id=?').bind(id+':a0').first<{n:number}>())?.n===1,'only earlier validated step is retained in D1');
+ let resumedCalls=0;
+ await processAnalysisJob(id+':a0',{async run(){resumedCalls++;return {response:'{"matches":[]}'};}});
+ ok(resumedCalls===1&&(await meeting(id))?.state==='review','next delivery resumes failed step without repeating saved step');
  // Exhaustion never blocks analysis of other people or publishes fabricated results.
  await env.DB.prepare("UPDATE meeting_events SET state='analyzing' WHERE id=?").bind(id).run();
  await env.DB.prepare("UPDATE meeting_answers SET analyzed=0 WHERE id='a0'").run();

@@ -43,6 +43,7 @@ export async function processAnalysisJob(jobId:string,ai:AIClient=env.MEETING_AI
  const job=await env.DB.prepare('SELECT * FROM meeting_analysis_jobs WHERE id=?').bind(jobId).first<Job>();
  if(!job)return 'done';const event=await meeting(job.event_id);
  if(!event||event.state!=='analyzing'||job.status==='failed'||job.status==='complete')return 'done';
+ let stage='load',callCount=0;
  const lock=crypto.randomUUID();
  const acquired=await env.DB.prepare(`UPDATE meeting_analysis_jobs SET status='processing',attempts=attempts+1,lease_id=?,lease_until=?
  WHERE id=? AND status NOT IN ('failed','complete') AND lease_until<?`).bind(lock,Date.now()+LEASE_MS,jobId,Date.now()).run();
@@ -50,21 +51,25 @@ export async function processAnalysisJob(jobId:string,ai:AIClient=env.MEETING_AI
  try{
   const all=(await attendees(job.event_id)).filter(p=>p.present===1),seeker=all.find(p=>p.id===job.answer_id);
   if(!seeker||seeker.analyzed){await env.DB.prepare("UPDATE meeting_analysis_jobs SET status='complete',lease_until=0 WHERE id=? AND lease_id=?").bind(jobId,lock).run();await finishEvent(job.event_id);return 'done';}
-  // Completed inference calls survive a worker interruption. Invalid output is never cached.
-  const client:AIClient={async run(model,inputs){
-   const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify({model,inputs})));
-   const key=Array.from(new Uint8Array(bytes)).map(b=>b.toString(16).padStart(2,'0')).join('');
-   const cached=await env.DB.prepare('SELECT result FROM meeting_analysis_cache WHERE job_id=? AND call_key=?').bind(jobId,key).first<{result:string}>();
-   if(cached)return JSON.parse(cached.result);
-   const output=await ai.run(model,inputs);
-   const response=output as {response?:unknown;choices?:{message?:{content?:string}}[]};
-   const text=typeof response?.response==='string'?response.response:response?.choices?.[0]?.message?.content??JSON.stringify(response?.response??{});
-   try{JSON.parse(text.replace(/<think>[\s\S]*?<\/think>/g,'').trim().replace(/^```(?:json)?\s*|\s*```$/g,''));
+  // Cache only parsed, schema-validated inference steps; retry resumes the valid prefix.
+  async function cacheKey(key:string){
+   const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(key));
+   return Array.from(new Uint8Array(bytes)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  const client:AIClient={
+   async run(model,inputs){
+    stage=inputs.messages[0].content.startsWith('RELATED_REVIEW')?'related_review':inputs.messages[0].content.startsWith('RELATED_WORKFLOW')?'related_ranking':inputs.messages[0].content.includes('hardConstraints')?'direct_review':'direct_ranking';callCount++;
+    return ai.run(model,inputs);
+   },
+   async readInference(key){
+    const cached=await env.DB.prepare('SELECT result FROM meeting_analysis_cache WHERE job_id=? AND call_key=?').bind(jobId,await cacheKey(key)).first<{result:string}>();
+    return cached?JSON.parse(cached.result):undefined;
+   },
+   async writeInference(key,result){
     await env.DB.prepare(`INSERT OR REPLACE INTO meeting_analysis_cache(job_id,call_key,result) SELECT ?,?,?
-      WHERE EXISTS(SELECT 1 FROM meeting_analysis_jobs WHERE id=? AND lease_id=? AND status='processing')`).bind(jobId,key,JSON.stringify(output),jobId,lock).run();
-   }catch{/* Parsing/validation remains with the matcher. */}
-   return output;
-  }};
+      WHERE EXISTS(SELECT 1 FROM meeting_analysis_jobs WHERE id=? AND lease_id=? AND status='processing')`).bind(jobId,await cacheKey(key),JSON.stringify(result),jobId,lock).run();
+   },
+  };
   const choices=await matchAttendee(client,seeker,all);
   await env.DB.batch([
    env.DB.prepare(`UPDATE meeting_answers SET candidates=?,analyzed=1 WHERE id=? AND event_id=? AND EXISTS
@@ -74,13 +79,16 @@ export async function processAnalysisJob(jobId:string,ai:AIClient=env.MEETING_AI
   ]);
   await env.DB.prepare('DELETE FROM meeting_analysis_cache WHERE job_id=?').bind(jobId).run();
   await finishEvent(event.id);return 'done';
- }catch{
+ }catch(error){
+  const message=error instanceof Error?error.message:'';
+  const category=error instanceof SyntaxError?'invalid_json':/時間|timeout|timed out/i.test(message)?'timeout':/limit|429|rate/i.test(message)?'rate_limit':/審査|説明|形式|有効な回答/.test(message)?'invalid_shape':/D1|SQLITE|database/i.test(message)?'database':'inference_failure';
+  const diagnostic=category+':'+stage;
+  console.error('Meeting analysis failed',JSON.stringify({jobId,category,stage,callCount}));
   const attempt=await env.DB.prepare('SELECT attempts FROM meeting_analysis_jobs WHERE id=? AND lease_id=?').bind(jobId,lock).first<{attempts:number}>();
   // Never turn an AI failure into a fabricated 'no candidates' result.
   await env.DB.batch([
-   env.DB.prepare("UPDATE meeting_analysis_jobs SET status=?,lease_until=0,lease_id='',error='AIの応答を再確認しています',dispatch_at=? WHERE id=? AND lease_id=?")
-    .bind((attempt?.attempts??MAX_ATTEMPTS)>=MAX_ATTEMPTS?'failed':'retry',Date.now()+24*3600000,jobId,lock),
-   env.DB.prepare('DELETE FROM meeting_analysis_cache WHERE job_id=?').bind(jobId),
+   env.DB.prepare("UPDATE meeting_analysis_jobs SET status=?,lease_until=0,lease_id='',error=?,dispatch_at=? WHERE id=? AND lease_id=?")
+    .bind((attempt?.attempts??MAX_ATTEMPTS)>=MAX_ATTEMPTS?'failed':'retry',diagnostic,Date.now()+24*3600000,jobId,lock),
   ]);
   return (attempt?.attempts??MAX_ATTEMPTS)>=MAX_ATTEMPTS?'done':'retry';
  }
