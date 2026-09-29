@@ -1,3 +1,5 @@
+import MeetingSignup from '../MeetingSignup';
+import {getMeetingAccess} from '@/app/meeting/auth';
 import { notFound } from 'next/navigation';
 import { meeting } from '@/db/meetings';
 import MeetingForm from '../MeetingForm';
@@ -7,5 +9,5 @@ export const metadata={title:'本日の仕事つながりアンケート｜ひ�
 export default async function Page({params}:{params:Promise<{code:string}>}) {
   const event=await meeting((await params).code);
   if(!event) notFound();
-  return <MeetingForm event={event}/>;
+  return (await getMeetingAccess())?<MeetingForm event={event}/> : <MeetingSignup event={event}/>;
 }

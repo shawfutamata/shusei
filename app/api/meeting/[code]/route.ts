@@ -1,7 +1,9 @@
+import {getMeetingAccess} from '@/app/meeting/auth';
 import { NextResponse } from 'next/server';
 import { meeting, ownResult, submitAnswer, checkSubmissionLimit, findRoster, rosterOptions, selectedRoster } from '@/db/meetings';
 const noCache = {'Cache-Control':'no-store','Referrer-Policy':'no-referrer'};
 export async function GET(request:Request,{params}:{params:Promise<{code:string}>}) {
+  if(!await getMeetingAccess())return NextResponse.json({error:'Googleまたはメールで登録してアンケートへ進んでください。'},{status:401,headers:{'Cache-Control':'no-store'}});
   const {code}=await params;
   const token=request.headers.get('authorization')?.replace(/^Bearer /,'');
   if(token) {
@@ -21,6 +23,7 @@ export async function GET(request:Request,{params}:{params:Promise<{code:string}
   return event ? NextResponse.json({event},{headers:noCache}) : NextResponse.json({error:'アンケートが見つかりません。'},{status:404,headers:noCache});
 }
 export async function POST(request:Request,{params}:{params:Promise<{code:string}>}) {
+  if(!await getMeetingAccess())return NextResponse.json({error:'Googleまたはメールで登録してアンケートへ進んでください。'},{status:401,headers:{'Cache-Control':'no-store'}});
   if(request.headers.get('origin') && request.headers.get('origin')!==new URL(request.url).origin) return NextResponse.json({error:'送信元を確認してください。'},{status:403});
   try {
     const code=(await params).code;

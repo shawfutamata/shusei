@@ -1153,7 +1153,7 @@ function canUseMembership(status: unknown, currentPeriodEnd: string) {
   return true;
 }
 
-async function hashMobileSecret(value: string) {
+export async function hashMobileSecret(value: string) {
   // 手元は .dev.vars が無くても動いてほしい。import.meta.env.DEV は本番ビルドで
   // false に置き換わるため、この既定値が本番に紛れ込むことはない。
   const pepper = env.AUTH_CODE_PEPPER || (import.meta.env.DEV ? 'local-development-pepper' : '');

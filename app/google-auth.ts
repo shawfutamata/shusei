@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 export { safeReturnPath } from './auth-return';
 
+export const GOOGLE_MEETING_COOKIE = 'google_oauth_meeting';
 export const GOOGLE_STATE_COOKIE = 'google_oauth_state';
 export const GOOGLE_INVITE_COOKIE = 'google_oauth_invite';
 export const GOOGLE_RETURN_COOKIE = 'google_oauth_return';

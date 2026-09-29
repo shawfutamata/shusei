@@ -1,7 +1,9 @@
+import {meeting} from '@/db/meetings';
+import {startMeetingAccount} from '@/db/meeting-accounts';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE } from '@/app/app-auth';
-import { GOOGLE_INVITE_COOKIE, GOOGLE_RETURN_COOKIE, GOOGLE_SIGNUP_COOKIE, GOOGLE_STATE_COOKIE, exchangeGoogleCode, googleRedirectUri, safeReturnPath } from '@/app/google-auth';
+import { GOOGLE_MEETING_COOKIE, GOOGLE_INVITE_COOKIE, GOOGLE_RETURN_COOKIE, GOOGLE_SIGNUP_COOKIE, GOOGLE_STATE_COOKIE, exchangeGoogleCode, googleRedirectUri, safeReturnPath } from '@/app/google-auth';
 import { registerDirectMember, registerEarlyAccessMember, registerInvitedMember, startMemberSessionByEmail } from '@/db/data';
 import { memberLoginPath } from '@/app/auth-return';
 
@@ -28,6 +30,17 @@ export async function GET(request: Request) {
     return redirectHome(request, 'failed', back);
   }
 
+  const meetingId=jar.get(GOOGLE_MEETING_COOKIE)?.value||'';
+  if(meetingId) {
+    if(!await meeting(meetingId))return redirectHome(request,'failed',back);
+    const destination=back===`/meeting/${meetingId}/requests`?back:`/meeting/${meetingId}`;
+    try {
+      const started=await startMeetingAccount(account.email,account.name);
+      const response=redirectHome(request,undefined,destination);
+      response.cookies.set(SESSION_COOKIE,started.token,{httpOnly:true,secure:true,sameSite:'lax',path:'/',expires:new Date(started.expiresAt)});
+      return response;
+    }catch{return redirectHome(request,'denied',destination);}
+  }
   let session;
   try {
     session = await startMemberSessionByEmail(account.email);
@@ -87,11 +100,12 @@ export async function GET(request: Request) {
 
 function redirectHome(request: Request, login?: string, back = '') {
   // Show failures in the login form and preserve the intended destination for retry.
-  const target = new URL(login && login !== 'early' && login !== 'invited'
+  const survey=/^\/meeting\/[a-zA-Z0-9-]+(?:\/requests)?$/.test(back);
+  const target = new URL(survey&&login?`${back}?login=${encodeURIComponent(login)}`:login && login !== 'early' && login !== 'invited'
     ? memberLoginPath(back, login)
     : login ? `/?login=${encodeURIComponent(login)}` : back || '/', request.url);
   const response = NextResponse.redirect(target);
-  for (const name of [GOOGLE_STATE_COOKIE, GOOGLE_INVITE_COOKIE, GOOGLE_SIGNUP_COOKIE, GOOGLE_RETURN_COOKIE]) {
+  for (const name of [GOOGLE_MEETING_COOKIE, GOOGLE_STATE_COOKIE, GOOGLE_INVITE_COOKIE, GOOGLE_SIGNUP_COOKIE, GOOGLE_RETURN_COOKIE]) {
     response.cookies.set(name, '', { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 0 });
   }
   return response;

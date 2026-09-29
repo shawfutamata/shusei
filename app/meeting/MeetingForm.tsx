@@ -53,7 +53,7 @@ export default function MeetingForm({event:initial}:{event:Meeting}) {
   const closed=now>=event.closesAt||event.state!=='open';
   return <main className={`meeting-page meeting-survey${result&&!editing?' meeting-results':''}`}><section className="meeting-shell">
     {(!result||editing)&&<><p className="meeting-eyebrow">{event.venue} · {event.title}</p><h1>{editing?'希望を編集する':'今日、つながりたい相手は？'}</h1></>}
-    {(!result||editing)?<><p className="meeting-lead">{editing?`${answer.name}さんの希望を変更できます。`:'お名前を選んで、つながりたい相手をひと言。ログインは不要です。'}</p><p className="meeting-help">受付締切：{new Date(event.closesAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'})}（日本時間）</p>
+    {(!result||editing)?<><p className="meeting-lead">{editing?`${answer.name}さんの希望を変更できます。`:'お名前を選んで、つながりたい相手をひと言。'}</p><p className="meeting-help">受付締切：{new Date(event.closesAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'})}（日本時間）</p>
     {closed?<p role="status">受付は締め切りました。回答済みの方は、この下から結果を開けます。</p>:<form onSubmit={submit}><fieldset disabled={!token||busy}>
       {editing?<p className="meeting-help">{answer.company}</p>:!walkIn?<><label>① お名前を名簿から選ぶ<select aria-label="お名前を名簿から選ぶ" value={selected?.id??''} disabled={busy||loadingNames||!!result} onChange={e=>void choose(e.target.value)}><option value="">{loadingNames?'名簿を読み込んでいます…':'お名前を選んでください'}</option>{options.map(p=><option key={p.id} value={p.id}>{p.name}（{p.company}）</option>)}</select></label>
       {!result&&<button type="button" className="meeting-secondary" onClick={()=>{setWalkIn(true);setSelected(null);setAnswer(empty);setConsent(false);setMessage('');}}>名簿にない方はこちら（当日参加）</button>}
