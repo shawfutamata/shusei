@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getAdmin } from '@/app/admin-auth';
 import { listMeetings,meeting,attendees,createMeeting,confirmAttendance,analyzeNext,removeCandidate,publishMeeting,roster,importRoster } from '@/db/meetings';
+import { setQrTableCount,qrTableCount } from '@/db/meeting-automation';
 const headers={'Cache-Control':'no-store'};
 export async function GET(request:Request) {
   if(!await getAdmin()) return NextResponse.json({error:'権限がありません。'},{status:403,headers});
   const id=new URL(request.url).searchParams.get('id');
-  return NextResponse.json(id?{event:await meeting(id),attendees:await attendees(id),roster:await roster(id)}:{events:await listMeetings()},{headers});
+  return NextResponse.json(id?{event:await meeting(id),attendees:await attendees(id),roster:await roster(id),qrTables:await qrTableCount(id)}:{events:await listMeetings()},{headers});
 }
 export async function POST(request:Request) {
   if(!await getAdmin()) return NextResponse.json({error:'権限がありません。'},{status:403,headers});
@@ -17,6 +18,7 @@ export async function POST(request:Request) {
     if(body.action==='create') return NextResponse.json({id:await createMeeting(body)},{headers});
     if(typeof body.id!=='string' || !await meeting(body.id)) throw new Error('例会を選んでください。');
     switch(body.action) {
+      case 'qr-tables': await setQrTableCount(body.id,body.tables);break;
       case 'import': await importRoster(body.id,body.people,body.consent);break;
       case 'attendance':
         if(typeof body.personId!=='string' || typeof body.present!=='boolean') throw new Error('出席者を確認してください。');
@@ -28,6 +30,6 @@ export async function POST(request:Request) {
       case 'publish': await publishMeeting(body.id); break;
       default: throw new Error('操作を確認してください。');
     }
-    return NextResponse.json({event:await meeting(body.id),attendees:await attendees(body.id),roster:await roster(body.id)},{headers});
+    return NextResponse.json({event:await meeting(body.id),attendees:await attendees(body.id),roster:await roster(body.id),qrTables:await qrTableCount(body.id)},{headers});
   }catch(error){return NextResponse.json({error:error instanceof Error?error.message:'処理できませんでした。'},{status:400,headers});}
 }

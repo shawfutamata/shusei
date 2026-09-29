@@ -291,7 +291,7 @@ type MyRequest = {
   thumbUrl: string; imageCount: number; hasVideo: boolean;
 };
 
-export default function BoardClient({ initialRequests, initialStats, initialAds, userName, adReturn = '', initialTab }: { initialRequests: BoardRequest[]; initialStats: MemberStats; initialAds: AdSlot[]; userName: string; adReturn?: string; initialTab?: MyTab }) {
+export default function BoardClient({ initialRequests, initialStats, initialAds, userName, canManageMeetings=false, adReturn = '', initialTab }: { initialRequests: BoardRequest[]; initialStats: MemberStats; initialAds: AdSlot[]; userName: string; canManageMeetings?:boolean; adReturn?: string; initialTab?: MyTab }) {
   const [requests, setRequests] = useState(initialRequests);
   const [stats, setStats] = useState(initialStats);
   const [ads, setAds] = useState(initialAds);
@@ -1965,6 +1965,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       </header>
 
       {activeTab === 'home' ? <div className="home-dashboard">
+        {canManageMeetings&&<a href="/admin/meetings" className="dashboard-meeting-link"><b>例会アンケート</b><span>作成・名簿・テーブル用QRを管理</span><i>→</i></a>}
         {/* 届いたオファーは、この場でいちばん大事な知らせ。**広告より上に置く。**
             1件なら、そのやり取りへ直に入る。何件もあるときは一覧へ送る。
             どちらも開けば既読になるので、この知らせはひとりでに引っ込む。 */}

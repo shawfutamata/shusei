@@ -27,7 +27,7 @@ export function parseDelimited(text:string):string[][] {
 // Detect every row rather than guessing from a single person's data.
 export function prepareRosterRows(data:string[][]) {
   const exported=data.length>0&&data.every((r,i)=>r.length===11&&r[0]===String(i+1)&&
-    /^[A-H](?:★)?$|^#$|^$/.test(r[1])&&/^[A-H](?:★)?$|^$/.test(r[2])&&
+    /^[A-Z](?:★)?$|^#$|^$/.test(r[1])&&/^[A-Z](?:★)?$|^$/.test(r[2])&&
     (r[3]==='#'||r[3]==='')&&!!r[4]&&!!r[5]&&!!r[7]&&!!r[10]);
   if(exported) {
     const headers=['番号','テーブル1','テーブル2','印','所属会場','会社名','役職','氏名','事業内容','会員区分・紹介者','ふりがな'];

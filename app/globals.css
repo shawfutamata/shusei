@@ -2770,3 +2770,4 @@ body { font-weight:600; }
   text-overflow:ellipsis; white-space:nowrap; }
 .offer-alert i { flex:0 0 auto; padding:5px 10px; border-radius:99px; background:rgba(255,255,255,.2);
   font-size:11px; font-style:normal; font-weight:900; }
+.dashboard-meeting-link{display:flex;gap:12px;align-items:center;padding:16px 20px;margin-bottom:16px;border:1px solid #d8e5ef;border-radius:12px;background:white;text-decoration:none;color:#0754a1}.dashboard-meeting-link span{font-size:13px;color:#526979}.dashboard-meeting-link i{margin-left:auto;font-style:normal}@media(max-width:600px){.dashboard-meeting-link{flex-wrap:wrap}.dashboard-meeting-link span{flex-basis:75%}}

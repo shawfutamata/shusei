@@ -297,7 +297,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       </div>
     </header>
 
-    {tab === 'analytics' && <section className="viz-panel">
+    {tab === 'analytics' && <section className="viz-panel"><a className="viz-export" href="/admin/meetings">例会アンケートを作成・管理 / テーブル用QR →</a>
       <dl className="admin-kpis">
         <div><dt>累計会員数</dt><dd>{yen0(summary.members)}<small>人</small></dd><small>利用中 {summary.activeMembers}／停止 {summary.suspendedMembers}</small></div>
         <div><dt>課金している会員</dt><dd>{yen0(summary.paidMembers)}<small>人</small></dd>

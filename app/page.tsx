@@ -6,6 +6,7 @@ import { serviceName } from './brand';
 import { getBoardData } from '@/db/data';
 import BrandMark from './BrandMark';
 import LegalLinks from './LegalLinks';
+import { isAdminEmail } from './admin-auth';
 
 export const metadata = {
   alternates: { canonical: 'https://tasuki.club/' },
@@ -36,5 +37,5 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ l
   const { ad, tab } = await searchParams;
   const adReturn = ad === 'done' || ad === 'cancel' ? ad : '';
   const initialTab = tab === 'survey' ? 'survey' : undefined;
-  return <BoardClient initialRequests={requests} initialStats={stats} initialAds={ads} userName={access.user.displayName} adReturn={adReturn} initialTab={initialTab} />;
+  return <BoardClient canManageMeetings={isAdminEmail(access.user.email)} initialRequests={requests} initialStats={stats} initialAds={ads} userName={access.user.displayName} adReturn={adReturn} initialTab={initialTab} />;
 }
