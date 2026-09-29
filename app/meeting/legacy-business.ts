@@ -20,13 +20,13 @@ export function parseLegacyBusiness(html:string):LegacyBusiness {
  if(!name||!company||!fields.has('member[company_pr]'))throw new Error('会員の事業概要を取得できません。ログインと会員情報を確認してください。');
  return {name,company,industry:value('company_type'),pr:value('company_pr')};
 }
-export function legacyBusinessLinks(html:string,names:string[]){
+export function legacyBusinessLinks(html:string,names:string[],legacySlug='hirunomeguro'){
  const wanted=new Set(names.map(key)),links=new Set<string>();
  for(const m of html.matchAll(/<a\b[^>]*>[\s\S]*?<\/a\s*>/gi)){
   const href=attributes(m[0].slice(0,m[0].indexOf('>')+1)).href;
   if(!href)continue;
-  const u=new URL(href,'https://www.shuseiclub.jp/hirunomeguro/___STAFF___/member/');
-  if(u.origin!=='https://www.shuseiclub.jp'||u.pathname!=='/hirunomeguro/___STAFF___/member/member_detail.php'||!/^\d+$/.test(u.searchParams.get('id')||''))continue;
+  const u=new URL(href,`https://www.shuseiclub.jp/${legacySlug}/___STAFF___/member/`);
+  if(u.origin!=='https://www.shuseiclub.jp'||u.pathname!==`/${legacySlug}/___STAFF___/member/member_detail.php`||!/^\d+$/.test(u.searchParams.get('id')||''))continue;
   const text=decode(m[0].slice(m[0].indexOf('>')+1).split(/<br\b[^>]*>/i)[0].replace(/<[^>]*>/g,'')).trim();
   if(wanted.has(key(text)))links.add(u.href);
  }

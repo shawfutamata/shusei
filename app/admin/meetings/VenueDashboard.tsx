@@ -1,0 +1,4 @@
+'use client';
+import MeetingWorkspace from './MeetingWorkspace';
+import '@/app/meeting/meeting.css';
+export default function VenueDashboard({name,email,initialEventId,initialView}:{name:string;email:string;initialEventId?:string;initialView?:string}){return <div className="admin-shell venue-admin-shell"><aside className="admin-side"><div className="admin-brand"><b>例会マッチング管理</b></div><nav aria-label="会場運営"><span className="admin-nav-group"><button className="is-active">例会アンケート</button></span></nav><div className="admin-who"><b>{name}</b><small>{email}</small><small>Powered by TASUKI</small></div></aside><main className="admin"><header className="admin-header"><div><h1>会場ダッシュボード</h1><p>担当する会場の例会・回答・紹介候補を管理できます。</p></div><button onClick={async()=>{await fetch('/api/auth/session',{method:'DELETE'});location.assign('/login/member?return_to=%2Fadmin');}}>ログアウト</button></header><MeetingWorkspace initialEventId={initialEventId} initialView={initialView}/></main></div>;}

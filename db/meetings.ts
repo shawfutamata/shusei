@@ -1,6 +1,7 @@
 import { matchAttendee } from '@/app/meeting/matching';
 import { env } from 'cloudflare:workers';
 import { validateAnswer, type Answer, type Attendee, type Candidate, type Meeting, type RosterPerson } from '@/app/meeting/types';
+import { DEFAULT_MEETING_VENUE,MAX_MEETING_PEOPLE } from '@/app/meeting/venue-types';
 import { normalizedName, rosterAnswer, validateRoster } from '@/app/meeting/roster';
 
 let ready: Promise<unknown> | undefined;
@@ -13,6 +14,11 @@ export function ensureMeetings() {
       id TEXT PRIMARY KEY, event_id TEXT NOT NULL REFERENCES meeting_events(id), token_hash TEXT NOT NULL UNIQUE,
       answer TEXT NOT NULL, present INTEGER NOT NULL DEFAULT 0, analyzed INTEGER NOT NULL DEFAULT 0,
       candidates TEXT NOT NULL DEFAULT '[]', created_at INTEGER NOT NULL)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_venues(id TEXT PRIMARY KEY,name TEXT NOT NULL,website TEXT NOT NULL DEFAULT '',legacy_slug TEXT NOT NULL DEFAULT '',start_time TEXT NOT NULL DEFAULT '11:30',enabled INTEGER NOT NULL DEFAULT 1,created_at INTEGER NOT NULL)`),
+    env.DB.prepare("INSERT OR IGNORE INTO meeting_venues(id,name,website,legacy_slug,created_at) VALUES('hirunomeguro','ひるのめぐろ','https://colourjam.wixstudio.com/hirumeguro','hirunomeguro',0)"),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS meeting_event_venues(event_id TEXT PRIMARY KEY,venue_id TEXT NOT NULL REFERENCES meeting_venues(id))'),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS meeting_event_venue_index ON meeting_event_venues(venue_id)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS meeting_operators(email TEXT NOT NULL,venue_id TEXT NOT NULL REFERENCES meeting_venues(id),created_at INTEGER NOT NULL,PRIMARY KEY(email,venue_id))'),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS meeting_answers_event ON meeting_answers(event_id)'),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_member_links (event_id TEXT NOT NULL,member_id TEXT NOT NULL,roster_id TEXT NOT NULL DEFAULT '',profile TEXT NOT NULL,walk_in INTEGER NOT NULL DEFAULT 0,answer_id TEXT NOT NULL DEFAULT '',PRIMARY KEY(event_id,member_id))`),
     env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS meeting_link_roster ON meeting_member_links(event_id,roster_id) WHERE roster_id!=''"),
@@ -25,7 +31,7 @@ export function ensureMeetings() {
     env.DB.prepare('CREATE TABLE IF NOT EXISTS meeting_guest_claims (event_id TEXT NOT NULL,identity_key TEXT NOT NULL,answer_id TEXT NOT NULL UNIQUE,PRIMARY KEY(event_id,identity_key))'),
   ]).catch(error => { ready = undefined; throw error; });
 }
-const selectEvent = 'SELECT id,title,venue,closes_at AS closesAt,state,created_at AS createdAt,(SELECT COUNT(*) FROM meeting_roster WHERE event_id=meeting_events.id) AS rosterCount FROM meeting_events';
+const selectEvent = `SELECT id,title,venue,COALESCE((SELECT venue_id FROM meeting_event_venues WHERE event_id=meeting_events.id),'hirunomeguro') AS venueId,closes_at AS closesAt,state,created_at AS createdAt,(SELECT COUNT(*) FROM meeting_roster WHERE event_id=meeting_events.id) AS rosterCount FROM meeting_events`;
 export async function roster(id:string):Promise<RosterPerson[]> {
   await ensureMeetings();
   const rows=await env.DB.prepare('SELECT id,profile FROM meeting_roster WHERE event_id=? ORDER BY name_key,id').bind(id).all<{id:string;profile:string}>();
@@ -75,26 +81,31 @@ export async function attendees(id: string): Promise<Attendee[]> {
     .all<{id:string;answer:string;present:number;analyzed:number;candidates:string;walkIn:number}>();
   return rows.results.map(row => ({...JSON.parse(row.answer) as Answer,id:row.id,present:row.present,analyzed:row.analyzed,candidates:JSON.parse(row.candidates) as Candidate[],walkIn:!!row.walkIn}));
 }
-export async function listMeetings() {
+export async function listMeetings(venueId?:string) {
   await ensureMeetings();
-  return (await env.DB.prepare(`${selectEvent} ORDER BY created_at DESC LIMIT 50`).all<Meeting>()).results;
+  return (await env.DB.prepare(`${selectEvent}${venueId?" WHERE COALESCE((SELECT venue_id FROM meeting_event_venues WHERE event_id=meeting_events.id),'hirunomeguro')=?":""} ORDER BY created_at DESC LIMIT 100`).bind(...(venueId?[venueId]:[])).all<Meeting>()).results;
 }
-export type MeetingSummary = Meeting & { answerCount:number; presentCount:number };
-export async function adminMeetingSummaries():Promise<MeetingSummary[]> {
+export type MeetingSummary = Meeting & { answerCount:number; presentCount:number; registeredCount:number; matchedCount:number; analyzedCount:number; needCount:number };
+export async function adminMeetingSummaries(venueId?:string):Promise<MeetingSummary[]> {
   await ensureMeetings();
   return (await env.DB.prepare(`${selectEvent.replace(' FROM meeting_events','')},
     (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id) AS answerCount,
-    (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id AND present=1) AS presentCount
-    FROM meeting_events ORDER BY created_at DESC`).all<MeetingSummary>()).results;
+    (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id AND present=1) AS presentCount,
+    (SELECT COUNT(*) FROM meeting_member_links WHERE event_id=meeting_events.id) AS registeredCount,
+    (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id AND present=1 AND analyzed=1 AND json_array_length(candidates)>0) AS matchedCount,
+    (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id AND present=1 AND analyzed=1) AS analyzedCount,
+    (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id AND present=1 AND length(trim(json_extract(answer,'$.need')))>0) AS needCount
+    FROM meeting_events${venueId?" WHERE COALESCE((SELECT venue_id FROM meeting_event_venues WHERE event_id=meeting_events.id),'hirunomeguro')=?":""} ORDER BY created_at DESC`).bind(...(venueId?[venueId]:[])).all<MeetingSummary>()).results;
 }
-export async function createMeeting(body: Record<string,unknown>) {
+export async function createMeeting(body: Record<string,unknown>, venueId=DEFAULT_MEETING_VENUE) {
   await ensureMeetings();
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   const venue = typeof body.venue === 'string' ? body.venue.trim() : '';
   const closesAt = Number(body.closesAt);
   if (!title || !venue || title.length>120 || venue.length>120 || !Number.isFinite(closesAt) || closesAt <= Date.now() || closesAt > Date.now()+90*86400000) throw new Error('例会名・会場と、90日以内の未来の締切時刻を入力してください。');
   const id = crypto.randomUUID();
-  await env.DB.prepare('INSERT INTO meeting_events(id,title,venue,closes_at,created_at) VALUES(?,?,?,?,?)').bind(id,title,venue,closesAt,Date.now()).run();
+  const configured=await env.DB.prepare('SELECT id FROM meeting_venues WHERE id=? AND enabled=1').bind(venueId).first();if(!configured)throw new Error('利用できる会場を選んでください。');
+  await env.DB.batch([env.DB.prepare('INSERT INTO meeting_events(id,title,venue,closes_at,created_at) VALUES(?,?,?,?,?)').bind(id,title,venue,closesAt,Date.now()),env.DB.prepare('INSERT INTO meeting_event_venues(event_id,venue_id) VALUES(?,?)').bind(id,venueId)]);
   return id;
 }
 async function hash(token:string) {
@@ -165,7 +176,7 @@ export async function submitAnswer(id:string,body:Record<string,unknown>,memberI
         const inserted=await env.DB.batch([
           env.DB.prepare(`INSERT INTO meeting_answers(id,event_id,token_hash,answer,created_at) SELECT ?,?,?,?,?
             WHERE EXISTS(SELECT 1 FROM meeting_events WHERE id=? AND state='open' AND closes_at>?)
-            AND (SELECT COUNT(*) FROM meeting_answers WHERE event_id=?)<100
+            AND (SELECT COUNT(*) FROM meeting_answers WHERE event_id=?)<${MAX_MEETING_PEOPLE}
             AND NOT EXISTS(SELECT 1 FROM meeting_roster WHERE event_id=? AND name_key=? AND json_extract(profile,'$.company')=?)`)
             .bind(answerId,id,digest,JSON.stringify(answer),submittedAt,id,submittedAt,id,id,normalizedName(answer.name),answer.company),
           env.DB.prepare('INSERT INTO meeting_guest_claims(event_id,identity_key,answer_id) SELECT ?,?,? WHERE EXISTS(SELECT 1 FROM meeting_answers WHERE id=?)').bind(id,identity,answerId,answerId),
@@ -186,11 +197,11 @@ export async function submitAnswer(id:string,body:Record<string,unknown>,memberI
       const inserted=await env.DB.batch([
         env.DB.prepare(`INSERT INTO meeting_answers(id,event_id,token_hash,answer,created_at) SELECT ?,?,?,?,?
           WHERE EXISTS(SELECT 1 FROM meeting_events WHERE id=? AND state='open' AND closes_at>?)
-          AND (SELECT COUNT(*) FROM meeting_answers WHERE event_id=?)<100`)
+          AND (SELECT COUNT(*) FROM meeting_answers WHERE event_id=?)<${MAX_MEETING_PEOPLE}`)
           .bind(answerId,id,digest,JSON.stringify(answer),Date.now(),id,Date.now(),id),
         env.DB.prepare('INSERT INTO meeting_roster_claims(roster_id,answer_id) SELECT ?,? WHERE EXISTS(SELECT 1 FROM meeting_answers WHERE id=?)').bind(rosterId,answerId,answerId),
       ]);
-      if(!inserted[0].meta.changes)throw new Error('受付を締め切りました。または上限100人に達しました。');
+      if(!inserted[0].meta.changes)throw new Error('受付を締め切りました。または上限300人に達しました。');
     }catch(error){if(String(error).includes('UNIQUE'))throw new Error('回答は受け付け済みです。回答した端末で確認してください。');throw error;}
     return;
   }
@@ -198,9 +209,9 @@ export async function submitAnswer(id:string,body:Record<string,unknown>,memberI
     (SELECT id FROM meeting_events WHERE id=? AND state='open' AND closes_at>?)`).bind(JSON.stringify(answer),prior.id,id,Date.now()).run()
     : await env.DB.prepare(`INSERT INTO meeting_answers(id,event_id,token_hash,answer,created_at)
       SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM meeting_events WHERE id=? AND state='open' AND closes_at>?)
-      AND (SELECT COUNT(*) FROM meeting_answers WHERE event_id=?)<100
+      AND (SELECT COUNT(*) FROM meeting_answers WHERE event_id=?)<${MAX_MEETING_PEOPLE}
       AND NOT EXISTS(SELECT 1 FROM meeting_roster WHERE event_id=?)`).bind(crypto.randomUUID(),id,digest,JSON.stringify(answer),Date.now(),id,Date.now(),id,id).run();
-  if (!result.meta.changes) throw new Error('受付を締め切りました。または上限100人に達しました。受付係にお声がけください。');
+  if (!result.meta.changes) throw new Error('受付を締め切りました。または上限300人に達しました。受付係にお声がけください。');
 }
 export async function ownResult(id:string,token:string,memberId?:string) {
   const event = await meeting(id);
@@ -297,7 +308,7 @@ export async function checkSubmissionLimit(eventId:string,ip:string,kind:'read'|
     ON CONFLICT(id) DO UPDATE SET count=count+1 RETURNING count`).bind(key,(bucket+1)*600000).first<{count:number}>();
   await env.DB.prepare('DELETE FROM meeting_submit_limits WHERE expires<?').bind(Date.now()-600000).run();
   // Shared venue Wi-Fi can serve every attendee. No raw IP address is retained.
-  return !!row && row.count<=(kind==='read'?400:200);
+  return !!row && row.count<=(kind==='read'?MAX_MEETING_PEOPLE*60:MAX_MEETING_PEOPLE*4);
 }
 
 export async function setWishSharing(id:string,token:string,shared:boolean,memberId?:string) {

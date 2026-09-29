@@ -5,7 +5,7 @@ import type { RosterPerson } from '@/app/meeting/types';
 type Profile=Omit<RosterPerson,'id'>;
 export default function RosterImport({busy,onImport}:{busy:boolean;onImport:(people:Profile[])=>Promise<void>}) {
   const [rows,setRows]=useState<string[][]>([]),[columns,setColumns]=useState(guessColumns([])),[error,setError]=useState(''),[consent,setConsent]=useState(false),[reading,setReading]=useState(false),[format,setFormat]=useState('standard');
-  function load(data:string[][]){const prepared=prepareRosterRows(data);if(prepared.rows.length<2||prepared.rows.length>101)throw new Error('1〜100人の名簿を選んでください。');setRows(prepared.rows);setColumns(prepared.columns);setFormat(prepared.format);setError('');setConsent(false);}
+  function load(data:string[][]){const prepared=prepareRosterRows(data);if(prepared.rows.length<2||prepared.rows.length>301)throw new Error('1〜300人の名簿を選んでください。');setRows(prepared.rows);setColumns(prepared.columns);setFormat(prepared.format);setError('');setConsent(false);}
   async function file(file:File|undefined){if(!file)return;setReading(true);setRows([]);setConsent(false);setError('');try{
     if(file.size>2000000)throw new Error('ファイルは2MB以下にしてください。');
     if(/\.xlsx$/i.test(file.name)) {const {readSheet}=await import('read-excel-file/browser');load((await readSheet(file)).map(row=>row.map(cell=>cell===null?'':String(cell))).filter(row=>row.some(Boolean)));}

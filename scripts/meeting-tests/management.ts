@@ -22,7 +22,7 @@ export async function managementTest(){
   env.DB.prepare("INSERT INTO meeting_roster VALUES(?,?,?,?)").bind('r-'+id,id,'{}','検証'),
   env.DB.prepare('INSERT INTO meeting_roster_claims VALUES(?,?)').bind('r-'+id,answer.id),
   env.DB.prepare("INSERT INTO meeting_member_links(event_id,member_id,profile) VALUES(?,?,'{}')").bind(id,'keep-account'),
-  env.DB.prepare("INSERT INTO meeting_preparations(source_key,schedule,meeting_id,status,lock_until) VALUES(?,'{}',?,'ready',?)").bind('test-'+id,id,Date.now()+600000),
+  env.DB.prepare("INSERT INTO meeting_preparations(source_key,schedule,meeting_id,status,lock_until) VALUES(?,'{}',?,'ready',?)").bind('hirunomeguro:test-'+id,id,Date.now()+600000),
   env.DB.prepare('INSERT INTO meeting_qr_settings VALUES(?,3)').bind(id),
  ]);
  await rejects(()=>deleteMeeting(id,'編集検証'),'active roster preparation blocks deletion');
@@ -34,6 +34,6 @@ export async function managementTest(){
  await deleteMeeting(id,'編集検証');ok(!await meeting(id),'deleted event unavailable');ok(!!await meeting(other),'other event preserved');ok((await attendees(other)).length===0,'other answers unchanged');ok(!!await env.DB.prepare('SELECT 1 FROM meeting_roster WHERE event_id=?').bind(other).first(),'other roster preserved');
  for(const table of ['meeting_answers','meeting_roster','meeting_member_links','meeting_network_cache','meeting_registration_codes','meeting_signup_drafts'])ok(!(await env.DB.prepare(`SELECT 1 FROM ${table} WHERE event_id=?`).bind(id).first()),table+' cleaned');
  ok(!(await env.DB.prepare('SELECT 1 FROM meeting_wish_shares WHERE answer_id=?').bind(answer.id).first()),'shared wish removed');ok(!(await env.DB.prepare('SELECT 1 FROM meeting_roster_claims WHERE answer_id=?').bind(answer.id).first()),'roster claim removed');ok(!!await env.DB.prepare("SELECT 1 FROM members WHERE id='keep-account'").first(),'TASUKI account preserved');
- const prep=await env.DB.prepare('SELECT status,meeting_id FROM meeting_preparations WHERE source_key=?').bind('test-'+id).first<{status:string;meeting_id:string|null}>();ok(prep?.status==='cancelled'&&prep.meeting_id===null,'scheduled event cancellation retained');await prepareScheduled('test-'+id);ok(!await meeting(id),'automation does not recreate deleted event');
+ const prep=await env.DB.prepare('SELECT status,meeting_id FROM meeting_preparations WHERE source_key=?').bind('hirunomeguro:test-'+id).first<{status:string;meeting_id:string|null}>();ok(prep?.status==='cancelled'&&prep.meeting_id===null,'scheduled event cancellation retained');await prepareScheduled('hirunomeguro:test-'+id);ok(!await meeting(id),'automation does not recreate deleted event');
  return {pass:true,checks};
 }

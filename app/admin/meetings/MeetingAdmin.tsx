@@ -5,13 +5,13 @@ import RosterImport from './RosterImport';
 import AutomationPanel from './AutomationPanel';
 const japanInput=(time:number)=>new Date(time+9*3600000).toISOString().slice(0,16);
 const labels={open:'受付中',analyzing:'分析中',review:'候補確認',published:'公開済み'};
-export default function MeetingAdmin({embedded=false,initialEventId='',initialView='',onClose,onUpdated}:{embedded?:boolean;initialEventId?:string;initialView?:string;onClose?:()=>void;onUpdated?:()=>void}) {
+export default function MeetingAdmin({embedded=false,initialEventId='',initialView='',onClose,onUpdated,venueId='hirunomeguro',venueName='ひるのめぐろ'}:{venueId?:string;venueName?:string;embedded?:boolean;initialEventId?:string;initialView?:string;onClose?:()=>void;onUpdated?:()=>void}) {
   const [preview,setPreview]=useState(initialView==='qr'||initialView==='answer'?initialView:'');
   const [events,setEvents]=useState<Meeting[]>([]), [event,setEvent]=useState<Meeting|null>(null), [people,setPeople]=useState<Attendee[]>([]),[roster,setRoster]=useState<RosterPerson[]>([]),[qrTables,setQrTables]=useState(8);
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[origin,setOrigin]=useState(''),[now,setNow]=useState(0);
   useEffect(()=>{const update=()=>setNow(Date.now());const start=setTimeout(update,0),timer=setInterval(update,1000);return()=>{clearTimeout(start);clearInterval(timer);};},[]);
   async function request(body?:Record<string,unknown>,id?:string) {
-    const r=await fetch('/api/admin/meetings'+(id?'?id='+encodeURIComponent(id):''),body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{cache:'no-store'});
+    const r=await fetch('/api/admin/meetings?venue='+encodeURIComponent(venueId)+(id?'&id='+encodeURIComponent(id):''),body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,venueId})}:{cache:'no-store'});
     const data=await r.json() as {error?:string;event:Meeting;attendees:Attendee[];roster:RosterPerson[];events:Meeting[];id:string;qrTables?:number}; if(!r.ok) throw new Error(data.error||'読み込めませんでした。'); return data;
   }
   function apply(data:{event:Meeting;attendees:Attendee[];roster:RosterPerson[];qrTables?:number}) {setQrTables(data.qrTables??8);setEvent(data.event);setEvents(list=>list.map(e=>e.id===data.event.id?data.event:e));setPeople(data.attendees);setRoster(data.roster);}
@@ -50,7 +50,7 @@ export default function MeetingAdmin({embedded=false,initialEventId='',initialVi
     </section></div>
     <section id="meeting-sharing" className="meeting-admin-section"><h2>回答用リンク・テーブル用QR</h2><p className="meeting-help">名簿の取り込み後、このリンクやQRを参加者に共有してください。</p>
     <div className="meeting-admin-share"><div><code className="meeting-admin-url">{origin}/meeting/{event.id}</code><div className="meeting-admin-tools"><button className="meeting-secondary" onClick={()=>navigator.clipboard.writeText(origin+'/meeting/'+event.id).catch(()=>setError('URLを選択してコピーしてください。'))}>回答用リンクをコピー</button><button className="meeting-secondary" onClick={()=>{setPreview('answer');document.querySelector('.meeting-admin-overview')?.scrollIntoView({behavior:'smooth'});}}>回答画面を確認</button></div></div>
-    <form className="meeting-admin-qr-form" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);void act('qr-tables',{tables:Number(f.get('tables'))});}}><label>QRの枚数（テーブル数）<input name="tables" type="number" min="1" max="26" required defaultValue={qrTables} key={event.id+qrTables}/></label><button className="meeting-secondary" disabled={busy}>枚数を保存</button><button type="button" className="meeting-secondary" onClick={()=>{setPreview('qr');document.querySelector('.meeting-admin-overview')?.scrollIntoView({behavior:'smooth'});}}>QRを確認・印刷</button></form></div></section>
+    <form className="meeting-admin-qr-form" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);void act('qr-tables',{tables:Number(f.get('tables'))});}}><label>QRの枚数（テーブル数）<input name="tables" type="number" min="1" max="60" required defaultValue={qrTables} key={event.id+qrTables}/></label><button className="meeting-secondary" disabled={busy}>枚数を保存</button><button type="button" className="meeting-secondary" onClick={()=>{setPreview('qr');document.querySelector('.meeting-admin-overview')?.scrollIntoView({behavior:'smooth'});}}>QRを確認・印刷</button></form></div></section>
     <section id="meeting-analysis" className="meeting-admin-section"><h2>集計・結果公開</h2><div className="meeting-admin-counts"><span>回答 <strong>{people.length}</strong>人</span><span>出席確認 <strong>{confirmed.length}</strong>人</span><span>分析済み <strong>{confirmed.filter(p=>p.analyzed).length}</strong>人</span></div>
     <p className="meeting-help">下の回答一覧で来場者を確認 → 締切後に集計 → 候補を確認して公開します。集計開始後は回答と出席者を固定します。</p>
     <div className="meeting-admin-tools">
@@ -61,7 +61,7 @@ export default function MeetingAdmin({embedded=false,initialEventId='',initialVi
     {(event.state==='open'||event.state==='analyzing')&&<p className="meeting-help">分析中はこの画面を開いたままにしてください。中断した場合は続きから再開できます。</p>}
     {event.state==='review'&&<p className="meeting-help">回答原文と必須条件を確認し、紹介が難しい候補は外してください。「候補なし」も正常な結果です。</p>}
     </section>
-    <section id="meeting-answers" className="meeting-admin-section"><div className="meeting-admin-section-heading"><h2>回答・出席確認 <small>{people.length}人</small></h2><button disabled={busy} className="meeting-secondary" onClick={()=>void select(event.id)}>回答を再読み込み</button></div><p className="meeting-help">実際に来場した方だけチェックしてください。1例会100人まで。</p>
+    <section id="meeting-answers" className="meeting-admin-section"><div className="meeting-admin-section-heading"><h2>回答・出席確認 <small>{people.length}人</small></h2><button disabled={busy} className="meeting-secondary" onClick={()=>void select(event.id)}>回答を再読み込み</button></div><p className="meeting-help">実際に来場した方だけチェックしてください。1例会300人まで。</p>
     {people.length===0&&<p className="meeting-admin-empty">まだ回答はありません。回答が届くと、ここに表示されます。</p>}
     {people.map(p=><article className="meeting-admin-row" key={p.id}><label><input type="checkbox" checked={p.present===1} disabled={busy||event.state!=='open'} onChange={e=>void act('attendance',{personId:p.id,present:e.target.checked})}/>{p.name} · {p.company} {p.table&&'／席 '+p.table}</label>{p.walkIn&&<p><b>当日参加・本人入力</b>（お名前と事業内容を受付で確認してください）</p>}
     <p>{p.industry} ／ {p.area||'地域未記入'}</p><p><b>できる仕事：</b>{p.services}</p>{p.referrals&&<p><b>紹介できる相手：</b>{p.referrals}</p>}<p><b>つながりたい相手：</b>{p.need||'今回はなし'}</p>
@@ -70,8 +70,8 @@ export default function MeetingAdmin({embedded=false,initialEventId='',initialVi
     {p.candidates.map(c=>{const other=people.find(x=>x.id===c.id);return <div className="meeting-match" key={c.id}><b>→ {other?.name}（{c.kind==='related'?'関連する仕事の相談':c.kind==='direct'?'直接依頼':'紹介の相談'}）</b><p>{c.reason}</p><blockquote>探す仕事：「{c.needQuote}」<br/>候補の回答：「{c.offerQuote}」</blockquote>{c.questions.length>0&&<p>要確認：{c.questions.join(' ／ ')}</p>}{event.state==='review'&&<button disabled={busy} className="meeting-secondary" onClick={()=>void act('remove',{personId:p.id,candidateId:c.id})}>この候補を外す</button>}</div>;})}</article>)}
     </section></>}
     <section className="meeting-admin-preparation"><h2>次回以降の準備</h2><p className="meeting-help">自動作成の設定や、新しい例会の作成はこちら。</p>
-    <details><summary>新しい例会を作成</summary><form onSubmit={create}><label>例会名<input name="title" required maxLength={120}/></label><label>会場<input name="venue" required maxLength={120}/></label><label>回答締切（日本時間）<input name="closesAt" type="datetime-local" required/></label><button disabled={busy}>受付URLを作成</button></form></details>
-    <AutomationPanel onOpenMeeting={(id,view)=>{void select(id).then(()=>{setPreview(view||'');document.querySelector('.meeting-admin-breadcrumb')?.scrollIntoView({behavior:'smooth'});});}} onCreated={()=>{onUpdated?.();void request().then(d=>setEvents(d.events));}}/>
+    <details><summary>新しい例会を作成</summary><form onSubmit={create}><label>例会名<input name="title" required maxLength={120}/></label><label>会場<input name="venue" required maxLength={120} defaultValue={venueName}/></label><label>回答締切（日本時間）<input name="closesAt" type="datetime-local" required/></label><button disabled={busy}>受付URLを作成</button></form></details>
+    <AutomationPanel venueId={venueId} onOpenMeeting={(id,view)=>{void select(id).then(()=>{setPreview(view||'');document.querySelector('.meeting-admin-breadcrumb')?.scrollIntoView({behavior:'smooth'});});}} onCreated={()=>{onUpdated?.();void request().then(d=>setEvents(d.events));}}/>
     </section>
   </div></div>;
 }

@@ -1,3 +1,4 @@
+import {MAX_MEETING_PEOPLE} from './venue-types';
 import type { Answer, RosterPerson } from './types';
 export const profileFields = ['name','company','table','industry','services','area'] as const;
 export const rosterLabels = {name:'氏名',company:'会社名',table:'テーブル',industry:'業種',services:'事業内容',area:'対応地域'};
@@ -27,7 +28,7 @@ export function parseDelimited(text:string):string[][] {
 // Detect every row rather than guessing from a single person's data.
 export function prepareRosterRows(data:string[][]) {
   const exported=data.length>0&&data.every((r,i)=>r.length===11&&r[0]===String(i+1)&&
-    /^[A-Z](?:★)?$|^#$|^$/.test(r[1])&&/^[A-Z](?:★)?$|^$/.test(r[2])&&
+    /^[A-Z]{1,2}(?:★)?$|^#$|^$/.test(r[1])&&/^[A-Z]{1,2}(?:★)?$|^$/.test(r[2])&&
     (r[3]==='#'||r[3]==='')&&!!r[4]&&!!r[5]&&!!r[7]&&!!r[10]);
   if(exported) {
     const headers=['番号','テーブル1','テーブル2','印','所属会場','会社名','役職','氏名','事業内容','会員区分・紹介者','ふりがな'];
@@ -38,7 +39,7 @@ export function prepareRosterRows(data:string[][]) {
   return {rows:data,columns:guessColumns(data[0]??[]),format:'standard' as const};
 }
 export function validateRoster(raw:unknown):Omit<RosterPerson,'id'>[] {
-  if(!Array.isArray(raw)||!raw.length||raw.length>100)throw new Error('名簿は1〜100人で取り込んでください。');
+  if(!Array.isArray(raw)||!raw.length||raw.length>MAX_MEETING_PEOPLE)throw new Error('名簿は1〜300人で取り込んでください。');
   const seen=new Set<string>();
   return raw.map((row,index)=>{
     if(!row||typeof row!=='object')throw new Error(`${index+1}行目の形式を確認してください。`);

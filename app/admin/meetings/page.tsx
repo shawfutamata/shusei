@@ -1,4 +1,4 @@
-import { isAdminEmail } from '@/app/admin-auth';
+import {getMeetingAdmin} from '@/app/meeting-admin-auth';
 import { getAppAccess } from '@/app/app-auth';
 import LoginForm from '@/app/login/LoginForm';
 import BrandMark from '@/app/BrandMark';
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export default async function Page({searchParams}:{searchParams:Promise<{event?:string}>}) {
   const access = await getAppAccess();
   if (!access) return <LoginForm standalone purpose="admin" returnTo="/admin/meetings" />;
-  if (!isAdminEmail(access.user.email)) return (
+  if (!await getMeetingAdmin()) return (
     <main className="member-login-page">
       <header><Link className="welcome-brand" href="/login"><BrandMark /><span>TASUKI</span></Link><Link href="/">会員画面へ戻る</Link></header>
       <section className="member-login-shell">

@@ -1,7 +1,9 @@
 import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
 import assert from 'node:assert/strict';
-const source=stripTypeScriptTypes(readFileSync(new URL('../../app/meeting/roster.ts',import.meta.url),'utf8'));
+const venueSource=stripTypeScriptTypes(readFileSync(new URL('../../app/meeting/venue-types.ts',import.meta.url),'utf8'));
+const venueUrl='data:text/javascript;base64,'+Buffer.from(venueSource).toString('base64');
+const source=stripTypeScriptTypes(readFileSync(new URL('../../app/meeting/roster.ts',import.meta.url),'utf8')).replace("'./venue-types'",JSON.stringify(venueUrl));
 const {parseDelimited,validateRoster,rosterAnswer,guessColumns,prepareRosterRows}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
 const rows=parseDelimited('\uFEFF氏名,会社名,業種,事業内容\r\n山田 太郎,"架空,会社",建築,"内装工事\nリフォーム"\r\n');
 assert.equal(rows.length,2);assert.equal(rows[1][1],'架空,会社');assert.equal(rows[1][3],'内装工事\nリフォーム');

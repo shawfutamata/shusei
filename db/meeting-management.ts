@@ -27,7 +27,7 @@ export async function deleteMeeting(id:string,confirmation:unknown) {
   ['meeting_roster_claims','roster_id IN (SELECT id FROM meeting_roster WHERE event_id=?)'],
   ['meeting_guest_claims','event_id=?'],['meeting_member_links','event_id=?'],
   ['meeting_network_cache','event_id=?'],['meeting_registration_codes','event_id=?'],['meeting_signup_drafts','event_id=?'],
-  ['meeting_answers','event_id=?'],['meeting_roster','event_id=?'],['meeting_qr_settings','meeting_id=?'],
+  ['meeting_event_venues','event_id=?'],['meeting_answers','event_id=?'],['meeting_roster','event_id=?'],['meeting_qr_settings','meeting_id=?'],
  ] as const)if(tables.includes(table))statements.push(env.DB.prepare(`DELETE FROM ${table} WHERE ${where} AND ${guard}`).bind(id,id));
  statements.push(env.DB.prepare(`UPDATE meeting_preparations SET meeting_id=NULL,status='cancelled',error='',lock_until=0 WHERE meeting_id=? AND ${guard}`).bind(id,id));
  statements.push(env.DB.prepare("DELETE FROM meeting_events WHERE id=? AND state='deleting'").bind(id));

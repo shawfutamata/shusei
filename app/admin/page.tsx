@@ -4,6 +4,8 @@ import { getAppAccess } from '@/app/app-auth';
 import { adminAds, adminFeedback, adminMatchingSurveys, adminMembers, adminRequestReports, adminRequests, adminSummary } from '@/db/admin';
 import { gachaSummary } from '@/db/data';
 import { serviceName } from '@/app/brand';
+import {getMeetingAdmin} from '@/app/meeting-admin-auth';
+import VenueDashboard from './meetings/VenueDashboard';
 import AdminClient from './AdminClient';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +22,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const access = await getAppAccess();
   const admin = access && isAdminEmail(access.user.email) ? access.user : null;
   if (!admin) {
+    const venueAdmin=await getMeetingAdmin();if(venueAdmin){const query=await searchParams;return <VenueDashboard name={venueAdmin.user.displayName} email={venueAdmin.user.email} initialEventId={query.event} initialView={query.view}/>;}
     return <main className="admin-locked">
       <div className="admin-locked-card">
         <p>404</p>

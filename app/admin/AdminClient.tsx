@@ -10,7 +10,7 @@ import BrandMark from '@/app/BrandMark';
 import { memberNoLabel } from '@/app/brand';
 import { BarList, TrendChart } from './Charts';
 import MemberDetail from './MemberDetail';
-import MeetingAdmin from './meetings/MeetingAdmin';
+import MeetingWorkspace from './meetings/MeetingWorkspace';
 import '@/app/meeting/meeting.css';
 import { requestReportReasonLabel } from '@/app/request-policy';
 
@@ -49,9 +49,6 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   adminName: string; adminEmail: string; serviceName: string; initial: AdminData; initialTab?: string; initialEventId?:string; initialMeetingView?:string;
 }) {
   const [data, setData] = useState(initial);
-  const [meetingEditor,setMeetingEditor]=useState(initialEventId||initialMeetingView?'edit':'');
-  const [meetingId,setMeetingId]=useState(initialEventId);
-  const [meetingView,setMeetingView]=useState(initialMeetingView==='qr'?'qr':initialMeetingView==='answer'?'answer':initialMeetingView==='preparation'?'preparation':'');
   const [tab, setTab] = useState<(typeof tabs)[number]['key']>(tabs.find(item => item.key === initialTab)?.key ?? 'analytics');
   const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
   const [range, setRange] = useState(90);
@@ -63,8 +60,6 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   /** 消す前に必ず一度止める。取り消せない操作なので。 */
   const [confirming, setConfirming] = useState<AdminRequest | null>(null);
   /** 削除しようとしている広告。**戻せない**ので、必ず一度確かめる。 */
-  const [confirmingMeeting,setConfirmingMeeting]=useState<MeetingSummary|null>(null);
-  const [meetingDeleteError,setMeetingDeleteError]=useState('');
   const [confirmingAd, setConfirmingAd] = useState<AdminAd | null>(null);
   /** 置いてあるデータの控え。バックアップのタブを開いたときに読む。 */
   const [backups, setBackups] = useState<BackupEntry[] | null>(null);
@@ -93,16 +88,8 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   function goTab(key: (typeof tabs)[number]['key']) {
     setTab(key);
     setTrashOpen(false);
-    setMeetingEditor('');
     const url=new URL(location.href);url.searchParams.set('tab',key);url.searchParams.delete('event');url.searchParams.delete('view');history.replaceState(null,'',url);
   }
-
-  function openMeeting(id='',view='') {
-    setMeetingId(id);setMeetingView(view);setMeetingEditor('edit');setTab('surveys');
-    const url=new URL(location.href);url.searchParams.set('tab','surveys');if(id)url.searchParams.set('event',id);else url.searchParams.delete('event');url.searchParams.set('view',view||'edit');history.replaceState(null,'',url);
-  }
-  function closeMeeting(){setMeetingEditor('');const url=new URL(location.href);url.searchParams.delete('event');url.searchParams.delete('view');history.replaceState(null,'',url);void reload();}
-
 
   async function reload(nextKeyword = keyword) {
     const response = await fetch(`/api/admin/data?q=${encodeURIComponent(nextKeyword)}`);
@@ -243,11 +230,6 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
     if (!response.ok) return say(result.error ?? 'うまくいきませんでした。');
     await reload();
     say(done);
-  }
-
-  async function removeMeeting(){
-    if(!confirmingMeeting)return;const target=confirmingMeeting;setBusy('delete-meeting');setMeetingDeleteError('');
-    try{const r=await fetch('/api/admin/meetings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',id:target.id,confirmation:target.title})});const result=await r.json() as {error?:string};if(!r.ok)throw new Error(result.error||'削除できませんでした。');setConfirmingMeeting(null);await reload();say('イベントを削除しました。');}catch(e){setMeetingDeleteError(e instanceof Error?e.message:'削除できませんでした。');}finally{setBusy('');}
   }
 
   const { summary, gacha } = data;
@@ -513,19 +495,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       </li>)}
     </ul>}
 
-    {tab === 'surveys' && (meetingEditor ? <MeetingAdmin key={meetingId+meetingView} embedded initialEventId={meetingId} initialView={meetingView} onClose={closeMeeting} onUpdated={()=>void reload()}/> : <section className="survey-admin-list">
-      <div className="admin-meeting-heading"><div><h2>例会ごとのアンケート</h2><p>名簿・回答・紹介候補・QRをまとめて管理</p></div><button onClick={()=>openMeeting('', 'preparation')}>＋ 作成・自動準備</button></div>
-      {!data.meetings.length && <p className="admin-empty">作成済みの例会アンケートはありません。</p>}
-      <div className="admin-meeting-grid">{data.meetings.map(event=>{
-        const state=event.state==='open'?(Date.now()>=event.closesAt?'受付終了':'受付中'):({analyzing:'分析中',review:'候補確認中',published:'結果公開済み'} as const)[event.state];
-        return <article className="admin-meeting-card" key={event.id}>
-          <div className="admin-row-top"><span className="admin-meeting-venue">{event.venue}</span><span className={`admin-state ${state==='受付中'?'is-on':event.state==='published'?'is-on':'is-new'}`}>{state}</span></div>
-          <h3><button className="admin-meeting-title-button" onClick={()=>openMeeting(event.id)}>{event.title}</button></h3>
-          <p className="admin-meeting-deadline">回答締切 {new Date(event.closesAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</p>
-          <dl className="admin-meeting-stats"><div><dt>名簿</dt><dd>{event.rosterCount??0}<small>人</small></dd></div><div><dt>回答</dt><dd>{event.answerCount}<small>人</small></dd></div><div><dt>出席確認</dt><dd>{event.presentCount}<small>人</small></dd></div></dl>
-          <div className="admin-meeting-links"><button className="admin-meeting-manage" onClick={()=>openMeeting(event.id)}>編集 →</button><button onClick={()=>openMeeting(event.id,'answer')}>回答画面を確認</button><button onClick={()=>openMeeting(event.id,'qr')}>QR印刷</button><button className="admin-meeting-delete" onClick={()=>{setMeetingDeleteError('');setConfirmingMeeting(event);}}>削除</button></div>
-        </article>;
-      })}</div>
+    {tab === 'surveys' && <section className="survey-admin-list"><MeetingWorkspace initialEventId={initialEventId} initialView={initialMeetingView} onUpdated={()=>void reload()}/>
       {!!data.surveys.length && <h2 className="admin-meeting-other">会員からの紹介希望</h2>}
       {data.surveys.map((survey) => <article key={survey.id} className={`survey-admin-card is-${survey.status}`}>
         <div className="admin-row-top">
@@ -548,7 +518,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
             </li>)}</ul>}
         </div>
       </article>)}
-    </section>)}
+    </section>}
 
     {tab === 'reports' && <ul className="admin-list">
       {!data.reports.length && <li className="admin-empty">異議申し立ては届いていません。</li>}
@@ -658,7 +628,6 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       </section>
     </section>}
 
-    {confirmingMeeting&&<div className="admin-confirm-backdrop"><div className="admin-confirm" role="dialog" aria-modal="true" aria-labelledby="meeting-delete-title"><h2 id="meeting-delete-title">このイベントを削除しますか？</h2><p><b>{confirmingMeeting.title}</b></p><p>名簿 {confirmingMeeting.rosterCount??0}人・回答 {confirmingMeeting.answerCount}人と紹介結果を削除します。共有済みのアンケートURL・QRも使えなくなります。<b>元に戻せません。</b></p><p>TASUKIの会員アカウントと他のイベントは残ります。</p>{meetingDeleteError&&<p role="alert" className="meeting-error">{meetingDeleteError}</p>}<button className="is-danger" disabled={busy==='delete-meeting'} onClick={()=>void removeMeeting()}>{busy==='delete-meeting'?'削除中…':'このイベントを削除'}</button><button autoFocus disabled={busy==='delete-meeting'} onClick={()=>setConfirmingMeeting(null)}>キャンセル</button></div></div>}
 
     {confirming && <div className="admin-confirm-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setConfirming(null); }}>
       <div className="admin-confirm" role="dialog" aria-modal="true">

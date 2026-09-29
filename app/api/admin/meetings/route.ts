@@ -1,23 +1,30 @@
 import { NextResponse } from 'next/server';
-import { getAdmin } from '@/app/admin-auth';
-import { listMeetings,meeting,attendees,createMeeting,confirmAttendance,analyzeNext,removeCandidate,publishMeeting,roster,importRoster,setMeetingDeadline } from '@/db/meetings';
+import {getMeetingAdmin,hasMeetingVenue} from '@/app/meeting-admin-auth';
+import {DEFAULT_MEETING_VENUE} from '@/app/meeting/venue-types';
+import { adminMeetingSummaries,listMeetings,meeting,attendees,createMeeting,confirmAttendance,analyzeNext,removeCandidate,publishMeeting,roster,importRoster,setMeetingDeadline } from '@/db/meetings';
 import { setQrTableCount,qrTableCount } from '@/db/meeting-automation';
 import {updateMeeting,deleteMeeting} from '@/db/meeting-management';
 const headers={'Cache-Control':'no-store'};
 export async function GET(request:Request) {
-  if(!await getAdmin()) return NextResponse.json({error:'権限がありません。'},{status:403,headers});
+  const admin=await getMeetingAdmin();if(!admin) return NextResponse.json({error:'権限がありません。'},{status:403,headers});
   const id=new URL(request.url).searchParams.get('id');
-  return NextResponse.json(id?{event:await meeting(id),attendees:await attendees(id),roster:await roster(id),qrTables:await qrTableCount(id)}:{events:await listMeetings()},{headers});
+  const venueId=new URL(request.url).searchParams.get('venue')||admin.venues[0]?.id||DEFAULT_MEETING_VENUE;
+  const event=id?await meeting(id):null;
+  if(!await hasMeetingVenue(admin,event?.venueId||venueId))return NextResponse.json({error:'権限がありません。'},{status:403,headers});
+  if(id&&!event)return NextResponse.json({error:'例会が見つかりません。'},{status:404,headers});
+  return NextResponse.json(id?{event,attendees:await attendees(id),roster:await roster(id),qrTables:await qrTableCount(id)}:{events:await listMeetings(venueId),summaries:await adminMeetingSummaries(venueId)},{headers});
 }
 export async function POST(request:Request) {
-  if(!await getAdmin()) return NextResponse.json({error:'権限がありません。'},{status:403,headers});
+  const admin=await getMeetingAdmin();if(!admin) return NextResponse.json({error:'権限がありません。'},{status:403,headers});
   if(request.headers.get('origin') && request.headers.get('origin')!==new URL(request.url).origin) return NextResponse.json({error:'送信元を確認してください。'},{status:403});
   try {
     const text=await request.text();
-    if(text.length>200000)throw new Error('名簿のデータが大きすぎます。');
+    if(text.length>500000)throw new Error('名簿のデータが大きすぎます。');
     const body=JSON.parse(text) as Record<string,unknown>;
-    if(body.action==='create') return NextResponse.json({id:await createMeeting(body)},{headers});
+    const venueId=typeof body.venueId==='string'?body.venueId:admin.venues[0]?.id||DEFAULT_MEETING_VENUE;
+    if(body.action==='create'){if(!await hasMeetingVenue(admin,venueId))return NextResponse.json({error:'権限がありません。'},{status:403,headers});return NextResponse.json({id:await createMeeting(body,venueId)},{headers});}
     if(typeof body.id!=='string' || !await meeting(body.id)) throw new Error('例会を選んでください。');
+    const event=await meeting(body.id);if(!await hasMeetingVenue(admin,event!.venueId||DEFAULT_MEETING_VENUE))return NextResponse.json({error:'権限がありません。'},{status:403,headers});
     switch(body.action) {
       case 'update': await updateMeeting(body.id,body);break;
       case 'delete': await deleteMeeting(body.id,body.confirmation);return NextResponse.json({deleted:true},{headers});

@@ -9,7 +9,7 @@ export type Candidate = {
   needQuote: string; offerQuote: string; questions: string[]; step?: string;
 };
 export type Meeting = {
-  id: string; title: string; venue: string; closesAt: number;
+  id: string; title: string; venue: string; venueId?: string; closesAt: number;
   state: 'open' | 'analyzing' | 'review' | 'published'; createdAt: number; rosterCount?: number;
 };
 export type RosterPerson = Pick<Answer,'name'|'company'|'table'|'industry'|'services'|'area'> & {id:string};
