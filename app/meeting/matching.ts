@@ -19,7 +19,7 @@ export async function inferObject(ai: AIClient,system:string,data:unknown):Promi
   if (!ai) throw new Error('AI接続が未設定です。候補は生成せず停止しました。');
   let timeout:ReturnType<typeof setTimeout>|undefined;
   const pending = ai.run(model,{messages:[{role:'system',content:system},{role:'user',content:JSON.stringify(data)}],max_tokens:system.endsWith('/think')?6000:2400,temperature:0.1});
-  const result = await Promise.race([pending,new Promise<never>((_,reject)=>{timeout=setTimeout(()=>reject(new Error('AIの応答に時間がかかっています。分析を再開してください。')),120000);})]).finally(()=>clearTimeout(timeout));
+  const result = await Promise.race([pending,new Promise<never>((_,reject)=>{timeout=setTimeout(()=>reject(new Error('AIの応答に時間がかかっています。自動で再試行します。')),120000);})]).finally(()=>clearTimeout(timeout));
   const output = result as {response?:unknown;choices?:{message?:{content?:string}}[]};
   const response = typeof output?.response==='string' ? output.response : output?.choices?.[0]?.message?.content ?? JSON.stringify(output?.response ?? {});
   const clean = response.replace(/<think>[\s\S]*?<\/think>/g,'').trim().replace(/^```(?:json)?\s*|\s*```$/g,'').trim();
@@ -53,7 +53,7 @@ async function matchDirectAttendee(ai:AIClient,seeker:Attendee,all:Attendee[]):P
   }
   const batches:Attendee[][]=[];
   for(let offset=0;offset<others.length;offset+=12)batches.push(others.slice(offset,offset+12));
-  choices=(await Promise.all(batches.map(batch=>rank(batch)))).flat();
+  for(const batch of batches)choices.push(...await rank(batch));
   while(choices.length>12) {
     const reduced:Candidate[]=[];
     for(let offset=0;offset<choices.length;offset+=12) {

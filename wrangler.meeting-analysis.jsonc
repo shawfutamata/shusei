@@ -1,0 +1,14 @@
+{
+ "$schema":"node_modules/wrangler/config-schema.json",
+ "name":"tasuki-meeting-analysis",
+ "main":"workers/meeting-analysis.ts",
+ "compatibility_date":"2026-05-22",
+ "compatibility_flags":["nodejs_compat"],
+ "keep_vars":true,
+ "triggers":{"crons":["* * * * *"]},
+ "queues":{"producers":[{"binding":"MEETING_ANALYSIS_QUEUE","queue":"tasuki-meeting-analysis"}],"consumers":[{"queue":"tasuki-meeting-analysis","max_batch_size":1,"max_batch_timeout":1,"max_concurrency":2,"max_retries":100,"retry_delay":60}]},
+ "d1_databases":[{"binding":"DB","database_name":"tasuki","database_id":"a242f10e-ee17-4173-ae8d-f1050533a220"}],
+ "ai":{"binding":"MEETING_AI"},
+ "observability":{"enabled":true},
+ "rules":[{"type":"ESModule","globs":["**/*.ts"],"fallthrough":true}]
+}

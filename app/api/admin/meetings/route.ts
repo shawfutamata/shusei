@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import {getMeetingAdmin,hasMeetingVenue} from '@/app/meeting-admin-auth';
 import {DEFAULT_MEETING_VENUE} from '@/app/meeting/venue-types';
-import { adminMeetingSummaries,listMeetings,meeting,attendees,createMeeting,confirmAttendance,analyzeNext,meetingAnalysisProgress,removeCandidate,publishMeeting,roster,importRoster,setMeetingDeadline } from '@/db/meetings';
+import { adminMeetingSummaries,listMeetings,meeting,attendees,createMeeting,confirmAttendance,meetingAnalysisProgress,removeCandidate,publishMeeting,roster,importRoster,setMeetingDeadline } from '@/db/meetings';
+import {startMeetingAnalysis} from '@/db/meeting-analysis';
 import { setQrTableCount,qrTableCount } from '@/db/meeting-automation';
 import {updateMeeting,deleteMeeting,meetingTrash,trashedMeeting,restoreMeeting,emptyMeetingTrash} from '@/db/meeting-management';
 const headers={'Cache-Control':'no-store'};
@@ -38,7 +39,7 @@ export async function POST(request:Request) {
       case 'attendance':
         if(typeof body.personId!=='string' || typeof body.present!=='boolean') throw new Error('出席者を確認してください。');
         await confirmAttendance(body.id,body.personId,body.present); break;
-      case 'analyze': await analyzeNext(body.id); break;
+      case 'analyze': await startMeetingAnalysis(body.id); break;
       case 'remove':
         if(typeof body.personId!=='string' || typeof body.candidateId!=='string') throw new Error('候補を確認してください。');
         await removeCandidate(body.id,body.personId,body.candidateId); break;

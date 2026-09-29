@@ -300,3 +300,10 @@ body:has(.meeting-signup){background:#fff}.meeting-signup>.meeting-hiru-brand{pa
 .meeting-analysis-progress-note{font-size:12px;color:#587087;line-height:1.6;margin:10px 0 0}
 @media(max-width:760px){.meeting-analysis-progress{padding:14px}.meeting-analysis-progress-heading strong{font-size:14px}.meeting-analysis-progress-heading>span{font-size:26px}.meeting-analysis-progress-detail{gap:4px;font-size:12px}}
 @media(prefers-reduced-motion:reduce){.meeting-analysis-track>div{transition:none}}
+
+.meeting-admin-tabs{display:flex;gap:4px;border-bottom:1px solid #d6e2eb;margin:0 0 24px}
+.meeting-page .meeting-admin-tabs button{background:transparent;color:#587087;border-radius:0;border-bottom:3px solid transparent;padding:12px 18px;font-size:15px;min-height:48px}
+.meeting-page .meeting-admin-tabs button[aria-selected=true]{color:#126bc3;border-color:#126bc3;background:#eaf3fe}
+.meeting-admin [role=tabpanel][hidden]{display:none}
+.meeting-admin #meeting-preparation-panel{margin-top:0;padding:22px;background:#fff;border:1px solid #d6e2eb;border-radius:12px}
+@media(max-width:760px){.meeting-page .meeting-admin-tabs button{padding:10px 12px;font-size:13px;flex:1}.meeting-admin #meeting-preparation-panel{padding:16px}}

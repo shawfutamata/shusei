@@ -10,6 +10,12 @@ export function ensureMeetings() {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_events (
       id TEXT PRIMARY KEY, title TEXT NOT NULL, venue TEXT NOT NULL, closes_at INTEGER NOT NULL,
       state TEXT NOT NULL DEFAULT 'open', created_at INTEGER NOT NULL, lock_until INTEGER NOT NULL DEFAULT 0, lock_id TEXT NOT NULL DEFAULT '')`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_analysis_jobs (
+      id TEXT PRIMARY KEY,event_id TEXT NOT NULL,answer_id TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',
+      attempts INTEGER NOT NULL DEFAULT 0,lease_until INTEGER NOT NULL DEFAULT 0,lease_id TEXT NOT NULL DEFAULT '',
+      dispatch_at INTEGER NOT NULL DEFAULT 0,error TEXT NOT NULL DEFAULT '',UNIQUE(event_id,answer_id))`),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS meeting_analysis_due ON meeting_analysis_jobs(status,dispatch_at)'),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_analysis_cache(job_id TEXT NOT NULL,call_key TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(job_id,call_key))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_answers (
       id TEXT PRIMARY KEY, event_id TEXT NOT NULL REFERENCES meeting_events(id), token_hash TEXT NOT NULL UNIQUE,
       answer TEXT NOT NULL, present INTEGER NOT NULL DEFAULT 0, analyzed INTEGER NOT NULL DEFAULT 0,
@@ -256,11 +262,14 @@ export async function meetingAnalysisProgress(id:string) {
   await ensureMeetings();
   const row=await env.DB.prepare(`SELECT e.state,e.lock_until,
     (SELECT COUNT(*) FROM meeting_answers a WHERE a.event_id=e.id AND a.present=1) AS total,
-    (SELECT COUNT(*) FROM meeting_answers a WHERE a.event_id=e.id AND a.present=1 AND a.analyzed=1) AS completed
+    (SELECT COUNT(*) FROM meeting_answers a WHERE a.event_id=e.id AND a.present=1 AND a.analyzed=1) AS completed,
+    (SELECT COUNT(*) FROM meeting_analysis_jobs j WHERE j.event_id=e.id AND j.status IN ('pending','queued','processing','retry')) AS queued,
+    (SELECT COUNT(*) FROM meeting_analysis_jobs j WHERE j.event_id=e.id AND j.status='retry') AS retrying,
+    (SELECT COUNT(*) FROM meeting_analysis_jobs j WHERE j.event_id=e.id AND j.status='failed') AS failed
     FROM meeting_events e WHERE e.id=? AND e.state IN ('open','analyzing','review','published')`)
-    .bind(id).first<{state:Meeting['state'];lock_until:number;total:number;completed:number}>();
+    .bind(id).first<{state:Meeting['state'];lock_until:number;total:number;completed:number;queued:number;retrying:number;failed:number}>();
   if(!row)throw new Error('例会が見つかりません。');
-  return {state:row.state,total:row.total,completed:row.completed,active:row.state==='analyzing'&&row.lock_until>Date.now()};
+  return {state:row.state,total:row.total,completed:row.completed,active:row.state==='analyzing'&&(row.queued>0||row.lock_until>Date.now()),queued:row.queued,retrying:row.retrying,failed:row.failed};
 }
 export async function analyzeNext(id:string) {
   const event = await meeting(id);
