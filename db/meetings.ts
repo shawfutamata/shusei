@@ -10,6 +10,9 @@ export function ensureMeetings() {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_events (
       id TEXT PRIMARY KEY, title TEXT NOT NULL, venue TEXT NOT NULL, closes_at INTEGER NOT NULL,
       state TEXT NOT NULL DEFAULT 'open', created_at INTEGER NOT NULL, lock_until INTEGER NOT NULL DEFAULT 0, lock_id TEXT NOT NULL DEFAULT '')`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_preanalysis_jobs(id TEXT PRIMARY KEY,event_id TEXT NOT NULL,kind TEXT NOT NULL,source_id TEXT NOT NULL,revision TEXT NOT NULL,source TEXT NOT NULL,result TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'pending',attempts INTEGER NOT NULL DEFAULT 0,lease_id TEXT NOT NULL DEFAULT '',lease_until INTEGER NOT NULL DEFAULT 0,dispatch_at INTEGER NOT NULL DEFAULT 0,error TEXT NOT NULL DEFAULT '')`),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS meeting_preanalysis_event ON meeting_preanalysis_jobs(event_id,status)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS meeting_preanalysis_events(event_id TEXT PRIMARY KEY,revision TEXT NOT NULL,changed_at INTEGER NOT NULL)'),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_analysis_jobs (
       id TEXT PRIMARY KEY,event_id TEXT NOT NULL,answer_id TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',
       attempts INTEGER NOT NULL DEFAULT 0,lease_until INTEGER NOT NULL DEFAULT 0,lease_id TEXT NOT NULL DEFAULT '',
@@ -78,6 +81,7 @@ export async function importRoster(id:string,raw:unknown,consent:unknown) {
     .bind(i===0?stamp:crypto.randomUUID(),id,JSON.stringify(p),normalizedName(p.name),id,importedAt,id,i===0?id:stamp));
   const results=await env.DB.batch(inserts);
   if(results.some(r=>r.meta.changes!==1))throw new Error('名簿を取り込めませんでした。例会の状態を再読み込みしてください。');
+  try{await (await import('./meeting-preanalysis')).synchronizePreanalysis(id);}catch{console.error('Meeting preanalysis will be scheduled by cron');}
 }
 export async function meeting(id: string) {
   await ensureMeetings();

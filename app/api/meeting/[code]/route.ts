@@ -33,6 +33,7 @@ export async function POST(request:Request,{params}:{params:Promise<{code:string
     if(text.length>10000) throw new Error('回答が長すぎます。');
     const body=JSON.parse(text) as Record<string,unknown>;
     await submitAnswer((await params).code,body,access.user.userId);
+    try{await (await import('@/db/meeting-preanalysis')).synchronizePreanalysis(code);}catch{console.error('Meeting preanalysis will be scheduled by cron');}
     await ownResult(code,typeof body.token==='string'?body.token:'',access.user.userId);
     return NextResponse.json({ok:true},{headers:noCache});
   } catch(error) { return NextResponse.json({error:error instanceof Error?error.message:'送信できませんでした。'},{status:400,headers:noCache}); }

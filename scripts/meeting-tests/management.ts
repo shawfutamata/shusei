@@ -24,6 +24,10 @@ export async function managementTest(){
   env.DB.prepare("INSERT INTO meeting_member_links(event_id,member_id,profile) VALUES(?,?,'{}')").bind(id,'keep-account'),
   env.DB.prepare("INSERT INTO meeting_preparations(source_key,schedule,meeting_id,status,lock_until) VALUES(?,'{}',?,'ready',?)").bind('hirunomeguro:test-'+id,id,Date.now()+600000),
   env.DB.prepare('INSERT INTO meeting_qr_settings VALUES(?,3)').bind(id),
+  env.DB.prepare("INSERT INTO meeting_preanalysis_jobs(id,event_id,kind,source_id,revision,source) VALUES(?,?,'profile','fixture','v1','{}')").bind('prep-'+id,id),
+  env.DB.prepare("INSERT INTO meeting_preanalysis_jobs(id,event_id,kind,source_id,revision,source) VALUES(?,?,'profile','fixture','v1','{}')").bind('prep-'+other,other),
+  env.DB.prepare("INSERT INTO meeting_preanalysis_events VALUES(?,'fixture',0)").bind(id),
+  env.DB.prepare("INSERT INTO meeting_analysis_cache VALUES(?,'fixture','{}')").bind(id+':'+answer.id),
  ]);
  await rejects(()=>deleteMeeting(id,'編集検証'),'active roster preparation blocks deletion');
  await env.DB.prepare('UPDATE meeting_preparations SET lock_until=0 WHERE meeting_id=?').bind(id).run();
@@ -36,7 +40,9 @@ export async function managementTest(){
  await deleteMeeting(id,'編集検証');await rejects(()=>emptyMeetingTrash('hirunomeguro','wrong'),'empty trash requires confirmation');
  await env.DB.prepare(`CREATE TRIGGER purge_rollback BEFORE DELETE ON meeting_events WHEN OLD.id='${id}' BEGIN SELECT RAISE(ABORT,'test rollback');END`).run();await rejects(()=>emptyMeetingTrash('hirunomeguro','ゴミ箱を空にする'),'failed purge reported');ok((await meetingTrash('hirunomeguro')).some(e=>e.id===id)&&(await attendees(id)).length===1,'failed purge rolls back children and trash');await env.DB.prepare('DROP TRIGGER purge_rollback').run();
  await emptyMeetingTrash('hirunomeguro','ゴミ箱を空にする');ok(!await meeting(id)&&!(await meetingTrash('hirunomeguro')).some(e=>e.id===id),'purged event removed from trash');ok(!!await meeting(other),'other event preserved');ok((await attendees(other)).length===0,'other answers unchanged');ok(!!await env.DB.prepare('SELECT 1 FROM meeting_roster WHERE event_id=?').bind(other).first(),'other roster preserved');
- for(const table of ['meeting_answers','meeting_roster','meeting_member_links','meeting_network_cache','meeting_registration_codes','meeting_signup_drafts'])ok(!(await env.DB.prepare(`SELECT 1 FROM ${table} WHERE event_id=?`).bind(id).first()),table+' cleaned');
+ for(const table of ['meeting_answers','meeting_roster','meeting_member_links','meeting_network_cache','meeting_registration_codes','meeting_signup_drafts','meeting_preanalysis_jobs','meeting_preanalysis_events'])ok(!(await env.DB.prepare(`SELECT 1 FROM ${table} WHERE event_id=?`).bind(id).first()),table+' cleaned');
+ ok(!(await env.DB.prepare('SELECT 1 FROM meeting_analysis_cache WHERE job_id=?').bind(id+':'+answer.id).first()),'preanalysis cache without a final job is cleaned');
+ ok(!!await env.DB.prepare('SELECT 1 FROM meeting_preanalysis_jobs WHERE event_id=?').bind(other).first(),'other event preanalysis preserved');
  ok(!(await env.DB.prepare('SELECT 1 FROM meeting_wish_shares WHERE answer_id=?').bind(answer.id).first()),'shared wish removed');ok(!(await env.DB.prepare('SELECT 1 FROM meeting_roster_claims WHERE answer_id=?').bind(answer.id).first()),'roster claim removed');ok(!!await env.DB.prepare("SELECT 1 FROM members WHERE id='keep-account'").first(),'TASUKI account preserved');
  const prep=await env.DB.prepare('SELECT status,meeting_id FROM meeting_preparations WHERE source_key=?').bind('hirunomeguro:test-'+id).first<{status:string;meeting_id:string|null}>();ok(prep?.status==='cancelled'&&prep.meeting_id===null,'scheduled event cancellation retained');await prepareScheduled('hirunomeguro:test-'+id);ok(!await meeting(id),'automation does not recreate deleted event');
  return {pass:true,checks};

@@ -13,7 +13,7 @@ const connectionPolicy=`あなたは当日の事業上のつながり候補を�
 宗教・政治・ネットワークビジネス勧誘や外部コミュニティ誘導は除外。該当なしはmatches空配列。最大3人。
 JSONのみ: {"matches":[{"id":"実在する候補id","kind":"direct または referral","reason":"原文だけに基づく適合理由","needQuote":"needから連続した2文字以上の原文","offerQuote":"industryかservices（direct）またはreferrals（referral）から連続した2文字以上の原文","questions":["本人に確認すること"]}]}。/no_think`;
 export function anonymous(person:Attendee) {
-  return {id:person.id,industry:person.industry,services:person.services,referrals:person.referrals,need:person.need,area:person.area,timing:person.timing,budget:person.budget,conditions:person.conditions};
+  return {id:person.id,industry:person.industry,services:person.services,referrals:person.referrals,need:person.need,area:person.area,timing:person.timing,budget:person.budget,conditions:person.conditions,...(person.prepared?{prepared:person.prepared}:{})};
 }
 export function parseInference(result:unknown):Record<string,unknown> {
   const output=result as {response?:unknown;choices?:{message?:{content?:string}}[]};
@@ -60,7 +60,7 @@ async function matchDirectAttendee(ai:AIClient,seeker:Attendee,all:Attendee[]):P
   async function rank(batch:Attendee[],verify=false,retry=false) {
     const ids=new Map(batch.map((p,i)=>[`p${i+1}`,p.id]));
     const system=(connection?connectionPolicy:policy)+(verify?'\n独立した再審査です。仮候補の理由を信用せず原文から厳格に再判定してください。':'');
-    const data={requester:{...anonymous(seeker),id:'requester'},attendees:batch.map((p,i)=>({id:`p${i+1}`,industry:p.industry,services:p.services,referrals:p.referrals,area:p.area}))};
+    const data={requester:{...anonymous(seeker),id:'requester'},attendees:batch.map((p,i)=>({id:`p${i+1}`,industry:p.industry,services:p.services,referrals:p.referrals,area:p.area,...(p.prepared?{offers:p.prepared.offers}:{})}))};
     const output=await inferObject(ai,system,data,hasMatches);
     if(!Array.isArray(output.matches))throw new Error('AIの候補形式を確認できませんでした。再試行してください。');
     const raw=output.matches.map(row=>row&&typeof row==='object'?{...row,id:ids.get(row.id)??'invalid-id'}:row);
@@ -124,7 +124,7 @@ async function matchRelatedAttendees(ai:AIClient,seeker:Attendee,all:Attendee[],
   const ids=new Map(batch.map((p,i)=>[`p${i+1}`,p.id]));
   const output=await inferObject(ai,relatedPolicy+(verify?'\n候補の比較です。目的を達成する具体的な関連工程を説明できる人を優先。':''),{
    requester:{need:seeker.need,conditions:seeker.conditions,area:seeker.area,timing:seeker.timing,budget:seeker.budget},
-   attendees:batch.map((p,i)=>({id:`p${i+1}`,industry:p.industry,services:p.services,area:p.area})),
+   attendees:batch.map((p,i)=>({id:`p${i+1}`,industry:p.industry,services:p.services,area:p.area,...(p.prepared?{offers:p.prepared.offers}:{})})),
   },hasMatches);
   if(!Array.isArray(output.matches))throw new Error('関連する相談先の形式を確認できませんでした。再試行してください。');
   const raw=output.matches.map(row=>row&&typeof row==='object'?{...row,id:ids.get(row.id)??'invalid-id'}:row);

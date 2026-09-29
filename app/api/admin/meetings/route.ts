@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import {getMeetingAdmin,hasMeetingVenue} from '@/app/meeting-admin-auth';
 import {DEFAULT_MEETING_VENUE} from '@/app/meeting/venue-types';
 import { adminMeetingSummaries,listMeetings,meeting,attendees,createMeeting,confirmAttendance,meetingAnalysisProgress,removeCandidate,publishMeeting,roster,importRoster,setMeetingDeadline } from '@/db/meetings';
+import {preanalysisProgress} from '@/db/meeting-preanalysis';
 import {startMeetingAnalysis} from '@/db/meeting-analysis';
 import { setQrTableCount,qrTableCount } from '@/db/meeting-automation';
 import {updateMeeting,deleteMeeting,meetingTrash,trashedMeeting,restoreMeeting,emptyMeetingTrash} from '@/db/meeting-management';
@@ -14,8 +15,8 @@ export async function GET(request:Request) {
   const event=id?await meeting(id):null;
   if(!await hasMeetingVenue(admin,event?.venueId||venueId))return NextResponse.json({error:'権限がありません。'},{status:403,headers});
   if(id&&!event)return NextResponse.json({error:'例会が見つかりません。'},{status:404,headers});
-  if(id&&url.searchParams.get('progress')==='1')return NextResponse.json({progress:await meetingAnalysisProgress(id)},{headers});
-  return NextResponse.json(id?{event,attendees:await attendees(id),roster:await roster(id),qrTables:await qrTableCount(id)}:{events:await listMeetings(venueId),summaries:await adminMeetingSummaries(venueId)},{headers});
+  if(id&&url.searchParams.get('progress')==='1')return NextResponse.json({progress:await meetingAnalysisProgress(id),preanalysis:await preanalysisProgress(id)},{headers});
+  return NextResponse.json(id?{event,attendees:await attendees(id),roster:await roster(id),qrTables:await qrTableCount(id),preanalysis:await preanalysisProgress(id)}:{events:await listMeetings(venueId),summaries:await adminMeetingSummaries(venueId)},{headers});
 }
 export async function POST(request:Request) {
   const admin=await getMeetingAdmin();if(!admin) return NextResponse.json({error:'権限がありません。'},{status:403,headers});
@@ -46,6 +47,6 @@ export async function POST(request:Request) {
       case 'publish': await publishMeeting(body.id); break;
       default: throw new Error('操作を確認してください。');
     }
-    return NextResponse.json({event:await meeting(body.id),attendees:await attendees(body.id),roster:await roster(body.id),qrTables:await qrTableCount(body.id)},{headers});
+    return NextResponse.json({event:await meeting(body.id),attendees:await attendees(body.id),roster:await roster(body.id),qrTables:await qrTableCount(body.id),preanalysis:await preanalysisProgress(body.id)},{headers});
   }catch(error){return NextResponse.json({error:error instanceof Error?error.message:'処理できませんでした。'},{status:400,headers});}
 }

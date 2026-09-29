@@ -50,8 +50,9 @@ export async function emptyMeetingTrash(venueId:string,confirmation:unknown){
  const tables=(await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table'").all<{name:string}>()).results.map(r=>r.name);
  const statements=[env.DB.prepare("UPDATE meeting_events SET state='deleting' WHERE state='trashed' AND id IN (SELECT event_id FROM meeting_trash WHERE venue_id=? AND deleted_at<=?)").bind(venueId,cutoff)];
  for(const [table,where] of [
- ['meeting_analysis_cache',`job_id IN (SELECT id FROM meeting_analysis_jobs WHERE event_id IN (${ids}))`],
+ ['meeting_analysis_cache',`job_id IN (SELECT event_id||':'||id FROM meeting_answers WHERE event_id IN (${ids}))`],
  ['meeting_analysis_jobs',`event_id IN (${ids})`],
+ ['meeting_preanalysis_jobs',`event_id IN (${ids})`],['meeting_preanalysis_events',`event_id IN (${ids})`],
  ['meeting_wish_shares',`answer_id IN (SELECT id FROM meeting_answers WHERE event_id IN (${ids}))`],
  ['meeting_roster_claims',`roster_id IN (SELECT id FROM meeting_roster WHERE event_id IN (${ids}))`],
  ['meeting_guest_claims',`event_id IN (${ids})`],['meeting_member_links',`event_id IN (${ids})`],

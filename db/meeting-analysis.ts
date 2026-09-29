@@ -1,5 +1,6 @@
 import {env} from 'cloudflare:workers';
 import {attendees,ensureMeetings,meeting} from './meetings';
+import {preparedAttendees} from './meeting-preanalysis';
 import {matchAttendee,type AIClient} from '@/app/meeting/matching';
 const LEASE_MS=16*60000,MAX_ATTEMPTS=6;
 type Job={id:string;event_id:string;answer_id:string;status:string;attempts:number;lease_until:number};
@@ -43,13 +44,13 @@ export async function processAnalysisJob(jobId:string,ai:AIClient=env.MEETING_AI
  const job=await env.DB.prepare('SELECT * FROM meeting_analysis_jobs WHERE id=?').bind(jobId).first<Job>();
  if(!job)return 'done';const event=await meeting(job.event_id);
  if(!event||event.state!=='analyzing'||job.status==='failed'||job.status==='complete')return 'done';
- let stage='load',callCount=0;
+ let stage='load',callCount=0;const startedAt=Date.now();
  const lock=crypto.randomUUID();
  const acquired=await env.DB.prepare(`UPDATE meeting_analysis_jobs SET status='processing',attempts=attempts+1,lease_id=?,lease_until=?
  WHERE id=? AND status NOT IN ('failed','complete') AND lease_until<?`).bind(lock,Date.now()+LEASE_MS,jobId,Date.now()).run();
  if(!acquired.meta.changes)return 'retry';
  try{
-  const all=(await attendees(job.event_id)).filter(p=>p.present===1),seeker=all.find(p=>p.id===job.answer_id);
+  const all=await preparedAttendees(job.event_id,(await attendees(job.event_id)).filter(p=>p.present===1)),seeker=all.find(p=>p.id===job.answer_id);
   if(!seeker||seeker.analyzed){await env.DB.prepare("UPDATE meeting_analysis_jobs SET status='complete',lease_until=0 WHERE id=? AND lease_id=?").bind(jobId,lock).run();await finishEvent(job.event_id);return 'done';}
   // Cache only parsed, schema-validated inference steps; retry resumes the valid prefix.
   async function cacheKey(key:string){
@@ -78,7 +79,7 @@ export async function processAnalysisJob(jobId:string,ai:AIClient=env.MEETING_AI
    env.DB.prepare("UPDATE meeting_analysis_jobs SET status='complete',error='',lease_until=0 WHERE id=? AND lease_id=?").bind(jobId,lock),
   ]);
   await env.DB.prepare('DELETE FROM meeting_analysis_cache WHERE job_id=?').bind(jobId).run();
-  await finishEvent(event.id);return 'done';
+  await finishEvent(event.id);console.log('Meeting analysis completed',JSON.stringify({jobId,inferenceCalls:callCount,durationMs:Date.now()-startedAt}));return 'done';
  }catch(error){
   const message=error instanceof Error?error.message:'';
   const category=error instanceof SyntaxError?'invalid_json':/時間|timeout|timed out/i.test(message)?'timeout':/limit|429|rate/i.test(message)?'rate_limit':/審査|説明|形式|有効な回答/.test(message)?'invalid_shape':/D1|SQLITE|database/i.test(message)?'database':'inference_failure';

@@ -5,6 +5,7 @@ import RosterImport from './RosterImport';
 import AutomationPanel from './AutomationPanel';
 import {DEFAULT_MEETING_VENUE} from '@/app/meeting/venue-types';
 const japanInput=(time:number)=>new Date(time+9*3600000).toISOString().slice(0,16);
+type Preanalysis={profiles:{total:number;completed:number;failed:number};needs:{total:number;completed:number;failed:number};matching:{total:number;completed:number;failed:number}};
 type AnalysisProgress={state:Meeting['state'];total:number;completed:number;active:boolean;queued?:number;retrying?:number;failed?:number};
 const labels={open:'受付中',analyzing:'分析中',review:'候補確認',published:'公開済み'};
 export default function MeetingAdmin({embedded=false,initialEventId='',initialView='',onClose,onUpdated,venueId='hirunomeguro',venueName='ひるのめぐろ'}:{venueId?:string;venueName?:string;embedded?:boolean;initialEventId?:string;initialView?:string;onClose?:()=>void;onUpdated?:()=>void}) {
@@ -12,13 +13,14 @@ export default function MeetingAdmin({embedded=false,initialEventId='',initialVi
   const [preview,setPreview]=useState(initialView==='qr'||initialView==='answer'?initialView:'');
   const [events,setEvents]=useState<Meeting[]>([]), [event,setEvent]=useState<Meeting|null>(null), [people,setPeople]=useState<Attendee[]>([]),[roster,setRoster]=useState<RosterPerson[]>([]),[qrTables,setQrTables]=useState(8);
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[origin,setOrigin]=useState(''),[now,setNow]=useState(0);
+  const [preanalysis,setPreanalysis]=useState<(Preanalysis&{eventId:string})|null>(null);
   const [analyzing,setAnalyzing]=useState(false),[progress,setProgress]=useState<(AnalysisProgress&{eventId:string})|null>(null),[progressOffline,setProgressOffline]=useState(false);
   useEffect(()=>{const update=()=>setNow(Date.now());const start=setTimeout(update,0),timer=setInterval(update,1000);return()=>{clearTimeout(start);clearInterval(timer);};},[]);
   async function request(body?:Record<string,unknown>,id?:string) {
     const r=await fetch('/api/admin/meetings?venue='+encodeURIComponent(venueId)+(id?'&id='+encodeURIComponent(id):''),body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,venueId})}:{cache:'no-store'});
-    const data=await r.json() as {error?:string;event:Meeting;attendees:Attendee[];roster:RosterPerson[];events:Meeting[];id:string;qrTables?:number}; if(!r.ok) throw new Error(data.error||'読み込めませんでした。'); return data;
+    const data=await r.json() as {error?:string;event:Meeting;attendees:Attendee[];roster:RosterPerson[];events:Meeting[];id:string;qrTables?:number;preanalysis?:Preanalysis}; if(!r.ok) throw new Error(data.error||'読み込めませんでした。'); return data;
   }
-  const apply=useCallback((data:{event:Meeting;attendees:Attendee[];roster:RosterPerson[];qrTables?:number})=>{setQrTables(data.qrTables??8);setEvent(data.event);setEvents(list=>list.map(e=>e.id===data.event.id?data.event:e));setPeople(data.attendees);setRoster(data.roster);},[]);
+  const apply=useCallback((data:{event:Meeting;attendees:Attendee[];roster:RosterPerson[];qrTables?:number;preanalysis?:Preanalysis})=>{if(data.preanalysis)setPreanalysis({...data.preanalysis,eventId:data.event.id});setQrTables(data.qrTables??8);setEvent(data.event);setEvents(list=>list.map(e=>e.id===data.event.id?data.event:e));setPeople(data.attendees);setRoster(data.roster);},[]);
   useEffect(()=>{request().then(d=>{setEvents(d.events);setOrigin(location.origin);const id=initialEventId||new URLSearchParams(location.search).get('event');if(id||d.events[0]?.id)void select(id||d.events[0].id);}).catch(e=>setError(e.message));},[]);
   async function select(id:string) {setBusy(true);setError('');try{apply(await request(undefined,id));const url=new URL(location.href);url.searchParams.set('event',id);if(embedded)url.searchParams.set('tab','surveys');history.replaceState(null,'',url);}catch(e){setError(String(e));}finally{setBusy(false);}}
   async function act(action:string,extra:Record<string,unknown>={}) {
@@ -29,15 +31,15 @@ export default function MeetingAdmin({embedded=false,initialEventId='',initialVi
   }
   const progressEventId=event?.id,progressEventState=event?.state;
   useEffect(()=>{
-    if(!progressEventId||(!analyzing&&progressEventState!=='analyzing'))return;
+    if(!progressEventId||(!analyzing&&progressEventState!=='analyzing'&&progressEventState!=='open'))return;
     const id=progressEventId;let disposed=false,inFlight=false;
     async function refreshProgress(){
       if(inFlight)return;inFlight=true;
       try{
         const r=await fetch('/api/admin/meetings?venue='+encodeURIComponent(venueId)+'&id='+encodeURIComponent(id)+'&progress=1',{cache:'no-store'});
         if(!r.ok)throw new Error('progress');
-        const data=await r.json() as {progress:AnalysisProgress};
-        if(!disposed){setProgress({...data.progress,eventId:id});setProgressOffline(false);
+        const data=await r.json() as {progress:AnalysisProgress;preanalysis:Preanalysis};
+        if(!disposed){setPreanalysis({...data.preanalysis,eventId:id});setProgress({...data.progress,eventId:id});setProgressOffline(false);
           if(data.progress.state==='review'||data.progress.state==='published'){
             const detail=await fetch('/api/admin/meetings?venue='+encodeURIComponent(venueId)+'&id='+encodeURIComponent(id),{cache:'no-store'});
             if(detail.ok&&!disposed)apply(await detail.json());
@@ -45,7 +47,7 @@ export default function MeetingAdmin({embedded=false,initialEventId='',initialVi
         }
       }catch{if(!disposed)setProgressOffline(true);}finally{inFlight=false;}
     }
-    void refreshProgress();const timer=setInterval(()=>void refreshProgress(),2000);
+    void refreshProgress();const timer=setInterval(()=>void refreshProgress(),progressEventState==='open'?10000:2000);
     return()=>{disposed=true;clearInterval(timer);};
   },[progressEventId,progressEventState,analyzing,venueId,apply]);
   async function create(form:React.FormEvent<HTMLFormElement>) {
@@ -56,6 +58,7 @@ export default function MeetingAdmin({embedded=false,initialEventId='',initialVi
 
   const confirmed=people.filter(p=>p.present===1);
   const currentProgress=progress?.eventId===event?.id?progress:null;
+  const preparation=preanalysis?.eventId===event?.id?preanalysis:null;
   const completed=Math.max(confirmed.filter(p=>p.analyzed===1).length,currentProgress?.completed??0);
   const total=currentProgress?.total??confirmed.length;
   const failed=currentProgress?.failed??0,retrying=currentProgress?.retrying??0;
@@ -88,6 +91,7 @@ export default function MeetingAdmin({embedded=false,initialEventId='',initialVi
     <div className="meeting-admin-share"><div><code className="meeting-admin-url">{origin}/meeting/{event.id}</code><div className="meeting-admin-tools"><button className="meeting-secondary" onClick={()=>navigator.clipboard.writeText(origin+'/meeting/'+event.id).catch(()=>setError('URLを選択してコピーしてください。'))}>回答用リンクをコピー</button><button className="meeting-secondary" onClick={()=>{setPreview('answer');document.querySelector('.meeting-admin-overview')?.scrollIntoView({behavior:'smooth'});}}>回答画面を確認</button></div></div>
     <form className="meeting-admin-qr-form" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);void act('qr-tables',{tables:Number(f.get('tables'))});}}><label>QRの枚数（テーブル数）<input name="tables" type="number" min="1" max="60" required defaultValue={qrTables} key={event.id+qrTables}/></label><button className="meeting-secondary" disabled={busy}>枚数を保存</button><button type="button" className="meeting-secondary" onClick={()=>{setPreview('qr');document.querySelector('.meeting-admin-overview')?.scrollIntoView({behavior:'smooth'});}}>QRを確認・印刷</button></form></div></section>
     <section id="meeting-analysis" className="meeting-admin-section"><h2>集計・結果公開</h2><div className="meeting-admin-counts"><span>回答 <strong>{people.length}</strong>人</span><span>出席確認 <strong>{confirmed.length}</strong>人</span><span>分析済み <strong>{completed}</strong>人</span></div>
+    {event.state==='open'&&<div className="meeting-analysis-progress" aria-label="締切前の事前分析"><div className="meeting-analysis-progress-heading"><strong>締切前の事前分析</strong><span>自動</span></div><div className="meeting-admin-counts"><span>事業情報 <strong>{preparation?.profiles.completed??0}</strong> / {preparation?.profiles.total??0}件</span><span>希望の整理 <strong>{preparation?.needs.completed??0}</strong> / {preparation?.needs.total??people.length}人</span><span>候補の事前照合 <strong>{preparation?.matching.completed??0}</strong> / {Math.max(preparation?.matching.total??0,people.length)}人</span></div><p className="meeting-analysis-progress-note" role="status">名簿・回答を先に分析しています。回答が落ち着いたら候補も事前に照合し、締切後は保存済みの分析を使って出席者を最終確認します。変更された内容は再計算します。</p>{!!preparation&&(preparation.profiles.failed+preparation.needs.failed+preparation.matching.failed)>0&&<p className="meeting-help">事前分析の一部を確認できませんでした。締切後の本分析であらためて確認します。</p>}</div>}
     <div className={`meeting-analysis-progress${analysisActive?' is-running':''}`}>
       <div className="meeting-analysis-progress-heading"><strong>{analysisDone?'分析完了':analysisActive?'AIで紹介候補を分析中':failed?'一部の回答は再確認が必要です':event.state==='analyzing'?'処理状況を確認中':'分析開始前'}</strong><span>{percent}<small>%</small></span></div>
       <div className="meeting-analysis-track" role="progressbar" aria-label="紹介候補の分析進捗" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-valuetext={`${total}人中${completed}人の分析が完了`}><div style={{width:`${percent}%`}}/></div>
