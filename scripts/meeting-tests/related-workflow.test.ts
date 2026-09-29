@@ -14,5 +14,5 @@ const ai:AIClient={async run(_model,input){const system=input.messages[0].conten
 const matches=await matchAttendee(ai,seeker,[seeker,printer,wrong]);
 assert.equal(matches.length,1);assert.equal(matches[0].id,'printer');assert.equal(matches[0].kind,'related');assert.ok(matches[0].questions.length);assert.equal(relatedCalls,1);
 assert.deepEqual(await matchAttendee(ai,{...seeker,need:'ネットワークビジネスへの勧誘'},[seeker,printer]),[]);
-assert.deepEqual(await matchAttendee(ai,seeker,[seeker,{...printer,present:0}]),[]);
-console.log('PASS: posting finds print collateral, provider wants do not become capabilities, and consent/attendance exclusions remain');
+assert.equal((await matchAttendee(ai,seeker,[seeker,{...printer,present:0}]))[0].id,'printer');
+console.log('PASS: posting finds print collateral, provider wants do not become capabilities, legacy attendance does not exclude valid providers, and prohibited requests remain excluded');

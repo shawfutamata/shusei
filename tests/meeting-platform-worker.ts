@@ -64,7 +64,7 @@ export default {async fetch(){try{
  await env.DB.prepare('UPDATE meeting_answers SET present=0 WHERE id=?').bind(a.id).run();
  await env.DB.prepare('UPDATE meeting_events SET lock_until=0 WHERE id=?').bind(own).run();
  const paused=await(await request('meetings','platform@example.com',undefined,progressUrl)).json() as {progress:{total:number;completed:number;active:boolean}};
- ok(paused.progress.total===199&&paused.progress.completed===199&&!paused.progress.active,'progress excludes unconfirmed attendees and reports released lock');
+ ok(paused.progress.total===200&&paused.progress.completed===199&&!paused.progress.active,'progress includes legacy unchecked answers and reports released lock');
  await env.DB.prepare('UPDATE meeting_answers SET present=1,analyzed=1 WHERE id=?').bind(a.id).run();
  await env.DB.prepare("UPDATE meeting_events SET state='open' WHERE id=?").bind(own).run();
  let over=false;try{await importRoster(other,Array.from({length:301},(_,i)=>({...person('x'),name:'n'+i,company:'c'+i})),true);}catch{over=true;}ok(over,'over 300 roster rejected');

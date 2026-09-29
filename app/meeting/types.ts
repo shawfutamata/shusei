@@ -35,7 +35,7 @@ export function validateCandidates(raw: unknown, seeker: Attendee, attendees: At
   const seen = new Set<string>();
   return raw.flatMap((row: Record<string, unknown>) => {
     if (!row || typeof row !== 'object' || typeof row.id !== 'string' || seen.has(row.id) || row.id === seeker.id) return [];
-    const person = attendees.find(a => a.id === row.id && a.present === 1);
+    const person = attendees.find(a => a.id === row.id);
     if (!person || (row.kind !== 'direct' && row.kind !== 'referral' && row.kind !== 'related')) return [];
     const source = row.kind !== 'referral' ? person.industry+'\n'+person.services : person.referrals;
     if (typeof row.needQuote !== 'string' || row.needQuote.trim().length < 2 || !seeker.need.includes(row.needQuote)) return [];

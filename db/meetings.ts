@@ -91,22 +91,30 @@ export async function attendees(id: string): Promise<Attendee[]> {
   await ensureMeetings();
   const rows = await env.DB.prepare('SELECT id,answer,present,analyzed,candidates,EXISTS(SELECT 1 FROM meeting_guest_claims WHERE answer_id=meeting_answers.id) AS walkIn FROM meeting_answers WHERE event_id=? ORDER BY created_at,id').bind(id)
     .all<{id:string;answer:string;present:number;analyzed:number;candidates:string;walkIn:number}>();
-  return rows.results.map(row => ({...JSON.parse(row.answer) as Answer,id:row.id,present:row.present,analyzed:row.analyzed,candidates:JSON.parse(row.candidates) as Candidate[],walkIn:!!row.walkIn}));
+  return rows.results.map(row => ({...JSON.parse(row.answer) as Answer,id:row.id,present:1,analyzed:row.analyzed,candidates:JSON.parse(row.candidates) as Candidate[],walkIn:!!row.walkIn}));
+}
+// Candidate pool includes imported companies even when they never answer the QR survey.
+// Imported profiles are offers only; they are never stored as fabricated answers.
+export async function matchingParticipants(id:string):Promise<Attendee[]> {
+  const [answers,profiles]=await Promise.all([attendees(id),roster(id)]);
+  const claims=(await env.DB.prepare(`SELECT c.roster_id FROM meeting_roster_claims c JOIN meeting_answers a ON a.id=c.answer_id JOIN meeting_roster r ON r.id=c.roster_id WHERE a.event_id=? AND r.event_id=?`).bind(id,id).all<{roster_id:string}>()).results;
+  const claimed=new Set(claims.map(c=>c.roster_id));
+  const identities=new Set(answers.map(a=>normalizedName(a.name)+'|'+normalizedName(a.company)));
+  return [...answers,...profiles.filter(p=>!claimed.has(p.id)&&!identities.has(normalizedName(p.name)+'|'+normalizedName(p.company))).map(p=>({...rosterAnswer(p,''),id:'roster:'+p.id,present:1,analyzed:0,candidates:[]}))];
 }
 export async function listMeetings(venueId?:string) {
   await ensureMeetings();
   return (await env.DB.prepare(`${selectEvent} WHERE state NOT IN ('trashed','deleting')${venueId?" AND COALESCE((SELECT venue_id FROM meeting_event_venues WHERE event_id=meeting_events.id),'hirunomeguro')=?":""} ORDER BY created_at DESC LIMIT 100`).bind(...(venueId?[venueId]:[])).all<Meeting>()).results;
 }
-export type MeetingSummary = Meeting & { answerCount:number; presentCount:number; registeredCount:number; matchedCount:number; analyzedCount:number; needCount:number };
+export type MeetingSummary = Meeting & { answerCount:number; registeredCount:number; matchedCount:number; analyzedCount:number; needCount:number };
 export async function adminMeetingSummaries(venueId?:string):Promise<MeetingSummary[]> {
   await ensureMeetings();
   return (await env.DB.prepare(`${selectEvent.replace(' FROM meeting_events','')},
     (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id) AS answerCount,
-    (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id AND present=1) AS presentCount,
     (SELECT COUNT(*) FROM meeting_member_links WHERE event_id=meeting_events.id) AS registeredCount,
-    (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id AND present=1 AND analyzed=1 AND json_array_length(candidates)>0) AS matchedCount,
-    (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id AND present=1 AND analyzed=1) AS analyzedCount,
-    (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id AND present=1 AND length(trim(json_extract(answer,'$.need')))>0) AS needCount
+    (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id AND analyzed=1 AND json_array_length(candidates)>0) AS matchedCount,
+    (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id AND analyzed=1) AS analyzedCount,
+    (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id AND length(trim(json_extract(answer,'$.need')))>0) AS needCount
     FROM meeting_events WHERE state NOT IN ('trashed','deleting')${venueId?" AND COALESCE((SELECT venue_id FROM meeting_event_venues WHERE event_id=meeting_events.id),'hirunomeguro')=?":""} ORDER BY created_at DESC`).bind(...(venueId?[venueId]:[])).all<MeetingSummary>()).results;
 }
 export async function createMeeting(body: Record<string,unknown>, venueId=DEFAULT_MEETING_VENUE) {
@@ -229,7 +237,7 @@ export async function ownResult(id:string,token:string,memberId?:string) {
   const event = await meeting(id);
   if (!event) return null;
   const owned=memberId?await env.DB.prepare('SELECT answer_id FROM meeting_member_links WHERE event_id=? AND member_id=?').bind(id,memberId).first<{answer_id:string}>():null;
-  const row = owned?.answer_id?await env.DB.prepare('SELECT id,answer,present,candidates FROM meeting_answers WHERE event_id=? AND id=?').bind(id,owned.answer_id).first<{id:string;answer:string;present:number;candidates:string}>():await env.DB.prepare('SELECT id,answer,present,candidates FROM meeting_answers WHERE event_id=? AND token_hash=?').bind(id,await hash(token)).first<{id:string;answer:string;present:number;candidates:string}>();
+  const row = owned?.answer_id?await env.DB.prepare('SELECT id,answer,analyzed,candidates FROM meeting_answers WHERE event_id=? AND id=?').bind(id,owned.answer_id).first<{id:string;answer:string;analyzed:number;candidates:string}>():await env.DB.prepare('SELECT id,answer,analyzed,candidates FROM meeting_answers WHERE event_id=? AND token_hash=?').bind(id,await hash(token)).first<{id:string;answer:string;analyzed:number;candidates:string}>();
   if (!row) return null;
   if(memberId){
     const link=await env.DB.prepare('SELECT roster_id AS rosterId,answer_id AS answerId,profile FROM meeting_member_links WHERE event_id=? AND member_id=?').bind(id,memberId).first<{rosterId:string;answerId:string;profile:string}>();
@@ -241,39 +249,32 @@ export async function ownResult(id:string,token:string,memberId?:string) {
       if(claim?claim.roster_id!==link.rosterId:normalizedName(answer.name)!==normalizedName(profile.name)||normalizedName(answer.company)!==normalizedName(profile.company))return null;
       const saved=await env.DB.prepare("UPDATE meeting_member_links SET answer_id=? WHERE event_id=? AND member_id=? AND answer_id='' ").bind(row.id,id,memberId).run();
       if(!saved.meta.changes)return null;
-      if(row.present===1)await (await import('./meeting-accounts')).activateMeetingMember(memberId,id);
+      await (await import('./meeting-accounts')).activateMeetingMember(memberId,id);
     }
   }
-  const people = event.state === 'published' ? await attendees(id) : [];
-  const matches = event.state === 'published' && row.present === 1 ? (JSON.parse(row.candidates) as Candidate[]).flatMap(c=> {
-    const p = people.find(p=>p.id===c.id && p.present === 1);
+  const people = event.state === 'published' ? await matchingParticipants(id) : [];
+  const matches = event.state === 'published' && row.analyzed === 1 ? (JSON.parse(row.candidates) as Candidate[]).flatMap(c=> {
+    const p = people.find(p=>p.id===c.id);
     return p ? [{...c,name:p.name,company:p.company,table:p.table,industry:p.industry}] : [];
   }) : [];
   const claim=await env.DB.prepare('SELECT roster_id FROM meeting_roster_claims WHERE answer_id=?').bind(row.id).first<{roster_id:string}>();
   const guest=await env.DB.prepare('SELECT answer_id FROM meeting_guest_claims WHERE event_id=? AND answer_id=?').bind(id,row.id).first();
   const share=await env.DB.prepare('SELECT shared FROM meeting_wish_shares WHERE answer_id=?').bind(row.id).first<{shared:number}>();
-  return {event,shareWish:share?.shared===1,answer:JSON.parse(row.answer) as Answer,rosterId:claim?.roster_id??'',walkIn:!!guest,present:row.present,matches};
+  return {event,shareWish:share?.shared===1,answer:JSON.parse(row.answer) as Answer,rosterId:claim?.roster_id??'',walkIn:!!guest,present:1,analyzed:row.analyzed,matches};
 }
-export async function confirmAttendance(id:string,personId:string,present:boolean) {
-  const result = await env.DB.prepare(`UPDATE meeting_answers SET present=? WHERE event_id=? AND id=? AND EXISTS
-    (SELECT 1 FROM meeting_events WHERE id=? AND state='open')`).bind(present?1:0,id,personId,id).run();
-  if (!result.meta.changes) throw new Error('集計開始後は出席者を変更できません。');
-  if(present){const link=await env.DB.prepare('SELECT member_id FROM meeting_member_links WHERE event_id=? AND answer_id=?').bind(id,personId).first<{member_id:string}>();if(link)await (await import('./meeting-accounts')).activateMeetingMember(link.member_id,id);}
-}
-
 // Read persisted completions while an AI batch is still running.
 export async function meetingAnalysisProgress(id:string) {
   await ensureMeetings();
   const row=await env.DB.prepare(`SELECT e.state,e.lock_until,
-    (SELECT COUNT(*) FROM meeting_answers a WHERE a.event_id=e.id AND a.present=1) AS total,
-    (SELECT COUNT(*) FROM meeting_answers a WHERE a.event_id=e.id AND a.present=1 AND a.analyzed=1) AS completed,
+    (SELECT COUNT(*) FROM meeting_answers a WHERE a.event_id=e.id) AS total,
+    (SELECT COUNT(*) FROM meeting_answers a WHERE a.event_id=e.id AND a.analyzed=1) AS completed,
     (SELECT COUNT(*) FROM meeting_analysis_jobs j WHERE j.event_id=e.id AND j.status IN ('pending','queued','processing','retry')) AS queued,
     (SELECT COUNT(*) FROM meeting_analysis_jobs j WHERE j.event_id=e.id AND j.status='retry') AS retrying,
     (SELECT COUNT(*) FROM meeting_analysis_jobs j WHERE j.event_id=e.id AND j.status='failed') AS failed
     FROM meeting_events e WHERE e.id=? AND e.state IN ('open','analyzing','review','published')`)
     .bind(id).first<{state:Meeting['state'];lock_until:number;total:number;completed:number;queued:number;retrying:number;failed:number}>();
   if(!row)throw new Error('例会が見つかりません。');
-  return {state:row.state,total:row.total,completed:row.completed,active:row.state==='analyzing'&&(row.queued>0||row.lock_until>Date.now()),queued:row.queued,retrying:row.retrying,failed:row.failed};
+  return {state:row.state,total:row.total,completed:row.completed,active:(row.state==='analyzing'||row.state==='published')&&(row.queued>0||row.lock_until>Date.now()),queued:row.queued,retrying:row.retrying,failed:row.failed};
 }
 export async function analyzeNext(id:string) {
   const event = await meeting(id);
@@ -284,8 +285,8 @@ export async function analyzeNext(id:string) {
     WHERE id=? AND state IN ('open','analyzing') AND lock_until<?`).bind(Date.now()+600000,lock,id,Date.now()).run();
   if (!acquired.meta.changes) throw new Error('別の集計処理が実行中です。しばらくして再試行してください。');
   try {
-    const all = (await attendees(id)).filter(p=>p.present===1);
-    const pending = all.filter(p=>!p.analyzed).slice(0,3);
+    const all = await matchingParticipants(id);
+    const pending = (await attendees(id)).filter(p=>!p.analyzed).slice(0,3);
     if (!pending.length) {
       await env.DB.prepare("UPDATE meeting_events SET state='review' WHERE id=? AND lock_id=?").bind(id,lock).run();
       return;
@@ -322,7 +323,7 @@ export async function removeCandidate(id:string,answerId:string,candidateId:stri
     .bind(JSON.stringify(person.candidates.filter(c=>c.id!==candidateId)),answerId,id,id).run();
 }
 export async function publishMeeting(id:string) {
-  const result=await env.DB.prepare("UPDATE meeting_events SET state='published' WHERE id=? AND state='review'").bind(id).run();
+  const result=await env.DB.prepare("UPDATE meeting_events SET state='published' WHERE id=? AND state='review' AND NOT EXISTS(SELECT 1 FROM meeting_answers WHERE event_id=? AND analyzed=0)").bind(id,id).run();
   if(!result.meta.changes) throw new Error('全員分の集計を終えてから公開してください。');
 }
 
@@ -350,8 +351,7 @@ export async function wishBoard(id:string,token:string,memberId?:string) {
   const own=memberId?await env.DB.prepare('SELECT a.id,a.present FROM meeting_answers a JOIN meeting_member_links l ON l.answer_id=a.id WHERE a.event_id=? AND l.event_id=? AND l.member_id=?').bind(id,id,memberId).first<{id:string;present:number}>():await env.DB.prepare('SELECT id,present FROM meeting_answers WHERE event_id=? AND token_hash=?').bind(id,await hash(token)).first<{id:string;present:number}>();
   if(!event||!own)throw new Error('回答した端末で、結果ページから開いてください。');
   if(event.state!=='published')throw new Error('結果の公開後に見られます。');
-  if(own.present!==1)throw new Error('受付係に出席確認をお願いしてください。');
   const rows=await env.DB.prepare(`SELECT a.id,a.answer FROM meeting_answers a JOIN meeting_wish_shares s ON s.answer_id=a.id
-    WHERE a.event_id=? AND a.present=1 AND s.shared=1 AND a.id<>? ORDER BY a.created_at,a.id`).bind(id,own.id).all<{id:string;answer:string}>();
+    WHERE a.event_id=? AND s.shared=1 AND a.id<>? ORDER BY a.created_at,a.id`).bind(id,own.id).all<{id:string;answer:string}>();
   return {people:rows.results.flatMap(row=>{const a=JSON.parse(row.answer) as Answer;return a.need.trim()?[{id:row.id,name:a.name,company:a.company,need:a.need}]:[];})};
 }

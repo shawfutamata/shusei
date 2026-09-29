@@ -1,0 +1,44 @@
+import {env} from 'cloudflare:workers';
+import {createMeeting,importRoster,roster,submitAnswer,attendees,matchingParticipants,meeting,ownResult,publishMeeting,setWishSharing,wishBoard,meetingAnalysisProgress} from '../db/meetings';
+import {synchronizePreanalysis,processPreanalysis} from '../db/meeting-preanalysis';
+import {startMeetingAnalysis,processAnalysisJob} from '../db/meeting-analysis';
+export default {async fetch(){try{
+ const checks:string[]=[];function ok(value:unknown,label:string){if(!value)throw new Error(label);checks.push(label);}
+ const id=await createMeeting({title:'No attendance fixture',venue:'Fixture',closesAt:Date.now()+600000});
+ const profiles=[{name:'回答する人',company:'依頼会社',industry:'食品',services:'食品の販売',table:'',area:''},{name:'QR未回答の人',company:'印刷会社',industry:'印刷',services:'チラシの印刷を行います',table:'',area:''}];
+ await importRoster(id,profiles,true);const names=await roster(id);const token='a'.repeat(64);
+ await submitAnswer(id,{rosterId:names.find(p=>p.name===profiles[0].name)!.id,need:'チラシの印刷を依頼したい',token,consent:true});
+ const answered=(await attendees(id))[0];
+ ok((await env.DB.prepare('SELECT present FROM meeting_answers WHERE id=?').bind(answered.id).first<{present:number}>())?.present===0,'legacy attendance value remains irrelevant');
+ const pool=await matchingParticipants(id);
+ ok(pool.length===2&&pool.filter(p=>p.name===profiles[0].name).length===1,'answered profile replaces roster record without duplicate or self match');
+ const provider=pool.find(p=>p.name===profiles[1].name)!;
+ ok(provider.id.startsWith('roster:')&&provider.need==='','nonrespondent provides business evidence without fabricated wishes');
+ let calls=0;const ai={async run(_model:string,input:{messages:{content:string}[]}){calls++;const system=input.messages[0].content,data=JSON.parse(input.messages[1].content);
+  if(system.startsWith('事前整理'))return {response:'{"topics":[]}'};
+  if(data.request&&data.provider)return {response:JSON.stringify({decision:'accept',serviceMatch:true,hardConstraints:'satisfied',reason:'事業情報に印刷が明記'})};
+  if(system.startsWith('RELATED_WORKFLOW'))return {response:'{"matches":[]}'};
+  return {response:JSON.stringify({matches:(data.attendees??[]).filter((p:{services:string})=>p.services.includes('チラシの印刷')).map((p:{id:string})=>({id:p.id,kind:'direct',needQuote:'チラシの印刷',offerQuote:'チラシの印刷',reason:'事業情報に一致',questions:[]}))})};
+ }};
+ await synchronizePreanalysis(id);const documents=(await env.DB.prepare("SELECT id FROM meeting_preanalysis_jobs WHERE event_id=? AND kind!='warm'").bind(id).all<{id:string}>()).results;for(const j of documents)await processPreanalysis(j.id,ai);
+ await synchronizePreanalysis(id);await synchronizePreanalysis(id,Date.now()+61000);
+ const warm=(await env.DB.prepare("SELECT id FROM meeting_preanalysis_jobs WHERE event_id=? AND kind='warm'").bind(id).all<{id:string}>()).results;
+ ok(warm.length===1,'only real answer gets matching preparation against the entire roster');
+ for(const j of warm)await processPreanalysis(j.id,ai);
+ ok((await attendees(id)).length===1&&!(await ownResult(id,token))?.analyzed,'preparation never creates answers or publishes analysis prematurely');
+ await env.DB.prepare('UPDATE meeting_events SET closes_at=? WHERE id=?').bind(Date.now()-1000,id).run();await startMeetingAnalysis(id);
+ ok((await meetingAnalysisProgress(id)).total===1,'progress counts actual answers instead of entire roster');
+ const before=calls;await processAnalysisJob(id+':'+answered.id,ai);
+ ok(calls===before,'unanswered roster candidates reuse the prepared inference at deadline');
+ ok((await meeting(id))?.state==='review','legacy unchecked answer completes analysis');await publishMeeting(id);
+ const result=await ownResult(id,token);
+ ok(result?.analyzed===1&&result.matches.length===1&&result.matches[0].name===profiles[1].name,'published result resolves name and company from nonrespondent roster');
+ await setWishSharing(id,token,true);ok((await wishBoard(id,token)).people.length===0,'board works without attendance and never invents wishes for nonrespondents');
+ // Existing published answers keep their results while an old excluded answer is repaired.
+ const lateId=id+':legacy';await env.DB.prepare('INSERT INTO meeting_answers(id,event_id,token_hash,answer,created_at) VALUES(?,?,?,?,?)').bind(lateId,id,'legacy-token',JSON.stringify({...profiles[0],name:'旧未分析回答',referrals:'',need:'',timing:'',budget:'',conditions:''}),Date.now()).run();
+ await startMeetingAnalysis(id);
+ ok((await meeting(id))?.state==='published'&&(await ownResult(id,token))?.matches.length===1,'repair leaves existing published results available');
+ await processAnalysisJob(id+':'+lateId,ai);
+ ok((await meetingAnalysisProgress(id)).completed===2&&(await meeting(id))?.state==='published','published legacy unchecked answer is repaired without manual attendance');
+ return Response.json({pass:true,checks});
+}catch(error){return Response.json({pass:false,error:String(error)},{status:500});}}};

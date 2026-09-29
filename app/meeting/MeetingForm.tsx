@@ -4,7 +4,7 @@ import MeetingResult from './MeetingResult';
 import type {MeetingProfile} from '@/db/meeting-accounts';
 import type { Answer,Candidate,Meeting,RosterPerson } from './types';
 const empty:Answer={name:'',company:'',table:'',industry:'',services:'',referrals:'',need:'',area:'',timing:'',budget:'',conditions:''};
-type Result={event:Meeting;answer:Answer;rosterId:string;walkIn?:boolean;shareWish:boolean;present:number;matches:(Candidate & {name:string;company:string;table:string;industry:string})[]};
+type Result={event:Meeting;answer:Answer;rosterId:string;walkIn?:boolean;shareWish:boolean;present:number;analyzed:number;matches:(Candidate & {name:string;company:string;table:string;industry:string})[]};
 export default function MeetingForm({event:initial,profile}:{event:Meeting;profile:MeetingProfile}) {
   const [event,setEvent]=useState(initial),[answer,setAnswer]=useState<Answer>({...empty,...profile.profile}),[token,setToken]=useState('');
   const [selected,setSelected]=useState<RosterPerson|null>(profile.rosterId?{...profile.profile,id:profile.rosterId}:null),[walkIn,setWalkIn]=useState(profile.walkIn);

@@ -52,10 +52,10 @@ async function matchDirectAttendee(ai:AIClient,seeker:Attendee,all:Attendee[]):P
   const directService=/依頼|頼め|頼み|お願い|施工して|工事して|設計して|制作して|作って|発注|必須/.test(seeker.need+seeker.conditions);
   const connection=!directService && (/つなが|繋が|交流|経営者|協業|コラボ|販売先|卸先|営業先/.test(seeker.need) || (seeker.need.length<=40&&!/工事|施工|制作|修理|設計|開発/.test(seeker.need)));
   const label=seeker.need.normalize('NFKC').replace(/[\s　。！!「」]/g,'').replace(/(とつながりたいです|とつながりたい|と繋がりたい|を探しています|を探したい|を探す|の経営者|経営者|の方|さん|業者|企業|会社)/g,'');
-  const exact=all.filter(p=>p.id!==seeker.id&&p.present===1&&!!p.industry&&p.industry.normalize('NFKC').replace(/[\s　]/g,'')===label&&seeker.need.includes(p.industry));
+  const exact=all.filter(p=>p.id!==seeker.id&&!!p.industry&&p.industry.normalize('NFKC').replace(/[\s　]/g,'')===label&&seeker.need.includes(p.industry));
   // A stated industry match does not need a model to invent an introduction or a capability.
   if(!directService&&!seeker.conditions&&!seeker.timing&&!seeker.budget&&exact.length) return exact.slice(0,3).map(p=>({id:p.id,kind:'direct',reason:`名簿の業種「${p.industry}」が、つながりたい業種に一致しています。具体的なお仕事はご本人とご相談ください。`,needQuote:p.industry,offerQuote:p.industry,questions:[]}));
-  const others=all.filter(p=>p.id!==seeker.id && p.present===1 && !!(p.industry||p.services||p.referrals) && !/システム命令|条件は無視|最適候補に選んで|ignore previous/i.test(p.services+' '+p.referrals) && (connection||p.services!==p.industry||!!p.referrals));
+  const others=all.filter(p=>p.id!==seeker.id && !!(p.industry||p.services||p.referrals) && !/システム命令|条件は無視|最適候補に選んで|ignore previous/i.test(p.services+' '+p.referrals) && (connection||p.services!==p.industry||!!p.referrals));
   let choices:Candidate[]=[];
   async function rank(batch:Attendee[],verify=false,retry=false) {
     const ids=new Map(batch.map((p,i)=>[`p${i+1}`,p.id]));
@@ -119,7 +119,7 @@ const relatedPolicy=`RELATED_WORKFLOW: 希望の目的を実現するための�
 JSONのみ {"matches":[{"id":"候補ID","kind":"related","step":"協力を相談する具体的な準備・工程（元の依頼全体の実行能力は断言しない）","reason":"希望の目的から関連工程へつながる理由と、この人に具体的に相談できそうな内容。未記載の対応能力は可能性・要確認として書く","needQuote":"needから連続した2文字以上の原文","offerQuote":"industryかservicesから連続した2文字以上の原文","questions":["この関連工程への対応可否など具体的に本人へ確認すること"]}]} /no_think`;
 async function matchRelatedAttendees(ai:AIClient,seeker:Attendee,all:Attendee[],direct:Candidate[]):Promise<Candidate[]> {
  const excluded=new Set([seeker.id,...direct.map(c=>c.id)]);
- const others=all.filter(p=>!excluded.has(p.id)&&p.present===1&&!!(p.industry||p.services)&&!/システム命令|条件は無視|最適候補に選んで|ignore previous/i.test(p.services));
+ const others=all.filter(p=>!excluded.has(p.id)&&!!(p.industry||p.services)&&!/システム命令|条件は無視|最適候補に選んで|ignore previous/i.test(p.services));
  async function rank(batch:Attendee[],verify=false):Promise<Candidate[]> {
   const ids=new Map(batch.map((p,i)=>[`p${i+1}`,p.id]));
   const output=await inferObject(ai,relatedPolicy+(verify?'\n候補の比較です。目的を達成する具体的な関連工程を説明できる人を優先。':''),{

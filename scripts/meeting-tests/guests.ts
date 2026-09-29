@@ -1,5 +1,5 @@
 import {env} from 'cloudflare:workers';
-import {createMeeting,importRoster,roster,rosterOptions,selectedRoster,submitAnswer,ownResult,attendees,meeting,confirmAttendance,analyzeNext,publishMeeting} from '../../db/meetings';
+import {createMeeting,importRoster,roster,rosterOptions,selectedRoster,submitAnswer,ownResult,attendees,meeting,analyzeNext,publishMeeting} from '../../db/meetings';
 export async function guestTest(){
  const checks:string[]=[];
  const ok=(v:unknown,label:string)=>{if(!v)throw new Error(label);checks.push(label);};
@@ -19,7 +19,7 @@ export async function guestTest(){
   await rejects(()=>submitAnswer(id,{walkIn:true,answer:{...answer,services:''},token:receipt,consent:true}),'walk-in business required');
   await rejects(()=>submitAnswer(id,{walkIn:true,answer:profile,token:receipt,consent:true}),'rostered person cannot bypass selection');
   await submitAnswer(id,{walkIn:true,answer,token:receipt,consent:true});
-  const saved=await ownResult(id,receipt);ok(saved?.walkIn===true&&!saved.rosterId&&saved.present===0,'walk-in saved pending attendance confirmation');
+  const saved=await ownResult(id,receipt);ok(saved?.walkIn===true&&!saved.rosterId&&saved.present===1,'walk-in saved without attendance confirmation');
   ok(saved?.answer.services===answer.services&&saved.answer.industry===''&&saved.answer.table===''&&saved.answer.referrals==='','walk-in only trusts self-entered permitted fields');
   ok((await attendees(id))[0].walkIn===true,'operator can identify self-entered participant');
   await rejects(()=>submitAnswer(id,{walkIn:true,answer:{...answer,name:'当日　花子'},token:other,consent:true}),'normalized duplicate walk-in blocked');
@@ -30,12 +30,11 @@ export async function guestTest(){
   const concurrent=await Promise.allSettled([other,third].map(t=>submitAnswer(id,{walkIn:true,answer:{...answer,name:'同時 参加',company:'架空商店'},token:t,consent:true})));
   ok(concurrent.filter(r=>r.status==='fulfilled').length===1&&(await attendees(id)).length===2,'concurrent guest claims atomic');
   await submitAnswer(second,{walkIn:true,answer,token:token(),consent:true});ok((await attendees(second)).length===1,'walk-in allowed without roster and separate event identity');
-  const ownPerson=(await attendees(id)).find(p=>p.name===answer.name)!;await confirmAttendance(id,ownPerson.id,true);
   await env.DB.prepare('UPDATE meeting_events SET closes_at=? WHERE id=?').bind(Date.now()-1,id).run();
   ok((await rosterOptions(id)).length===0&&await selectedRoster(id,person.id)===null,'selector closes at deadline');
   await rejects(()=>submitAnswer(id,{walkIn:true,answer,token:receipt,consent:true}),'walk-in update deadline enforced');
   await rejects(()=>submitAnswer(id,{walkIn:true,answer:{...answer,name:'遅刻 者'},token:token(),consent:true}),'late walk-in submission rejected');
-  await analyzeNext(id);await analyzeNext(id);ok((await meeting(id))?.state==='review','confirmed walk-in follows analysis workflow');
+  await analyzeNext(id);await analyzeNext(id);ok((await meeting(id))?.state==='review','walk-in follows analysis workflow');
   await publishMeeting(id);ok((await ownResult(id,receipt))?.event.state==='published','walk-in receipt retrieves published result');
   return {pass:true,checks};
  }finally{

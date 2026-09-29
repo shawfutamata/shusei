@@ -1,6 +1,6 @@
 import {env} from 'cloudflare:workers';
 import {ensureDatabase,hashMobileSecret,getMembershipAccess} from './data';
-import {meeting,attendees} from './meetings';
+import {meeting,matchingParticipants} from './meetings';
 import {meetingMemberProfile,activateMeetingMember} from './meeting-accounts';
 import {matchAttendee,inferObject,type AIClient} from '@/app/meeting/matching';
 import type {Attendee,Candidate} from '@/app/meeting/types';
@@ -10,17 +10,17 @@ const normalize=(s:string)=>s.normalize('NFKC').toLowerCase().replace(/[\s　・
 export async function meetingNetwork(eventId:string,memberId:string,ai:AIClient=env.MEETING_AI):Promise<NetworkResult> {
  await ensureDatabase();const event=await meeting(eventId),link=await meetingMemberProfile(eventId,memberId);
  if(!event||event.state!=='published'||!link?.answerId)throw new Error('例会の結果公開後に候補を探せます。');
- const people=await attendees(eventId),seeker=people.find(p=>p.id===link.answerId&&p.present===1);
- if(!seeker)throw new Error('受付係に出席確認をお願いしてください。');
+ const people=await matchingParticipants(eventId),seeker=people.find(p=>p.id===link.answerId);
+ if(!seeker)throw new Error('回答を送信してから結果を開いてください。');
  await activateMeetingMember(memberId,eventId);
  if(!(await getMembershipAccess(memberId)).canUseApp)throw new Error('TASUKIの利用開始には運営の確認が必要です。');
  if(!seeker.need.trim())return {status:'ready',matches:[],searched:0};
  // Scan all currently contactable member profiles. No emails or contact details are sent to AI.
  const listed=(await env.DB.prepare(`SELECT m.id,m.display_name AS name,m.company,m.primary_industry AS industry,m.company_pr AS services,m.business_area AS area
  FROM members m WHERE m.id!=? AND (m.membership_status='active' OR (m.membership_status='past_due' AND m.membership_period_end>?)) AND m.display_name!='' AND m.company!='' AND (m.company_pr!='' OR m.primary_industry!='')
- AND NOT EXISTS(SELECT 1 FROM meeting_member_links l JOIN meeting_answers a ON a.id=l.answer_id WHERE l.event_id=? AND l.member_id=m.id AND a.present=1)
+ AND NOT EXISTS(SELECT 1 FROM meeting_member_links l JOIN meeting_answers a ON a.id=l.answer_id WHERE l.event_id=? AND l.member_id=m.id)
  ORDER BY m.id`).bind(memberId,new Date().toISOString(),eventId).all<{id:string;name:string;company:string;industry:string;services:string;area:string}>()).results;
- const members=listed.filter(m=>!people.some(p=>p.present===1&&normalize(p.name)===normalize(m.name)&&normalize(p.company)===normalize(m.company)));
+ const members=listed.filter(m=>!people.some(p=>normalize(p.name)===normalize(m.name)&&normalize(p.company)===normalize(m.company)));
  if(!members.length)return {status:'ready',matches:[],searched:0};
  const fingerprint=await hashMobileSecret(JSON.stringify({need:seeker.need,conditions:seeker.conditions,area:seeker.area,members}));
  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_network_cache (event_id TEXT NOT NULL,member_id TEXT NOT NULL,fingerprint TEXT NOT NULL,status TEXT NOT NULL,matches TEXT NOT NULL DEFAULT '[]',locked_until INTEGER NOT NULL DEFAULT 0,expires_at INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(event_id,member_id))`).run();

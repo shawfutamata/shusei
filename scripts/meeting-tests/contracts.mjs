@@ -11,7 +11,7 @@ const candidate={id:'p',kind:'direct',reason:'給排水工事の対応が一致'
 assert.equal(validateAnswer(base).company,'架空社');
 assert.throws(()=>validateAnswer({...base,services:''}));
 for(const row of [{...candidate,id:'other-event'},{...candidate,id:'s'},{...candidate,offerQuote:'一級建築士'},{...candidate,kind:'referral'}])assert.equal(validateCandidates([row],seeker,[provider]).length,0);
-assert.equal(validateCandidates([candidate],seeker,[{...provider,present:0}]).length,0);
+assert.equal(validateCandidates([candidate],seeker,[{...provider,present:0}]).length,1);
 assert.equal(validateCandidates([candidate,candidate],seeker,[provider]).length,1);
 let calls=0;
 const ai={async run(_model,input){calls++;const data=JSON.parse(input.messages[1].content);if(data.requester){assert(!('name' in data.requester));assert(!('company' in data.requester));}return {response:JSON.stringify(data.request ? {decision:'accept',serviceMatch:true,hardConstraints:'satisfied',reason:'ok'} : {matches:[{...candidate,id:data.attendees[0].id}]})};}};
@@ -19,7 +19,7 @@ assert.equal((await matchAttendee(ai,seeker,[seeker,provider]))[0].id,'p');asser
 assert.deepEqual(await matchAttendee(ai,{...seeker,need:''},[provider]),[]);assert.equal(calls,3);
 await assert.rejects(()=>matchAttendee({async run(){return {response:'invalid json'}}},seeker,[provider]));
 assert.deepEqual(await matchAttendee({async run(){return {response:JSON.stringify({matches:[{...candidate,id:'forged'}]})}}},seeker,[provider]),[]);
-console.log('PASS: answer validation, event isolation, attendance, self-match, exact evidence, referral evidence, duplicate removal, identity exclusion, independent verification, no-need, malformed output, forged ID');
+console.log('PASS: answer validation, event isolation, legacy attendance ignored, self-match, exact evidence, referral evidence, duplicate removal, identity exclusion, independent verification, no-need, malformed output, forged ID');
 
 assert.equal((await matchAttendee(ai,seeker,[seeker,{...provider,industry:'',walkIn:true}]))[0].id,'p');
 console.log('PASS: self-entered walk-in business evidence participates in matching');

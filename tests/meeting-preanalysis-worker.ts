@@ -30,17 +30,17 @@ export default {async fetch(){try{
  await startMeetingAnalysis(id);let finalCalls=0;
  const noNewAI={async run(){finalCalls++;throw new Error('prepared inference should be reused');}};
  for(let i=0;i<2;i++)ok(await processAnalysisJob(id+':'+id+':a'+i,noNewAI)==='done','frozen matching resumes saved inference');
- ok(finalCalls===0&&(await meeting(id))?.state==='review','unchanged confirmed pool needs zero new AI calls after deadline');
- // A no-show must change the exact inference inputs, never reuse an old candidate pool.
+ ok(finalCalls===0&&(await meeting(id))?.state==='review','unchanged participant pool needs zero new AI calls after deadline');
+ // Legacy attendance flags cannot change matching inputs or exclude an answer.
  const other=await createMeeting({title:'No-show fixture',venue:'Fixture',closesAt:Date.now()+600000});const extended=[...profiles,{name:'Fixture C',company:'C',industry:'建築',services:'内装工事',area:'',table:''}];await importRoster(other,extended,true);
  for(let i=0;i<3;i++)await env.DB.prepare('INSERT INTO meeting_answers(id,event_id,token_hash,answer,present,created_at) VALUES(?,?,?,?,1,?)').bind(other+':a'+i,other,other+':token'+i,JSON.stringify({...extended[i],referrals:'',need:'相談できるIT会社',conditions:'',budget:'',timing:''}),Date.now()+i).run();
  await synchronizePreanalysis(other);await prepareDocuments(other);await prepareWarm(other,3);
  await env.DB.prepare('UPDATE meeting_answers SET present=0 WHERE id=?').bind(other+':a1').run();await env.DB.prepare('UPDATE meeting_events SET closes_at=? WHERE id=?').bind(Date.now()-1000,other).run();await startMeetingAnalysis(other);
  let freshCalls=0;const fresh={async run(){freshCalls++;return {response:'{"matches":[]}'};}};
- await processAnalysisJob(other+':'+other+':a0',fresh);await processAnalysisJob(other+':'+other+':a2',fresh);
- ok(freshCalls>0,'changed attendance recomputes candidate batches instead of trusting the old pool');
- ok((await attendees(other)).find(p=>p.id===other+':a1')?.analyzed===0,'unconfirmed attendees are never finalized');
- ok((await meeting(other))?.state==='review','final attendance change completes using the confirmed pool');
+ for(let i=0;i<3;i++)await processAnalysisJob(other+':'+other+':a'+i,fresh);
+ ok(freshCalls===0,'legacy attendance flags do not invalidate prepared matching');
+ ok((await attendees(other)).find(p=>p.id===other+':a1')?.analyzed===1,'legacy unchecked respondents are analyzed');
+ ok((await meeting(other))?.state==='review','all submitted answers complete without attendance checks');
  // No work may continue on a closed event or a stale edited version.
  const lateJobs=(await env.DB.prepare('SELECT id FROM meeting_preanalysis_jobs WHERE event_id=?').bind(other).all<{id:string}>()).results;
  const oldCalls=prepCalls;for(const j of lateJobs)await processPreanalysis(j.id,ai);ok(prepCalls===oldCalls,'closed-event preparation performs no AI calls');

@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import {createMeeting,importRoster,roster,findRoster,attendees,submitAnswer,ownResult,confirmAttendance,analyzeNext,meeting,publishMeeting} from '../../db/meetings';
+import {createMeeting,importRoster,roster,findRoster,attendees,submitAnswer,ownResult,analyzeNext,meeting,publishMeeting} from '../../db/meetings';
 export async function rosterTest(){
  const checks:string[]=[];
  const receipt=Object.fromEntries(['a','b','c','d','e'].map(key=>[key,crypto.randomUUID().replaceAll('-','').repeat(2)]));
@@ -11,7 +11,7 @@ export async function rosterTest(){
  try{
   await rejects(()=>importRoster(id,profiles,false),'import permission required');
   await importRoster(id,profiles,true);
-  const people=await roster(id);ok(people.length===2,'roster imported');ok((await attendees(id)).length===0,'unconsented roster excluded from matching');
+  const people=await roster(id);ok(people.length===2,'roster imported');ok((await attendees(id)).length===0,'import does not fabricate survey answers');
   ok((await findRoster(id,'名簿　太郎')).length===1,'name spaces normalized');ok((await findRoster(id,'名簿')).length===0,'partial name does not expose directory');
   ok(people.find(p=>p.industry==='歯科')?.services==='歯科','short industry preserved without invented capabilities');
   const first=people.find(p=>p.name==='名簿 太郎')!,another=people.find(p=>p.id!==first.id)!;
@@ -23,7 +23,7 @@ export async function rosterTest(){
   await rejects(()=>submitAnswer(id,{token:receipt.a,rosterId:first.id,need:'歯科',consent:false}),'participant consent required');
   await submitAnswer(id,{token:receipt.a,rosterId:first.id,need:'歯科',consent:true,answer:{name:'改ざん',services:'資格を創作'}});
   const own=await ownResult(id,receipt.a);ok(own?.answer.name==='名簿 太郎'&&own.answer.services===first.services,'profile always comes from server roster');ok(own?.rosterId===first.id,'receipt retains roster identity');
-  ok(own?.matches.length===0&&own.present===0,'results hidden until confirmation and publication');
+  ok(own?.matches.length===0&&own.present===1,'results hidden until publication');
   await rejects(()=>importRoster(id,profiles,true),'roster fixed after import');
   await rejects(()=>submitAnswer(id,{token:receipt.b,rosterId:first.id,need:'歯科',consent:true}),'duplicate roster response blocked');
   await rejects(()=>submitAnswer(id,{token:receipt.a,rosterId:another.id,need:'建築',consent:true}),'receipt cannot switch identity');
@@ -31,7 +31,6 @@ export async function rosterTest(){
   const concurrent=await Promise.allSettled(['c','d'].map(c=>submitAnswer(id,{token:receipt[c],rosterId:another.id,need:'建築',consent:true})));
   ok(concurrent.filter(r=>r.status==='fulfilled').length===1&&(await attendees(id)).length===2,'concurrent claims produce exactly one answer');
   await submitAnswer(id,{token:receipt.a,rosterId:first.id,need:'歯科',consent:true});
-  for(const row of await attendees(id))await confirmAttendance(id,row.id,true);
   await env.DB.prepare('UPDATE meeting_events SET closes_at=? WHERE id=?').bind(Date.now()-100,id).run();
   await rejects(()=>submitAnswer(id,{token:receipt.a,rosterId:first.id,need:'飲食店',consent:true}),'deadline enforced for roster response');
   ok((await findRoster(id,'名簿 太郎')).length===0,'name search closes at deadline');

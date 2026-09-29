@@ -1,5 +1,5 @@
 import {env} from 'cloudflare:workers';
-import {attendees,ensureMeetings,meeting,roster} from './meetings';
+import {attendees,ensureMeetings,meeting,roster,matchingParticipants} from './meetings';
 import {anonymous,inferObject,matchAttendee,type AIClient} from '@/app/meeting/matching';
 import type {Attendee} from '@/app/meeting/types';
 export type Topic={label:string;quote:string};
@@ -26,16 +26,17 @@ export async function synchronizePreanalysis(eventId:string,now=Date.now()){
  ON CONFLICT(id) DO UPDATE SET revision=excluded.revision,source=excluded.source,status='pending',attempts=0,lease_id='',lease_until=0,dispatch_at=0,result='',error=''
  WHERE meeting_preanalysis_jobs.revision!=excluded.revision`).bind(j.id,eventId,j.kind,j.sourceId,j.revision,JSON.stringify(j.source)));
  if(statements.length)await env.DB.batch(statements);
- const prepared=await preparedAttendees(eventId,people.map(p=>({...p,present:1})));
+ const prepared=await preparedAttendees(eventId,await matchingParticipants(eventId));
  const pool=prepared.map(p=>({id:p.id,...business(p),area:p.area,prepared:{offers:p.prepared?.offers??[]}}));
  const revision=await fingerprint({pool,wishes:prepared.map(p=>({id:p.id,...wish(p)}))});
  await env.DB.prepare(`INSERT INTO meeting_preanalysis_events(event_id,revision,changed_at) VALUES(?,?,?) ON CONFLICT(event_id) DO UPDATE SET revision=excluded.revision,changed_at=excluded.changed_at WHERE meeting_preanalysis_events.revision!=excluded.revision`).bind(eventId,revision,now).run();
  const snapshot=await env.DB.prepare('SELECT changed_at FROM meeting_preanalysis_events WHERE event_id=?').bind(eventId).first<{changed_at:number}>();
  const pending=await env.DB.prepare("SELECT COUNT(*) AS n FROM meeting_preanalysis_jobs WHERE event_id=? AND kind IN ('profile','need') AND status IN ('pending','queued','retry','processing')").bind(eventId).first<{n:number}>();
- const warm=await Promise.all(prepared.map(async p=>{const source={seeker:anonymous(p),pool};return {id:eventId+':warm:'+p.id,sourceId:p.id,source,revision:await fingerprint(source)};}));
+ const answerIds=new Set(people.map(p=>p.id));
+ const warm=await Promise.all(prepared.filter(p=>answerIds.has(p.id)).map(async p=>{const source={seeker:anonymous(p),pool};return {id:eventId+':warm:'+p.id,sourceId:p.id,source,revision:await fingerprint(source)};}));
  if(warm.length)await env.DB.batch(warm.map(j=>env.DB.prepare("UPDATE meeting_preanalysis_jobs SET status='waiting',lease_id='',lease_until=0,dispatch_at=0 WHERE id=? AND revision!=?").bind(j.id,j.revision)));
  // Debounce late edits and arrivals. Never precompute against an obsolete half-filled pool.
- if(prepared.length<2||pending?.n||!snapshot||now-snapshot.changed_at<QUIET_MS)return;
+ if(!warm.length||prepared.length<2||pending?.n||!snapshot||now-snapshot.changed_at<QUIET_MS)return;
  await env.DB.batch(warm.map(j=>env.DB.prepare(`INSERT INTO meeting_preanalysis_jobs(id,event_id,kind,source_id,revision,source) VALUES(?,?,'warm',?,?,?)
  ON CONFLICT(id) DO UPDATE SET revision=excluded.revision,source=excluded.source,status='pending',attempts=0,lease_id='',lease_until=0,dispatch_at=0,result='',error=''
  WHERE meeting_preanalysis_jobs.revision!=excluded.revision OR meeting_preanalysis_jobs.status='waiting'`).bind(j.id,eventId,j.sourceId,j.revision,JSON.stringify(j.source))));
@@ -63,7 +64,7 @@ export async function processPreanalysis(jobId:string,ai:AIClient=env.MEETING_AI
   const client:AIClient={async run(model,inputs){if(!await env.DB.prepare('SELECT 1 AS ok WHERE '+guard).bind(...bindings()).first())throw new Superseded();return ai.run(model,inputs);}};
   let result:unknown;
   if(job.kind==='warm'){
-   const people=await preparedAttendees(job.event_id,(await attendees(job.event_id)).map(p=>({...p,present:1}))),seeker=people.find(p=>p.id===job.source_id);
+   const people=await preparedAttendees(job.event_id,await matchingParticipants(job.event_id)),seeker=people.find(p=>p.id===job.source_id);
    const source=seeker?{seeker:anonymous(seeker),pool:people.map(p=>({id:p.id,...business(p),area:p.area,prepared:{offers:p.prepared?.offers??[]}}))}:null;
    if(!seeker||await fingerprint(source)!==job.revision)throw new Superseded();
    const cacheId=job.event_id+':'+seeker.id;

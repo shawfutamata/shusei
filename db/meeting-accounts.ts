@@ -125,6 +125,6 @@ export async function saveMeetingProfile(eventId:string,memberId:string,input:Re
 }
 export async function activateMeetingMember(memberId:string,eventId:string) {
  await ensureDatabase();await ensureMeetings();
- // Only verified new meeting registrations can be activated. Suspended/canceled accounts remain unchanged.
- await env.DB.prepare(`UPDATE members SET membership_status='active',activated_at=? WHERE id=? AND membership_status='invited' AND membership_source='meeting_signup' AND EXISTS(SELECT 1 FROM meeting_member_links l JOIN meeting_answers a ON a.id=l.answer_id WHERE l.member_id=members.id AND l.event_id=? AND a.event_id=? AND a.present=1)`).bind(new Date().toISOString(),memberId,eventId,eventId).run();
+ // Only meeting registrations linked to their own submitted answer can be activated. Suspended/canceled accounts remain unchanged.
+ await env.DB.prepare(`UPDATE members SET membership_status='active',activated_at=? WHERE id=? AND membership_status='invited' AND membership_source='meeting_signup' AND EXISTS(SELECT 1 FROM meeting_member_links l JOIN meeting_answers a ON a.id=l.answer_id WHERE l.member_id=members.id AND l.event_id=? AND a.event_id=?)`).bind(new Date().toISOString(),memberId,eventId,eventId).run();
 }

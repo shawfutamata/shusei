@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import {getMeetingAdmin,hasMeetingVenue} from '@/app/meeting-admin-auth';
 import {DEFAULT_MEETING_VENUE} from '@/app/meeting/venue-types';
-import { adminMeetingSummaries,listMeetings,meeting,attendees,createMeeting,confirmAttendance,meetingAnalysisProgress,removeCandidate,publishMeeting,roster,importRoster,setMeetingDeadline } from '@/db/meetings';
+import { adminMeetingSummaries,listMeetings,meeting,attendees,createMeeting,meetingAnalysisProgress,removeCandidate,publishMeeting,roster,importRoster,setMeetingDeadline } from '@/db/meetings';
 import {preanalysisProgress} from '@/db/meeting-preanalysis';
 import {startMeetingAnalysis} from '@/db/meeting-analysis';
 import { setQrTableCount,qrTableCount } from '@/db/meeting-automation';
@@ -37,9 +37,6 @@ export async function POST(request:Request) {
       case 'deadline': await setMeetingDeadline(body.id,body.closesAt);break;
       case 'qr-tables': await setQrTableCount(body.id,body.tables);break;
       case 'import': await importRoster(body.id,body.people,body.consent);break;
-      case 'attendance':
-        if(typeof body.personId!=='string' || typeof body.present!=='boolean') throw new Error('出席者を確認してください。');
-        await confirmAttendance(body.id,body.personId,body.present); break;
       case 'analyze': await startMeetingAnalysis(body.id); break;
       case 'remove':
         if(typeof body.personId!=='string' || typeof body.candidateId!=='string') throw new Error('候補を確認してください。');
