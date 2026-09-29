@@ -135,3 +135,74 @@ body:has(.meeting-survey){background:#fbf8f2;color:#161918}
 .meeting-results .meeting-result-save .meeting-ui-icon{width:16px;height:16px}
 .meeting-results .meeting-copy-fallback{flex-basis:100%;text-align:right;font-size:13px;padding:8px 0;overflow-wrap:anywhere}
 .meeting-results .meeting-tasuki-banner{margin-top:16px}
+
+/* White, approachable meeting UI. Color identifies actions and candidate types. */
+body:has(.meeting-survey),.meeting-survey{background:#fff}
+.meeting-results{--result-ink:#162238;--result-muted:#5f6d7f;--result-line:#e1e8ef;--result-sky:#f2f7fd;background:#fff;color:var(--result-ink)}
+.meeting-wish-board{--wish-ink:#162238;--wish-muted:#5f6d7f;--wish-line:#e1e8ef;background:#fff;color:var(--wish-ink)}
+.meeting-results .meeting-result-heading{gap:12px;margin-bottom:24px}
+.meeting-result-heading .meeting-result-subtitle{font-size:14px}
+.meeting-results .meeting-result-state{padding:5px 10px;border-radius:20px;background:#f2f7fd;color:#506b8b;font-size:12px}
+.meeting-results .meeting-result-state.is-published{background:#eaf8f1;color:#176746}
+.meeting-results .meeting-result-profile{padding:18px;border:1px solid #e1e8ef;border-radius:12px}
+.meeting-results .meeting-person-symbol{background:#fff0f3;color:#d91f2e;width:40px;height:40px;border-radius:12px}
+.meeting-results .meeting-result-person strong{font-size:18px;color:#162238}
+.meeting-results .meeting-result-person p{font-size:13px;color:#5f6d7f}
+.meeting-results .meeting-result-wish{padding:14px 0 16px;margin-top:14px;border-top:1px solid #e1e8ef;border-bottom:1px solid #e1e8ef}
+.meeting-results .meeting-result-wish h2{font-size:12px;color:#d91f2e;margin-bottom:6px}
+.meeting-results .meeting-result-wish p{font-size:16px;font-weight:500;line-height:1.65;color:#162238}
+.meeting-results .meeting-sharing{padding-top:4px}
+.meeting-results .meeting-sharing .meeting-consent{margin:12px 0 0;gap:10px}
+.meeting-results .meeting-sharing strong{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:13px}
+.meeting-results .meeting-optional{font-size:10px;padding:1px 6px;border-radius:4px;background:#f1f5f9;color:#5f6d7f;font-weight:400}
+.meeting-results .meeting-sharing small{font-size:11px;line-height:1.6;margin-top:4px;color:#5f6d7f}
+.meeting-results .meeting-sharing input{width:20px;height:20px}
+.meeting-results .meeting-result-section-heading{margin-bottom:12px}
+.meeting-results .meeting-result-section-heading h2{font-size:21px}
+.meeting-results .meeting-result-section-heading>span{background:#fff0f3;color:#ad1930;padding:3px 10px;border-radius:16px;font-size:12px}
+.meeting-result-match-list{display:grid;gap:12px}
+.meeting-results .meeting-result-match{padding:18px;border:1px solid #e1e8ef;border-radius:12px;box-shadow:0 3px 10px rgb(22 34 56 / 3%);min-width:0}
+.meeting-results .meeting-match-person{gap:10px;align-items:start}
+.meeting-match-person>div{min-width:0}
+.meeting-results .meeting-match-number{display:grid;place-items:center;width:34px;height:34px;flex-shrink:0;background:#d91f2e;color:#fff;border-radius:10px;font-size:15px;line-height:1}
+.meeting-results .meeting-match-person small{display:inline-block;font-size:11px;font-weight:600;line-height:1.5;color:#b41c34;background:#fff0f3;border-radius:4px;padding:2px 6px}
+.meeting-results .meeting-match-person h3{font-size:21px;line-height:1.4;margin:6px 0 3px;color:#162238;overflow-wrap:anywhere}
+.meeting-results .meeting-match-person p{font-size:13px;line-height:1.5;color:#5f6d7f;overflow-wrap:anywhere}
+.meeting-results .meeting-result-match blockquote{margin:14px 0 0;padding:12px 14px;background:#fff5f7;border-left:3px solid #ed607c;border-radius:0 8px 8px 0;font-size:16px;line-height:1.6;color:#162238}
+.meeting-results .meeting-result-match blockquote small{font-size:11px;color:#a8253d;margin-bottom:4px}
+.meeting-results .meeting-result-match.is-related .meeting-match-number{background:#167ab7}
+.meeting-results .meeting-result-match.is-related .meeting-match-person small{background:#eaf5ff;color:#166ca4}
+.meeting-results .meeting-result-match.is-related blockquote{background:#f0f8ff;border-color:#38a7de}
+.meeting-results .meeting-result-match.is-related blockquote small{color:#166ca4}
+.meeting-results .meeting-match-questions{padding:0;margin-top:10px;border-top:0}
+.meeting-results .meeting-match-questions summary{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;font-size:12px;font-weight:500;color:#5f6d7f;list-style:none;touch-action:manipulation}
+.meeting-match-questions summary::-webkit-details-marker{display:none}
+.meeting-match-questions summary::after{content:'＋';font-size:18px;color:#d91f2e;flex-shrink:0}
+.meeting-match-questions[open] summary::after{content:'−'}
+.meeting-results .meeting-match-questions .meeting-match-reason{font-size:14px;line-height:1.65;color:#36465b;margin:4px 0 12px;overflow-wrap:anywhere}
+.meeting-results .meeting-match-questions ul{font-size:14px;line-height:1.7;margin:8px 0;padding-left:20px;color:#36465b}
+.meeting-results .meeting-match-questions .meeting-help{font-size:11px;color:#5f6d7f;margin:12px 0 0}
+.meeting-results .meeting-participant-link{margin-top:16px}
+.meeting-results .meeting-participant-link a{border:0;background:#d91f2e;color:#fff;border-radius:10px;font-size:15px}
+.meeting-results .meeting-participant-link a:hover{background:#b51d2b}
+.meeting-results .meeting-result-empty,.meeting-wish-board .meeting-wish-empty{background:#f2f7fd}
+.meeting-results .meeting-empty-symbol{background:#e2f0fc;color:#167ab7}
+.meeting-survey .meeting-secondary{background:#f1f5f9}
+.meeting-survey .meeting-secondary:hover:not(:disabled){background:#e5edf5}
+.meeting-wish-board .meeting-wish-card{border-color:#e1e8ef;border-radius:10px}
+.meeting-wish-board .meeting-wish-test{background:#f1f5f9;color:#5f6d7f}
+.meeting-wish-board .meeting-wish-input input{border-color:#d5dee9}
+@media(max-width:760px){
+ .meeting-results .meeting-shell{padding:22px 16px 32px}
+ .meeting-results .meeting-result-heading{margin-bottom:18px;gap:8px}
+ .meeting-result-heading h1{font-size:25px}
+ .meeting-results .meeting-result-venue{font-size:12px;margin-bottom:6px}
+ .meeting-result-layout{gap:22px}
+ .meeting-results .meeting-result-profile{padding:14px}
+ .meeting-results .meeting-result-wish{margin-top:12px;padding:12px 0}
+ .meeting-results .meeting-result-wish p{font-size:16px}
+ .meeting-results .meeting-result-match{padding:14px}
+ .meeting-results .meeting-match-person h3{font-size:19px}
+ .meeting-results .meeting-result-match blockquote{padding:10px 12px;font-size:15px;margin-top:12px}
+ .meeting-results .meeting-result-section-heading h2{font-size:20px}
+}
