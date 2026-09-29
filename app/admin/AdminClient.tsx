@@ -31,14 +31,14 @@ type AdminData = {
 // short は、下の帯に出す短い呼び名。狭いところで「ダッシュボ…」と
 // 切れてしまうので、切るのではなく別の言葉にする。
 const tabs = [
-  { key: 'analytics', label: 'ダッシュボード', short: 'ホーム' },
-  { key: 'members', label: '会員' },
-  { key: 'requests', label: '投稿' },
-  { key: 'surveys', label: '例会アンケート', short: '例会' },
-  { key: 'reports', label: '異議申立' },
-  { key: 'ads', label: '広告' },
-  { key: 'feedback', label: 'ご意見' },
-  { key: 'backup', label: 'バックアップ', short: '控え' },
+  { key: 'analytics', label: 'ダッシュボード', short: 'ホーム', group: 'common' },
+  { group: 'tasuki', key: 'members', label: '会員' },
+  { group: 'tasuki', key: 'requests', label: '投稿' },
+  { group: 'hiru', key: 'surveys', label: '例会アンケート', short: '例会' },
+  { group: 'tasuki', key: 'reports', label: '異議申立' },
+  { group: 'tasuki', key: 'ads', label: '広告' },
+  { group: 'tasuki', key: 'feedback', label: 'ご意見' },
+  { group: 'tasuki', key: 'backup', label: 'バックアップ', short: '控え' },
 ] as const;
 
 const categoryNames: Record<string, string> = {
@@ -276,13 +276,16 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
     <aside className={`admin-side${menuOpen ? ' is-open' : ''}`}>
       <div className="admin-brand"><BrandMark className="admin-brand-mark" /><b>{serviceName} 管理</b></div>
       <nav className="admin-side-nav" aria-label="管理する対象">
-        {tabs.map((item) => <button key={item.key} className={tab === item.key ? 'selected' : ''}
+        {([{key:'common',label:''},{key:'tasuki',label:'TASUKI'},{key:'hiru',label:'ひるのめぐろ'}] as const).map(group=><div className="admin-nav-group" key={group.key} role="group" aria-label={group.label||'共通'}>
+        {group.label&&<h2 className="admin-nav-group-label">{group.label}</h2>}
+        {tabs.filter(item=>item.group===group.key).map((item) => <button key={item.key} className={tab === item.key ? 'selected' : ''}
           onClick={() => { goTab(item.key); setMenuOpen(false); }} aria-pressed={tab === item.key}>
           <SideIcon name={item.key} />
           <span className="admin-nav-long">{item.label}</span>
           <span className="admin-nav-short">{'short' in item ? item.short : item.label}</span>
           {countFor(item.key) > 0 && <em>{countFor(item.key)}</em>}
         </button>)}
+        </div>)}
       </nav>
       <div className="admin-side-foot"><span>管</span><div><b>{adminName}</b><small>{adminEmail}</small></div></div>
     </aside>
