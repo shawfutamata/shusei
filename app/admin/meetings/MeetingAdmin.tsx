@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import type { Meeting, Attendee, RosterPerson } from '@/app/meeting/types';
 import RosterImport from './RosterImport';
 import AutomationPanel from './AutomationPanel';
+const japanInput=(time:number)=>new Date(time+9*3600000).toISOString().slice(0,16);
 const labels={open:'受付中',analyzing:'分析中',review:'候補確認',published:'公開済み'};
 export default function MeetingAdmin() {
   const [events,setEvents]=useState<Meeting[]>([]), [event,setEvent]=useState<Meeting|null>(null), [people,setPeople]=useState<Attendee[]>([]),[roster,setRoster]=useState<RosterPerson[]>([]),[qrTables,setQrTables]=useState(8);
@@ -12,7 +13,7 @@ export default function MeetingAdmin() {
     const r=await fetch('/api/admin/meetings'+(id?'?id='+encodeURIComponent(id):''),body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{cache:'no-store'});
     const data=await r.json() as {error?:string;event:Meeting;attendees:Attendee[];roster:RosterPerson[];events:Meeting[];id:string;qrTables?:number}; if(!r.ok) throw new Error(data.error||'読み込めませんでした。'); return data;
   }
-  function apply(data:{event:Meeting;attendees:Attendee[];roster:RosterPerson[];qrTables?:number}) {setQrTables(data.qrTables??8);setEvent(data.event);setPeople(data.attendees);setRoster(data.roster);}
+  function apply(data:{event:Meeting;attendees:Attendee[];roster:RosterPerson[];qrTables?:number}) {setQrTables(data.qrTables??8);setEvent(data.event);setEvents(list=>list.map(e=>e.id===data.event.id?data.event:e));setPeople(data.attendees);setRoster(data.roster);}
   useEffect(()=>{request().then(d=>{setEvents(d.events);setOrigin(location.origin);const id=new URLSearchParams(location.search).get('event');if(id)void select(id);}).catch(e=>setError(e.message));},[]);
   async function select(id:string) {setBusy(true);setError('');try{apply(await request(undefined,id));}catch(e){setError(String(e));}finally{setBusy(false);}}
   async function act(action:string,extra:Record<string,unknown>={}) {
@@ -33,6 +34,7 @@ export default function MeetingAdmin() {
     <label>例会を選択<select value={event?.id||''} disabled={busy} onChange={e=>void select(e.target.value)}><option value="" disabled>選択してください</option>{events.map(e=><option key={e.id} value={e.id}>{e.title}</option>)}</select></label>
     {error&&<p role="alert" className="meeting-error">{error}　回答は保持されています。再読み込み・再開できます。</p>}
     {event&&<><h2>{event.title}</h2><p>{event.venue} · {event.state==='open'&&now>=event.closesAt?'受付終了':labels[event.state]}<br/>締切：{new Date(event.closesAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'})}</p>
+    <details className="meeting-deadline"><summary>回答締切を変更</summary>{event.state==='open'?<form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);void act('deadline',{closesAt:new Date(String(f.get('closesAt'))+'+09:00').getTime()});}}><label>回答締切（日本時間）<input name="closesAt" type="datetime-local" required defaultValue={japanInput(event.closesAt)} key={event.id+event.closesAt}/></label><p className="meeting-help">11:15入場・11:30開始なら、11:45締切で30分間入力できます。集計前なら延長・短縮できます。過去の時刻を指定すると受付を終了します。</p><button disabled={busy}>締切を保存</button></form>:<p className="meeting-help">集計開始後は締切を変更できません。</p>}</details>
     {!event.rosterCount&&event.state==='open'&&people.length===0&&<RosterImport busy={busy} onImport={async profiles=>{setBusy(true);try{apply(await request({action:'import',id:event.id,people:profiles,consent:true}));}finally{setBusy(false);}}}/>}
     {!!event.rosterCount&&<details><summary>本日の名簿 {roster.length}人を確認</summary>{roster.map(p=><p key={p.id}>{p.name} · {p.company} · {p.industry}{p.table&&` ／ ${p.table}`}</p>)}</details>}
     <p className="meeting-link">Google・メールで登録して回答する受付URL（名簿の取り込み後に共有）<br/><a href={'/meeting/'+event.id} target="_blank" rel="noreferrer">{origin}/meeting/{event.id}</a></p>

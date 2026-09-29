@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdmin } from '@/app/admin-auth';
-import { listMeetings,meeting,attendees,createMeeting,confirmAttendance,analyzeNext,removeCandidate,publishMeeting,roster,importRoster } from '@/db/meetings';
+import { listMeetings,meeting,attendees,createMeeting,confirmAttendance,analyzeNext,removeCandidate,publishMeeting,roster,importRoster,setMeetingDeadline } from '@/db/meetings';
 import { setQrTableCount,qrTableCount } from '@/db/meeting-automation';
 const headers={'Cache-Control':'no-store'};
 export async function GET(request:Request) {
@@ -18,6 +18,7 @@ export async function POST(request:Request) {
     if(body.action==='create') return NextResponse.json({id:await createMeeting(body)},{headers});
     if(typeof body.id!=='string' || !await meeting(body.id)) throw new Error('例会を選んでください。');
     switch(body.action) {
+      case 'deadline': await setMeetingDeadline(body.id,body.closesAt);break;
       case 'qr-tables': await setQrTableCount(body.id,body.tables);break;
       case 'import': await importRoster(body.id,body.people,body.consent);break;
       case 'attendance':

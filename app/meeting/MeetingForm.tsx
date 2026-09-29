@@ -17,7 +17,8 @@ export default function MeetingForm({event:initial,profile}:{event:Meeting;profi
     let disposed=false;
     async function refresh(){
       try{const r=await fetch(`/api/meeting/${event.id}?mine=1`,{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
-      if(r.ok){const data=await r.json() as Result;if(!disposed){setResult(data);setEvent(data.event);if(!editing){setAnswer(data.answer);setWalkIn(!!data.walkIn);if(data.rosterId)setSelected({...data.answer,id:data.rosterId});}try{localStorage.setItem(storageKey,token);}catch{}}}}
+      if(r.ok){const data=await r.json() as Result;if(!disposed){setResult(data);setEvent(data.event);if(!editing){setAnswer(data.answer);setWalkIn(!!data.walkIn);if(data.rosterId)setSelected({...data.answer,id:data.rosterId});}try{localStorage.setItem(storageKey,token);}catch{}}}
+      else if(r.status===404){const status=await fetch(`/api/meeting/${event.id}`,{cache:'no-store'});if(status.ok){const data=await status.json() as {event:Meeting};if(!disposed)setEvent(data.event);}}}
       catch{/* Preserve receipt and let the user retry. */}
     }
     void refresh(); const timer=setInterval(()=>{setNow(Date.now());void refresh();},15000);

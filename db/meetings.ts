@@ -100,6 +100,15 @@ export async function createMeeting(body: Record<string,unknown>) {
 async function hash(token:string) {
   return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token)))).map(x=>x.toString(16).padStart(2,'0')).join('');
 }
+export async function setMeetingDeadline(id:string,value:unknown) {
+  await ensureMeetings();
+  const closesAt=typeof value==='number'?value:NaN;
+  if(!Number.isSafeInteger(closesAt)||closesAt<=0||closesAt>Date.now()+90*86400000)throw new Error('90日以内の締切日時を指定してください。');
+  // A past time intentionally closes reception. Analysis/publication cannot be
+  // reopened by moving the deadline; frozen answers must remain frozen.
+  const result=await env.DB.prepare("UPDATE meeting_events SET closes_at=? WHERE id=? AND state='open'").bind(closesAt,id).run();
+  if(result.meta.changes!==1)throw new Error('集計を始めた例会の締切は変更できません。');
+}
 export async function submitAnswer(id:string,body:Record<string,unknown>,memberId?:string) {
   await ensureMeetings();
   const linked=memberId?await env.DB.prepare('SELECT roster_id AS rosterId,profile,walk_in AS walkIn,answer_id AS answerId FROM meeting_member_links WHERE event_id=? AND member_id=?').bind(id,memberId).first<{rosterId:string;profile:string;walkIn:number;answerId:string}>():null;

@@ -8,7 +8,7 @@ type Settings={enabled:boolean;minutes:number;tables:number;connection:string};
 export type Preparation=ScheduledMeeting & {meetingId:string|null;tables:number;status:string;error:string;};
 let ready:Promise<unknown>|undefined;
 async function ensure(){await ensureMeetings();await(ready??=env.DB.batch([
-  env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_automation_settings(id INTEGER PRIMARY KEY CHECK(id=1),enabled INTEGER NOT NULL DEFAULT 1,minutes INTEGER NOT NULL DEFAULT 30,tables INTEGER NOT NULL DEFAULT 8,connection TEXT NOT NULL DEFAULT '',checked_at INTEGER NOT NULL DEFAULT 0,error TEXT NOT NULL DEFAULT '')`),
+  env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_automation_settings(id INTEGER PRIMARY KEY CHECK(id=1),enabled INTEGER NOT NULL DEFAULT 1,minutes INTEGER NOT NULL DEFAULT 15,tables INTEGER NOT NULL DEFAULT 8,connection TEXT NOT NULL DEFAULT '',checked_at INTEGER NOT NULL DEFAULT 0,error TEXT NOT NULL DEFAULT '')`),
   env.DB.prepare('INSERT OR IGNORE INTO meeting_automation_settings(id) VALUES(1)'),
   env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_preparations(source_key TEXT PRIMARY KEY,schedule TEXT NOT NULL,meeting_id TEXT,tables INTEGER NOT NULL DEFAULT 8,status TEXT NOT NULL DEFAULT 'scheduled',error TEXT NOT NULL DEFAULT '',lock_until INTEGER NOT NULL DEFAULT 0)`),
   env.DB.prepare('CREATE TABLE IF NOT EXISTS meeting_qr_settings(meeting_id TEXT PRIMARY KEY,tables INTEGER NOT NULL)'),

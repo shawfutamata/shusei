@@ -37,7 +37,7 @@ try{
  await db.prepare('UPDATE meeting_automation_settings SET connection=? WHERE id=1').bind(Buffer.concat([Buffer.from(iv),Buffer.from(cipher)]).toString('base64')).run();
  await Promise.all([worker.scheduled(due),worker.scheduled(due)]);
  assert.equal((await db.prepare('SELECT id FROM meeting_events').all()).results.length,1);
- const state=await db.prepare('SELECT status,tables,error FROM meeting_preparations').first();assert.equal(state.status,'ready',state.error);assert.equal(state.tables,8);
+ const state=await db.prepare('SELECT status,tables,error FROM meeting_preparations').first();assert.equal(state.status,'ready',state.error);assert.equal(state.tables,8);assert.equal((await db.prepare('SELECT minutes FROM meeting_automation_settings').first()).minutes,15);assert.equal((await db.prepare('SELECT closes_at FROM meeting_events').first()).closes_at,Date.parse('2026-10-07T11:45:00+09:00'));
  const roster=(await db.prepare('SELECT profile FROM meeting_roster').all()).results;assert.equal(roster.length,2);assert.equal(JSON.parse(roster[0].profile).table,'');assert.equal(JSON.parse(roster[0].profile).services,'チラシ印刷と商品のケース印刷');
  assert.equal(JSON.parse(roster[1].profile).services,'内装工事');assert.equal(JSON.parse(roster[1].profile).industry,'');
  await worker.scheduled(due);assert.equal((await db.prepare('SELECT profile FROM meeting_roster').all()).results.length,2);
