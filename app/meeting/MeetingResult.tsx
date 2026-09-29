@@ -1,4 +1,5 @@
 import MeetingNetwork from './MeetingNetwork';
+import {deadlineCountdown} from './deadline-countdown';
 import type {Answer,Candidate,Meeting} from './types';
 type Result={answer:Answer;rosterId:string;walkIn?:boolean;shareWish:boolean;present:number;matches:(Candidate & {name:string;company:string;table:string;industry:string})[]};
 type IconName='person'|'people'|'search'|'arrow'|'copy'|'check'|'clock';
@@ -14,9 +15,11 @@ function Icon({name,className=''}:{name:IconName;className?:string}) {
  };
  return <svg className={`meeting-ui-icon ${className}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
-export default function MeetingResult({event,result,token,busy,closed,onShare,onEdit,onMessage}:{event:Meeting;result:Result;token:string;busy:boolean;closed:boolean;onShare:(shared:boolean)=>Promise<void>;onEdit:()=>void;onMessage:(message:string)=>void}) {
+export default function MeetingResult({event,result,token,busy,closed,now,onShare,onEdit,onMessage}:{event:Meeting;result:Result;token:string;busy:boolean;closed:boolean;now:number;onShare:(shared:boolean)=>Promise<void>;onEdit:()=>void;onMessage:(message:string)=>void}) {
  const published=event.state==='published';
  const available=published&&result.present===1;
+ const countdown=deadlineCountdown(event.closesAt,now,closed);
+ const deadline=new Date(event.closesAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});
  return <>
   <div className="meeting-result-heading"><div><p className="meeting-result-venue">{event.venue}{event.title!==event.venue&&` · ${event.title}`}</p><h1>{published?'本日のマッチング結果':'回答ありがとうございます'}</h1><p className="meeting-result-subtitle">今日の出会いを、仕事につなげる。</p></div><span className={`meeting-result-state${published?' is-published':''}`}><Icon name={published?'check':'clock'}/>{published?'結果公開済み':'結果を準備中'}</span></div>
   <div className="meeting-result-layout">
@@ -28,7 +31,7 @@ export default function MeetingResult({event,result,token,busy,closed,onShare,on
    </aside>
    <div className="meeting-result-main">
     <section className="meeting-result-candidates" aria-labelledby="meeting-candidates-title"><div className="meeting-result-section-heading"><h2 id="meeting-candidates-title">{published?'本日の紹介候補':'紹介候補を確認しています'}</h2>{published&&<span>{result.matches.length}人</span>}</div>
-     {!published?<div className="meeting-result-empty"><span className="meeting-empty-symbol"><Icon name="clock"/></span><h3>結果が出るまで、例会をお楽しみください</h3><p>締切後、運営が紹介候補を確認して公開します。</p>{!result.present&&<p>受付係に出席確認をお願いしてください。</p>}<small>15秒ごとに自動で更新します。</small></div>:!result.matches.length?<div className="meeting-result-empty"><span className="meeting-empty-symbol"><Icon name="search"/></span><h3>{!result.present?'出席確認が必要です':!result.answer.need?'今回は、できる仕事を受け付けました':'今回は確かな候補が見つかりませんでした'}</h3><p>{!result.present?'受付係にお声がけください。':!result.answer.need?'条件が合えば、相手の紹介候補に表示されます。':'無理な紹介は行いません。参加者の希望から、ご縁が見つかることもあります。'}</p></div>:<div className="meeting-result-match-list">{result.matches.map((p,index)=><article className={`meeting-result-match${p.kind==='related'?' is-related':''}`} key={p.id}>
+     {!published?<div className="meeting-result-empty"><div className={`meeting-deadline${closed?' is-closed':''}`}><div className="meeting-deadline-time"><Icon name="clock"/><span>回答締切 <time dateTime={new Date(event.closesAt).toISOString()}>{deadline}</time><small>日本時間</small></span></div><div className="meeting-countdown" role="timer" aria-live="off"><span>{closed?'回答の受付は終了しました':'締切まであと'}</span><strong>{countdown}</strong></div></div><h3>結果が出るまで、例会をお楽しみください</h3><p>締切後、運営が紹介候補を確認して公開します。</p>{!result.present&&<p>受付係に出席確認をお願いしてください。</p>}<small>15秒ごとに自動で更新します。</small></div>:!result.matches.length?<div className="meeting-result-empty"><span className="meeting-empty-symbol"><Icon name="search"/></span><h3>{!result.present?'出席確認が必要です':!result.answer.need?'今回は、できる仕事を受け付けました':'今回は確かな候補が見つかりませんでした'}</h3><p>{!result.present?'受付係にお声がけください。':!result.answer.need?'条件が合えば、相手の紹介候補に表示されます。':'無理な紹介は行いません。参加者の希望から、ご縁が見つかることもあります。'}</p></div>:<div className="meeting-result-match-list">{result.matches.map((p,index)=><article className={`meeting-result-match${p.kind==='related'?' is-related':''}`} key={p.id}>
       <div className="meeting-match-person"><span className="meeting-match-number">{String(index+1).padStart(2,'0')}</span><div><small>{p.kind==='related'?'関連する仕事の候補':p.kind==='direct'?'つながりの候補':'紹介を相談できる候補'}</small><h3>{p.name}さん</h3><p>{p.company}{p.table&&` · ${p.table}`}</p></div></div><blockquote><small>相談できる仕事</small>{p.offerQuote}</blockquote><details className="meeting-match-questions"><summary>紹介の理由・確認したいこと</summary><p className="meeting-match-reason">{p.reason}</p>{!!p.questions.length&&<ul>{p.questions.map(q=><li key={q}>{q}</li>)}</ul>}<p className="meeting-help">受注・紹介の可否や条件は、ご本人とお確かめください。</p></details>
      </article>)}</div>}
     </section>

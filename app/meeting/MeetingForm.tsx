@@ -13,6 +13,10 @@ export default function MeetingForm({event:initial,profile}:{event:Meeting;profi
   const storageKey=`tasuki-meeting-${event.id}`;
   useEffect(()=>{const timer=setTimeout(()=>{let key='';try{key=localStorage.getItem(storageKey)||'';}catch{};const receipt=location.hash.match(/^#receipt=([a-f0-9]{64})$/)?.[1];if(receipt){key=receipt;history.replaceState(null,'',location.pathname);}setNow(Date.now());setToken(key||Array.from(crypto.getRandomValues(new Uint8Array(32))).map(x=>x.toString(16).padStart(2,'0')).join(''));},0);return()=>clearTimeout(timer);},[storageKey]);
   useEffect(()=>{
+    const timer=setInterval(()=>setNow(Date.now()),1000);
+    return()=>clearInterval(timer);
+  },[]);
+  useEffect(()=>{
     if(!token) return;
     let disposed=false;
     async function refresh(){
@@ -21,7 +25,7 @@ export default function MeetingForm({event:initial,profile}:{event:Meeting;profi
       else if(r.status===404){const status=await fetch(`/api/meeting/${event.id}`,{cache:'no-store'});if(status.ok){const data=await status.json() as {event:Meeting};if(!disposed)setEvent(data.event);}}}
       catch{/* Preserve receipt and let the user retry. */}
     }
-    void refresh(); const timer=setInterval(()=>{setNow(Date.now());void refresh();},15000);
+    void refresh(); const timer=setInterval(()=>{void refresh();},15000);
     return()=>{disposed=true;clearInterval(timer);};
   },[token,event.id,storageKey,editing]);
   async function submit(e:React.FormEvent<HTMLFormElement>){
@@ -56,7 +60,7 @@ export default function MeetingForm({event:initial,profile}:{event:Meeting;profi
       </>}
     </fieldset></form>}
     <details><summary>回答済みの方：回答用キーで結果を開く</summary><label>回答用キー<input value={restore} onChange={e=>setRestore(e.target.value.trim())}/></label><button onClick={()=>{if(/^[a-f0-9]{64}$/.test(restore)){setToken(restore);setMessage('回答が見つからない場合はキーをご確認ください。');}else setMessage('64文字の回答用キーを入力してください。');}}>結果を開く</button></details></>:<>
-      <MeetingResult event={event} result={result} token={token} busy={busy} closed={closed} onShare={shareWish} onEdit={()=>{setEditing(true);setConsent(true);setMessage('');}} onMessage={setMessage}/>
+      <MeetingResult event={event} result={result} token={token} busy={busy} closed={closed} now={now} onShare={shareWish} onEdit={()=>{setEditing(true);setConsent(true);setMessage('');}} onMessage={setMessage}/>
     </>}{message&&<p role="status" className="meeting-error">{message}</p>}
   </section></main>;
 }
