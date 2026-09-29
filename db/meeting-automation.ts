@@ -32,7 +32,7 @@ export async function syncSchedule(now=Date.now()){
   const plans=parseSchedule(await response.text(),now),s=await settings();
   await env.DB.batch(plans.map(p=>env.DB.prepare(`INSERT INTO meeting_preparations(source_key,schedule,tables) VALUES(?,?,?) ON CONFLICT(source_key) DO UPDATE SET schedule=excluded.schedule WHERE meeting_id IS NULL`).bind(p.key,JSON.stringify(p),s.tables)));
   // Removed or unconfirmed dates cannot silently run from a stale stored schedule.
-  const keys=plans.map(p=>p.key);await env.DB.prepare(`UPDATE meeting_preparations SET status='schedule_changed',error='ホームページの開催日を確認してください。' WHERE meeting_id IS NULL AND source_key NOT IN (${keys.map(()=>'?').join(',')})`).bind(...keys).run();
+  const keys=plans.map(p=>p.key);await env.DB.prepare(`UPDATE meeting_preparations SET status='schedule_changed',error='ホームページの開催日を確認してください。' WHERE meeting_id IS NULL AND status!='cancelled' AND source_key NOT IN (${keys.map(()=>'?').join(',')})`).bind(...keys).run();
   await env.DB.prepare("UPDATE meeting_preparations SET status='scheduled',error='' WHERE status='schedule_changed' AND source_key IN ("+keys.map(()=>'?').join(',')+")").bind(...keys).run();
   await env.DB.prepare("UPDATE meeting_automation_settings SET checked_at=?,error='' WHERE id=1").bind(now).run();return plans;
  }catch(e){await env.DB.prepare('UPDATE meeting_automation_settings SET error=? WHERE id=1').bind(e instanceof Error?e.message:'開催日を取得できませんでした。').run();throw e;}
@@ -68,8 +68,8 @@ async function legacyRoster(sourceId:string,connection:string){
 }
 export async function prepareScheduled(key:string,force=false,now=Date.now()){
  const s=await settings();const row=await env.DB.prepare('SELECT schedule,meeting_id,status FROM meeting_preparations WHERE source_key=?').bind(key).first<{schedule:string;meeting_id:string|null;status:string}>();if(!row)throw new Error('開催日を選んでください。');
- const p=JSON.parse(row.schedule) as ScheduledMeeting;if(row.status==='schedule_changed')throw new Error('開催日を再確認してください。');if(!force&&(!s.enabled||p.prepareAt>now||p.startAt<=now))return;
- const lock=await env.DB.prepare('UPDATE meeting_preparations SET lock_until=? WHERE source_key=? AND lock_until<?').bind(now+300000,key,now).run();if(!lock.meta.changes)return;
+ const p=JSON.parse(row.schedule) as ScheduledMeeting;if(row.status==='cancelled'){if(force)throw new Error('この例会は削除済みです。必要な場合は新しい例会を作成してください。');return;}if(row.status==='schedule_changed')throw new Error('開催日を再確認してください。');if(!force&&(!s.enabled||p.prepareAt>now||p.startAt<=now))return;
+ const lock=await env.DB.prepare("UPDATE meeting_preparations SET lock_until=? WHERE source_key=? AND lock_until<? AND status!='cancelled'").bind(now+300000,key,now).run();if(!lock.meta.changes)return;
  try{
   // Re-read the mapping under the lock: concurrent retries must reuse the saved random URL.
   const current=await env.DB.prepare('SELECT meeting_id FROM meeting_preparations WHERE source_key=?').bind(key).first<{meeting_id:string|null}>();
@@ -84,3 +84,5 @@ export async function prepareScheduled(key:string,force=false,now=Date.now()){
 export async function runMeetingAutomation(now=Date.now()){const plans=await syncSchedule(now);for(const p of plans)await prepareScheduled(p.key,false,now);}
 export async function qrTableCount(id:string){await ensure();return (await env.DB.prepare('SELECT tables FROM meeting_qr_settings WHERE meeting_id=?').bind(id).first<{tables:number}>())?.tables??(await settings()).tables;}
 export async function setQrTableCount(id:string,count:unknown){await ensure();const n=Number(count);if(!Number.isInteger(n)||n<1||n>26)throw new Error('テーブル数は1〜26にしてください。');await env.DB.prepare('INSERT INTO meeting_qr_settings(meeting_id,tables) VALUES(?,?) ON CONFLICT(meeting_id) DO UPDATE SET tables=excluded.tables').bind(id,n).run();}
+
+export {ensure as ensureMeetingAutomation};

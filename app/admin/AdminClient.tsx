@@ -63,6 +63,8 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   /** 消す前に必ず一度止める。取り消せない操作なので。 */
   const [confirming, setConfirming] = useState<AdminRequest | null>(null);
   /** 削除しようとしている広告。**戻せない**ので、必ず一度確かめる。 */
+  const [confirmingMeeting,setConfirmingMeeting]=useState<MeetingSummary|null>(null);
+  const [meetingDeleteError,setMeetingDeleteError]=useState('');
   const [confirmingAd, setConfirmingAd] = useState<AdminAd | null>(null);
   /** 置いてあるデータの控え。バックアップのタブを開いたときに読む。 */
   const [backups, setBackups] = useState<BackupEntry[] | null>(null);
@@ -241,6 +243,11 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
     if (!response.ok) return say(result.error ?? 'うまくいきませんでした。');
     await reload();
     say(done);
+  }
+
+  async function removeMeeting(){
+    if(!confirmingMeeting)return;const target=confirmingMeeting;setBusy('delete-meeting');setMeetingDeleteError('');
+    try{const r=await fetch('/api/admin/meetings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',id:target.id,confirmation:target.title})});const result=await r.json() as {error?:string};if(!r.ok)throw new Error(result.error||'削除できませんでした。');setConfirmingMeeting(null);await reload();say('イベントを削除しました。');}catch(e){setMeetingDeleteError(e instanceof Error?e.message:'削除できませんでした。');}finally{setBusy('');}
   }
 
   const { summary, gacha } = data;
@@ -516,7 +523,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
           <h3><button className="admin-meeting-title-button" onClick={()=>openMeeting(event.id)}>{event.title}</button></h3>
           <p className="admin-meeting-deadline">回答締切 {new Date(event.closesAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</p>
           <dl className="admin-meeting-stats"><div><dt>名簿</dt><dd>{event.rosterCount??0}<small>人</small></dd></div><div><dt>回答</dt><dd>{event.answerCount}<small>人</small></dd></div><div><dt>出席確認</dt><dd>{event.presentCount}<small>人</small></dd></div></dl>
-          <div className="admin-meeting-links"><button className="admin-meeting-manage" onClick={()=>openMeeting(event.id)}>例会を編集 →</button><button onClick={()=>openMeeting(event.id,'answer')}>回答画面を確認</button><button onClick={()=>openMeeting(event.id,'qr')}>QR印刷</button></div>
+          <div className="admin-meeting-links"><button className="admin-meeting-manage" onClick={()=>openMeeting(event.id)}>編集 →</button><button onClick={()=>openMeeting(event.id,'answer')}>回答画面を確認</button><button onClick={()=>openMeeting(event.id,'qr')}>QR印刷</button><button className="admin-meeting-delete" onClick={()=>{setMeetingDeleteError('');setConfirmingMeeting(event);}}>削除</button></div>
         </article>;
       })}</div>
       {!!data.surveys.length && <h2 className="admin-meeting-other">会員からの紹介希望</h2>}
@@ -650,6 +657,8 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
         <p className="viz-lead">直近30日ぶんは毎日、それより古いものは月初の1本だけを1年間残します。</p>
       </section>
     </section>}
+
+    {confirmingMeeting&&<div className="admin-confirm-backdrop"><div className="admin-confirm" role="dialog" aria-modal="true" aria-labelledby="meeting-delete-title"><h2 id="meeting-delete-title">このイベントを削除しますか？</h2><p><b>{confirmingMeeting.title}</b></p><p>名簿 {confirmingMeeting.rosterCount??0}人・回答 {confirmingMeeting.answerCount}人と紹介結果を削除します。共有済みのアンケートURL・QRも使えなくなります。<b>元に戻せません。</b></p><p>TASUKIの会員アカウントと他のイベントは残ります。</p>{meetingDeleteError&&<p role="alert" className="meeting-error">{meetingDeleteError}</p>}<button className="is-danger" disabled={busy==='delete-meeting'} onClick={()=>void removeMeeting()}>{busy==='delete-meeting'?'削除中…':'このイベントを削除'}</button><button autoFocus disabled={busy==='delete-meeting'} onClick={()=>setConfirmingMeeting(null)}>キャンセル</button></div></div>}
 
     {confirming && <div className="admin-confirm-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setConfirming(null); }}>
       <div className="admin-confirm" role="dialog" aria-modal="true">

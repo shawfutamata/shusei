@@ -8,7 +8,7 @@ const labels={open:'受付中',analyzing:'分析中',review:'候補確認',publi
 export default function MeetingAdmin({embedded=false,initialEventId='',initialView='',onClose,onUpdated}:{embedded?:boolean;initialEventId?:string;initialView?:string;onClose?:()=>void;onUpdated?:()=>void}) {
   const [preview,setPreview]=useState(initialView==='qr'||initialView==='answer'?initialView:'');
   const [events,setEvents]=useState<Meeting[]>([]), [event,setEvent]=useState<Meeting|null>(null), [people,setPeople]=useState<Attendee[]>([]),[roster,setRoster]=useState<RosterPerson[]>([]),[qrTables,setQrTables]=useState(8);
-  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[origin,setOrigin]=useState(''),[now,setNow]=useState(0);
+  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[origin,setOrigin]=useState(''),[now,setNow]=useState(0);
   useEffect(()=>{const update=()=>setNow(Date.now());const start=setTimeout(update,0),timer=setInterval(update,1000);return()=>{clearTimeout(start);clearInterval(timer);};},[]);
   async function request(body?:Record<string,unknown>,id?:string) {
     const r=await fetch('/api/admin/meetings'+(id?'?id='+encodeURIComponent(id):''),body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{cache:'no-store'});
@@ -18,10 +18,10 @@ export default function MeetingAdmin({embedded=false,initialEventId='',initialVi
   useEffect(()=>{request().then(d=>{setEvents(d.events);setOrigin(location.origin);const id=initialEventId||new URLSearchParams(location.search).get('event');if(id||d.events[0]?.id)void select(id||d.events[0].id);}).catch(e=>setError(e.message));},[]);
   async function select(id:string) {setBusy(true);setError('');try{apply(await request(undefined,id));const url=new URL(location.href);url.searchParams.set('event',id);if(embedded)url.searchParams.set('tab','surveys');history.replaceState(null,'',url);}catch(e){setError(String(e));}finally{setBusy(false);}}
   async function act(action:string,extra:Record<string,unknown>={}) {
-    if(!event)return;setBusy(true);setError('');
+    if(!event)return;setBusy(true);setError('');setNotice('');
     try{let data=await request({action,id:event.id,...extra});apply(data);
       while(action==='analyze' && data.event.state==='analyzing'){data=await request({action,id:event.id});apply(data);}
-      onUpdated?.();
+      onUpdated?.();if(action==='update')setNotice('イベント情報を保存しました。');
     }catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}
   }
   async function create(form:React.FormEvent<HTMLFormElement>) {
@@ -36,8 +36,10 @@ export default function MeetingAdmin({embedded=false,initialEventId='',initialVi
     {error&&<p role="alert" className="meeting-error">{error}　回答は保持されています。再読み込み・再開できます。</p>}
     {event&&<>
     <div className="meeting-admin-overview"><div><h2>{event.title}</h2><p>{event.venue} · 締切 {new Date(event.closesAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'})}</p></div><span className="meeting-admin-state">{event.state==='open'&&now>=event.closesAt?'受付終了':labels[event.state]}</span></div>
-    <nav className="meeting-admin-nav" aria-label="編集項目"><a href="#meeting-reception">受付・締切</a><a href="#meeting-roster">名簿</a><a href="#meeting-sharing">リンク・QR</a><a href="#meeting-analysis">集計・公開</a><a href="#meeting-answers">回答・出席</a></nav>
+    {notice&&<p className="meeting-admin-notice" role="status">{notice}</p>}
+    <nav className="meeting-admin-nav" aria-label="編集項目"><a href="#meeting-event-info">イベント情報</a><a href="#meeting-reception">受付・締切</a><a href="#meeting-roster">名簿</a><a href="#meeting-sharing">リンク・QR</a><a href="#meeting-analysis">集計・公開</a><a href="#meeting-answers">回答・出席</a></nav>
     {preview&&<section className="meeting-admin-preview" aria-label={preview==='qr'?'QRの印刷プレビュー':'回答画面のプレビュー'}><div><h2>{preview==='qr'?'テーブル用QRの印刷・PDF保存':'参加者の回答画面'}</h2><button className="meeting-secondary" onClick={()=>setPreview('')}>プレビューを閉じる</button></div><p className="meeting-help">{preview==='qr'?'下の「印刷 / PDFで保存」から出力できます。':'参加者が見る画面のプレビューです。'}</p><iframe key={preview+event.id+(preview==='qr'?qrTables:'')} title={preview==='qr'?'テーブル用QR':'参加者の回答画面'} src={preview==='qr'?'/admin/meetings/qr?id='+encodeURIComponent(event.id)+'&embedded=1':'/meeting/'+event.id}/></section>}
+    <section id="meeting-event-info" className="meeting-admin-section"><h2>イベント情報を編集</h2><form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);void act('update',{title:f.get('title'),venue:f.get('venue')});}}><div className="meeting-admin-event-fields"><label>例会名<input name="title" required maxLength={120} defaultValue={event.title} key={event.id+event.title}/></label><label>会場<input name="venue" required maxLength={120} defaultValue={event.venue} key={event.id+event.venue}/></label></div>{event.state!=='open'&&<p className="meeting-help">集計開始後は例会名と会場のみ編集できます。</p>}<button disabled={busy}>イベント情報を保存</button></form></section>
     <div className="meeting-admin-grid">
     <section id="meeting-reception" className="meeting-admin-section"><h2>受付・締切</h2><p className="meeting-help">回答できる時間を設定します。</p>
     {event.state==='open'?<form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);void act('deadline',{closesAt:new Date(String(f.get('closesAt'))+'+09:00').getTime()});}}><label>回答締切（日本時間）<input name="closesAt" type="datetime-local" required defaultValue={japanInput(event.closesAt)} key={event.id+event.closesAt}/></label><p className="meeting-help">11:15入場・11:30開始なら、11:45締切で30分間入力できます。集計前なら延長・短縮できます。</p><button disabled={busy}>締切を保存</button><p className="meeting-help">過去の時刻を保存すると受付を終了します。</p></form>:<p className="meeting-help">集計開始後は締切を変更できません。</p>}</section>
