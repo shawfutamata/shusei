@@ -27,7 +27,7 @@ export default function MeetingAdmin() {
   }
   const confirmed=people.filter(p=>p.present===1);
   return <main className="meeting-page"><header><b>TASUKI</b><span>例会アンケート管理</span></header><div className="meeting-shell">
-    <a href="/admin">← 管理画面へ</a><h1>本日の仕事を、つなぐ。</h1>
+    <a href="/admin?tab=surveys">← 例会アンケート一覧へ</a><h1>本日の仕事を、つなぐ。</h1>
     <p>① 名簿を取り込む → ② アンケートを共有 → ③ 締切後に紹介候補を確認</p>
     <AutomationPanel onCreated={()=>{void request().then(d=>setEvents(d.events));}}/><details><summary>新しい例会を作成</summary><form onSubmit={create}><label>例会名<input name="title" required maxLength={120}/></label><label>会場<input name="venue" required maxLength={120}/></label><label>回答締切（日本時間）<input name="closesAt" type="datetime-local" required/></label><button disabled={busy}>受付URLを作成</button></form></details>
     <label>例会を選択<select value={event?.id||''} disabled={busy} onChange={e=>void select(e.target.value)}><option value="" disabled>選択してください</option>{events.map(e=><option key={e.id} value={e.id}>{e.title}</option>)}</select></label>

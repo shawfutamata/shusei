@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AdminAd, AdminAnalytics, AdminFeedback, AdminMatchingSurvey, AdminMember, AdminRequest, AdminRequestReport, AdminSummary } from '@/db/admin';
 import type { MeetingSummary } from '@/db/meetings';
 import type { BackupEntry } from '@/db/backup';
@@ -32,7 +32,7 @@ const tabs = [
   { key: 'analytics', label: 'ダッシュボード', short: 'ホーム' },
   { key: 'members', label: '会員' },
   { key: 'requests', label: '投稿' },
-  { key: 'surveys', label: '紹介アンケート', short: '回答' },
+  { key: 'surveys', label: '例会アンケート', short: '例会' },
   { key: 'reports', label: '異議申立' },
   { key: 'ads', label: '広告' },
   { key: 'feedback', label: 'ご意見' },
@@ -43,11 +43,11 @@ const categoryNames: Record<string, string> = {
   project: '発注先', collaboration: '協業先', consultation: '相談',
 };
 
-export default function AdminClient({ adminName, adminEmail, serviceName, initial }: {
-  adminName: string; adminEmail: string; serviceName: string; initial: AdminData;
+export default function AdminClient({ adminName, adminEmail, serviceName, initial, initialTab = '' }: {
+  adminName: string; adminEmail: string; serviceName: string; initial: AdminData; initialTab?: string;
 }) {
   const [data, setData] = useState(initial);
-  const [tab, setTab] = useState<(typeof tabs)[number]['key']>('analytics');
+  const [tab, setTab] = useState<(typeof tabs)[number]['key']>(tabs.find(item => item.key === initialTab)?.key ?? 'analytics');
   const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
   const [range, setRange] = useState(90);
   const [keyword, setKeyword] = useState('');
@@ -232,7 +232,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   const { summary, gacha } = data;
   const countFor = (key: (typeof tabs)[number]['key']) => key === 'members' ? data.members.length
     : key === 'requests' ? data.requests.length : key === 'ads' ? data.ads.length
-    : key === 'surveys' ? data.surveys.filter((row) => row.status === 'new').length
+    : key === 'surveys' ? data.meetings.length
     : key === 'reports' ? data.reports.filter((row) => row.status === 'new').length
     : key === 'feedback' ? data.feedback.filter((row) => row.status === 'new').length : 0;
   // 要対応。**数を並べるだけにしない。** 押すとその一覧へ飛ぶ、次の手が決まっている
@@ -240,7 +240,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   const waitingRequests = data.requests.filter((row) => row.status === 'open' && row.introCount === 0).length;
   const queue = [
     { key: 'reports', tone: 'is-red', icon: 'feedback', label: '未対応の異議申し立て', value: summary.newReports, to: 'reports' as const },
-    { key: 'surveys', tone: 'is-blue', icon: 'surveys', label: '紹介候補を探す回答', value: data.surveys.filter((row) => row.status === 'new').length, to: 'surveys' as const },
+    { key: 'surveys', tone: 'is-blue', icon: 'surveys', label: '会員からの紹介希望', value: data.surveys.filter((row) => row.status === 'new').length, to: 'surveys' as const },
     { key: 'feedback', tone: 'is-red', icon: 'feedback', label: '未読のご意見', value: summary.newFeedback, to: 'feedback' as const },
     { key: 'waiting', tone: 'is-amber', icon: 'requests', label: 'オファーがまだ0件の募集', value: waitingRequests, to: 'requests' as const },
     { key: 'off', tone: 'is-blue', icon: 'members', label: '停止中の会員', value: summary.suspendedMembers, to: 'members' as const },
@@ -262,13 +262,13 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
     <aside className={`admin-side${menuOpen ? ' is-open' : ''}`}>
       <div className="admin-brand"><BrandMark className="admin-brand-mark" /><b>{serviceName} 管理</b></div>
       <nav className="admin-side-nav" aria-label="管理する対象">
-        {tabs.map((item) => <Fragment key={item.key}><button className={tab === item.key ? 'selected' : ''}
+        {tabs.map((item) => <button key={item.key} className={tab === item.key ? 'selected' : ''}
           onClick={() => { goTab(item.key); setMenuOpen(false); }} aria-pressed={tab === item.key}>
           <SideIcon name={item.key} />
           <span className="admin-nav-long">{item.label}</span>
           <span className="admin-nav-short">{'short' in item ? item.short : item.label}</span>
           {countFor(item.key) > 0 && <em>{countFor(item.key)}</em>}
-        </button>{item.key === 'surveys' && <a href="/admin/meetings"><SideIcon name="surveys" /><span className="admin-nav-long">例会アンケート</span><span className="admin-nav-short">例会</span></a>}</Fragment>)}
+        </button>)}
       </nav>
       <div className="admin-side-foot"><span>管</span><div><b>{adminName}</b><small>{adminEmail}</small></div></div>
     </aside>
@@ -298,7 +298,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       </div>
     </header>
 
-    {tab === 'analytics' && <section className="viz-panel"><a className="viz-export" href="/admin/meetings">例会アンケートを作成・管理 / テーブル用QR →</a>
+    {tab === 'analytics' && <section className="viz-panel"><a className="viz-export" href="/admin?tab=surveys">例会アンケートの一覧・管理 →</a>
       <dl className="admin-kpis">
         <div><dt>累計会員数</dt><dd>{yen0(summary.members)}<small>人</small></dd><small>利用中 {summary.activeMembers}／停止 {summary.suspendedMembers}</small></div>
         <div><dt>課金している会員</dt><dd>{yen0(summary.paidMembers)}<small>人</small></dd>
@@ -490,7 +490,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
     </ul>}
 
     {tab === 'surveys' && <section className="survey-admin-list">
-      <div className="admin-meeting-heading"><div><h2>イベントごとのアンケート</h2><p>作成済みのアンケートと回答状況</p></div><a href="/admin/meetings">＋ 作成・自動準備</a></div>
+      <div className="admin-meeting-heading"><div><h2>例会ごとのアンケート</h2><p>名簿・回答・紹介候補・QRをまとめて管理</p></div><a href="/admin/meetings">＋ 作成・自動準備</a></div>
       {!data.meetings.length && <p className="admin-empty">作成済みの例会アンケートはありません。</p>}
       <div className="admin-meeting-grid">{data.meetings.map(event=>{
         const state=event.state==='open'?(Date.now()>=event.closesAt?'受付終了':'受付中'):({analyzing:'分析中',review:'候補確認中',published:'結果公開済み'} as const)[event.state];
