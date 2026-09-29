@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import {getMeetingAdmin,hasMeetingVenue} from '@/app/meeting-admin-auth';
 import {DEFAULT_MEETING_VENUE} from '@/app/meeting/venue-types';
-import { adminMeetingSummaries,listMeetings,meeting,attendees,createMeeting,confirmAttendance,analyzeNext,removeCandidate,publishMeeting,roster,importRoster,setMeetingDeadline } from '@/db/meetings';
+import { adminMeetingSummaries,listMeetings,meeting,attendees,createMeeting,confirmAttendance,analyzeNext,meetingAnalysisProgress,removeCandidate,publishMeeting,roster,importRoster,setMeetingDeadline } from '@/db/meetings';
 import { setQrTableCount,qrTableCount } from '@/db/meeting-automation';
 import {updateMeeting,deleteMeeting,meetingTrash,trashedMeeting,restoreMeeting,emptyMeetingTrash} from '@/db/meeting-management';
 const headers={'Cache-Control':'no-store'};
@@ -13,6 +13,7 @@ export async function GET(request:Request) {
   const event=id?await meeting(id):null;
   if(!await hasMeetingVenue(admin,event?.venueId||venueId))return NextResponse.json({error:'権限がありません。'},{status:403,headers});
   if(id&&!event)return NextResponse.json({error:'例会が見つかりません。'},{status:404,headers});
+  if(id&&url.searchParams.get('progress')==='1')return NextResponse.json({progress:await meetingAnalysisProgress(id)},{headers});
   return NextResponse.json(id?{event,attendees:await attendees(id),roster:await roster(id),qrTables:await qrTableCount(id)}:{events:await listMeetings(venueId),summaries:await adminMeetingSummaries(venueId)},{headers});
 }
 export async function POST(request:Request) {

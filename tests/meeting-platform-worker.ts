@@ -22,6 +22,8 @@ export default {async fetch(){try{
  ok((await request('meetings','stranger@example.com')).status===403,'ordinary account cannot administer');
  const visible=await(await request('meetings','operator@example.com')).json() as {events:{id:string}[]};ok(visible.events.length===1&&visible.events[0].id===other,'operator lists only assigned venue');
  ok((await request('meetings','operator@example.com',undefined,'?id='+own)).status===403,'foreign event details denied');
+ ok((await request('meetings','operator@example.com',undefined,'?id='+own+'&progress=1')).status===403,'foreign analysis progress denied');
+ ok((await request('meetings',null,undefined,'?id='+own+'&progress=1')).status===403,'anonymous analysis progress denied');
  ok((await request('meetings','operator@example.com',undefined,'?venue=hirunomeguro')).status===403,'foreign venue list denied');
  for(const action of ['update','delete','deadline','qr-tables','import','attendance','analyze','remove','publish'])ok((await request('meetings','operator@example.com',{action,id:own,confirmation:'Hiru fixture',title:'Changed',venue:'Changed',closesAt:Date.now()+600000,tables:2,people:[person('x')],consent:true,personId:'x',present:true,candidateId:'x'})).status===403,'foreign mutation denied: '+action);
  ok((await request('meetings','operator@example.com',{action:'create',venueId:'hirunomeguro',title:'x',venue:'x',closesAt:Date.now()+600000})).status===403,'foreign event creation denied');
@@ -52,6 +54,19 @@ export default {async fetch(){try{
  const rosterProfiles=Array.from({length:200},(_,i)=>({...person('p'+i),name:'参加者'+i,company:'会社'+i,table:''}));await importRoster(own,rosterProfiles,true);ok((await roster(own)).length===200,'200 attendee roster accepted');
  const people=await roster(own);for(const p of people){const token=crypto.randomUUID().replaceAll('-','').repeat(2);await submitAnswer(own,{token,rosterId:p.id,need:'印刷',consent:true});}ok((await attendees(own)).length===200,'200 responses accepted including former 100 limit');
  await env.DB.prepare('UPDATE meeting_answers SET present=1,analyzed=1,candidates=\'[]\' WHERE event_id=?').bind(own).run();const a=(await attendees(own))[0];await env.DB.prepare('UPDATE meeting_answers SET candidates=? WHERE id=?').bind(JSON.stringify([{id:'fixture'}]),a.id).run();const metrics=(await adminMeetingSummaries('hirunomeguro')).find(e=>e.id===own);ok(metrics?.answerCount===200&&metrics.needCount===200&&metrics.matchedCount===1,'event counts use actual answers and match coverage');
+ const progressUrl='?id='+own+'&progress=1';
+ const progressBefore=await(await request('meetings','platform@example.com',undefined,progressUrl)).json() as {progress:{total:number;completed:number;active:boolean}};
+ ok(progressBefore.progress.total===200&&progressBefore.progress.completed===200&&!progressBefore.progress.active,'progress counts saved completions including no candidates');
+ await env.DB.prepare("UPDATE meeting_events SET state='analyzing',lock_until=? WHERE id=?").bind(Date.now()+60000,own).run();
+ await env.DB.prepare('UPDATE meeting_answers SET analyzed=0 WHERE id=?').bind(a.id).run();
+ const during=await(await request('meetings','platform@example.com',undefined,progressUrl)).json() as {progress:{total:number;completed:number;active:boolean}};
+ ok(during.progress.total===200&&during.progress.completed===199&&during.progress.active,'progress visible while the AI batch holds a lock');
+ await env.DB.prepare('UPDATE meeting_answers SET present=0 WHERE id=?').bind(a.id).run();
+ await env.DB.prepare('UPDATE meeting_events SET lock_until=0 WHERE id=?').bind(own).run();
+ const paused=await(await request('meetings','platform@example.com',undefined,progressUrl)).json() as {progress:{total:number;completed:number;active:boolean}};
+ ok(paused.progress.total===199&&paused.progress.completed===199&&!paused.progress.active,'progress excludes unconfirmed attendees and reports released lock');
+ await env.DB.prepare('UPDATE meeting_answers SET present=1,analyzed=1 WHERE id=?').bind(a.id).run();
+ await env.DB.prepare("UPDATE meeting_events SET state='open' WHERE id=?").bind(own).run();
  let over=false;try{await importRoster(other,Array.from({length:301},(_,i)=>({...person('x'),name:'n'+i,company:'c'+i})),true);}catch{over=true;}ok(over,'over 300 roster rejected');
  for(let i=0;i<600;i++)ok(await checkSubmissionLimit(own,'shared-wifi','read'),'shared Wi-Fi read '+i);
  const candidates=Array.from({length:200},(_,i)=>person('large-'+i,{industry:i===199?'印刷':'建築',services:i===199?'チラシ印刷':'内装工事'}));const matches=await matchAttendee({async run(){return {response:{matches:[]}};}},person('requester',{need:'印刷'}),candidates);ok(matches.some(c=>c.id==='large-199'),'matching can reach the last person of a 200 attendee list');

@@ -251,6 +251,17 @@ export async function confirmAttendance(id:string,personId:string,present:boolea
   if(present){const link=await env.DB.prepare('SELECT member_id FROM meeting_member_links WHERE event_id=? AND answer_id=?').bind(id,personId).first<{member_id:string}>();if(link)await (await import('./meeting-accounts')).activateMeetingMember(link.member_id,id);}
 }
 
+// Read persisted completions while an AI batch is still running.
+export async function meetingAnalysisProgress(id:string) {
+  await ensureMeetings();
+  const row=await env.DB.prepare(`SELECT e.state,e.lock_until,
+    (SELECT COUNT(*) FROM meeting_answers a WHERE a.event_id=e.id AND a.present=1) AS total,
+    (SELECT COUNT(*) FROM meeting_answers a WHERE a.event_id=e.id AND a.present=1 AND a.analyzed=1) AS completed
+    FROM meeting_events e WHERE e.id=? AND e.state IN ('open','analyzing','review','published')`)
+    .bind(id).first<{state:Meeting['state'];lock_until:number;total:number;completed:number}>();
+  if(!row)throw new Error('例会が見つかりません。');
+  return {state:row.state,total:row.total,completed:row.completed,active:row.state==='analyzing'&&row.lock_until>Date.now()};
+}
 export async function analyzeNext(id:string) {
   const event = await meeting(id);
   if (!event || event.closesAt > Date.now()) throw new Error('締切時刻になってから集計できます。');
