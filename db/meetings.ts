@@ -76,6 +76,14 @@ export async function listMeetings() {
   await ensureMeetings();
   return (await env.DB.prepare(`${selectEvent} ORDER BY created_at DESC LIMIT 50`).all<Meeting>()).results;
 }
+export type MeetingSummary = Meeting & { answerCount:number; presentCount:number };
+export async function adminMeetingSummaries():Promise<MeetingSummary[]> {
+  await ensureMeetings();
+  return (await env.DB.prepare(`${selectEvent.replace(' FROM meeting_events','')},
+    (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id) AS answerCount,
+    (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id AND present=1) AS presentCount
+    FROM meeting_events ORDER BY created_at DESC`).all<MeetingSummary>()).results;
+}
 export async function createMeeting(body: Record<string,unknown>) {
   await ensureMeetings();
   const title = typeof body.title === 'string' ? body.title.trim() : '';

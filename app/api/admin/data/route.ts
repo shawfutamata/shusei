@@ -1,3 +1,4 @@
+import { adminMeetingSummaries } from '@/db/meetings';
 import { NextResponse } from 'next/server';
 import { getAdmin } from '@/app/admin-auth';
 import { adminAds, adminFeedback, adminMatchingSurveys, adminMembers, adminRequestReports, adminRequests, adminSummary } from '@/db/admin';
@@ -7,8 +8,8 @@ import { gachaSummary } from '@/db/data';
 export async function GET(request: Request) {
   if (!await getAdmin()) return NextResponse.json({ error: '権限がありません。' }, { status: 404 });
   const keyword = new URL(request.url).searchParams.get('q') ?? '';
-  const [summary, members, requests, ads, feedback, reports, surveys, gacha] = await Promise.all([
-    adminSummary(), adminMembers(keyword), adminRequests(keyword), adminAds(), adminFeedback(), adminRequestReports(), adminMatchingSurveys(), gachaSummary(),
+  const [summary, members, requests, ads, feedback, reports, surveys, gacha, meetings] = await Promise.all([
+    adminSummary(), adminMembers(keyword), adminRequests(keyword), adminAds(), adminFeedback(), adminRequestReports(), adminMatchingSurveys(), gachaSummary(), adminMeetingSummaries(),
   ]);
-  return NextResponse.json({ summary, members, requests, ads, feedback, reports, surveys, gacha });
+  return NextResponse.json({ summary, members, requests, ads, feedback, reports, surveys, gacha, meetings });
 }

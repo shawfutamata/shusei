@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useState } from 'react';
 import type { AdminAd, AdminAnalytics, AdminFeedback, AdminMatchingSurvey, AdminMember, AdminRequest, AdminRequestReport, AdminSummary } from '@/db/admin';
+import type { MeetingSummary } from '@/db/meetings';
 import type { BackupEntry } from '@/db/backup';
 import { placementName } from '@/app/ad-options';
 import { rankNames } from '@/app/rank-perks';
@@ -22,7 +23,7 @@ type GachaSummary = {
 type AdminData = {
   summary: AdminSummary; members: AdminMember[]; requests: AdminRequest[];
   ads: AdminAd[]; feedback: AdminFeedback[]; reports: AdminRequestReport[];
-  surveys: AdminMatchingSurvey[]; gacha?: GachaSummary;
+  surveys: AdminMatchingSurvey[]; meetings: MeetingSummary[]; gacha?: GachaSummary;
 };
 
 // short は、下の帯に出す短い呼び名。狭いところで「ダッシュボ…」と
@@ -488,8 +489,20 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       </li>)}
     </ul>}
 
-    {tab === 'surveys' && <section className="survey-admin-list"><a href="/admin/meetings">ログイン不要の例会アンケートを管理する →</a>
-      {!data.surveys.length && <p className="admin-empty">まだアンケート回答は届いていません。</p>}
+    {tab === 'surveys' && <section className="survey-admin-list">
+      <div className="admin-meeting-heading"><div><h2>イベントごとのアンケート</h2><p>作成済みのアンケートと回答状況</p></div><a href="/admin/meetings">＋ 作成・自動準備</a></div>
+      {!data.meetings.length && <p className="admin-empty">作成済みの例会アンケートはありません。</p>}
+      <div className="admin-meeting-grid">{data.meetings.map(event=>{
+        const state=event.state==='open'?(Date.now()>=event.closesAt?'受付終了':'受付中'):({analyzing:'分析中',review:'候補確認中',published:'結果公開済み'} as const)[event.state];
+        return <article className="admin-meeting-card" key={event.id}>
+          <div className="admin-row-top"><span className="admin-meeting-venue">{event.venue}</span><span className={`admin-state ${state==='受付中'?'is-on':event.state==='published'?'is-on':'is-new'}`}>{state}</span></div>
+          <h3><a href={'/admin/meetings?event='+event.id}>{event.title}</a></h3>
+          <p className="admin-meeting-deadline">回答締切 {new Date(event.closesAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</p>
+          <dl className="admin-meeting-stats"><div><dt>名簿</dt><dd>{event.rosterCount??0}<small>人</small></dd></div><div><dt>回答</dt><dd>{event.answerCount}<small>人</small></dd></div><div><dt>出席確認</dt><dd>{event.presentCount}<small>人</small></dd></div></dl>
+          <div className="admin-meeting-links"><a className="admin-meeting-manage" href={'/admin/meetings?event='+event.id}>回答・候補を管理 →</a><a href={'/meeting/'+event.id} target="_blank" rel="noreferrer">アンケート ↗</a><a href={'/admin/meetings/qr?id='+event.id} target="_blank" rel="noreferrer">QR印刷 ↗</a></div>
+        </article>;
+      })}</div>
+      {!!data.surveys.length && <h2 className="admin-meeting-other">会員からの紹介希望</h2>}
       {data.surveys.map((survey) => <article key={survey.id} className={`survey-admin-card is-${survey.status}`}>
         <div className="admin-row-top">
           <b>{survey.title}</b>
