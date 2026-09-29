@@ -7,6 +7,7 @@ import {getAdmin} from '../app/admin-auth';
 import {createMeeting,meeting,importRoster,roster,submitAnswer,attendees,adminMeetingSummaries,checkSubmissionLimit} from '../db/meetings';
 import {saveMeetingVenue,setMeetingOperator,canManageMeetingVenue} from '../db/meeting-venues';
 import {setQrTableCount,qrTableCount,saveAutomation,automationStatus,syncSchedule,prepareScheduled,runMeetingAutomation} from '../db/meeting-automation';
+import {deleteMeeting,meetingTrash} from '../db/meeting-management';
 import {managementTest} from '../scripts/meeting-tests/management';
 import {matchAttendee} from '../app/meeting/matching';
 import {person} from '../scripts/meeting-tests/fixtures';
@@ -39,6 +40,12 @@ export default {async fetch(){try{
  for(const action of [()=>saveAutomation({enabled:true},venue),()=>syncSchedule(Date.now(),venue),()=>prepareScheduled(venue+':11636',true,Date.now(),venue)]){let blocked=false;try{await action();}catch{blocked=true;}ok(blocked,'external direct automation call blocked');}
  await automationStatus(venue);await env.DB.prepare('UPDATE meeting_venue_automation SET enabled=1 WHERE venue_id=?').bind(venue).run();await runMeetingAutomation(Date.parse('2026-10-05T01:00:00+09:00'));ok(!(await automationStatus(venue)).plans.length,'scheduler ignores external venue even with stale enabled setting');
  const uploaded=await request('meetings','operator@example.com',{action:'import',id:other,people:[{...person('upload'),name:'アップロード参加者',company:'会場会社',services:'名簿原文のPR',table:''}],consent:true});ok(uploaded.status===200&&(await roster(other))[0].services==='名簿原文のPR','external operator imports roster with original business description');
+ await deleteMeeting(other,'更新');await deleteMeeting(own,'Hiru fixture');ok((await request('meetings','operator@example.com',{action:'restore',id:own})).status===403,'foreign trash restore denied');ok((await request('meetings','platform@example.com',{action:'restore',id:own})).status===200,'platform restores own venue event');
+ ok((await request('meetings','operator@example.com',undefined,'?trash=1&venue=hirunomeguro')).status===403,'foreign trash list denied');
+ ok((await request('meetings','operator@example.com',{action:'empty-trash',venueId:'hirunomeguro',confirmation:'ゴミ箱を空にする'})).status===403,'foreign trash purge denied');
+ const listed=await(await request('meetings','operator@example.com',undefined,'?trash=1&venue='+venue)).json() as {trash:{id:string}[]};ok(listed.trash.length===1&&listed.trash[0].id===other,'operator sees only own trash');
+ ok((await request('meetings','platform@example.com',{action:'empty-trash',venueId:'hirunomeguro',confirmation:'ゴミ箱を空にする'})).status===200&&(await meetingTrash(venue)).length===1,'empty own venue preserves other venue trash');
+ ok((await request('meetings','operator@example.com',{action:'restore',id:other})).status===200&&(await meeting(other))?.title==='更新','authorized operator restores own event');
  await setMeetingOperator(venue,'operator@example.com',false);ok((await request('meetings','operator@example.com')).status===403,'revocation effective on next request');
  await setMeetingOperator(venue,'operator@example.com',true);setTestAccess('operator@example.com','suspended');ok((await GET(new Request('https://test.example.com/api'))).status===403,'suspended operator denied');
  ok((await request('meetings','platform@example.com',undefined,'?venue=hirunomeguro')).status===200,'platform admin retains access');

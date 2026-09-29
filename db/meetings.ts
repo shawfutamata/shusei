@@ -19,6 +19,8 @@ export function ensureMeetings() {
     env.DB.prepare('CREATE TABLE IF NOT EXISTS meeting_event_venues(event_id TEXT PRIMARY KEY,venue_id TEXT NOT NULL REFERENCES meeting_venues(id))'),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS meeting_event_venue_index ON meeting_event_venues(venue_id)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS meeting_operators(email TEXT NOT NULL,venue_id TEXT NOT NULL REFERENCES meeting_venues(id),created_at INTEGER NOT NULL,PRIMARY KEY(email,venue_id))'),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_trash(event_id TEXT PRIMARY KEY,venue_id TEXT NOT NULL,previous_state TEXT NOT NULL,deleted_at INTEGER NOT NULL,preparations TEXT NOT NULL DEFAULT '[]')`),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS meeting_trash_venue ON meeting_trash(venue_id,deleted_at)'),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS meeting_answers_event ON meeting_answers(event_id)'),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_member_links (event_id TEXT NOT NULL,member_id TEXT NOT NULL,roster_id TEXT NOT NULL DEFAULT '',profile TEXT NOT NULL,walk_in INTEGER NOT NULL DEFAULT 0,answer_id TEXT NOT NULL DEFAULT '',PRIMARY KEY(event_id,member_id))`),
     env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS meeting_link_roster ON meeting_member_links(event_id,roster_id) WHERE roster_id!=''"),
@@ -73,7 +75,7 @@ export async function importRoster(id:string,raw:unknown,consent:unknown) {
 }
 export async function meeting(id: string) {
   await ensureMeetings();
-  return env.DB.prepare(`${selectEvent} WHERE id=?`).bind(id).first<Meeting>();
+  return env.DB.prepare(`${selectEvent} WHERE id=? AND state NOT IN ('trashed','deleting')`).bind(id).first<Meeting>();
 }
 export async function attendees(id: string): Promise<Attendee[]> {
   await ensureMeetings();
@@ -83,7 +85,7 @@ export async function attendees(id: string): Promise<Attendee[]> {
 }
 export async function listMeetings(venueId?:string) {
   await ensureMeetings();
-  return (await env.DB.prepare(`${selectEvent}${venueId?" WHERE COALESCE((SELECT venue_id FROM meeting_event_venues WHERE event_id=meeting_events.id),'hirunomeguro')=?":""} ORDER BY created_at DESC LIMIT 100`).bind(...(venueId?[venueId]:[])).all<Meeting>()).results;
+  return (await env.DB.prepare(`${selectEvent} WHERE state NOT IN ('trashed','deleting')${venueId?" AND COALESCE((SELECT venue_id FROM meeting_event_venues WHERE event_id=meeting_events.id),'hirunomeguro')=?":""} ORDER BY created_at DESC LIMIT 100`).bind(...(venueId?[venueId]:[])).all<Meeting>()).results;
 }
 export type MeetingSummary = Meeting & { answerCount:number; presentCount:number; registeredCount:number; matchedCount:number; analyzedCount:number; needCount:number };
 export async function adminMeetingSummaries(venueId?:string):Promise<MeetingSummary[]> {
@@ -95,7 +97,7 @@ export async function adminMeetingSummaries(venueId?:string):Promise<MeetingSumm
     (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id AND present=1 AND analyzed=1 AND json_array_length(candidates)>0) AS matchedCount,
     (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id AND present=1 AND analyzed=1) AS analyzedCount,
     (SELECT COUNT(*) FROM meeting_answers WHERE event_id=meeting_events.id AND present=1 AND length(trim(json_extract(answer,'$.need')))>0) AS needCount
-    FROM meeting_events${venueId?" WHERE COALESCE((SELECT venue_id FROM meeting_event_venues WHERE event_id=meeting_events.id),'hirunomeguro')=?":""} ORDER BY created_at DESC`).bind(...(venueId?[venueId]:[])).all<MeetingSummary>()).results;
+    FROM meeting_events WHERE state NOT IN ('trashed','deleting')${venueId?" AND COALESCE((SELECT venue_id FROM meeting_event_venues WHERE event_id=meeting_events.id),'hirunomeguro')=?":""} ORDER BY created_at DESC`).bind(...(venueId?[venueId]:[])).all<MeetingSummary>()).results;
 }
 export async function createMeeting(body: Record<string,unknown>, venueId=DEFAULT_MEETING_VENUE) {
   await ensureMeetings();

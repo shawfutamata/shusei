@@ -3,11 +3,12 @@ import {getMeetingAdmin,hasMeetingVenue} from '@/app/meeting-admin-auth';
 import {DEFAULT_MEETING_VENUE} from '@/app/meeting/venue-types';
 import { adminMeetingSummaries,listMeetings,meeting,attendees,createMeeting,confirmAttendance,analyzeNext,removeCandidate,publishMeeting,roster,importRoster,setMeetingDeadline } from '@/db/meetings';
 import { setQrTableCount,qrTableCount } from '@/db/meeting-automation';
-import {updateMeeting,deleteMeeting} from '@/db/meeting-management';
+import {updateMeeting,deleteMeeting,meetingTrash,trashedMeeting,restoreMeeting,emptyMeetingTrash} from '@/db/meeting-management';
 const headers={'Cache-Control':'no-store'};
 export async function GET(request:Request) {
   const admin=await getMeetingAdmin();if(!admin) return NextResponse.json({error:'権限がありません。'},{status:403,headers});
-  const id=new URL(request.url).searchParams.get('id');
+  const url=new URL(request.url),id=url.searchParams.get('id');
+  if(url.searchParams.get('trash')==='1'){const venueId=url.searchParams.get('venue')||admin.venues[0]?.id||DEFAULT_MEETING_VENUE;if(!await hasMeetingVenue(admin,venueId))return NextResponse.json({error:'権限がありません。'},{status:403,headers});return NextResponse.json({trash:await meetingTrash(venueId)},{headers});}
   const venueId=new URL(request.url).searchParams.get('venue')||admin.venues[0]?.id||DEFAULT_MEETING_VENUE;
   const event=id?await meeting(id):null;
   if(!await hasMeetingVenue(admin,event?.venueId||venueId))return NextResponse.json({error:'権限がありません。'},{status:403,headers});
@@ -23,6 +24,8 @@ export async function POST(request:Request) {
     const body=JSON.parse(text) as Record<string,unknown>;
     const venueId=typeof body.venueId==='string'?body.venueId:admin.venues[0]?.id||DEFAULT_MEETING_VENUE;
     if(body.action==='create'){if(!await hasMeetingVenue(admin,venueId))return NextResponse.json({error:'権限がありません。'},{status:403,headers});return NextResponse.json({id:await createMeeting(body,venueId)},{headers});}
+    if(body.action==='empty-trash'){if(!await hasMeetingVenue(admin,venueId))return NextResponse.json({error:'権限がありません。'},{status:403,headers});return NextResponse.json({purged:await emptyMeetingTrash(venueId,body.confirmation)},{headers});}
+    if(body.action==='restore'){const trashed=typeof body.id==='string'?await trashedMeeting(body.id):null;if(!trashed)throw new Error('ゴミ箱のイベントを選んでください。');if(!await hasMeetingVenue(admin,trashed.venueId))return NextResponse.json({error:'権限がありません。'},{status:403,headers});await restoreMeeting(trashed.id);return NextResponse.json({restored:true},{headers});}
     if(typeof body.id!=='string' || !await meeting(body.id)) throw new Error('例会を選んでください。');
     const event=await meeting(body.id);if(!await hasMeetingVenue(admin,event!.venueId||DEFAULT_MEETING_VENUE))return NextResponse.json({error:'権限がありません。'},{status:403,headers});
     switch(body.action) {

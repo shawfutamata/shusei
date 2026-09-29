@@ -34,7 +34,7 @@ export async function syncSchedule(now=Date.now(),venueId=DEFAULT_MEETING_VENUE)
   const plans=parseSchedule(await response.text(),now,v),s=await settings(venueId);
   await env.DB.batch(plans.map(p=>env.DB.prepare(`INSERT INTO meeting_preparations(source_key,schedule,tables) VALUES(?,?,?) ON CONFLICT(source_key) DO UPDATE SET schedule=excluded.schedule WHERE meeting_id IS NULL`).bind(p.key,JSON.stringify(p),s.tables)));
   // Removed or unconfirmed dates cannot silently run from a stale stored schedule.
-  const keys=plans.map(p=>p.key);await env.DB.prepare(`UPDATE meeting_preparations SET status='schedule_changed',error='ホームページの開催日を確認してください。' WHERE source_key LIKE ? AND meeting_id IS NULL AND status!='cancelled' AND source_key NOT IN (${keys.map(()=>'?').join(',')})`).bind(venueId+':%',...keys).run();
+  const keys=plans.map(p=>p.key);await env.DB.prepare(`UPDATE meeting_preparations SET status='schedule_changed',error='ホームページの開催日を確認してください。' WHERE source_key LIKE ? AND meeting_id IS NULL AND status NOT IN ('cancelled','trashed') AND source_key NOT IN (${keys.map(()=>'?').join(',')})`).bind(venueId+':%',...keys).run();
   await env.DB.prepare("UPDATE meeting_preparations SET status='scheduled',error='' WHERE status='schedule_changed' AND source_key IN ("+keys.map(()=>'?').join(',')+")").bind(...keys).run();
   await settingsUpdate(venueId,"checked_at=?,error=''").bind(now,...(venueId===DEFAULT_MEETING_VENUE?[]:[venueId])).run();return plans;
  }catch(e){await settingsUpdate(venueId,'error=?').bind(e instanceof Error?e.message:'開催日を取得できませんでした。',...(venueId===DEFAULT_MEETING_VENUE?[]:[venueId])).run();throw e;}
@@ -70,7 +70,7 @@ async function legacyRoster(sourceId:string,connection:string,legacySlug:string)
 }
 export async function prepareScheduled(key:string,force=false,now=Date.now(),venueId=key.split(':')[0]){
  requireAutomaticVenue(venueId);if(!key.startsWith(venueId+':'))throw new Error('会場の開催日を選んでください。');const v=await meetingVenue(venueId);if(!v?.enabled)throw new Error('利用できる会場を選んでください。');const s=await settings(venueId);const row=await env.DB.prepare('SELECT schedule,meeting_id,status FROM meeting_preparations WHERE source_key=?').bind(key).first<{schedule:string;meeting_id:string|null;status:string}>();if(!row)throw new Error('開催日を選んでください。');
- const p=JSON.parse(row.schedule) as ScheduledMeeting;if(row.status==='cancelled'){if(force)throw new Error('この例会は削除済みです。必要な場合は新しい例会を作成してください。');return;}if(row.status==='schedule_changed')throw new Error('開催日を再確認してください。');if(!force&&(!s.enabled||p.prepareAt>now||p.startAt<=now))return;
+ if(row.status==='trashed'){if(force)throw new Error('この例会はゴミ箱にあります。復元してから再実行してください。');return;}const p=JSON.parse(row.schedule) as ScheduledMeeting;if(row.status==='cancelled'){if(force)throw new Error('この例会は削除済みです。必要な場合は新しい例会を作成してください。');return;}if(row.status==='schedule_changed')throw new Error('開催日を再確認してください。');if(!force&&(!s.enabled||p.prepareAt>now||p.startAt<=now))return;
  const lock=await env.DB.prepare("UPDATE meeting_preparations SET lock_until=? WHERE source_key=? AND lock_until<? AND status!='cancelled'").bind(now+300000,key,now).run();if(!lock.meta.changes)return;
  try{
   // Re-read the mapping under the lock: concurrent retries must reuse the saved random URL.
