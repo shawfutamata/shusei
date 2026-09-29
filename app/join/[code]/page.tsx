@@ -25,7 +25,7 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
     {/* 会費の話は、参加を決める前に見えているほうがよい。あとから知ると
         「無料だと思っていた」になる。終わりの日も一緒に出す。 */}
     {!!freeCampaign.until && <p className="join-campaign"><b>いまは{freeCampaign.name}中です。</b>{campaignUntilLabel()}まで、すべての機能をお金をかけずにお使いいただけます。お申し込みもお支払いも要りません。</p>}
-    <a className="primary-button google-button" href={`/api/auth/google/start?invite=${encodeURIComponent(code)}`}><GoogleMark />Googleで参加する</a>
+    <a className="primary-button google-button" href={`/register?invite=${encodeURIComponent(code)}`}><GoogleMark />Google・メールで参加する</a>
     <small>ご登録後、運営が確認してからご利用いただけます。ふだんお使いのGoogleアカウントでどうぞ。</small>
   <LegalLinks /></div></main>;
 }

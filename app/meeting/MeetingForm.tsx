@@ -1,12 +1,13 @@
 'use client';
 import { useEffect,useState } from 'react';
 import MeetingResult from './MeetingResult';
+import type {MeetingProfile} from '@/db/meeting-accounts';
 import type { Answer,Candidate,Meeting,RosterPerson } from './types';
 const empty:Answer={name:'',company:'',table:'',industry:'',services:'',referrals:'',need:'',area:'',timing:'',budget:'',conditions:''};
 type Result={event:Meeting;answer:Answer;rosterId:string;walkIn?:boolean;shareWish:boolean;present:number;matches:(Candidate & {name:string;company:string;table:string;industry:string})[]};
-export default function MeetingForm({event:initial}:{event:Meeting}) {
-  const [event,setEvent]=useState(initial),[answer,setAnswer]=useState(empty),[token,setToken]=useState('');
-  const [selected,setSelected]=useState<RosterPerson|null>(null),[options,setOptions]=useState<Pick<RosterPerson,'id'|'name'|'company'>[]>([]),[walkIn,setWalkIn]=useState(false),[loadingNames,setLoadingNames]=useState(true);
+export default function MeetingForm({event:initial,profile}:{event:Meeting;profile:MeetingProfile}) {
+  const [event,setEvent]=useState(initial),[answer,setAnswer]=useState<Answer>({...empty,...profile.profile}),[token,setToken]=useState('');
+  const [selected,setSelected]=useState<RosterPerson|null>(profile.rosterId?{...profile.profile,id:profile.rosterId}:null),[walkIn,setWalkIn]=useState(profile.walkIn);
   const [consent,setConsent]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
   const [result,setResult]=useState<Result|null>(null),[now,setNow]=useState(0),[restore,setRestore]=useState(''),[editing,setEditing]=useState(false);
   const storageKey=`tasuki-meeting-${event.id}`;
@@ -15,24 +16,13 @@ export default function MeetingForm({event:initial}:{event:Meeting}) {
     if(!token) return;
     let disposed=false;
     async function refresh(){
-      try{const r=await fetch(`/api/meeting/${event.id}`,{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
+      try{const r=await fetch(`/api/meeting/${event.id}?mine=1`,{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
       if(r.ok){const data=await r.json() as Result;if(!disposed){setResult(data);setEvent(data.event);if(!editing){setAnswer(data.answer);setWalkIn(!!data.walkIn);if(data.rosterId)setSelected({...data.answer,id:data.rosterId});}try{localStorage.setItem(storageKey,token);}catch{}}}}
       catch{/* Preserve receipt and let the user retry. */}
     }
     void refresh(); const timer=setInterval(()=>{setNow(Date.now());void refresh();},15000);
     return()=>{disposed=true;clearInterval(timer);};
   },[token,event.id,storageKey,editing]);
-  useEffect(()=>{
-    let disposed=false;
-    fetch(`/api/meeting/${event.id}?people=1`,{cache:'no-store'}).then(async r=>{const d=await r.json() as {error?:string;people:Pick<RosterPerson,'id'|'name'|'company'>[]};if(!r.ok)throw new Error(d.error);if(!disposed)setOptions(d.people);}).catch(()=>{if(!disposed)setMessage('名簿を読み込めませんでした。ページを更新してください。');}).finally(()=>{if(!disposed)setLoadingNames(false);});
-    return()=>{disposed=true;};
-  },[event.id]);
-  async function choose(personId:string) {
-    if(!personId){setSelected(null);setAnswer(empty);return;}
-    setBusy(true);setMessage('');setConsent(false);
-    try{const r=await fetch(`/api/meeting/${event.id}?rosterId=${encodeURIComponent(personId)}`,{cache:'no-store'});const d=await r.json() as {error?:string;person:RosterPerson};if(!r.ok)throw new Error(d.error);setSelected(d.person);setAnswer({...empty,...d.person});}
-    catch(e){setMessage(e instanceof Error?e.message:String(e));setSelected(null);}finally{setBusy(false);}
-  }
   async function submit(e:React.FormEvent<HTMLFormElement>){
     e.preventDefault();
     setBusy(true);setMessage('');
@@ -40,7 +30,7 @@ export default function MeetingForm({event:initial}:{event:Meeting}) {
       try{localStorage.setItem(storageKey,token);}catch{}
       const r=await fetch(`/api/meeting/${event.id}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(walkIn?{walkIn:true,answer,token,consent,website:''}:{rosterId:selected?.id,need:answer.need,token,consent,website:''})});
       const data=await r.json() as {error?:string};if(!r.ok)throw new Error(data.error);
-      const own=await fetch(`/api/meeting/${event.id}`,{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
+      const own=await fetch(`/api/meeting/${event.id}?mine=1`,{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
       if(!own.ok)throw new Error('回答は送信されました。結果を更新してください。');
       setResult(await own.json() as Result);setEditing(false);if(result)setMessage('希望を更新しました。');
     }catch(error){setMessage(error instanceof Error?error.message:'通信できませんでした。再試行してください。');}finally{setBusy(false);}
@@ -53,21 +43,13 @@ export default function MeetingForm({event:initial}:{event:Meeting}) {
   const closed=now>=event.closesAt||event.state!=='open';
   return <main className={`meeting-page meeting-survey${result&&!editing?' meeting-results':''}`}><section className="meeting-shell">
     {(!result||editing)&&<><p className="meeting-eyebrow">{event.venue} · {event.title}</p><h1>{editing?'希望を編集する':'今日、つながりたい相手は？'}</h1></>}
-    {(!result||editing)?<><p className="meeting-lead">{editing?`${answer.name}さんの希望を変更できます。`:'お名前を選んで、つながりたい相手をひと言。'}</p><p className="meeting-help">受付締切：{new Date(event.closesAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'})}（日本時間）</p>
+    {(!result||editing)?<><p className="meeting-lead">{editing?`${answer.name}さんの希望を変更できます。`:'つながりたい業種や、一緒に進めたい仕事をひと言。'}</p><p className="meeting-help">受付締切：{new Date(event.closesAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'})}（日本時間）</p>
     {closed?<p role="status">受付は締め切りました。回答済みの方は、この下から結果を開けます。</p>:<form onSubmit={submit}><fieldset disabled={!token||busy}>
-      {editing?<p className="meeting-help">{answer.company}</p>:!walkIn?<><label>① お名前を名簿から選ぶ<select aria-label="お名前を名簿から選ぶ" value={selected?.id??''} disabled={busy||loadingNames||!!result} onChange={e=>void choose(e.target.value)}><option value="">{loadingNames?'名簿を読み込んでいます…':'お名前を選んでください'}</option>{options.map(p=><option key={p.id} value={p.id}>{p.name}（{p.company}）</option>)}</select></label>
-      {!result&&<button type="button" className="meeting-secondary" onClick={()=>{setWalkIn(true);setSelected(null);setAnswer(empty);setConsent(false);setMessage('');}}>名簿にない方はこちら（当日参加）</button>}
-      {selected&&<div className="meeting-selected"><p>{selected.company}</p><details className="meeting-profile-details"><summary>入力済みの事業内容を見る</summary><p>{selected.services||'名簿に事業内容の記載がありません。紹介先としての判定には使いません。'}</p></details><small>事業情報は名簿から入力済みです。違う場合は受付係へ。</small></div>}
-      </>:<><h2>名簿にない方の入力</h2><p className="meeting-help">当日参加の方は、この3項目を入力してください。</p>
-        <label>お名前<input autoComplete="name" required maxLength={120} value={answer.name} readOnly={!!result} onChange={e=>setAnswer({...answer,name:e.target.value})}/></label>
-        <label>会社名・屋号<input autoComplete="organization" required maxLength={120} value={answer.company} readOnly={!!result} onChange={e=>setAnswer({...answer,company:e.target.value})}/></label>
-        <label>できる仕事・事業内容<textarea required rows={2} minLength={2} maxLength={500} value={answer.services} onChange={e=>setAnswer({...answer,services:e.target.value})} placeholder="例：店舗の内装工事・リフォーム"/></label>
-        {!result&&<button type="button" className="meeting-secondary" onClick={()=>{setWalkIn(false);setAnswer(empty);setConsent(false);}}>名簿から選ぶ方法に戻る</button>}
-      </>}
+      <div className="meeting-survey-identity"><strong>{answer.name}さん</strong><span>{answer.company}</span><details><summary>事業内容を確認</summary><p>{answer.services}</p></details></div>
       {(selected||walkIn)&&<>
-        <label>{editing?'どんな業種・相手とつながりたいですか？':'② どんな業種・相手とつながりたいですか？'}<textarea rows={3} maxLength={500} value={answer.need} onChange={e=>setAnswer({...answer,need:e.target.value})} placeholder="例：内装工事の職人さん／飲食店の経営者。目的があればひと言添えてください。"/></label>
+        <label>{editing?'どんな業種・相手とつながりたいですか？':'どんな業種・相手とつながりたいですか？'}<textarea rows={3} maxLength={500} value={answer.need} onChange={e=>setAnswer({...answer,need:e.target.value})} placeholder="例：内装工事の職人さん／飲食店の経営者。目的があればひと言添えてください。"/></label>
         <p className="meeting-help">業種名だけでも大丈夫。特に希望がなければ空欄で送れます。</p>
-        <label className="meeting-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} required/><span>事業情報・回答をAIで分析し、当日の紹介候補に名前・会社・紹介理由を表示することに同意します。</span></label>
+        <label className="meeting-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} required/><span>事業情報・回答をAIで分析し、当日の紹介候補とTASUKIの会員候補を探すことに同意します。</span></label>
         <p className="meeting-help">連絡先・顧客名などは書かないでください。<a href="/privacy">個人情報の取り扱い</a></p>
         <div className="meeting-actions">{editing&&<button type="button" className="meeting-secondary" disabled={busy} onClick={()=>{setAnswer(result!.answer);setEditing(false);setMessage('');}}>変更をやめる</button>}<button disabled={busy||!token}>{busy?'保存しています…':editing?'希望を更新する':'回答を送信する'}</button></div>
       </>}

@@ -3,7 +3,7 @@ import {startMeetingAccount} from '@/db/meeting-accounts';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE } from '@/app/app-auth';
-import { GOOGLE_MEETING_COOKIE, GOOGLE_INVITE_COOKIE, GOOGLE_RETURN_COOKIE, GOOGLE_SIGNUP_COOKIE, GOOGLE_STATE_COOKIE, exchangeGoogleCode, googleRedirectUri, safeReturnPath } from '@/app/google-auth';
+import { GOOGLE_PROFILE_COOKIE, GOOGLE_MEETING_COOKIE, GOOGLE_INVITE_COOKIE, GOOGLE_RETURN_COOKIE, GOOGLE_SIGNUP_COOKIE, GOOGLE_STATE_COOKIE, exchangeGoogleCode, googleRedirectUri, safeReturnPath } from '@/app/google-auth';
 import { registerDirectMember, registerEarlyAccessMember, registerInvitedMember, startMemberSessionByEmail } from '@/db/data';
 import { memberLoginPath } from '@/app/auth-return';
 
@@ -35,11 +35,17 @@ export async function GET(request: Request) {
     if(!await meeting(meetingId))return redirectHome(request,'failed',back);
     const destination=back===`/meeting/${meetingId}/requests`?back:`/meeting/${meetingId}`;
     try {
-      const started=await startMeetingAccount(account.email,account.name);
+      const started=await startMeetingAccount(account.email,account.name,meetingId,jar.get(GOOGLE_PROFILE_COOKIE)?.value||'');
       const response=redirectHome(request,undefined,destination);
       response.cookies.set(SESSION_COOKIE,started.token,{httpOnly:true,secure:true,sameSite:'lax',path:'/',expires:new Date(started.expiresAt)});
       return response;
     }catch{return redirectHome(request,'denied',destination);}
+  }
+  if(directSignup&&jar.get(GOOGLE_PROFILE_COOKIE)?.value) {
+    try{const started=await startMeetingAccount(account.email,account.name,'direct',jar.get(GOOGLE_PROFILE_COOKIE)!.value);
+      const response=redirectHome(request,undefined,'/register/complete');
+      response.cookies.set(SESSION_COOKIE,started.token,{httpOnly:true,secure:true,sameSite:'lax',path:'/',expires:new Date(started.expiresAt)});return response;
+    }catch{return redirectHome(request,undefined,'/register?login=failed');}
   }
   let session;
   try {
@@ -105,7 +111,7 @@ function redirectHome(request: Request, login?: string, back = '') {
     ? memberLoginPath(back, login)
     : login ? `/?login=${encodeURIComponent(login)}` : back || '/', request.url);
   const response = NextResponse.redirect(target);
-  for (const name of [GOOGLE_MEETING_COOKIE, GOOGLE_STATE_COOKIE, GOOGLE_INVITE_COOKIE, GOOGLE_SIGNUP_COOKIE, GOOGLE_RETURN_COOKIE]) {
+  for (const name of [GOOGLE_PROFILE_COOKIE, GOOGLE_MEETING_COOKIE, GOOGLE_STATE_COOKIE, GOOGLE_INVITE_COOKIE, GOOGLE_SIGNUP_COOKIE, GOOGLE_RETURN_COOKIE]) {
     response.cookies.set(name, '', { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 0 });
   }
   return response;

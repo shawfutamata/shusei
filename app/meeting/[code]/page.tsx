@@ -1,3 +1,4 @@
+import {meetingMemberProfile} from '@/db/meeting-accounts';
 import MeetingSignup from '../MeetingSignup';
 import {getMeetingAccess} from '@/app/meeting/auth';
 import { notFound } from 'next/navigation';
@@ -9,5 +10,6 @@ export const metadata={title:'本日の仕事つながりアンケート｜ひ�
 export default async function Page({params}:{params:Promise<{code:string}>}) {
   const event=await meeting((await params).code);
   if(!event) notFound();
-  return (await getMeetingAccess())?<MeetingForm event={event}/> : <MeetingSignup event={event}/>;
+  const access=await getMeetingAccess();const profile=access?await meetingMemberProfile(event.id,access.user.userId):null;
+  return profile?<MeetingForm event={event} profile={profile}/> : <MeetingSignup event={event} signedIn={!!access}/>;
 }

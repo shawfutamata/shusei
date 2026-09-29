@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import MeetingNetwork from './MeetingNetwork';
 import type {Answer,Candidate,Meeting} from './types';
 type Result={answer:Answer;rosterId:string;walkIn?:boolean;shareWish:boolean;present:number;matches:(Candidate & {name:string;company:string;table:string;industry:string})[]};
 type IconName='person'|'people'|'search'|'arrow'|'copy'|'check'|'clock';
@@ -15,10 +15,8 @@ function Icon({name,className=''}:{name:IconName;className?:string}) {
  return <svg className={`meeting-ui-icon ${className}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
 export default function MeetingResult({event,result,token,busy,closed,onShare,onEdit,onMessage}:{event:Meeting;result:Result;token:string;busy:boolean;closed:boolean;onShare:(shared:boolean)=>Promise<void>;onEdit:()=>void;onMessage:(message:string)=>void}) {
- const [copyFallback,setCopyFallback]=useState('');
  const published=event.state==='published';
  const available=published&&result.present===1;
- async function copyLink(){const link=location.origin+location.pathname+'#receipt='+token;try{await navigator.clipboard.writeText(link);setCopyFallback('');onMessage('結果のリンクをコピーしました。');}catch{setCopyFallback(link);onMessage('下のリンクを長押ししてコピーできます。');}}
  return <>
   <div className="meeting-result-heading"><div><p className="meeting-result-venue">{event.venue}{event.title!==event.venue&&` · ${event.title}`}</p><h1>{published?'本日のマッチング結果':'回答ありがとうございます'}</h1><p className="meeting-result-subtitle">今日の出会いを、仕事につなげる。</p></div><span className={`meeting-result-state${published?' is-published':''}`}><Icon name={published?'check':'clock'}/>{published?'結果公開済み':'結果を準備中'}</span></div>
   <div className="meeting-result-layout">
@@ -37,10 +35,7 @@ export default function MeetingResult({event,result,token,busy,closed,onShare,on
     {available&&<nav className="meeting-participant-link" aria-label="参加者の希望"><a href={`/meeting/${event.id}/requests`}>参加者の希望を見る<Icon name="arrow"/></a></nav>}
    </div>
   </div>
-  <div className="meeting-result-save"><button className="meeting-secondary" onClick={()=>void copyLink()}><Icon name="copy"/>結果のリンクをコピー</button>{copyFallback&&<a className="meeting-copy-fallback" href={copyFallback}>結果のリンク（長押しでコピー）</a>}</div>
-  {published&&<aside className="meeting-result-next meeting-tasuki-banner" aria-label="TASUKIのご案内"><div>
-   {/* eslint-disable-next-line @next/next/no-img-element */}
-   <img className="meeting-tasuki-logo" src="/lp/hiru-tasuki-logo.png" alt="TASUKI" width={1615} height={557}/>
-   <h2>例会のあとも、<br/>仕事のつながりを。</h2><p>仕事を探す・頼む・相談する。<br/>スマホで、いつでも。</p></div><a href="/login#start">TASUKIを使ってみる<Icon name="arrow"/></a><small className="meeting-tasuki-note">登録は任意。アンケートの結果は登録なしで確認できます。</small></aside>}
+  {available&&<MeetingNetwork eventId={event.id} need={result.answer.need}/>}
+
  </>;
 }

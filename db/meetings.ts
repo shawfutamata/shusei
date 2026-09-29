@@ -14,6 +14,9 @@ export function ensureMeetings() {
       answer TEXT NOT NULL, present INTEGER NOT NULL DEFAULT 0, analyzed INTEGER NOT NULL DEFAULT 0,
       candidates TEXT NOT NULL DEFAULT '[]', created_at INTEGER NOT NULL)`),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS meeting_answers_event ON meeting_answers(event_id)'),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_member_links (event_id TEXT NOT NULL,member_id TEXT NOT NULL,roster_id TEXT NOT NULL DEFAULT '',profile TEXT NOT NULL,walk_in INTEGER NOT NULL DEFAULT 0,answer_id TEXT NOT NULL DEFAULT '',PRIMARY KEY(event_id,member_id))`),
+    env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS meeting_link_roster ON meeting_member_links(event_id,roster_id) WHERE roster_id!=''"),
+    env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS meeting_link_answer ON meeting_member_links(answer_id) WHERE answer_id!=''"),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS meeting_wish_shares (answer_id TEXT PRIMARY KEY,shared INTEGER NOT NULL DEFAULT 0)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS meeting_submit_limits (id TEXT PRIMARY KEY, count INTEGER NOT NULL, expires INTEGER NOT NULL)'),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS meeting_roster (id TEXT PRIMARY KEY,event_id TEXT NOT NULL,profile TEXT NOT NULL,name_key TEXT NOT NULL)`),
@@ -37,14 +40,14 @@ export async function findRoster(id:string,name:string) {
   return (await roster(id)).filter(p=>normalizedName(p.name)===key).slice(0,10);
 }
 // The participant selector exposes names and companies only, while受付 is open.
-export async function rosterOptions(id:string) {
+export async function rosterOptions(id:string,registration=false) {
   const event=await meeting(id);
-  if(!event||event.state!=='open'||event.closesAt<=Date.now())return [];
+  if(!event||(!registration&&(event.state!=='open'||event.closesAt<=Date.now())))return [];
   return (await roster(id)).map(p=>({id:p.id,name:p.name,company:p.company}));
 }
-export async function selectedRoster(id:string,personId:string) {
+export async function selectedRoster(id:string,personId:string,registration=false) {
   const event=await meeting(id);
-  if(!event||event.state!=='open'||event.closesAt<=Date.now())return null;
+  if(!event||(!registration&&(event.state!=='open'||event.closesAt<=Date.now())))return null;
   return (await roster(id)).find(p=>p.id===personId)??null;
 }
 export async function importRoster(id:string,raw:unknown,consent:unknown) {
@@ -97,7 +100,17 @@ export async function createMeeting(body: Record<string,unknown>) {
 async function hash(token:string) {
   return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token)))).map(x=>x.toString(16).padStart(2,'0')).join('');
 }
-export async function submitAnswer(id:string,body:Record<string,unknown>) {
+export async function submitAnswer(id:string,body:Record<string,unknown>,memberId?:string) {
+  await ensureMeetings();
+  const linked=memberId?await env.DB.prepare('SELECT roster_id AS rosterId,profile,walk_in AS walkIn,answer_id AS answerId FROM meeting_member_links WHERE event_id=? AND member_id=?').bind(id,memberId).first<{rosterId:string;profile:string;walkIn:number;answerId:string}>():null;
+  if(memberId&&!linked)throw new Error('先にご自身の会社情報を確認してください。');
+  if(linked){
+    if(typeof body.rosterId==='string'&&body.rosterId!==linked.rosterId)throw new Error('登録したご本人のお名前で回答してください。');
+    const saved=JSON.parse(linked.profile);
+    const need=typeof body.need==='string'?body.need:typeof (body.answer as Record<string,unknown>)?.need==='string'?(body.answer as Record<string,unknown>).need:'';
+    body={...body,rosterId:linked.rosterId||undefined,walkIn:linked.walkIn===1,answer:{...saved,need},need};
+
+  }
   const event = await meeting(id);
   if (!event) throw new Error('アンケートが見つかりません。');
   if (body.consent !== true) throw new Error('回答内容の利用への同意が必要です。');
@@ -110,7 +123,7 @@ export async function submitAnswer(id:string,body:Record<string,unknown>) {
     if(body.rosterId)throw new Error('参加方法を選び直してください。');
     const raw=body.answer as Record<string,unknown>|undefined;
     if(!raw||typeof raw!=='object')throw new Error('お名前・会社名・事業内容を入力してください。');
-    answer=validateAnswer(rosterAnswer({name:typeof raw.name==='string'?raw.name:'',company:typeof raw.company==='string'?raw.company:'',services:typeof raw.services==='string'?raw.services:'',industry:'',table:'',area:''},typeof raw.need==='string'?raw.need:''),true);
+    answer=validateAnswer(rosterAnswer({name:typeof raw.name==='string'?raw.name:'',company:typeof raw.company==='string'?raw.company:'',services:typeof raw.services==='string'?raw.services:'',industry:linked?String(raw.industry||''):'',table:'',area:linked?String(raw.area||''):''},typeof raw.need==='string'?raw.need:''),true);
     if(answer.services.length<2)throw new Error('できる仕事・事業内容をひと言入力してください。');
     identity=normalizedName(answer.name)+'|'+normalizedName(answer.company);
     if((await roster(id)).some(p=>normalizedName(p.name)+'|'+normalizedName(p.company)===identity))throw new Error('名簿にお名前があります。名簿から選んでください。');
@@ -119,14 +132,15 @@ export async function submitAnswer(id:string,body:Record<string,unknown>) {
     const profile=(await roster(id)).find(p=>p.id===rosterId);
     if(!profile)throw new Error('名簿からご本人を選んでください。');
     const need=typeof body.need==='string'?body.need:'';
-    answer=validateAnswer(rosterAnswer(profile,need),true);
+    answer=validateAnswer(rosterAnswer(linked?{...profile,...JSON.parse(linked.profile)}:profile,need),true);
   }else {
     if(body.rosterId!==undefined)throw new Error('名簿の準備中です。受付係にお声がけください。');
     answer=validateAnswer(body.answer);
   }
   const token = typeof body.token === 'string' && /^[a-f0-9]{64}$/.test(body.token) ? body.token : '';
   if (!token) throw new Error('回答用キーを確認してください。');
-  const digest = await hash(token);
+  const storedHash=linked?.answerId?await env.DB.prepare('SELECT token_hash FROM meeting_answers WHERE id=? AND event_id=?').bind(linked.answerId,id).first<{token_hash:string}>():null;
+  const digest = storedHash?.token_hash || await hash(token);
   // One answer per receipt; retry safely updates it, but never crosses the deadline or analysis freeze.
   const prior = await env.DB.prepare('SELECT id FROM meeting_answers WHERE event_id=? AND token_hash=?').bind(id,digest).first<{id:string}>();
   if(!walkIn&&!rosterId&&prior&&await env.DB.prepare('SELECT answer_id FROM meeting_guest_claims WHERE answer_id=?').bind(prior.id).first())throw new Error('回答済みの参加方法は変更できません。');
@@ -179,11 +193,25 @@ export async function submitAnswer(id:string,body:Record<string,unknown>) {
       AND NOT EXISTS(SELECT 1 FROM meeting_roster WHERE event_id=?)`).bind(crypto.randomUUID(),id,digest,JSON.stringify(answer),Date.now(),id,Date.now(),id,id).run();
   if (!result.meta.changes) throw new Error('受付を締め切りました。または上限100人に達しました。受付係にお声がけください。');
 }
-export async function ownResult(id:string,token:string) {
+export async function ownResult(id:string,token:string,memberId?:string) {
   const event = await meeting(id);
   if (!event) return null;
-  const row = await env.DB.prepare('SELECT id,answer,present,candidates FROM meeting_answers WHERE event_id=? AND token_hash=?').bind(id,await hash(token)).first<{id:string;answer:string;present:number;candidates:string}>();
+  const owned=memberId?await env.DB.prepare('SELECT answer_id FROM meeting_member_links WHERE event_id=? AND member_id=?').bind(id,memberId).first<{answer_id:string}>():null;
+  const row = owned?.answer_id?await env.DB.prepare('SELECT id,answer,present,candidates FROM meeting_answers WHERE event_id=? AND id=?').bind(id,owned.answer_id).first<{id:string;answer:string;present:number;candidates:string}>():await env.DB.prepare('SELECT id,answer,present,candidates FROM meeting_answers WHERE event_id=? AND token_hash=?').bind(id,await hash(token)).first<{id:string;answer:string;present:number;candidates:string}>();
   if (!row) return null;
+  if(memberId){
+    const link=await env.DB.prepare('SELECT roster_id AS rosterId,answer_id AS answerId,profile FROM meeting_member_links WHERE event_id=? AND member_id=?').bind(id,memberId).first<{rosterId:string;answerId:string;profile:string}>();
+    if(!link)return null;
+    if(link.answerId&&link.answerId!==row.id)return null;
+    if(!link.answerId){
+      const claim=await env.DB.prepare('SELECT roster_id FROM meeting_roster_claims WHERE answer_id=?').bind(row.id).first<{roster_id:string}>();
+      const answer=JSON.parse(row.answer),profile=JSON.parse(link.profile);
+      if(claim?claim.roster_id!==link.rosterId:normalizedName(answer.name)!==normalizedName(profile.name)||normalizedName(answer.company)!==normalizedName(profile.company))return null;
+      const saved=await env.DB.prepare("UPDATE meeting_member_links SET answer_id=? WHERE event_id=? AND member_id=? AND answer_id='' ").bind(row.id,id,memberId).run();
+      if(!saved.meta.changes)return null;
+      if(row.present===1)await (await import('./meeting-accounts')).activateMeetingMember(memberId,id);
+    }
+  }
   const people = event.state === 'published' ? await attendees(id) : [];
   const matches = event.state === 'published' && row.present === 1 ? (JSON.parse(row.candidates) as Candidate[]).flatMap(c=> {
     const p = people.find(p=>p.id===c.id && p.present === 1);
@@ -198,6 +226,7 @@ export async function confirmAttendance(id:string,personId:string,present:boolea
   const result = await env.DB.prepare(`UPDATE meeting_answers SET present=? WHERE event_id=? AND id=? AND EXISTS
     (SELECT 1 FROM meeting_events WHERE id=? AND state='open')`).bind(present?1:0,id,personId,id).run();
   if (!result.meta.changes) throw new Error('集計開始後は出席者を変更できません。');
+  if(present){const link=await env.DB.prepare('SELECT member_id FROM meeting_member_links WHERE event_id=? AND answer_id=?').bind(id,personId).first<{member_id:string}>();if(link)await (await import('./meeting-accounts')).activateMeetingMember(link.member_id,id);}
 }
 
 export async function analyzeNext(id:string) {
@@ -262,17 +291,17 @@ export async function checkSubmissionLimit(eventId:string,ip:string,kind:'read'|
   return !!row && row.count<=(kind==='read'?400:200);
 }
 
-export async function setWishSharing(id:string,token:string,shared:boolean) {
-  if(!/^[a-f0-9]{64}$/.test(token)||typeof shared!=='boolean')throw new Error('回答用キーと掲載設定を確認してください。');
+export async function setWishSharing(id:string,token:string,shared:boolean,memberId?:string) {
+  if((!memberId&&!/^[a-f0-9]{64}$/.test(token))||typeof shared!=='boolean')throw new Error('回答用キーと掲載設定を確認してください。');
   await ensureMeetings();
-  const row=await env.DB.prepare('SELECT id FROM meeting_answers WHERE event_id=? AND token_hash=?').bind(id,await hash(token)).first<{id:string}>();
+  const row=memberId?await env.DB.prepare('SELECT a.id FROM meeting_answers a JOIN meeting_member_links l ON l.answer_id=a.id WHERE a.event_id=? AND l.event_id=? AND l.member_id=?').bind(id,id,memberId).first<{id:string}>():await env.DB.prepare('SELECT id FROM meeting_answers WHERE event_id=? AND token_hash=?').bind(id,await hash(token)).first<{id:string}>();
   if(!row)throw new Error('回答が見つかりません。');
   await env.DB.prepare('INSERT INTO meeting_wish_shares (answer_id,shared) VALUES (?,?) ON CONFLICT(answer_id) DO UPDATE SET shared=excluded.shared').bind(row.id,shared?1:0).run();
 }
-export async function wishBoard(id:string,token:string) {
-  if(!/^[a-f0-9]{64}$/.test(token))throw new Error('回答した端末で、結果ページから開いてください。');
+export async function wishBoard(id:string,token:string,memberId?:string) {
+  if(!memberId&&!/^[a-f0-9]{64}$/.test(token))throw new Error('回答した端末で、結果ページから開いてください。');
   const event=await meeting(id);
-  const own=await env.DB.prepare('SELECT id,present FROM meeting_answers WHERE event_id=? AND token_hash=?').bind(id,await hash(token)).first<{id:string;present:number}>();
+  const own=memberId?await env.DB.prepare('SELECT a.id,a.present FROM meeting_answers a JOIN meeting_member_links l ON l.answer_id=a.id WHERE a.event_id=? AND l.event_id=? AND l.member_id=?').bind(id,id,memberId).first<{id:string;present:number}>():await env.DB.prepare('SELECT id,present FROM meeting_answers WHERE event_id=? AND token_hash=?').bind(id,await hash(token)).first<{id:string;present:number}>();
   if(!event||!own)throw new Error('回答した端末で、結果ページから開いてください。');
   if(event.state!=='published')throw new Error('結果の公開後に見られます。');
   if(own.present!==1)throw new Error('受付係に出席確認をお願いしてください。');

@@ -7,6 +7,7 @@ import { getBoardData } from '@/db/data';
 import BrandMark from './BrandMark';
 import LegalLinks from './LegalLinks';
 import { isAdminEmail } from './admin-auth';
+import {memberLoginPath} from './auth-return';
 
 export const metadata = {
   alternates: { canonical: 'https://tasuki.club/' },
@@ -15,7 +16,7 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic';
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ login?: string; ad?: string; tab?: string }> }) {
+export default async function Home({ searchParams }: { searchParams: Promise<{ login?: string; ad?: string; tab?: string; contact?:string; member?:string; action?:string; meeting?:string }> }) {
   // admin.tasuki.club は同じWorkerが受ける。管理画面の入口として使うので、
   // その名前で来た人は掲示板ではなく /admin へ送る。
   // **入れるかどうかは /admin 側でメールを見て決める。** ここは道案内だけ。
@@ -24,7 +25,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ l
 
   const access = await getAppAccess();
   if (!access) {
-    const { login, tab } = await searchParams;
+    const { login, tab, contact, member, action, meeting } = await searchParams;
+    const target=contact?`/?contact=${encodeURIComponent(contact)}`:member?`/?member=${encodeURIComponent(member)}`:action==='post'?`/?action=post${meeting?'&meeting='+encodeURIComponent(meeting):''}`:'';
+    if(target)redirect(memberLoginPath(target));
     if (login) redirect(`/login?login=${encodeURIComponent(login)}`);
     if (tab === 'survey') redirect(`/login/member?return_to=${encodeURIComponent('/?tab=survey')}`);
     redirect('/login');
@@ -34,8 +37,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ l
   }
   const { requests, stats, ads } = await getBoardData(access.user);
   // 出稿枠の決済から戻ってきたかどうか。開く画面をサーバー側で決めておく。
-  const { ad, tab } = await searchParams;
+  const { ad, tab, contact, member, action } = await searchParams;
   const adReturn = ad === 'done' || ad === 'cancel' ? ad : '';
-  const initialTab = tab === 'survey' ? 'survey' : undefined;
+  const initialTab = tab === 'survey' ? 'survey' : contact||member||action==='post' ? 'home' : undefined;
   return <BoardClient canManageMeetings={isAdminEmail(access.user.email)} initialRequests={requests} initialStats={stats} initialAds={ads} userName={access.user.displayName} adReturn={adReturn} initialTab={initialTab} />;
 }

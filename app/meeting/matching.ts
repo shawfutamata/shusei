@@ -15,7 +15,7 @@ JSONのみ: {"matches":[{"id":"実在する候補id","kind":"direct または re
 export function anonymous(person:Attendee) {
   return {id:person.id,industry:person.industry,services:person.services,referrals:person.referrals,need:person.need,area:person.area,timing:person.timing,budget:person.budget,conditions:person.conditions};
 }
-async function inferObject(ai: AIClient,system:string,data:unknown):Promise<Record<string,unknown>> {
+export async function inferObject(ai: AIClient,system:string,data:unknown):Promise<Record<string,unknown>> {
   if (!ai) throw new Error('AI接続が未設定です。候補は生成せず停止しました。');
   let timeout:ReturnType<typeof setTimeout>|undefined;
   const pending = ai.run(model,{messages:[{role:'system',content:system},{role:'user',content:JSON.stringify(data)}],max_tokens:system.endsWith('/think')?6000:2400,temperature:0.1});

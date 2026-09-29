@@ -314,6 +314,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     initialTab ?? (!initialStats.avatarUrl ? 'profile' : adReturn === 'done' ? 'mypage' : 'home'));
   const [myRequests, setMyRequests] = useState<MyRequest[]>([]);
   /** 編集中の投稿。null なら新規投稿。投稿のモーダルを両方で使い回す。 */
+  const [meetingDraft,setMeetingDraft]=useState('');
   const [editingRequest, setEditingRequest] = useState<MyRequest | null>(null);
   const [deletingRequest, setDeletingRequest] = useState<MyRequest | null>(null);
   const [receipts, setReceipts] = useState<BillingRecord[] | null>(null);
@@ -1661,6 +1662,32 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
    * その会員にじかに話しかける。**すでに話しているなら、その続きを開く。**
    * 新しく作ると、同じ相手との話が2本に見えてしまう。
    */
+  // Event handoff opens a draft conversation or profile; it never sends a message.
+  const handoffOpened=useRef(false);
+  const meetingPostPending=useRef(false);
+  useEffect(()=>{
+    if(handoffOpened.current)return;
+    const q=new URLSearchParams(window.location.search),target=q.get('contact')||q.get('member');
+    if(target&&target.length<=160&&/^[a-zA-Z0-9_-]+$/.test(target)){
+      handoffOpened.current=true;
+      if(q.has('contact'))void fetch(`/api/members/${encodeURIComponent(target)}`).then(async response=>{if(!response.ok)throw new Error();messageMember(await response.json() as MemberProfile);}).catch(()=>showToast('この会員には現在連絡できません。'));
+      else void openMember(target);
+    }else if(q.get('action')==='post'){
+      handoffOpened.current=true;
+      void (async()=>{const eventId=q.get('meeting');let need='';
+        if(eventId&&/^[a-zA-Z0-9-]+$/.test(eventId))try{const response=await fetch(`/api/meeting/${encodeURIComponent(eventId)}?mine=1`);if(!response.ok)throw new Error();const data=await response.json() as {answer:{need:string}};need=data.answer.need;setMeetingDraft(need);}catch{showToast('希望を読み込めませんでした。募集内容を入力してください。');}
+        meetingPostPending.current=!stats.avatarUrl;openRequest();setRequestDetail(!!need);
+      })();
+    }
+  // Run once for an explicitly requested destination; state changes must not reopen it.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
+  useEffect(()=>{if(meetingPostPending.current&&stats.avatarUrl){meetingPostPending.current=false;openRequest();setRequestDetail(!!meetingDraft);}
+  // Resume the account's own reviewed draft after the required photo is saved.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[stats.avatarUrl,meetingDraft]);
+
   function messageMember(member: { id: string; displayName: string; company: string; avatarUrl: string }) {
     const chatId = `dm:${member.id}`;
     const existing = threads.find((thread) => thread.chatId === chatId);
@@ -2582,14 +2609,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {modal === 'request' && !canPostRequest && !editingRequest && <Modal title="今月分の投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる案件は月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p>{referral?.freeMonths && <p>仲間を1人招待して{referral.qualifyDays}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p>}<button className="submit-button" onClick={() => { setModal(null); showMyPage(); }}>マイページを開く</button></div></Modal>}
 
-      {modal === 'request' && (canPostRequest || editingRequest) && <Modal title={editingRequest ? '案件を編集' : 'こんな人を探しています'} lead={editingRequest ? '直したいところを書き替えて、保存してください。' : 'ひとことで大丈夫です。「〇〇できる方いませんか」だけでも出せます。'} onClose={closeRequestModal}><form className="form" key={editingRequest?.id ?? 'new'} onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue={editingRequest?.category ?? ''}><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" defaultValue={editingRequest?.title ?? ''} /></label><p className="request-policy-note"><b>投稿ルール</b>{requestPostingRule}</p>{/* **ここから下は任意。** 良い投稿の条件ではあるが、投稿がある条件では
+      {modal === 'request' && (canPostRequest || editingRequest) && <Modal title={editingRequest ? '案件を編集' : 'こんな人を探しています'} lead={editingRequest ? '直したいところを書き替えて、保存してください。' : 'ひとことで大丈夫です。「〇〇できる方いませんか」だけでも出せます。'} onClose={closeRequestModal}><form className="form" key={editingRequest?.id ?? 'new-'+meetingDraft} onSubmit={submitRequest}><label>探しているもの <button type="button" className="info-button" onClick={() => setModal('categories')} aria-label="3つの違いを見る">i</button><select name="category" required defaultValue={editingRequest?.category ?? ''}><option value="" disabled>選択してください</option>{categoryGuide.map((item) => <option value={item.key} key={item.key}>{item.pick}</option>)}</select></label><label>タイトル<input name="title" required maxLength={90} placeholder="例：採用に強い動画制作会社" defaultValue={editingRequest?.title ?? meetingDraft.slice(0,90)} /></label><p className="request-policy-note"><b>投稿ルール</b>{requestPostingRule}</p>{/* **ここから下は任意。** 良い投稿の条件ではあるが、投稿がある条件では
           ない。予算も期限もまだ決まっていないから探しているので、決めさせない。
           書きたい人だけが開く（直すときは開いた状態で出す）。 */}
         {!requestDetail && <button type="button" className="request-more" onClick={() => setRequestDetail(true)}>
           <b>詳しく書く</b><small>業種・予算・期限・写真　どれも任意です</small><i>開く</i>
         </button>}
         <div className="request-detail" hidden={!requestDetail}>
-        <label>詳しい内容 <small>任意</small>{descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人をオファーしてほしいか" defaultValue={editingRequest?.description ?? ''} /></label><IndustryPicker legend="関連する業種" note="任意・3個まで。選ぶとその業種の会員にお知らせが届きます" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算 <small>任意・選ばないと「応相談」</small><select name="budgetBand" defaultValue={editingRequest?.budgetBand ?? ''}><option value="">選ばない（応相談）</option>{Object.entries(budgetBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>予算のくわしい書き方 <small>任意</small><input name="budgetLabel" maxLength={60} placeholder="例：月額20〜40万円／初回は50万円まで" defaultValue={editingRequest?.budgetLabel ?? ''} /></label><label>希望エリア <small>任意</small><select name="area" defaultValue={editingRequest?.area ?? ''}><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限 <small>任意・決めないと30日後</small><input name="deadline" type="date" min="2026-08-27" defaultValue={editingRequest?.deadline ?? ''} /></label>{editingRequest && <label>募集状況<select name="status" defaultValue={editingRequest.status}><option value="open">募集中</option><option value="closed">募集を終了する</option></select></label>}{/* 写真と動画の枠は、**使えない人にも見せておく**。隠してしまうと
+        <label>詳しい内容 <small>任意</small>{descriptionLimit(stats.level) > 600 && <small className="req">上限なし</small>}<textarea name="description" maxLength={descriptionLimit(stats.level)} rows={4} placeholder="どんな課題があり、どんな人をオファーしてほしいか" defaultValue={editingRequest?.description ?? meetingDraft} /></label><IndustryPicker legend="関連する業種" note="任意・3個まで。選ぶとその業種の会員にお知らせが届きます" selected={requestIndustries} activeGroup={requestIndustryGroup} onGroupChange={setRequestIndustryGroup} onToggle={(industry) => toggleIndustry(industry, requestIndustries, setRequestIndustries, 3)} /><label>予算 <small>任意・選ばないと「応相談」</small><select name="budgetBand" defaultValue={editingRequest?.budgetBand ?? ''}><option value="">選ばない（応相談）</option>{Object.entries(budgetBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>予算のくわしい書き方 <small>任意</small><input name="budgetLabel" maxLength={60} placeholder="例：月額20〜40万円／初回は50万円まで" defaultValue={editingRequest?.budgetLabel ?? ''} /></label><label>希望エリア <small>任意</small><select name="area" defaultValue={editingRequest?.area ?? ''}><option value="">指定しない</option>{requestAreaOptions.map((area) => <option value={area} key={area}>{area}</option>)}</select></label><label>募集期限 <small>任意・決めないと30日後</small><input name="deadline" type="date" min="2026-08-27" defaultValue={editingRequest?.deadline ?? ''} /></label>{editingRequest && <label>募集状況<select name="status" defaultValue={editingRequest.status}><option value="open">募集中</option><option value="closed">募集を終了する</option></select></label>}{/* 写真と動画の枠は、**使えない人にも見せておく**。隠してしまうと
           「そんな機能がある」ことに気づかないので、上のランクへ上がる理由が
           伝わらない。掲示板の絞り込みと同じで、鍵の札を出して押せなくする。 */}
         <div className="request-photos"><p><b>写真を付ける <em>任意</em></b><small>{photoLimit(stats.level) > 1 ? `${stats.rank}は${photoLimit(stats.level)}枚まで付けられます` : '現場や商品の写真があると、一覧で見つけてもらいやすくなります'}<br />
