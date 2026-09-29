@@ -10,6 +10,8 @@ import BrandMark from '@/app/BrandMark';
 import { memberNoLabel } from '@/app/brand';
 import { BarList, TrendChart } from './Charts';
 import MemberDetail from './MemberDetail';
+import MeetingAdmin from './meetings/MeetingAdmin';
+import '@/app/meeting/meeting.css';
 import { requestReportReasonLabel } from '@/app/request-policy';
 
 type GachaSummary = {
@@ -43,10 +45,13 @@ const categoryNames: Record<string, string> = {
   project: '発注先', collaboration: '協業先', consultation: '相談',
 };
 
-export default function AdminClient({ adminName, adminEmail, serviceName, initial, initialTab = '' }: {
-  adminName: string; adminEmail: string; serviceName: string; initial: AdminData; initialTab?: string;
+export default function AdminClient({ adminName, adminEmail, serviceName, initial, initialTab = '', initialEventId = '', initialMeetingView = '' }: {
+  adminName: string; adminEmail: string; serviceName: string; initial: AdminData; initialTab?: string; initialEventId?:string; initialMeetingView?:string;
 }) {
   const [data, setData] = useState(initial);
+  const [meetingEditor,setMeetingEditor]=useState(initialEventId||initialMeetingView?'edit':'');
+  const [meetingId,setMeetingId]=useState(initialEventId);
+  const [meetingView,setMeetingView]=useState(initialMeetingView==='qr'?'qr':initialMeetingView==='answer'?'answer':initialMeetingView==='preparation'?'preparation':'');
   const [tab, setTab] = useState<(typeof tabs)[number]['key']>(tabs.find(item => item.key === initialTab)?.key ?? 'analytics');
   const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
   const [range, setRange] = useState(90);
@@ -86,7 +91,16 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   function goTab(key: (typeof tabs)[number]['key']) {
     setTab(key);
     setTrashOpen(false);
+    setMeetingEditor('');
+    const url=new URL(location.href);url.searchParams.set('tab',key);url.searchParams.delete('event');url.searchParams.delete('view');history.replaceState(null,'',url);
   }
+
+  function openMeeting(id='',view='') {
+    setMeetingId(id);setMeetingView(view);setMeetingEditor('edit');setTab('surveys');
+    const url=new URL(location.href);url.searchParams.set('tab','surveys');if(id)url.searchParams.set('event',id);else url.searchParams.delete('event');url.searchParams.set('view',view||'edit');history.replaceState(null,'',url);
+  }
+  function closeMeeting(){setMeetingEditor('');const url=new URL(location.href);url.searchParams.delete('event');url.searchParams.delete('view');history.replaceState(null,'',url);void reload();}
+
 
   async function reload(nextKeyword = keyword) {
     const response = await fetch(`/api/admin/data?q=${encodeURIComponent(nextKeyword)}`);
@@ -298,7 +312,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       </div>
     </header>
 
-    {tab === 'analytics' && <section className="viz-panel"><a className="viz-export" href="/admin?tab=surveys">例会アンケートの一覧・管理 →</a>
+    {tab === 'analytics' && <section className="viz-panel"><button className="viz-export" onClick={()=>goTab('surveys')}>例会アンケートの一覧・管理 →</button>
       <dl className="admin-kpis">
         <div><dt>累計会員数</dt><dd>{yen0(summary.members)}<small>人</small></dd><small>利用中 {summary.activeMembers}／停止 {summary.suspendedMembers}</small></div>
         <div><dt>課金している会員</dt><dd>{yen0(summary.paidMembers)}<small>人</small></dd>
@@ -489,17 +503,17 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       </li>)}
     </ul>}
 
-    {tab === 'surveys' && <section className="survey-admin-list">
-      <div className="admin-meeting-heading"><div><h2>例会ごとのアンケート</h2><p>名簿・回答・紹介候補・QRをまとめて管理</p></div><a href="/admin/meetings">＋ 作成・自動準備</a></div>
+    {tab === 'surveys' && (meetingEditor ? <MeetingAdmin key={meetingId+meetingView} embedded initialEventId={meetingId} initialView={meetingView} onClose={closeMeeting} onUpdated={()=>void reload()}/> : <section className="survey-admin-list">
+      <div className="admin-meeting-heading"><div><h2>例会ごとのアンケート</h2><p>名簿・回答・紹介候補・QRをまとめて管理</p></div><button onClick={()=>openMeeting('', 'preparation')}>＋ 作成・自動準備</button></div>
       {!data.meetings.length && <p className="admin-empty">作成済みの例会アンケートはありません。</p>}
       <div className="admin-meeting-grid">{data.meetings.map(event=>{
         const state=event.state==='open'?(Date.now()>=event.closesAt?'受付終了':'受付中'):({analyzing:'分析中',review:'候補確認中',published:'結果公開済み'} as const)[event.state];
         return <article className="admin-meeting-card" key={event.id}>
           <div className="admin-row-top"><span className="admin-meeting-venue">{event.venue}</span><span className={`admin-state ${state==='受付中'?'is-on':event.state==='published'?'is-on':'is-new'}`}>{state}</span></div>
-          <h3><a href={'/admin/meetings?event='+event.id}>{event.title}</a></h3>
+          <h3><button className="admin-meeting-title-button" onClick={()=>openMeeting(event.id)}>{event.title}</button></h3>
           <p className="admin-meeting-deadline">回答締切 {new Date(event.closesAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</p>
           <dl className="admin-meeting-stats"><div><dt>名簿</dt><dd>{event.rosterCount??0}<small>人</small></dd></div><div><dt>回答</dt><dd>{event.answerCount}<small>人</small></dd></div><div><dt>出席確認</dt><dd>{event.presentCount}<small>人</small></dd></div></dl>
-          <div className="admin-meeting-links"><a className="admin-meeting-manage" href={'/admin/meetings?event='+event.id}>回答・候補を管理 →</a><a href={'/meeting/'+event.id} target="_blank" rel="noreferrer">アンケート ↗</a><a href={'/admin/meetings/qr?id='+event.id} target="_blank" rel="noreferrer">QR印刷 ↗</a></div>
+          <div className="admin-meeting-links"><button className="admin-meeting-manage" onClick={()=>openMeeting(event.id)}>例会を編集 →</button><button onClick={()=>openMeeting(event.id,'answer')}>回答画面を確認</button><button onClick={()=>openMeeting(event.id,'qr')}>QR印刷</button></div>
         </article>;
       })}</div>
       {!!data.surveys.length && <h2 className="admin-meeting-other">会員からの紹介希望</h2>}
@@ -524,7 +538,7 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
             </li>)}</ul>}
         </div>
       </article>)}
-    </section>}
+    </section>)}
 
     {tab === 'reports' && <ul className="admin-list">
       {!data.reports.length && <li className="admin-empty">異議申し立ては届いていません。</li>}

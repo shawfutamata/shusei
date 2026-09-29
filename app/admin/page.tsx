@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
  * 入れない人には**404を返す**（403ではなく）。「権限が無い」と返すと、
  * そこに管理画面があること自体を教えてしまう。
  */
-export default async function AdminPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+export default async function AdminPage({ searchParams }: { searchParams: Promise<{ tab?: string; event?:string; view?:string }> }) {
   // getAdmin() と同じ判定だが、入れなかったときに「誰として来ているか」を
   // 出したいので、ここでは access を手元に残す。
   const access = await getAppAccess();
@@ -41,5 +41,5 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     adminSummary(), adminMembers(), adminRequests(), adminAds(), adminFeedback(), adminRequestReports(), adminMatchingSurveys(), gachaSummary(), adminMeetingSummaries(),
   ]);
   return <AdminClient adminName={admin.displayName} adminEmail={admin.email} serviceName={serviceName}
-    initialTab={(await searchParams).tab} initial={{ summary, members, requests, ads, feedback, reports, surveys, gacha, meetings }} />;
+    initialTab={(await searchParams).tab} initialEventId={(await searchParams).event} initialMeetingView={(await searchParams).view} initial={{ summary, members, requests, ads, feedback, reports, surveys, gacha, meetings }} />;
 }

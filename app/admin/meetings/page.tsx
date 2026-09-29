@@ -4,10 +4,10 @@ import LoginForm from '@/app/login/LoginForm';
 import BrandMark from '@/app/BrandMark';
 import Link from 'next/link';
 import '@/app/login/welcome.css';
-import MeetingAdmin from './MeetingAdmin';
+import { redirect } from 'next/navigation';
 import '@/app/meeting/meeting.css';
 export const dynamic = 'force-dynamic';
-export default async function Page() {
+export default async function Page({searchParams}:{searchParams:Promise<{event?:string}>}) {
   const access = await getAppAccess();
   if (!access) return <LoginForm standalone purpose="admin" returnTo="/admin/meetings" />;
   if (!isAdminEmail(access.user.email)) return (
@@ -23,5 +23,6 @@ export default async function Page() {
       </section>
     </main>
   );
-  return <MeetingAdmin />;
+  const {event}=await searchParams;
+  redirect('/admin?tab=surveys&view=edit'+(event?'&event='+encodeURIComponent(event):''));
 }

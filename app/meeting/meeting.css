@@ -256,3 +256,17 @@ body:has(.meeting-signup){background:#fff}.meeting-signup>.meeting-hiru-brand{pa
 .meeting-admin-preparation{border-top:2px solid #d6e2eb;padding-top:24px;margin-top:32px}
 .meeting-admin-preparation>h2{font-size:22px;margin:0 0 8px}
 @media(max-width:760px){.meeting-admin .meeting-shell{padding:20px 16px 48px}.meeting-admin h1{font-size:24px}.meeting-admin-grid,.meeting-admin-share{grid-template-columns:minmax(0,1fr);gap:0}.meeting-admin-section{padding:18px}.meeting-admin-overview{gap:12px}.meeting-admin-overview h2{font-size:19px}.meeting-admin-nav{gap:6px}.meeting-admin-nav a{padding:8px 10px}.meeting-admin-qr-form{border-left:0;border-top:1px solid #d6e2eb;padding:16px 0 0;margin-top:18px}.meeting-admin-section-heading{align-items:flex-start}.meeting-admin-section-heading h2{font-size:18px}.meeting-admin-section-heading button{flex-shrink:0;font-size:12px}.meeting-admin-overview p{font-size:12px}}
+
+/* Keep meeting work inside the dashboard's persistent navigation. */
+.meeting-admin-embedded{min-height:0;background:transparent}
+.meeting-admin-embedded .meeting-shell{max-width:none;padding:0}
+.meeting-admin .meeting-admin-title{font-size:26px;margin:12px 0 20px}
+.meeting-admin-breadcrumb{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;color:#587087;margin-bottom:14px}
+.meeting-admin-breadcrumb button{min-height:40px;padding:8px 12px;font-size:13px}
+.meeting-admin-preview{border:1px solid #d6e2eb;border-radius:10px;padding:18px;background:#fff;margin-bottom:20px}
+.meeting-admin-preview>div{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.meeting-admin-preview h2{font-size:19px;margin:0}
+.meeting-admin-preview button{font-size:13px;min-height:40px;padding:8px 12px;flex-shrink:0}
+.meeting-admin-preview iframe{display:block;width:100%;height:660px;border:1px solid #d6e2eb;border-radius:6px;background:white}
+.meeting-admin-qr-form>button[type=button]{display:block;margin-top:12px}
+@media(max-width:760px){.meeting-admin-embedded .meeting-shell{padding:0}.meeting-admin-preview{padding:12px}.meeting-admin-preview>div{align-items:flex-start}.meeting-admin-preview iframe{height:560px}.meeting-admin-preview h2{font-size:17px}.meeting-admin-breadcrumb span{display:none}}

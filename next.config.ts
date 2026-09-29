@@ -43,9 +43,21 @@ const securityHeaders = [
   },
 ];
 
+// The dashboard previews only our own meeting and QR pages. External embeds stay blocked.
+const meetingPreviewHeaders=securityHeaders.map(header=>header.key==='X-Frame-Options'
+  ? {...header,value:'SAMEORIGIN'}
+  : header.key==='Content-Security-Policy'
+    ? {...header,value:header.value.replace("frame-ancestors 'none'","frame-ancestors 'self'")}
+    : header);
+
 const nextConfig: NextConfig = {
   async headers() {
-    return [{ source: '/:path*', headers: securityHeaders }];
+    return [
+      // vinext applies the first matching value for each header. Specific routes come first.
+      { source: '/meeting/:path*', headers: meetingPreviewHeaders },
+      { source: '/admin/meetings/qr', headers: meetingPreviewHeaders },
+      { source: '/:path*', headers: securityHeaders },
+    ];
   },
 };
 

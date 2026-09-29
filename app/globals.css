@@ -2793,3 +2793,10 @@ body { font-weight:600; }
 .admin-meeting-links .admin-meeting-manage {background:#126bc5;color:#fff;border-radius:8px;padding:11px 14px}
 .admin-meeting-other {font-size:19px;margin-top:24px}
 @media(max-width:760px){.admin-meeting-grid{grid-template-columns:1fr}.admin-meeting-heading{align-items:flex-start;flex-direction:column}.admin-meeting-card{padding:17px}.admin-meeting-card h3{font-size:17px}.admin-meeting-links{gap:12px}}
+
+.admin-meeting-heading>button{border:1px solid #cbd8e5;background:#fff;color:#126bc5;border-radius:8px;padding:10px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.admin-meeting-card .admin-meeting-title-button{border:0;background:transparent;padding:0;text-align:left;color:inherit;font:inherit;cursor:pointer}
+.admin-meeting-links button{border:0;background:transparent;font-size:12px;font-weight:800;color:#126bc5;padding:10px 0;cursor:pointer;font-family:inherit}
+.admin-meeting-links .admin-meeting-manage{background:#126bc5;color:#fff;border-radius:8px;padding:11px 14px}
+.admin-meeting-card button:focus-visible,.admin-meeting-heading>button:focus-visible{outline:3px solid #299bb9;outline-offset:3px}
+button.viz-export{border:0;background:transparent;cursor:pointer;font-family:inherit;text-align:left}
