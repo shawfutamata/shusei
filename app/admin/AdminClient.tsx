@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import type { AdminAd, AdminAnalytics, AdminFeedback, AdminMatchingSurvey, AdminMember, AdminRequest, AdminRequestReport, AdminSummary } from '@/db/admin';
 import type { BackupEntry } from '@/db/backup';
 import { placementName } from '@/app/ad-options';
@@ -261,13 +261,13 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
     <aside className={`admin-side${menuOpen ? ' is-open' : ''}`}>
       <div className="admin-brand"><BrandMark className="admin-brand-mark" /><b>{serviceName} 管理</b></div>
       <nav className="admin-side-nav" aria-label="管理する対象">
-        {tabs.map((item) => <button key={item.key} className={tab === item.key ? 'selected' : ''}
+        {tabs.map((item) => <Fragment key={item.key}><button className={tab === item.key ? 'selected' : ''}
           onClick={() => { goTab(item.key); setMenuOpen(false); }} aria-pressed={tab === item.key}>
           <SideIcon name={item.key} />
           <span className="admin-nav-long">{item.label}</span>
           <span className="admin-nav-short">{'short' in item ? item.short : item.label}</span>
           {countFor(item.key) > 0 && <em>{countFor(item.key)}</em>}
-        </button>)}
+        </button>{item.key === 'surveys' && <a href="/admin/meetings"><SideIcon name="surveys" /><span className="admin-nav-long">例会アンケート</span><span className="admin-nav-short">例会</span></a>}</Fragment>)}
       </nav>
       <div className="admin-side-foot"><span>管</span><div><b>{adminName}</b><small>{adminEmail}</small></div></div>
     </aside>

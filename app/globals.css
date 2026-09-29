@@ -1131,12 +1131,12 @@ body { font-weight:600; }
 .admin-brand-mark { width:30px; height:30px; flex:0 0 auto; display:block; }
 .admin-brand b { color:#fff; font-size:14px; font-weight:900; letter-spacing:-.01em; }
 .admin-side-nav { display:grid; gap:3px; }
-.admin-side-nav button { min-height:46px; padding:0 12px; display:flex; align-items:center; gap:11px; border:0; border-radius:11px; background:transparent; color:#9aa4b8; font-size:14px; font-weight:800; text-align:left; cursor:pointer; }
-.admin-side-nav button:hover { background:#20242e; color:#e6ebf5; }
-.admin-side-nav button.selected { background:var(--blue); color:#fff; }
-.admin-side-nav button span { flex:1; min-width:0; }
+.admin-side-nav :is(button, a) { text-decoration:none; min-height:46px; padding:0 12px; display:flex; align-items:center; gap:11px; border:0; border-radius:11px; background:transparent; color:#9aa4b8; font-size:14px; font-weight:800; text-align:left; cursor:pointer; }
+.admin-side-nav :is(button, a):hover { background:#20242e; color:#e6ebf5; }
+.admin-side-nav :is(button, a).selected { background:var(--blue); color:#fff; }
+.admin-side-nav :is(button, a) span { flex:1; min-width:0; }
 .admin-side-nav .admin-nav-short { display:none; }
-.admin-side-nav button em { padding:2px 8px; border-radius:99px; background:rgba(255,255,255,.14); color:inherit; font-size:11px; font-style:normal; font-weight:900; }
+.admin-side-nav :is(button, a) em { padding:2px 8px; border-radius:99px; background:rgba(255,255,255,.14); color:inherit; font-size:11px; font-style:normal; font-weight:900; }
 .admin-side-foot { margin-top:auto; padding:11px 10px; display:flex; align-items:center; gap:10px; border-top:1px solid #262b36; }
 .admin-side-foot span { width:30px; height:30px; flex:0 0 auto; display:grid; place-items:center; border-radius:50%; background:#2a3040; color:#c7cede; font-size:12px; font-weight:900; }
 .admin-side-foot div { min-width:0; }
@@ -1164,7 +1164,7 @@ body { font-weight:600; }
   .admin-side-veil { position:fixed; z-index:65; inset:0; border:0; padding:0;
     background:rgba(10,16,32,.5); cursor:pointer; }
   /* 引き出しの中は、パソコンと同じ縦並び。会社名もログイン中の人も出す。 */
-  .admin-side-nav button { min-height:50px; }
+  .admin-side-nav :is(button, a) { min-height:50px; }
   .admin-side-nav .admin-nav-short { display:none; }
   .admin-side-nav .admin-nav-long { display:block; }
 
