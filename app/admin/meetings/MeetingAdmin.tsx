@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import type { Meeting, Attendee, RosterPerson } from '@/app/meeting/types';
 import RosterImport from './RosterImport';
 import AutomationPanel from './AutomationPanel';
+import {DEFAULT_MEETING_VENUE} from '@/app/meeting/venue-types';
 const japanInput=(time:number)=>new Date(time+9*3600000).toISOString().slice(0,16);
 const labels={open:'受付中',analyzing:'分析中',review:'候補確認',published:'公開済み'};
 export default function MeetingAdmin({embedded=false,initialEventId='',initialView='',onClose,onUpdated,venueId='hirunomeguro',venueName='ひるのめぐろ'}:{venueId?:string;venueName?:string;embedded?:boolean;initialEventId?:string;initialView?:string;onClose?:()=>void;onUpdated?:()=>void}) {
@@ -44,7 +45,7 @@ export default function MeetingAdmin({embedded=false,initialEventId='',initialVi
     <section id="meeting-reception" className="meeting-admin-section"><h2>受付・締切</h2><p className="meeting-help">回答できる時間を設定します。</p>
     {event.state==='open'?<form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);void act('deadline',{closesAt:new Date(String(f.get('closesAt'))+'+09:00').getTime()});}}><label>回答締切（日本時間）<input name="closesAt" type="datetime-local" required defaultValue={japanInput(event.closesAt)} key={event.id+event.closesAt}/></label><p className="meeting-help">11:15入場・11:30開始なら、11:45締切で30分間入力できます。集計前なら延長・短縮できます。</p><button disabled={busy}>締切を保存</button><p className="meeting-help">過去の時刻を保存すると受付を終了します。</p></form>:<p className="meeting-help">集計開始後は締切を変更できません。</p>}</section>
     <section id="meeting-roster" className="meeting-admin-section"><h2>参加者の名簿 <small>{roster.length}人</small></h2><p className="meeting-help">回答時に選択する名前・会社・事業内容です。</p>
-    {!event.rosterCount&&event.state==='open'&&people.length===0&&<RosterImport busy={busy} onImport={async profiles=>{setBusy(true);try{apply(await request({action:'import',id:event.id,people:profiles,consent:true}));}finally{setBusy(false);}}}/>}
+    {!event.rosterCount&&event.state==='open'&&people.length===0&&<RosterImport machidaOnly={venueId!==DEFAULT_MEETING_VENUE} busy={busy} onImport={async profiles=>{setBusy(true);try{apply(await request({action:'import',id:event.id,people:profiles,consent:true}));}finally{setBusy(false);}}}/>}
     {!!event.rosterCount&&<details><summary>取り込んだ名簿を確認</summary><div className="meeting-admin-roster">{roster.map(p=><p key={p.id}><b>{p.name}</b><br/>{p.company} · {p.industry}</p>)}</div></details>}
     {!event.rosterCount&&(event.state!=='open'||people.length>0)&&<p className="meeting-help">名簿の取り込みは受付開始前に行ってください。</p>}
     </section></div>
@@ -69,9 +70,9 @@ export default function MeetingAdmin({embedded=false,initialEventId='',initialVi
     {p.analyzed===1&&p.candidates.length===0&&<p>候補なし{!p.need?'（依頼なし）':''}</p>}
     {p.candidates.map(c=>{const other=people.find(x=>x.id===c.id);return <div className="meeting-match" key={c.id}><b>→ {other?.name}（{c.kind==='related'?'関連する仕事の相談':c.kind==='direct'?'直接依頼':'紹介の相談'}）</b><p>{c.reason}</p><blockquote>探す仕事：「{c.needQuote}」<br/>候補の回答：「{c.offerQuote}」</blockquote>{c.questions.length>0&&<p>要確認：{c.questions.join(' ／ ')}</p>}{event.state==='review'&&<button disabled={busy} className="meeting-secondary" onClick={()=>void act('remove',{personId:p.id,candidateId:c.id})}>この候補を外す</button>}</div>;})}</article>)}
     </section></>}
-    <section className="meeting-admin-preparation"><h2>次回以降の準備</h2><p className="meeting-help">自動作成の設定や、新しい例会の作成はこちら。</p>
+    <section className="meeting-admin-preparation"><h2>次回以降の準備</h2><p className="meeting-help">{venueId===DEFAULT_MEETING_VENUE?'自動作成の設定や、新しい例会の作成はこちら。':'例会を作成し、担当者がまちださがみ式の名簿をアップロードしてください。'}</p>
     <details><summary>新しい例会を作成</summary><form onSubmit={create}><label>例会名<input name="title" required maxLength={120}/></label><label>会場<input name="venue" required maxLength={120} defaultValue={venueName}/></label><label>回答締切（日本時間）<input name="closesAt" type="datetime-local" required/></label><button disabled={busy}>受付URLを作成</button></form></details>
-    <AutomationPanel venueId={venueId} onOpenMeeting={(id,view)=>{void select(id).then(()=>{setPreview(view||'');document.querySelector('.meeting-admin-breadcrumb')?.scrollIntoView({behavior:'smooth'});});}} onCreated={()=>{onUpdated?.();void request().then(d=>setEvents(d.events));}}/>
+    {venueId===DEFAULT_MEETING_VENUE&&<AutomationPanel venueId={venueId} onOpenMeeting={(id,view)=>{void select(id).then(()=>{setPreview(view||'');document.querySelector('.meeting-admin-breadcrumb')?.scrollIntoView({behavior:'smooth'});});}} onCreated={()=>{onUpdated?.();void request().then(d=>setEvents(d.events));}}/>}
     </section>
   </div></div>;
 }

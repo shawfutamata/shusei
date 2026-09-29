@@ -7,7 +7,6 @@ import {getAdmin} from '../app/admin-auth';
 import {createMeeting,meeting,importRoster,roster,submitAnswer,attendees,adminMeetingSummaries,checkSubmissionLimit} from '../db/meetings';
 import {saveMeetingVenue,setMeetingOperator,canManageMeetingVenue} from '../db/meeting-venues';
 import {setQrTableCount,qrTableCount,saveAutomation,automationStatus,syncSchedule,prepareScheduled,runMeetingAutomation} from '../db/meeting-automation';
-import {parseSchedule} from '../app/meeting/schedule';
 import {managementTest} from '../scripts/meeting-tests/management';
 import {matchAttendee} from '../app/meeting/matching';
 import {person} from '../scripts/meeting-tests/fixtures';
@@ -35,14 +34,11 @@ export default {async fetch(){try{
  ok(!await canManageMeetingVenue('operator@example.com','hirunomeguro'),'QR authorization uses assigned venue');
  ok((await request('automation','operator@example.com',undefined,'?venue=hirunomeguro')).status===403,'foreign connection and schedule denied');
  ok((await request('automation','operator@example.com',{action:'save',venueId:'hirunomeguro',enabled:false})).status===403,'foreign automation mutation denied');
- ok((await request('automation','operator@example.com',{action:'prepare',venueId:venue,key:'hirunomeguro:11636'})).status===400,'foreign preparation key denied');
- ok(!(await automationStatus(venue)).enabled,'new venue automation disabled initially');
- await saveAutomation({enabled:false,minutes:20,tables:4},venue);ok((await automationStatus(venue)).minutes===20&&(await automationStatus()).minutes===15,'automation settings isolated');
- let rejected=false;try{await saveAutomation({loginUrl:'https://www.shuseiclub.jp/hirunomeguro/___STAFF___/onetime.php?id=test'},venue);}catch{rejected=true;}ok(rejected,'foreign login URL rejected before encryption');
- const html='<h2>2026年間スケジュール</h2><h3>10月7日</h3><a href="https://www.shuseiclub.jp/other/entry_form/index.php?e=11636">申込</a>';
- const parsed=parseSchedule(html,Date.parse('2026-09-29'),{id:venue,name:'別会場',legacySlug:'other',startTime:'18:00'});ok(parsed[0].key===venue+':11636'&&parsed[0].startAt===Date.parse('2026-10-07T18:00:00+09:00'),'schedule and start time venue-specific');
- const now=Date.parse('2026-10-05T01:00:00+09:00');await syncSchedule(now,venue);await prepareScheduled(venue+':11636',true,now,venue);const prep=(await automationStatus(venue)).plans[0];ok(!!prep.meetingId&&(await meeting(prep.meetingId!))?.venueId===venue,'prepared event assigned to its venue');ok((await meeting(prep.meetingId!))?.closesAt===Date.parse('2026-10-07T18:20:00+09:00'),'per-venue start plus deadline offset');
- ok(!(await automationStatus()).plans.some(p=>p.key.startsWith(venue+':')),'default schedule excludes other venue');
+ ok((await request('automation','operator@example.com',undefined,'?venue='+venue)).status===403,'external venue has no automation connection UI/API');
+ for(const email of ['operator@example.com','platform@example.com'])for(const action of ['save','sync','prepare'])ok((await request('automation',email,{action,venueId:venue,key:venue+':11636',loginUrl:'https://www.shuseiclub.jp/other/___STAFF___/onetime.php?id=test'})).status===403,'external automation denied: '+email+' '+action);
+ for(const action of [()=>saveAutomation({enabled:true},venue),()=>syncSchedule(Date.now(),venue),()=>prepareScheduled(venue+':11636',true,Date.now(),venue)]){let blocked=false;try{await action();}catch{blocked=true;}ok(blocked,'external direct automation call blocked');}
+ await automationStatus(venue);await env.DB.prepare('UPDATE meeting_venue_automation SET enabled=1 WHERE venue_id=?').bind(venue).run();await runMeetingAutomation(Date.parse('2026-10-05T01:00:00+09:00'));ok(!(await automationStatus(venue)).plans.length,'scheduler ignores external venue even with stale enabled setting');
+ const uploaded=await request('meetings','operator@example.com',{action:'import',id:other,people:[{...person('upload'),name:'アップロード参加者',company:'会場会社',services:'名簿原文のPR',table:''}],consent:true});ok(uploaded.status===200&&(await roster(other))[0].services==='名簿原文のPR','external operator imports roster with original business description');
  await setMeetingOperator(venue,'operator@example.com',false);ok((await request('meetings','operator@example.com')).status===403,'revocation effective on next request');
  await setMeetingOperator(venue,'operator@example.com',true);setTestAccess('operator@example.com','suspended');ok((await GET(new Request('https://test.example.com/api'))).status===403,'suspended operator denied');
  ok((await request('meetings','platform@example.com',undefined,'?venue=hirunomeguro')).status===200,'platform admin retains access');

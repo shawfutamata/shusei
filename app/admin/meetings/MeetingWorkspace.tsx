@@ -1,4 +1,5 @@
 'use client';
+import {DEFAULT_MEETING_VENUE} from '@/app/meeting/venue-types';
 import {useEffect,useState} from 'react';
 import type {MeetingVenue} from '@/app/meeting/venue-types';
 import type {MeetingSummary} from '@/db/meetings';
@@ -22,9 +23,9 @@ export default function MeetingWorkspace({initialEventId='',initialView='',onUpd
  {error&&!deleting&&<p role="alert" className="meeting-error">{error}</p>}
  {platform&&settings&&venue&&<VenueSettings key={venue.id} venue={venue} onSaved={async id=>{await loadVenues(id);changeVenue(id);}}/>}
  {venue&&(editor?<MeetingAdmin key={venue.id+eventId+view} embedded venueId={venue.id} venueName={venue.name} initialEventId={eventId} initialView={view} onClose={close} onUpdated={()=>void load().catch(e=>setError(e.message))}/>:<>
- <div className="admin-meeting-heading"><div><h2>{venue.name}の例会</h2><p>準備から結果公開まで、ここで管理できます。</p></div><button onClick={()=>open('','preparation')}>＋ 作成・自動準備</button></div>
+ <div className="admin-meeting-heading"><div><h2>{venue.name}の例会</h2><p>準備から結果公開まで、ここで管理できます。</p></div><button onClick={()=>open('','preparation')}>{venue.id===DEFAULT_MEETING_VENUE?'＋ 作成・自動準備':'＋ 例会を作成'}</button></div>
  <div className="meeting-operation-guide" aria-label="例会運営の流れ">{['名簿・QRを準備','来場・回答を確認','締切後に集計','候補を確認・公開'].map((text,i)=><span key={text}><b>{i+1}</b>{text}</span>)}</div>
- {!events.length&&<p className="admin-empty">まだイベントがありません。「作成・自動準備」から始めてください。</p>}
+ {!events.length&&<p className="admin-empty">まだイベントがありません。上の作成ボタンから始めてください。</p>}
  <div className="admin-meeting-grid">{events.map(event=>{const state=event.state==='open'?(now>=event.closesAt?'受付終了':'受付中'):({analyzing:'分析中',review:'候補確認中',published:'結果公開済み'} as const)[event.state];return <article className="admin-meeting-card" key={event.id}>
  <div className="admin-row-top"><span className="admin-meeting-venue">{event.venue}</span><span className={`admin-state ${state==='受付中'||event.state==='published'?'is-on':'is-new'}`}>{state}</span></div>
  <h3><button className="admin-meeting-title-button" onClick={()=>open(event.id)}>{event.title}</button></h3><p className="admin-meeting-deadline">回答締切 {new Date(event.closesAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</p>
