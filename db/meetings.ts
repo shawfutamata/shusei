@@ -353,5 +353,5 @@ export async function wishBoard(id:string,token:string,memberId?:string) {
   if(event.state!=='published')throw new Error('結果の公開後に見られます。');
   const rows=await env.DB.prepare(`SELECT a.id,a.answer FROM meeting_answers a JOIN meeting_wish_shares s ON s.answer_id=a.id
     WHERE a.event_id=? AND s.shared=1 AND a.id<>? ORDER BY a.created_at,a.id`).bind(id,own.id).all<{id:string;answer:string}>();
-  return {people:rows.results.flatMap(row=>{const a=JSON.parse(row.answer) as Answer;return a.need.trim()?[{id:row.id,name:a.name,company:a.company,need:a.need}]:[];})};
+  return {people:rows.results.flatMap(row=>{const a=JSON.parse(row.answer) as Answer;return a.need.trim()?[{id:row.id,name:a.name,company:a.company,industry:a.industry,need:a.need}]:[];})};
 }

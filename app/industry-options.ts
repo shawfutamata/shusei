@@ -32,6 +32,41 @@ export function getIndustryGroup(value: string) {
   return industryGroups.find((group) => group.name === value || (group.children as readonly string[]).includes(value));
 }
 
+export const industryIconPaths: Record<string, string> = {
+  'IT・システム': '/icons/industries/it-system.png', 'Web・広告': '/icons/industries/web-ad.png',
+  '映像・写真': '/icons/industries/video-photo.png', 'デザイン・印刷': '/icons/industries/design-print.png',
+  '建設・不動産': '/icons/industries/construction-realestate.png', '製造・卸売': '/icons/industries/manufacturing-wholesale.png',
+  '小売・EC': '/icons/industries/retail-ec.png', '飲食・食品': '/icons/industries/food.png',
+  '美容・健康': '/icons/industries/beauty-health.png', '医療・福祉': '/icons/industries/medical-welfare.png',
+  '士業・コンサル': '/icons/industries/legal-consulting.png', '人材・教育': '/icons/industries/hr-education.png',
+  '金融・保険': '/icons/industries/finance-insurance.png', '運輸・物流': '/icons/industries/transport-logistics.png',
+  'イベント・エンタメ': '/icons/industries/event-entertainment.png', 'その他': '/icons/industries/other.png',
+};
+
+// Imported venue directories contain free-form industries rather than TASUKI's fixed choices.
+// Only the pictogram is grouped; the original industry text remains visible to readers.
+export function getIndustryIconSource(industry: string) {
+  const group = getIndustryGroup(industry)?.name
+    ?? ([
+      ['士業・コンサル', /税理士|社労士|社会保険労務士|弁護士|司法書士|行政書士|会計士|登記|補助金|助成金/],
+      ['美容・健康', /カウンセリング|美容|健康|整体|マッサージ|サプリ|トレーナー|スキンケア/],
+      ['建設・不動産', /建設|建築|内装|リフォーム|不動産|測量|電気工事/],
+      ['IT・システム', /システム|IT|情報サービス|アプリ|ソフトウェア/],
+      ['Web・広告', /SNS|広告|宣伝|マーケティング|Web/],
+      ['デザイン・印刷', /印刷|デザイン|出版|編集/],
+      ['医療・福祉', /医療|介護|福祉|病院/],
+      ['人材・教育', /保育|教育|人材|研修|セミナー/],
+      ['飲食・食品', /飲食|食品|カフェ|BAR|食用花/],
+      ['小売・EC', /小売|販売|ジュエリー|宝石|アパレル|化粧品|家具/],
+      ['運輸・物流', /運送|引越し|物流|配送/],
+      ['イベント・エンタメ', /イベント|タレント|女優|芸能/],
+      ['製造・卸売', /製造|卸売|卸/],
+      ['金融・保険', /金融|保険|融資/],
+    ] as const).find(([, pattern]) => pattern.test(industry))?.[0]
+    ?? 'その他';
+  return industryIconPaths[group];
+}
+
 export function matchesIndustry(tags: string[], filter: string) {
   if (filter === 'all') return true;
   const group = industryGroups.find((item) => item.name === filter);

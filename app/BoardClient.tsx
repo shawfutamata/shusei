@@ -7,7 +7,7 @@ import ReceivedIntroductions from './ReceivedIntroductions';
 import IntroductionChat from './IntroductionChat';
 import FacebookLink from './FacebookLink';
 import { COMPANY_PR_MAX, areaMatchesPrefecture, areaMatchesRegion, prefectures, regions, requestAreaOptions, revenueBands, type Prefecture } from './profile-options';
-import { getIndustryGroup, industryGroups, matchesIndustry } from './industry-options';
+import { getIndustryGroup, industryGroups, industryIconPaths, matchesIndustry } from './industry-options';
 import { budgetBandLabel, budgetBands } from './budget-options';
 import { UNLIMITED, can, plans, type BillingCycle, type Feature, type Plan } from './entitlements';
 import { feedbackCategories } from './feedback-options';
@@ -92,16 +92,6 @@ const topBanners = [
   { src: '/banners/sample-moving.webp', alt: '出稿イメージ（サンプル）オフィス引越しの広告', to: 'ads', sample: true },
   { src: '/banners/sample-catering.webp', alt: '出稿イメージ（サンプル）ケータリングの広告', to: 'ads', sample: true },
 ] as const;
-const industryIcons: Record<string, string> = {
-  'IT・システム': '/icons/industries/it-system.png', 'Web・広告': '/icons/industries/web-ad.png',
-  '映像・写真': '/icons/industries/video-photo.png', 'デザイン・印刷': '/icons/industries/design-print.png',
-  '建設・不動産': '/icons/industries/construction-realestate.png', '製造・卸売': '/icons/industries/manufacturing-wholesale.png',
-  '小売・EC': '/icons/industries/retail-ec.png', '飲食・食品': '/icons/industries/food.png',
-  '美容・健康': '/icons/industries/beauty-health.png', '医療・福祉': '/icons/industries/medical-welfare.png',
-  '士業・コンサル': '/icons/industries/legal-consulting.png', '人材・教育': '/icons/industries/hr-education.png',
-  '金融・保険': '/icons/industries/finance-insurance.png', '運輸・物流': '/icons/industries/transport-logistics.png',
-  'イベント・エンタメ': '/icons/industries/event-entertainment.png', 'その他': '/icons/industries/other.png',
-};
 const adSeenStorageKey = 'tasuki-ad-seen-v1';
 
 /**
@@ -3559,7 +3549,7 @@ function PersonIcon() {
 }
 
 function IndustryIcon({ group }: { group: string }) {
-  const source = industryIcons[group] ?? industryIcons['その他'];
+  const source = industryIconPaths[group] ?? industryIconPaths['その他'];
   return <i className="industry-icon" style={{ '--icon': `url(${source})` } as CSSProperties} aria-hidden="true" />;
 }
 

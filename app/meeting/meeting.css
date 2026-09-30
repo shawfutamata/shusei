@@ -192,6 +192,9 @@ body:has(.meeting-survey),.meeting-survey{background:#fff}
 .meeting-wish-board .meeting-wish-card{border-color:#e1e8ef;border-radius:10px}
 .meeting-wish-board .meeting-wish-test{background:#f1f5f9;color:#5f6d7f}
 .meeting-wish-board .meeting-wish-input input{border-color:#d5dee9}
+.meeting-wish-board .meeting-wish-industry{display:inline-flex;align-items:center;gap:6px;max-width:100%;margin-top:6px;padding:3px 9px;border-radius:6px;background:#edf5ff;color:#145799;font-size:12px;font-weight:650;line-height:1.5}
+.meeting-wish-board .meeting-wish-industry .industry-icon{width:16px;height:16px;flex:none;background:currentColor}
+.meeting-wish-board .meeting-wish-industry span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:760px){
  .meeting-results .meeting-shell{padding:22px 16px 32px}
  .meeting-results .meeting-result-heading{margin-bottom:18px;gap:8px}
