@@ -1,1 +1,27 @@
-body{margin:0;background:#edf0f2;font-family:Arial,"Noto Sans JP",sans-serif;color:#151918}.meeting-print nav{display:flex;gap:24px;align-items:center;justify-content:center;padding:20px}.meeting-print nav button{border:0;border-radius:8px;background:#d91633;color:white;padding:14px 24px;font-size:16px;cursor:pointer}.qr-sheet{box-sizing:border-box;width:210mm;min-height:290mm;padding:16mm 18mm;background:white;margin:0 auto 24px;text-align:center;break-after:page}.qr-sheet header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #d91633;padding-bottom:12px}.qr-sheet header strong{font-size:24px}.qr-sheet header span{color:#d91633;font-size:24px;font-weight:bold}.qr-sheet h1{font-size:34px;line-height:1.6;margin:24px 0 16px}.qr-sheet p{font-size:20px}.qr-sheet img{display:block;width:116mm;height:116mm;margin:12px auto}.qr-sheet>b{font-size:25px}.qr-sheet .qr-meeting-name,.qr-sheet .qr-deadline{font-size:17px}.qr-sheet footer{font-size:12px;color:#646969;overflow-wrap:anywhere;margin-top:24px}.qr-warning{padding:16px;text-align:center;background:#fff0d9}@page{size:A4 portrait;margin:0}@media print{body{background:white}.meeting-print nav,.qr-warning{display:none}.qr-sheet{margin:0;height:297mm;min-height:0;break-after:page}.qr-sheet:last-child{break-after:auto}}@media screen and (max-width:800px){.qr-sheet{width:95%;min-height:0;padding:24px}.qr-sheet img{width:75%;height:auto}.qr-sheet h1{font-size:26px}.meeting-print nav{flex-wrap:wrap}}
+body{margin:0;background:#edf0f2;font-family:Arial,"Noto Sans JP",sans-serif;color:#151918}
+.meeting-print nav{display:flex;gap:20px;align-items:center;justify-content:center;padding:18px 20px}
+.meeting-print nav>div{display:grid;gap:3px}
+.meeting-print nav small{font-size:12px;color:#5c6771}
+.meeting-print nav button{border:0;border-radius:8px;background:#d91633;color:white;padding:12px 20px;font-size:15px;font-weight:700;cursor:pointer}
+.qr-warning{padding:16px;text-align:center;background:#fff0d9}
+.qr-sheet{box-sizing:border-box;width:210mm;height:297mm;padding:6.5mm 7mm;background:#fff;margin:0 auto 20px;box-shadow:0 3px 18px rgb(0 0 0 / 12%);break-after:page}
+.qr-grid{display:grid;grid-template-columns:repeat(2,96mm);grid-template-rows:repeat(2,140mm);gap:4mm}
+.qr-card{box-sizing:border-box;width:96mm;height:140mm;padding:5mm 5mm 4mm;border:.3mm dashed #98a6b2;display:flex;flex-direction:column;align-items:center;text-align:center;overflow:hidden;break-inside:avoid}
+.qr-card header{box-sizing:border-box;width:100%;min-height:8mm;display:flex;align-items:center;justify-content:space-between;gap:2mm;padding-bottom:2mm;border-bottom:.45mm solid #d91633}
+.qr-card header strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10pt}
+.qr-card header span{flex:none;color:#d91633;font-size:10pt;font-weight:800}
+.qr-card .qr-meeting-name{width:100%;max-height:8mm;margin:2mm 0 0;overflow:hidden;font-size:8pt;line-height:1.35;font-weight:700}
+.qr-card h2{font-size:15pt;line-height:1.4;margin:3mm 0 0}
+.qr-card .qr-instruction{font-size:9pt;line-height:1.4;margin:2mm 0 0}
+.qr-card img{display:block;width:54mm;height:54mm;margin:2mm auto 0;image-rendering:auto}
+.qr-card>b{font-size:12pt;line-height:1.3;margin-top:1mm}
+.qr-card .qr-deadline{font-size:8pt;line-height:1.45;margin:2mm 0 0}
+.qr-card footer{width:100%;margin-top:auto;color:#5b636b;font-size:6.5pt;line-height:1.3;overflow-wrap:anywhere}
+@page{size:A4 portrait;margin:0}
+@media print{
+  body{background:#fff;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  .meeting-print nav,.qr-warning{display:none}
+  .qr-sheet{margin:0;box-shadow:none;break-after:page}
+  .qr-sheet:last-child{break-after:auto}
+}
+@media screen and (max-width:850px){.meeting-print nav{flex-wrap:wrap}.meeting-print{overflow-x:auto}.qr-sheet{margin-left:12px;margin-right:12px}}
