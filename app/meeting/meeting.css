@@ -393,3 +393,44 @@ body:has(.meeting-signup){background:#fff}.meeting-signup>.meeting-hiru-brand{pa
 .meeting-workspace-actions button:disabled{opacity:.6;cursor:wait}
 @media(max-width:760px){.meeting-workspace .meeting-workspace-toolbar{grid-template-columns:1fr;padding:14px;gap:12px}.meeting-workspace-actions{justify-content:flex-start}}
 @media(max-width:480px){.meeting-workspace-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.meeting-workspace-actions button{width:100%;min-width:0;min-height:48px;padding:8px;font-size:12px;white-space:normal}.meeting-workspace-actions button[aria-expanded]{grid-column:1/-1}}
+
+/* Give the public wish directory a clear Hiru no Meguro hierarchy: red requests, blue member context. */
+body:has(.meeting-wish-board),.meeting-wish-board{background:#fff}
+.meeting-wish-board .meeting-eyebrow,.meeting-wish-board .meeting-wish-back{color:#c91f30}
+.meeting-wish-heading{border-bottom-color:#e9d9dc}
+.meeting-wish-list-heading{align-items:center;margin-bottom:18px;padding-left:12px;border-left:4px solid #d91f2e}
+.meeting-wish-list-heading h2{color:#18283d;font-weight:750}
+.meeting-wish-list-heading strong{color:#c91f30}
+.meeting-wish-board .meeting-wish-input input{border-color:#d8dde5;background:#fff;box-shadow:0 2px 9px rgb(23 50 79 / 4%)}
+.meeting-wish-board .meeting-wish-input input:focus{border-color:#d91f2e;outline:3px solid #ffe3e7;outline-offset:1px}
+.meeting-wish-input svg{color:#c91f30}
+.meeting-wish-grid{gap:16px}
+.meeting-wish-board .meeting-wish-card{padding:0;border:1px solid #e2e6ed;border-top:3px solid #d91f2e;border-radius:12px;box-shadow:0 3px 14px rgb(20 42 68 / 6%);overflow:hidden}
+.meeting-wish-card-label{padding:16px 18px 0;color:#c91f30;font-weight:750}
+.meeting-wish-card-label>span{display:inline-flex;align-items:center;gap:7px}
+.meeting-wish-card-label>span::before{content:'';width:7px;height:7px;border-radius:50%;background:#d91f2e}
+.meeting-wish-board .meeting-wish-test{color:#7b6470;background:#f5f1f3;font-weight:600}
+.meeting-wish-board .meeting-wish-card-text{margin:10px 18px 18px;padding:14px 16px;flex:1;border-radius:8px;background:#fff3f4;color:#1d293b;font-size:18px;font-weight:650;line-height:1.65}
+.meeting-wish-card-person{gap:10px;margin-top:auto;padding:15px 18px;border-top:1px solid #e8edf3;background:#f8fafc}
+.meeting-wish-person-mark{display:grid;place-items:center;width:38px;height:38px;flex:none;border-radius:10px;background:#e4f0fb;color:#125c9d;font-size:17px;font-weight:800}
+.meeting-wish-card-person h3{color:#18283d;font-weight:750}
+.meeting-wish-card-person p{color:#586b80}
+.meeting-wish-board .meeting-wish-industry{background:#e6f2ff;color:#125c9d}
+.meeting-wish-note{border-top-color:#e9d9dc}
+@media(max-width:680px){
+ .meeting-wish-list-heading{margin-bottom:10px}
+ .meeting-wish-grid{gap:10px}
+ .meeting-wish-board .meeting-wish-card{border-radius:10px}
+ .meeting-wish-card-person{order:0;margin:0;padding:10px 12px 5px;border:0;background:#fff;gap:9px}
+ .meeting-wish-person-mark{width:32px;height:32px;border-radius:8px;font-size:14px}
+ .meeting-wish-card-person>div{min-width:0}
+ .meeting-wish-card-person h3{padding-right:72px;font-size:15px}
+ .meeting-wish-card-person p{margin:1px 0 0;font-size:11px}
+ .meeting-wish-card-label{top:11px;right:12px;padding:0}
+ .meeting-wish-board .meeting-wish-card-label>span{display:none}
+ .meeting-wish-board .meeting-wish-card-text{order:1;display:block;max-height:63px;margin:6px 11px 8px;padding:9px 11px;font-size:15px;font-weight:600;line-height:1.5;overflow:hidden}
+ .meeting-wish-board .meeting-wish-card.is-expanded .meeting-wish-card-text{max-height:none}
+ .meeting-wish-board .meeting-wish-expand{order:2;margin:-3px 11px 0;padding:5px 0 5px 12px;min-height:34px}
+ .meeting-wish-board .meeting-wish-industry{margin-top:3px;padding:2px 6px;font-size:10px}
+ .meeting-wish-board .meeting-wish-industry .industry-icon{width:13px;height:13px}
+}
