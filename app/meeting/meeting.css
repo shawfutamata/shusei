@@ -260,9 +260,71 @@ body:has(.meeting-signup){background:#fff}.meeting-signup>.meeting-hiru-brand{pa
 .meeting-admin-section-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .meeting-admin-section-heading button{font-size:13px;min-height:40px;padding:8px 12px}
 .meeting-admin-empty{font-size:14px;color:#587087;padding:20px 0;text-align:center}
+/* Dense, scannable response cards keep long analysis evidence out of the overview. */
+.meeting-answer-section{padding:24px}
+.meeting-answer-section .meeting-admin-section-heading{align-items:flex-start;margin-bottom:18px}
+.meeting-answer-section .meeting-admin-section-heading h2{margin:0}
+.meeting-answer-section .meeting-admin-section-heading .meeting-help{margin:3px 0 0}
+.meeting-answer-toolbar{display:flex;align-items:end;justify-content:space-between;flex-wrap:wrap;gap:14px;padding:16px;background:#f5f9fc;border:1px solid #e2ebf3;border-radius:10px}
+.meeting-answer-section .meeting-answer-search{margin:0;flex:1 1 260px;font-size:12px;color:#587087}
+.meeting-answer-search span{display:block;margin-bottom:4px}
+.meeting-answer-section .meeting-answer-search input{min-height:40px;margin:0;padding:8px 12px;font-size:14px;background:#fff}
+.meeting-answer-filters{display:flex;flex-wrap:wrap;gap:6px}
+.meeting-page .meeting-answer-filters button{display:inline-flex;align-items:center;gap:7px;min-height:38px;padding:7px 11px;border:1px solid #d5e2ec;background:#fff;color:#3d5871;font-size:12px;font-weight:700}
+.meeting-page .meeting-answer-filters button span{font-variant-numeric:tabular-nums;color:#71879a}
+.meeting-page .meeting-answer-filters button.is-active{background:#126bc3;border-color:#126bc3;color:#fff}
+.meeting-page .meeting-answer-filters button.is-active span{color:#e6f3ff}
+.meeting-answer-result-count{margin:14px 0 10px;color:#587087;font-size:12px;font-weight:700}
+.meeting-answer-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+.meeting-answer-card{min-width:0;background:#fff;border:1px solid #dbe6ee;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(23,50,79,.035)}
+.meeting-answer-card-top{display:flex;align-items:center;gap:10px;padding:16px 17px 0}
+.meeting-answer-avatar{display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;border-radius:10px;background:#e8f3fd;color:#126bc3;font-size:16px;font-weight:750}
+.meeting-answer-identity{min-width:0;flex:1}
+.meeting-answer-card .meeting-answer-identity h3{margin:0;font-size:16px;line-height:1.35;overflow-wrap:anywhere}
+.meeting-answer-identity p{margin:2px 0 0;color:#637c91;font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+.meeting-answer-status{flex:0 0 auto;padding:4px 9px;border-radius:999px;background:#edf4fa;color:#4e6d87;font-size:11px;font-weight:750;white-space:nowrap}
+.meeting-answer-status.is-matched{background:#e7f6ee;color:#196a48}
+.meeting-answer-status.is-unmatched{background:#f1f3f5;color:#687785}
+.meeting-answer-tags{display:flex;flex-wrap:wrap;gap:5px;margin:12px 17px 0}
+.meeting-answer-tags span{padding:2px 7px;border-radius:4px;background:#f2f6fa;color:#5b7082;font-size:11px;line-height:1.5}
+.meeting-answer-tags .is-walkin{background:#fff5e8;color:#975b20}
+.meeting-answer-wish{margin:14px 17px 0;padding:12px 14px;background:#f1f7fc;border-left:3px solid #126bc3;border-radius:0 7px 7px 0}
+.meeting-answer-wish>span,.meeting-answer-candidate-preview>span{display:block;color:#386a91;font-size:11px;font-weight:750;line-height:1.4}
+.meeting-answer-wish p{margin:5px 0 0;color:#17324f;font-size:14px;font-weight:650;line-height:1.6;overflow-wrap:anywhere}
+.meeting-answer-candidate-preview{margin:13px 17px 0}
+.meeting-answer-candidate-preview>div{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.meeting-answer-candidate-preview>div span{padding:3px 8px;border-radius:5px;background:#ebf7ef;color:#246a49;font-size:12px;font-weight:700}
+.meeting-admin-section .meeting-answer-details{margin:14px 0 0;padding:0;border-top:1px solid #e4ebf1}
+.meeting-answer-details summary{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:10px 17px;color:#126bc3;font-size:12px;line-height:1.5;list-style:none}
+.meeting-answer-details summary::-webkit-details-marker{display:none}
+.meeting-answer-details summary::after{content:'＋';font-size:17px;line-height:1}
+.meeting-answer-details[open] summary::after{content:'−'}
+.meeting-answer-details summary:hover{background:#f4f9fd}
+.meeting-answer-details summary:focus-visible,.meeting-answer-filters button:focus-visible{outline:2px solid #126bc3;outline-offset:-2px}
+.meeting-answer-expanded{padding:0 17px 17px;border-top:1px solid #edf2f6}
+.meeting-answer-business{margin:0;padding:4px 0 0}
+.meeting-answer-business>div{margin-top:12px}
+.meeting-answer-business dt,.meeting-answer-match dt{color:#637c91;font-size:11px;font-weight:750}
+.meeting-answer-business dd,.meeting-answer-match dd{margin:3px 0 0;color:#17324f;font-size:13px;line-height:1.65;overflow-wrap:anywhere}
+.meeting-answer-matches{margin-top:17px;padding-top:14px;border-top:1px solid #e4ebf1}
+.meeting-answer-matches h4{margin:0 0 10px;color:#17324f;font-size:13px}
+.meeting-answer-match{padding:12px;margin:0 0 8px;border:1px solid #deebf3;border-radius:8px;background:#f8fbfd}
+.meeting-answer-match-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.meeting-answer-match-head>span{color:#126bc3;font-size:12px;font-weight:800}
+.meeting-answer-match-head strong{color:#17324f;font-size:14px}
+.meeting-answer-match-head small{padding:2px 6px;border-radius:4px;background:#e6f1fa;color:#386a91;font-size:10px;font-weight:700}
+.meeting-answer-match>p{margin:8px 0;color:#314e68;font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+.meeting-answer-match dl{margin:10px 0 0;padding:10px 0 0;border-top:1px solid #e1eaf0}
+.meeting-answer-match dl>div+div{margin-top:8px}
+.meeting-answer-match .meeting-answer-questions{color:#687e90}
+.meeting-answer-match button{min-height:34px;margin-top:8px;padding:6px 10px;font-size:11px}
+.meeting-answer-expanded .meeting-answer-alert{margin:12px 0;padding:8px 10px;border-radius:6px;background:#fff5e8;color:#8f5420;font-size:12px}
+.meeting-answer-empty-match{margin:14px 0 0;color:#687e90;font-size:12px}
 .meeting-admin-preparation{border-top:2px solid #d6e2eb;padding-top:24px;margin-top:32px}
 .meeting-admin-preparation>h2{font-size:22px;margin:0 0 8px}
 @media(max-width:760px){.meeting-admin .meeting-shell{padding:20px 16px 48px}.meeting-admin h1{font-size:24px}.meeting-admin-grid,.meeting-admin-share{grid-template-columns:minmax(0,1fr);gap:0}.meeting-admin-section{padding:18px}.meeting-admin-overview{gap:12px}.meeting-admin-overview h2{font-size:19px}.meeting-admin-nav{gap:6px}.meeting-admin-nav a{padding:8px 10px}.meeting-admin-qr-form{border-left:0;border-top:1px solid #d6e2eb;padding:16px 0 0;margin-top:18px}.meeting-admin-section-heading{align-items:flex-start}.meeting-admin-section-heading h2{font-size:18px}.meeting-admin-section-heading button{flex-shrink:0;font-size:12px}.meeting-admin-overview p{font-size:12px}}
+@media(max-width:880px){.meeting-answer-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:760px){.meeting-answer-section{padding:18px}.meeting-answer-section .meeting-admin-section-heading{flex-wrap:wrap}.meeting-answer-toolbar{padding:12px}.meeting-answer-filters{width:100%}.meeting-page .meeting-answer-filters button{flex:1 1 auto;justify-content:center;padding:7px 5px}.meeting-answer-card-top{padding:14px 14px 0}.meeting-answer-tags{margin-left:14px;margin-right:14px}.meeting-answer-wish{margin-left:14px;margin-right:14px}.meeting-answer-candidate-preview{margin-left:14px;margin-right:14px}}
 
 /* Keep meeting work inside the dashboard's persistent navigation. */
 .meeting-admin-embedded{min-height:0;background:transparent}
