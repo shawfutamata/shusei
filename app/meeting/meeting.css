@@ -244,8 +244,12 @@ body:has(.meeting-signup){background:#fff}.meeting-signup>.meeting-hiru-brand{pa
 .meeting-admin-section .meeting-import{margin:16px 0 0;border:0;padding:0}
 .meeting-admin-share{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px}
 .meeting-admin-url{display:block;overflow-wrap:anywhere;font-size:14px;background:#f2f8fc;border:1px solid #d6e2eb;border-radius:6px;padding:12px}
+.meeting-page .meeting-admin-url{color:#126bc3;text-decoration:underline;text-underline-offset:3px}
+.meeting-admin-url:hover{background:#e7f2fa}
+.meeting-admin-url:focus-visible,.meeting-admin-open-link:focus-visible{outline:3px solid #7fbceb;outline-offset:3px}
 .meeting-admin-share .meeting-admin-tools{margin:12px 0 0;align-items:center}
 .meeting-admin-share .meeting-admin-tools>a,.meeting-admin-qr-form>a{font-size:14px;font-weight:700}
+.meeting-admin-share .meeting-admin-open-link{display:inline-flex;align-items:center;min-height:50px;padding:12px 22px;border-radius:8px;text-decoration:none}
 .meeting-admin-qr-form{border-left:1px solid #d6e2eb;padding-left:24px}
 .meeting-admin-qr-form label{margin-top:0}
 .meeting-admin-qr-form input{max-width:110px;display:block}
