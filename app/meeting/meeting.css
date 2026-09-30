@@ -434,3 +434,53 @@ body:has(.meeting-wish-board),.meeting-wish-board{background:#fff}
  .meeting-wish-board .meeting-wish-industry{margin-top:3px;padding:2px 6px;font-size:10px}
  .meeting-wish-board .meeting-wish-industry .industry-icon{width:13px;height:13px}
 }
+
+/* Event editing is split into four compact views inside the dashboard. */
+.meeting-admin-breadcrumb{margin-bottom:8px}
+.meeting-admin-tabs{margin-bottom:14px}
+.meeting-admin-context{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:12px;padding:11px 16px;border:1px solid #d6e2eb;border-radius:10px;background:#fff}
+.meeting-admin .meeting-admin-context .meeting-admin-selector{flex:1 1 420px;max-width:620px;margin:0;font-size:12px;color:#47627a}
+.meeting-admin-context .meeting-admin-selector select{min-height:44px;margin-top:4px;padding:8px 10px;font-size:14px;font-weight:650}
+.meeting-admin-context-meta{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:5px 12px;padding-bottom:7px;color:#587087;font-size:12px}
+.meeting-admin-context-meta .meeting-admin-state{font-size:11px}
+.meeting-admin .meeting-admin-selector{margin-bottom:8px}
+.meeting-admin-overview{align-items:center;margin:10px 0 16px;padding:14px 18px;background:#fff;border:1px solid #d6e2eb;border-radius:10px}
+.meeting-admin-overview h2{font-size:18px;line-height:1.4}
+.meeting-admin-overview p{margin:3px 0 0}
+.meeting-editor-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 16px}
+.meeting-page .meeting-editor-tabs button{min-height:48px;padding:9px 10px;border:1px solid #d6e2eb;border-radius:8px;background:#fff;color:#516b82;font-size:13px;font-weight:750;line-height:1.4}
+.meeting-page .meeting-editor-tabs button:hover{background:#f1f7fc;border-color:#bdd5eb}
+.meeting-page .meeting-editor-tabs button[aria-selected=true]{background:#126bc3;border-color:#126bc3;color:#fff;box-shadow:0 3px 9px rgb(18 107 195 / 18%)}
+.meeting-page .meeting-editor-tabs button:focus-visible{outline:3px solid #8fc6f5;outline-offset:2px}
+.meeting-admin-event-card{padding:18px 20px}
+.meeting-admin-card-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:13px}
+.meeting-admin-card-heading h2{margin:0;font-size:18px}
+.meeting-admin-card-heading p{margin:2px 0 0;color:#668095;font-size:12px}
+.meeting-admin-card-heading>span{display:grid;place-items:center;width:28px;height:28px;border-radius:7px;background:#e8f3fe;color:#126bc3;font-size:12px;font-weight:800}
+.meeting-admin-event-fields{grid-template-columns:minmax(0,2fr) minmax(0,1fr);align-items:end;gap:12px;margin-bottom:12px}
+.meeting-admin-event-fields label:first-child{grid-column:auto}
+.meeting-admin-event-card .meeting-admin-event-fields label{margin:0;font-size:12px;color:#47627a}
+.meeting-admin-event-card .meeting-admin-event-fields input{min-height:44px;margin-top:5px;padding:9px 11px;font-size:14px;line-height:1.4}
+.meeting-admin-event-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:10px}
+.meeting-admin-event-actions .meeting-help{margin:0 auto 0 0}
+.meeting-page .meeting-admin-event-actions button{min-height:40px;padding:8px 18px;font-size:13px}
+#meeting-editor-setup-panel .meeting-admin-grid{gap:12px}
+#meeting-editor-setup-panel .meeting-admin-grid .meeting-admin-section{padding:18px 20px}
+#meeting-editor-setup-panel .meeting-admin-grid .meeting-admin-section h2{font-size:17px}
+#meeting-editor-setup-panel .meeting-admin-grid .meeting-admin-section>.meeting-help{margin:2px 0 8px}
+#meeting-editor-setup-panel .meeting-admin-grid label{margin:8px 0 6px;font-size:12px}
+#meeting-editor-setup-panel .meeting-admin-grid input{min-height:44px;margin-top:5px;padding:9px 11px;font-size:14px}
+#meeting-editor-setup-panel .meeting-admin-grid button{min-height:40px;padding:8px 14px;font-size:13px}
+#meeting-editor-setup-panel .meeting-admin-grid form>.meeting-help{margin:7px 0 10px}
+@media(max-width:760px){
+ .meeting-admin-context{align-items:stretch;flex-direction:column;gap:7px;padding:11px 12px}
+ .meeting-admin .meeting-admin-context .meeting-admin-selector{flex:auto;max-width:none}
+ .meeting-admin-context-meta{justify-content:flex-start;padding-bottom:0;font-size:11px}
+ .meeting-admin-overview{padding:12px 14px}
+ .meeting-editor-tabs{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+ .meeting-page .meeting-editor-tabs button{min-height:44px;font-size:12px}
+ .meeting-admin-event-fields{grid-template-columns:minmax(0,1fr);gap:10px}
+ .meeting-admin-event-actions{justify-content:stretch}
+ .meeting-admin-event-actions .meeting-help{width:100%}
+ .meeting-page .meeting-admin-event-actions button{width:100%}
+}
