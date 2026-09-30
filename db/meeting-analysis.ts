@@ -39,6 +39,27 @@ export async function startMeetingAnalysis(id:string){
  await finishEvent(id);
  try{await dispatchAnalysisJobs();}catch{console.error('Meeting analysis dispatch deferred to the recovery scheduler');}
 }
+// Re-run a finished event against updated matching rules. Keep a database
+// snapshot of the previous candidate lists before clearing them for review.
+export async function restartMeetingAnalysis(id:string){
+ const event=await meeting(id);
+ if(!event||!['review','published'].includes(event.state)||event.closesAt>Date.now())throw new Error('分析が完了した例会を選んでください。');
+ if(!env.MEETING_ANALYSIS_QUEUE)throw new Error('バックグラウンド分析の接続を確認してください。');
+ const revision=Date.now(),lock=crypto.randomUUID();
+ const results=await env.DB.batch([
+  env.DB.prepare('CREATE TABLE IF NOT EXISTS meeting_analysis_archives(event_id TEXT NOT NULL,started_at INTEGER NOT NULL,answer_id TEXT NOT NULL,candidates TEXT NOT NULL,PRIMARY KEY(event_id,started_at,answer_id))'),
+  env.DB.prepare("UPDATE meeting_events SET state='analyzing',lock_id=?,lock_until=0 WHERE id=? AND state IN ('review','published')").bind(lock,id),
+  env.DB.prepare(`INSERT INTO meeting_analysis_archives(event_id,started_at,answer_id,candidates)
+   SELECT event_id,?,id,candidates FROM meeting_answers WHERE event_id=?
+   AND EXISTS(SELECT 1 FROM meeting_events WHERE id=? AND lock_id=? AND state='analyzing')`).bind(revision,id,id,lock),
+  env.DB.prepare(`UPDATE meeting_answers SET analyzed=0,candidates='[]' WHERE event_id=?
+   AND EXISTS(SELECT 1 FROM meeting_events WHERE id=? AND lock_id=? AND state='analyzing')`).bind(id,id,lock),
+  env.DB.prepare(`UPDATE meeting_analysis_jobs SET status='pending',attempts=0,lease_id='',lease_until=0,dispatch_at=0,error=''
+   WHERE event_id=? AND EXISTS(SELECT 1 FROM meeting_events WHERE id=? AND lock_id=? AND state='analyzing')`).bind(id,id,lock),
+ ]);
+ if(!results[1].meta.changes)throw new Error('分析中の例会です。終了後に再試行してください。');
+ await startMeetingAnalysis(id);
+}
 export async function processAnalysisJob(jobId:string,ai:AIClient=env.MEETING_AI):Promise<'done'|'retry'> {
  await ensureMeetings();
  const job=await env.DB.prepare('SELECT * FROM meeting_analysis_jobs WHERE id=?').bind(jobId).first<Job>();

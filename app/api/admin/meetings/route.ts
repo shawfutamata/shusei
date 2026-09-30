@@ -3,7 +3,7 @@ import {getMeetingAdmin,hasMeetingVenue} from '@/app/meeting-admin-auth';
 import {DEFAULT_MEETING_VENUE} from '@/app/meeting/venue-types';
 import { adminMeetingSummaries,listMeetings,meeting,attendees,createMeeting,meetingAnalysisProgress,removeCandidate,publishMeeting,roster,importRoster,setMeetingDeadline } from '@/db/meetings';
 import {preanalysisProgress} from '@/db/meeting-preanalysis';
-import {startMeetingAnalysis} from '@/db/meeting-analysis';
+import {startMeetingAnalysis,restartMeetingAnalysis} from '@/db/meeting-analysis';
 import { setQrTableCount,qrTableCount } from '@/db/meeting-automation';
 import {updateMeeting,deleteMeeting,meetingTrash,trashedMeeting,restoreMeeting,emptyMeetingTrash} from '@/db/meeting-management';
 const headers={'Cache-Control':'no-store'};
@@ -38,6 +38,7 @@ export async function POST(request:Request) {
       case 'qr-tables': await setQrTableCount(body.id,body.tables);break;
       case 'import': await importRoster(body.id,body.people,body.consent);break;
       case 'analyze': await startMeetingAnalysis(body.id); break;
+      case 'reanalyze': await restartMeetingAnalysis(body.id); break;
       case 'remove':
         if(typeof body.personId!=='string' || typeof body.candidateId!=='string') throw new Error('候補を確認してください。');
         await removeCandidate(body.id,body.personId,body.candidateId); break;

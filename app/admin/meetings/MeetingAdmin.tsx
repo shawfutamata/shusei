@@ -24,10 +24,10 @@ export default function MeetingAdmin({embedded=false,initialEventId='',initialVi
   useEffect(()=>{request().then(d=>{setEvents(d.events);setOrigin(location.origin);const id=initialEventId||new URLSearchParams(location.search).get('event');if(id||d.events[0]?.id)void select(id||d.events[0].id);}).catch(e=>setError(e.message));},[]);
   async function select(id:string) {setBusy(true);setError('');try{apply(await request(undefined,id));const url=new URL(location.href);url.searchParams.set('event',id);if(embedded)url.searchParams.set('tab','surveys');history.replaceState(null,'',url);}catch(e){setError(String(e));}finally{setBusy(false);}}
   async function act(action:string,extra:Record<string,unknown>={}) {
-    if(!event)return;setBusy(true);setError('');setNotice('');if(action==='analyze'){setAnalyzing(true);setProgress(null);setProgressOffline(false);}
+    if(!event)return;setBusy(true);setError('');setNotice('');if(action==='analyze'||action==='reanalyze'){setAnalyzing(true);setProgress(null);setProgressOffline(false);}
     try{const data=await request({action,id:event.id,...extra});apply(data);
-      onUpdated?.();if(action==='analyze')setNotice('バックグラウンド分析を開始しました。この画面を閉じても処理は続きます。');if(action==='update')setNotice('イベント情報を保存しました。');
-    }catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);if(action==='analyze')setAnalyzing(false);}
+      onUpdated?.();if(action==='analyze'||action==='reanalyze')setNotice('バックグラウンド分析を開始しました。この画面を閉じても処理は続きます。');if(action==='update')setNotice('イベント情報を保存しました。');
+    }catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);if(action==='analyze'||action==='reanalyze')setAnalyzing(false);}
   }
   const progressEventId=event?.id,progressEventState=event?.state,unfinishedPublished=event?.state==='published'&&people.some(p=>!p.analyzed);
   useEffect(()=>{
@@ -102,7 +102,9 @@ export default function MeetingAdmin({embedded=false,initialEventId='',initialVi
     {(event.state==='open'||event.state==='analyzing'||((event.state==='published'||event.state==='review')&&!analysisDone))&&<button disabled={busy||analysisActive||!people.length||(event.state==='open'&&now<event.closesAt)} onClick={()=>void act('analyze')}>{busy?'処理中…':event.state!=='open'?(failed?'未完了の回答を再試行':'分析状況を確認'):'集計・分析を開始'}</button>}
     {event.state==='open'&&now<event.closesAt&&<span className="meeting-help">回答締切後に集計できます。</span>}
     {event.state==='review'&&analysisDone&&<button disabled={busy} onClick={()=>void act('publish')}>確認した候補を本人に公開する</button>}
-    {event.state==='published'&&<span>結果を公開しています。</span>}</div>
+    {event.state==='published'&&<span>結果を公開しています。</span>}
+    {(event.state==='review'||event.state==='published')&&analysisDone&&<button className="meeting-secondary" disabled={busy} onClick={()=>void act('reanalyze')}>新しい基準で再分析</button>}</div>
+    {(event.state==='review'||event.state==='published')&&analysisDone&&<p className="meeting-help">再分析すると、現在の候補を保存してから新しい基準で計算します。完了後に候補を確認し、再公開してください。</p>}
     {(event.state==='open'||event.state==='analyzing')&&<p className="meeting-help">分析はサーバー側で続行します。画面を閉じたり別タブに移動したりしても大丈夫です。一時的なエラーは自動で再試行します。</p>}
     {event.state==='review'&&<p className="meeting-help">回答原文と必須条件を確認し、紹介が難しい候補は外してください。「候補なし」も正常な結果です。</p>}
     </section>
