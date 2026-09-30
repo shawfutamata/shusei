@@ -358,6 +358,16 @@ const statements = [
     image_version INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   )`,
+  // 例会からTASUKIへ移った行動だけを記録する。自動入力された会社情報は利用開始に数えない。
+  `CREATE TABLE IF NOT EXISTS member_product_events (
+    member_id TEXT NOT NULL REFERENCES members(id),
+    event_name TEXT NOT NULL,
+    context TEXT NOT NULL,
+    occurred_at TEXT NOT NULL,
+    last_occurred_at TEXT NOT NULL,
+    PRIMARY KEY(member_id,event_name,context)
+  )`,
+  'CREATE INDEX IF NOT EXISTS idx_member_product_events_name_time ON member_product_events(event_name,occurred_at)',
   `CREATE TABLE IF NOT EXISTS ad_slots (
     id TEXT PRIMARY KEY,
     member_id TEXT NOT NULL REFERENCES members(id),
@@ -621,6 +631,11 @@ const statements = [
   'CREATE UNIQUE INDEX IF NOT EXISTS idx_survey_introductions_unique ON survey_introductions(survey_id, member_id)',
   'CREATE INDEX IF NOT EXISTS idx_survey_introductions_survey_id ON survey_introductions(survey_id)',
   'CREATE INDEX IF NOT EXISTS idx_requests_status_created_at ON requests(status, created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_requests_author_created ON requests(author_id, created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_introductions_author_created ON introductions(introducer_id, created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_ad_introductions_author_created ON ad_introductions(introducer_id, created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_direct_messages_sender_created ON direct_messages(sender_id, created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_introduction_messages_sender_created ON introduction_messages(sender_id, created_at)',
   'CREATE INDEX IF NOT EXISTS idx_requests_category ON requests(category)',
   'CREATE INDEX IF NOT EXISTS idx_introductions_introducer_id ON introductions(introducer_id)',
   'CREATE INDEX IF NOT EXISTS idx_introductions_request_id ON introductions(request_id)',

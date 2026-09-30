@@ -1302,6 +1302,48 @@ body { font-weight:600; }
    するグラフがあると、その幅ぶん外側まで押し広げて画面からはみ出す。
    min-width:0 を通しておくと、はみ出しは .viz-scroll の中だけで収まる。 */
 .viz-panel { --viz-1:#2a78d6; --viz-2:#eb6834; --viz-3:#1baf7a; margin-top:14px; display:grid; gap:12px; }
+.conversion-toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:6px 2px 2px}
+.conversion-toolbar>div:first-child{display:grid;gap:3px}
+.conversion-toolbar strong{color:#142339;font-size:21px;line-height:1.2}
+.conversion-toolbar span{color:#718097;font-size:12px;font-weight:700}
+.conversion-toolbar-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px}
+.conversion-test-toggle{display:flex;align-items:center;gap:6px;padding:9px 11px;border:1px solid #dce4ed;border-radius:10px;background:#fff;color:#41536a;font-size:12px;font-weight:800;cursor:pointer}
+.conversion-test-toggle input{width:16px;height:16px;accent-color:#1466b7}
+.conversion-panel{border-color:#dbe5f0}
+.conversion-eyebrow{margin:0 0 5px;color:#1478bb;font-size:10px;font-weight:900;letter-spacing:.12em}
+.conversion-period{padding:6px 10px;border-radius:20px;background:#eef5fb;color:#42647f;font-size:11px;font-weight:800}
+.conversion-overview{display:grid;gap:12px}
+.conversion-primary{padding:20px;border-radius:14px;background:#14283e;color:#fff}
+.conversion-primary>span{display:block;color:#b8dbf8;font-size:12px;font-weight:800}
+.conversion-primary strong{display:block;margin:3px 0 1px;font-size:42px;line-height:1;font-variant-numeric:tabular-nums}
+.conversion-primary strong small{margin-left:3px;font-size:21px}
+.conversion-primary p{margin:9px 0 0;color:#dbeaf8;font-size:12px;line-height:1.6}
+.conversion-steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0;padding:0;list-style:none}
+.conversion-step{display:grid;grid-template-columns:auto 1fr;align-content:start;gap:3px 7px;padding:13px;border:1px solid #e0e8f0;border-radius:12px;background:#f9fbfe;min-width:0}
+.conversion-step-index{color:#9aabba;font-size:10px;font-weight:900}
+.conversion-step-label{color:#35506b;font-size:11px;font-weight:900}
+.conversion-step strong{grid-column:1/-1;color:#162b40;font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums}
+.conversion-step strong small{margin-left:3px;font-size:11px}
+.conversion-step-detail{grid-column:1/-1;color:#73869b;font-size:10px;font-weight:700;min-height:2.5em}
+.conversion-step-bar,.conversion-table-bar{display:block;overflow:hidden;border-radius:999px;background:#e5edf4}
+.conversion-step-bar{grid-column:1/-1;height:6px}
+.conversion-step-bar i,.conversion-table-bar i{display:block;height:100%;border-radius:inherit;background:#7793b4}
+.conversion-step.answer i{background:#42a8d4}.conversion-step.open i{background:#187dc4}.conversion-step.used i{background:#18a77c}
+.conversion-extra{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+.conversion-extra span{padding:8px 11px;border-radius:8px;background:#eff6f9;color:#52697b;font-size:11px;font-weight:700}
+.conversion-extra b{margin-left:5px;color:#193850}
+.conversion-event-head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-top:21px;padding-top:17px;border-top:1px solid #e6edf3}
+.conversion-event-head h3{margin:0;color:#172c43;font-size:14px}
+.conversion-event-head small{color:#8494a5;font-size:10px}
+.conversion-table td:first-child{min-width:150px;max-width:320px}
+.conversion-table td:first-child b{display:block;color:#273c54;line-height:1.5}
+.conversion-table td:first-child small{display:block;margin-top:3px;color:#8292a4}
+.conversion-table-rate{display:flex;align-items:center;gap:8px;min-width:135px}
+.conversion-table-bar{width:74px;height:7px;flex:0 0 auto}
+.conversion-table-bar i{background:#18a77c}
+.conversion-table-rate b{color:#147c64;font-variant-numeric:tabular-nums;white-space:nowrap}
+.conversion-table-rate small{color:#8b99a9;white-space:nowrap}
+@media(min-width:1080px){.conversion-overview{grid-template-columns:minmax(190px,.8fr) minmax(0,3fr)}.conversion-steps{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .viz-panel > *, .viz-grid > *, .viz-card, .viz-range, .viz-bars li { min-width:0; }
 .viz-range { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 .viz-range button { min-height:42px; padding:0 16px; border:1px solid var(--line); border-radius:999px; background:#fff; color:#66758c; font-size:13px; font-weight:900; cursor:pointer; }

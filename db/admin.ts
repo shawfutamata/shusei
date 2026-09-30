@@ -11,6 +11,7 @@ import { isAdminEmail } from '../app/admin-emails';
 import { MAX_LEVEL, levelFor, rankNames } from '../app/rank-perks';
 import { planCatalog, yearlyYen } from '../app/plan-catalog';
 import { getIndustryGroup } from '../app/industry-options';
+import { meetingConversion, type MeetingConversion } from './meeting-conversion';
 
 export type AdminSummary = {
   members: number; activeMembers: number; suspendedMembers: number;
@@ -448,6 +449,7 @@ export async function adminSetFeedbackDone(feedbackId: string, done: boolean) {
 
 export type AdminAnalytics = {
   days: number;
+  meetingConversion: MeetingConversion;
   /** 日ごとの動き。折れ線に使う。 */
   timeline: { date: string; members: number; requests: number; introductions: number }[];
   /** 紹介がどれだけ生まれているか。このサービスの核。 */
@@ -467,7 +469,7 @@ export type AdminAnalytics = {
   paidMembers: number;
 };
 
-export async function adminAnalytics(days = 90): Promise<AdminAnalytics> {
+export async function adminAnalytics(days = 90, includeTests = false): Promise<AdminAnalytics> {
   await ensureDatabase();
   const span = Math.min(365, Math.max(7, Math.round(days)));
   const from = new Date(Date.now() - (span - 1) * 86400_000).toISOString().slice(0, 10);
@@ -568,6 +570,7 @@ export async function adminAnalytics(days = 90): Promise<AdminAnalytics> {
 
   return {
     days: span,
+    meetingConversion: await meetingConversion(span, includeTests),
     timeline,
     matching: {
       requests: requestTotal,

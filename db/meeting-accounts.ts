@@ -3,6 +3,7 @@ import {validateAnswer,type RosterPerson} from '@/app/meeting/types';
 import {rosterAnswer} from '@/app/meeting/roster';
 import { env } from 'cloudflare:workers';
 import { ensureDatabase, registerDirectMember, getMobileSessionAccess, hashMobileSecret, registerInvitedMember, findInviterByCode } from './data';
+import { recordProductEvent } from './product-events';
 
 const hash=hashMobileSecret;
 function emailOf(raw:string) {
@@ -121,6 +122,7 @@ export async function saveMeetingProfile(eventId:string,memberId:string,input:Re
   env.DB.prepare(`INSERT INTO meeting_member_links(event_id,member_id,roster_id,profile,walk_in) VALUES(?,?,?,?,?) ON CONFLICT(event_id,member_id) DO UPDATE SET profile=excluded.profile,walk_in=excluded.walk_in WHERE meeting_member_links.answer_id='' AND meeting_member_links.roster_id=excluded.roster_id`).bind(eventId,memberId,data.rosterId,JSON.stringify(data.profile),data.walkIn?1:0),
   env.DB.prepare(`UPDATE members SET display_name=?,company=?,venue=?,business_area=?,primary_industry=?,company_pr=? WHERE id=?`).bind(data.profile.name,data.profile.company,data.event.venue,data.profile.area,data.profile.industry,data.profile.services,memberId),
  ]);}catch(error){if(String(error).includes('UNIQUE'))throw new Error('この方は登録済みです。登録したアカウントで進むか、受付係にご相談ください。');throw error;}
+ await recordProductEvent(memberId,'meeting_joined',eventId).catch(() => console.error('Meeting conversion event could not be recorded'));
  return data;
 }
 export async function activateMeetingMember(memberId:string,eventId:string) {

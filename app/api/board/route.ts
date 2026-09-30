@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
+import { recordProductEvent } from '@/db/product-events';
 import { createRequest, getBoardData, type RequestImageUpload, type RequestVideoUpload } from '@/db/data';
 import { toBudgetBand } from '@/app/budget-options';
 // 動画の上限は、圧縮する側（app/compress-video.ts）と同じ値を使う。ずれると片側だけ通る。
@@ -19,6 +20,7 @@ export async function GET() {
   const gate = await requireActiveMember();
   if (gate.response) return gate.response;
   const user = gate.user;
+  await recordProductEvent(user.userId, 'tasuki_opened').catch(() => console.error('Product visit could not be recorded'));
   return NextResponse.json(await getBoardData(user));
 }
 

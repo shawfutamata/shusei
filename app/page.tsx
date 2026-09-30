@@ -8,6 +8,7 @@ import BrandMark from './BrandMark';
 import LegalLinks from './LegalLinks';
 import { isAdminEmail } from './admin-auth';
 import {memberLoginPath} from './auth-return';
+import { recordProductEvent } from '@/db/product-events';
 
 export const metadata = {
   alternates: { canonical: 'https://tasuki.club/' },
@@ -36,6 +37,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ l
     return <main className="signin-page"><div className="signin-card"><BrandMark /><p className="eyebrow">MEMBERS ONLY</p><h1>{serviceName}</h1><h2>まだ利用権限がありません。</h2><p>{access.user.email} は会員として登録されていないか、現在利用権限が停止しています。ご入会手続きや状態のご確認は運営窓口までお問い合わせください。</p><small>登録済みの会員メールアドレスでログインし直すと利用できます</small><LegalLinks /></div></main>;
   }
   const { requests, stats, ads } = await getBoardData(access.user);
+  await recordProductEvent(access.user.userId, 'tasuki_opened').catch(() => console.error('Product visit could not be recorded'));
   // 出稿枠の決済から戻ってきたかどうか。開く画面をサーバー側で決めておく。
   const { ad, tab, contact, member, action } = await searchParams;
   const adReturn = ad === 'done' || ad === 'cancel' ? ad : '';

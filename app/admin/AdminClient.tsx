@@ -9,6 +9,7 @@ import { rankNames } from '@/app/rank-perks';
 import BrandMark from '@/app/BrandMark';
 import { memberNoLabel } from '@/app/brand';
 import { BarList, TrendChart } from './Charts';
+import MeetingConversionPanel from './MeetingConversionPanel';
 import MemberDetail from './MemberDetail';
 import MeetingWorkspace from './meetings/MeetingWorkspace';
 import '@/app/meeting/meeting.css';
@@ -52,6 +53,8 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   const [tab, setTab] = useState<(typeof tabs)[number]['key']>(tabs.find(item => item.key === initialTab)?.key ?? 'analytics');
   const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
   const [range, setRange] = useState(90);
+  const [includeTests, setIncludeTests] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
@@ -75,11 +78,11 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
   useEffect(() => {
     if (tab !== 'analytics') return;
     let alive = true;
-    fetch(`/api/admin/analytics?days=${range}`).then((response) => response.ok ? response.json() : null)
-      .then((data) => { if (alive && data) setAnalytics(data as AdminAnalytics); })
-      .catch(() => {});
+    fetch(`/api/admin/analytics?days=${range}&includeTests=${includeTests ? 1 : 0}`).then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (alive) { setAnalytics(data as AdminAnalytics | null); setAnalyticsError(!data); } })
+      .catch(() => { if (alive) setAnalyticsError(true); });
     return () => { alive = false; };
-  }, [tab, range]);
+  }, [tab, range, includeTests]);
 
   /**
    * タブを移す。**移ったらごみ箱は閉じる。**
@@ -304,7 +307,14 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
       </div>
     </header>
 
-    {tab === 'analytics' && <section className="viz-panel"><button className="viz-export" onClick={()=>goTab('surveys')}>例会アンケートの一覧・管理 →</button>
+    {tab === 'analytics' && <section className="viz-panel">
+      <div className="conversion-toolbar"><div><strong>アナリティクス</strong><span>例会からの利用開始とTASUKI全体の動きを確認</span></div>
+        <div className="conversion-toolbar-actions"><div className="viz-range" role="group" aria-label="集計する期間">
+          {[30, 90, 365].map((value) => <button key={value} className={range === value ? 'selected' : ''}
+            onClick={() => { setAnalytics(null); setAnalyticsError(false); setRange(value); }} aria-pressed={range === value}>{value === 365 ? '1年' : `${value}日`}</button>)}
+        </div><label className="conversion-test-toggle"><input type="checkbox" checked={includeTests} onChange={(event) => { setAnalytics(null); setAnalyticsError(false); setIncludeTests(event.target.checked); }} />体験テストを含む</label>
+          <button className="viz-export" onClick={()=>goTab('surveys')}>例会を管理 →</button></div></div>
+      {analyticsError ? <p className="viz-empty" role="alert">分析データを読み込めませんでした。ページを再読み込みしてください。</p> : <MeetingConversionPanel data={analytics?.meetingConversion ?? null} loading={!analytics} />}
       <dl className="admin-kpis">
         <div><dt>累計会員数</dt><dd>{yen0(summary.members)}<small>人</small></dd><small>利用中 {summary.activeMembers}／停止 {summary.suspendedMembers}</small></div>
         <div><dt>課金している会員</dt><dd>{yen0(summary.paidMembers)}<small>人</small></dd>
@@ -335,10 +345,6 @@ export default function AdminClient({ adminName, adminEmail, serviceName, initia
         <section className="viz-card">
           <div className="viz-card-head">
             <div><h2>動きの推移</h2><p className="viz-lead">この{range}日間で、会員・案件・オファーがどれだけ増えたか。</p></div>
-            <div className="viz-range" role="group" aria-label="集計する期間">
-              {[30, 90, 365].map((value) => <button key={value} className={range === value ? 'selected' : ''}
-                onClick={() => { setAnalytics(null); setRange(value); }} aria-pressed={range === value}>{value === 365 ? '1年' : `${value}日`}</button>)}
-            </div>
           </div>
           {analytics ? <TrendChart points={analytics.timeline} /> : <p className="viz-empty">集計しています…</p>}
         </section>

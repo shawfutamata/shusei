@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireActiveMember } from '@/app/app-auth';
+import { recordProductEvent } from '@/db/product-events';
 import { notifyIndustryCap, updateMemberProfile } from '@/db/data';
 import { COMPANY_PR_MAX, prefectures, type Prefecture } from '@/app/profile-options';
 import { isIndustry } from '@/app/industry-options';
@@ -72,6 +73,7 @@ export async function PATCH(request: Request) {
   }
   try {
     const avatarUrl = await updateMemberProfile(user, { displayName, nameKana, company, companyKana, venue, positionTitle, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, companyPr, avatar: avatarUpload });
+    await recordProductEvent(user.userId, 'profile_updated').catch(() => console.error('Profile update event could not be recorded'));
     return NextResponse.json({ displayName, nameKana, company, companyKana, venue, positionTitle, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, companyPr, avatarUrl });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'プロフィールを保存できませんでした。' }, { status: 400 });
