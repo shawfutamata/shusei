@@ -310,3 +310,18 @@ body:has(.meeting-signup){background:#fff}.meeting-signup>.meeting-hiru-brand{pa
 .meeting-admin [role=tabpanel][hidden]{display:none}
 .meeting-admin #meeting-preparation-panel{margin-top:0;padding:22px;background:#fff;border:1px solid #d6e2eb;border-radius:12px}
 @media(max-width:760px){.meeting-page .meeting-admin-tabs button{padding:10px 12px;font-size:13px;flex:1}.meeting-admin #meeting-preparation-panel{padding:16px}}
+
+/* Keep venue selection and its three management actions together. */
+.meeting-workspace .meeting-workspace-toolbar{display:grid;grid-template-columns:minmax(220px,340px) minmax(0,1fr);align-items:end;gap:16px;margin:8px 0 20px;padding:16px 18px;border:1px solid #dce5f0;border-radius:12px;background:#fff;box-shadow:0 2px 8px rgb(24 38 59 / 3%)}
+.meeting-workspace-toolbar label{min-width:0;margin:0;color:#253e5c}
+.meeting-workspace-toolbar select{width:100%;margin:0;font-size:14px;font-weight:650}
+.meeting-workspace-actions{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:8px}
+.meeting-workspace-actions button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:9px 13px;border:1px solid #cfdae7;border-radius:8px;background:#fff;color:#253e5c;font-size:13px;font-weight:700;line-height:1.35;white-space:nowrap}
+.meeting-workspace-actions button svg{width:18px;height:18px;flex:none}
+.meeting-workspace-actions .meeting-workspace-refresh{border-color:#bcd8f5;background:#eaf3fe;color:#126bc3}
+.meeting-workspace-actions button:hover:not(:disabled){background:#f1f6fb;border-color:#9fbedf}
+.meeting-workspace-actions button[aria-pressed=true],.meeting-workspace-actions button[aria-expanded=true]{border-color:#87b9ed;background:#eaf3fe;color:#126bc3}
+.meeting-workspace-actions button:focus-visible{outline:3px solid #299bb9;outline-offset:2px}
+.meeting-workspace-actions button:disabled{opacity:.6;cursor:wait}
+@media(max-width:760px){.meeting-workspace .meeting-workspace-toolbar{grid-template-columns:1fr;padding:14px;gap:12px}.meeting-workspace-actions{justify-content:flex-start}}
+@media(max-width:480px){.meeting-workspace-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.meeting-workspace-actions button{width:100%;min-width:0;min-height:48px;padding:8px;font-size:12px;white-space:normal}.meeting-workspace-actions button[aria-expanded]{grid-column:1/-1}}
