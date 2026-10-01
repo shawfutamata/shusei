@@ -2033,8 +2033,11 @@ body { font-weight:600; }
 .member-filters-body label { min-width:0; display:grid; gap:6px; }
 .member-filters-body label { color:#7c8a9e; font-size:11px; font-weight:800; }
 .member-filters-body label.wide { grid-column:1/-1; }
-.member-filters-body select { width:100%; min-height:46px; padding:0 10px; border:0; border-radius:9px;
-  background:#eff5ff; color:#315a9d; font-size:13px; font-weight:800; outline:none; }
+.member-filters-body input,.member-filters-body select { width:100%; min-height:46px; padding:0 10px; border:1px solid #d6e2f0; border-radius:9px;
+  background:#eff5ff; color:#315a9d; font-size:16px; font-weight:700; outline:none; }
+.member-filters-body input::placeholder { color:#8a9ab0; }
+.member-filters-body input:focus-visible,.member-filters-body select:focus-visible { border-color:#0f5fc4; box-shadow:0 0 0 3px #dbeafe; }
+.member-filter-clear { grid-column:1/-1; justify-self:end; min-height:40px; padding:0 10px; border:0; background:transparent; color:#0f5fc4; font-size:12px; font-weight:800; cursor:pointer; }
 
 /* 4件入るまでの詰め。ここが効かないと1件ぶん足が出る。 */
 .need-card { padding:11px 13px 10px; }

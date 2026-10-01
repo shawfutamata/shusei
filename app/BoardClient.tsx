@@ -1569,6 +1569,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   /** いま効いている絞り込みの数。閉じていても効いていることが分かるように出す。 */
   const activeFilterCount = [statusFilter !== 'open', regionFilter !== 'all', industryFilter !== 'all', budgetFilter !== 'all']
     .filter(Boolean).length;
+  const activeMemberFilterCount = [memberKeyword.trim() !== '', memberPrefecture !== 'all', memberIndustry !== 'all']
+    .filter(Boolean).length;
 
   const needCard = (need: BoardRequest) => (
     <article className={isOpenRequest(need) ? 'need-card' : 'need-card closed'} key={need.id} onClick={() => openNeed(need)}>
@@ -2072,8 +2074,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         {searchMode === 'members' ? <>
           <div className="section-title"><div><p>MEMBERS</p><h2>人を探す</h2></div><span>{members ? `${members.length}人` : '…'}</span></div>
           <p className="member-search-lead">業種とエリアで会員を探せます。押すと、その方のプロフィールと<b>いま出している案件</b>が見られます。そのまま<b>メッセージ</b>も送れます。</p>
-          <div className="member-filters">
-            <p>絞り込む</p>
+          <details className="member-filters">
+            <summary>絞り込む{activeMemberFilterCount > 0 && <i>{activeMemberFilterCount}</i>}<span aria-hidden="true">▾</span></summary>
+            <div className="member-filters-body">
             <label className="wide"><span>名前・会社・業種で探す</span>
               <input value={memberKeyword} onChange={(event) => setMemberKeyword(event.target.value)}
                 maxLength={40} placeholder="例：山田／内装" /></label>
@@ -2090,7 +2093,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
                 {group.children.map((child) => <option value={child} key={child}>{child}</option>)}
               </optgroup>)}
             </select></label>
-          </div>
+            {activeMemberFilterCount > 0 && <button type="button" className="member-filter-clear" onClick={() => { setMemberKeyword(''); setMemberPrefecture('all'); setMemberIndustry('all'); }}>条件をクリア</button>}
+            </div>
+          </details>
           <div className="member-card-list">
             {members === null ? <p className="messages-loading">読み込んでいます…</p>
               : !members.length ? <div className="empty"><b>条件に合う方が見つかりません</b><span>絞り込みを外すと、ほかの会員が並びます。</span></div>
