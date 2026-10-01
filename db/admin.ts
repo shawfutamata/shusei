@@ -10,7 +10,7 @@ import { bonusPlan, contractedPlan, type Plan } from '../app/entitlements';
 import { isAdminEmail } from '../app/admin-emails';
 import { MAX_LEVEL, levelFor, rankNames } from '../app/rank-perks';
 import { planCatalog, yearlyYen } from '../app/plan-catalog';
-import { getIndustryGroup } from '../app/industry-options';
+import { splitIndustryLabels, getIndustryGroup } from '../app/industry-options';
 import { meetingConversion, type MeetingConversion } from './meeting-conversion';
 
 export type AdminSummary = {
@@ -115,9 +115,9 @@ export async function adminMatchingSurveys(limit = 200): Promise<AdminMatchingSu
 
   const venues = [...new Set(surveys.results.map((row) => row.venue))];
   const members = await env.DB.prepare(`SELECT id, display_name AS displayName, company,
-      primary_industry AS primaryIndustry, venue FROM members
+      primary_industry AS primaryIndustry, industries_json AS industriesJson, venue FROM members
     WHERE membership_status IN ('active','past_due') AND venue IN (${venues.map(() => '?').join(',')})`)
-    .bind(...venues).all<Omit<AdminSurveyCandidate, 'introduced'>>();
+    .bind(...venues).all<Omit<AdminSurveyCandidate, 'introduced'> & { industriesJson: string }>();
 
   return surveys.results.map(({ industryTagsJson, ...survey }) => {
     const industryTags = (() => { try { return JSON.parse(industryTagsJson) as string[]; } catch { return []; } })();
@@ -125,14 +125,15 @@ export async function adminMatchingSurveys(limit = 200): Promise<AdminMatchingSu
     const introducedIds = new Set(introduced.results.filter((row) => row.surveyId === survey.id).map((row) => row.memberId));
     const candidates = members.results
       .filter((member) => member.venue === survey.venue && member.id !== survey.memberId)
-      .map((member) => ({ ...member, introduced: introducedIds.has(member.id),
-        score: industryTags.includes(member.primaryIndustry) ? 2
-          : wantedGroups.has(getIndustryGroup(member.primaryIndustry)?.name ?? member.primaryIndustry) ? 1 : 0 }))
+      .map((member) => { const industries = (() => { try { const parsed: unknown = JSON.parse(member.industriesJson); return Array.isArray(parsed) && parsed.length ? parsed.filter((value): value is string => typeof value === 'string') : splitIndustryLabels(member.primaryIndustry); } catch { return splitIndustryLabels(member.primaryIndustry); } })();
+        return { ...member, industries, introduced: introducedIds.has(member.id),
+          score: industries.some((industry) => industryTags.includes(industry)) ? 2
+            : industries.some((industry) => wantedGroups.has(getIndustryGroup(industry)?.name ?? industry)) ? 1 : 0 }; })
       .filter((member) => member.score > 0 || member.introduced)
       .sort((a, b) => Number(b.introduced) - Number(a.introduced) || b.score - a.score || a.displayName.localeCompare(b.displayName, 'ja'))
       .slice(0, 20)
       .map((member) => ({ id: member.id, displayName: member.displayName, company: member.company,
-        primaryIndustry: member.primaryIndustry, venue: member.venue, introduced: member.introduced }));
+        primaryIndustry: member.industries.join('、'), venue: member.venue, introduced: member.introduced }));
     return { ...survey, industryTags, candidates };
   });
 }

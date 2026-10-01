@@ -67,6 +67,11 @@ export function getIndustryIconSource(industry: string) {
   return industryIconPaths[group];
 }
 
+/** 名簿由来の自由記入も、複数業種なら個別に表示・照合する。中黒は業種名に含まれるため区切らない。 */
+export function splitIndustryLabels(value: string): string[] {
+  return [...new Set(value.split(/[、,，／/;；\n]+/).map((item) => item.trim()).filter(Boolean))];
+}
+
 export function matchesIndustry(tags: string[], filter: string) {
   if (filter === 'all') return true;
   const group = industryGroups.find((item) => item.name === filter);

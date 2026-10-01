@@ -1,5 +1,7 @@
 'use client';
 
+import {splitIndustryLabels} from '@/app/industry-options';
+
 import { useMemo, useState } from 'react';
 import type { Attendee, Meeting, RosterPerson } from '@/app/meeting/types';
 
@@ -50,7 +52,7 @@ export default function MeetingAnswerList({ people, roster, event, analysisDone,
         const status = person.analyzed !== 1 ? 'pending' : person.candidates.length ? 'matched' : 'unmatched';
         return <article className="meeting-answer-card" key={person.id}>
           <div className="meeting-answer-card-top"><span className="meeting-answer-avatar" aria-hidden="true">{person.name.slice(0, 1)}</span><div className="meeting-answer-identity"><h3>{person.name}</h3><p>{person.company}</p></div><span className={`meeting-answer-status is-${status}`}>{status === 'pending' ? '分析待ち' : status === 'matched' ? `候補 ${person.candidates.length}人` : '候補なし'}</span></div>
-          <div className="meeting-answer-tags"><span>{person.industry || '業種未入力'}</span>{person.area && <span>{person.area}</span>}{person.walkIn && <span className="is-walkin">当日参加</span>}</div>
+          <div className="meeting-answer-tags">{person.industry?splitIndustryLabels(person.industry).map(industry=><span key={industry}>{industry}</span>):<span>業種未入力</span>}{person.area && <span>{person.area}</span>}{person.walkIn && <span className="is-walkin">当日参加</span>}</div>
           <div className="meeting-answer-wish"><span>つながりたい相手</span><p>{person.need || '今回は希望なし'}</p></div>
           {person.candidates.length > 0 && <div className="meeting-answer-candidate-preview"><span>紹介候補</span><div>{person.candidates.map(candidate => <span key={candidate.id}>{names.get(candidate.id) || '名簿の参加者'}</span>)}</div></div>}
           <details className="meeting-answer-details"><summary>事業情報と候補の根拠を見る</summary><div className="meeting-answer-expanded">

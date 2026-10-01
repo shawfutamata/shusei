@@ -1,3 +1,4 @@
+import { splitIndustryLabels } from '../industry-options';
 import { validateCandidates, type Attendee, type Candidate } from './types';
 import { evidenceConnectionCandidates, evidenceDirectCandidates, evidenceRelatedCandidates } from './evidence';
 export type AIClient={run(model:string,inputs:{messages:{role:string;content:string}[];max_tokens:number;temperature:number}):Promise<unknown>;readInference?(key:string):Promise<unknown>;writeInference?(key:string,result:Record<string,unknown>):Promise<void>};
@@ -54,9 +55,9 @@ async function matchDirectAttendee(ai:AIClient,seeker:Attendee,all:Attendee[]):P
   const directService=/依頼|頼め|頼み|お願い|施工して|工事して|設計して|制作して|作って|発注|必須/.test(seeker.need+seeker.conditions);
   const connection=!directService && (/つなが|繋が|交流|経営者|協業|コラボ|販売先|卸先|営業先/.test(seeker.need) || (seeker.need.length<=40&&!/工事|施工|制作|修理|設計|開発/.test(seeker.need)));
   const label=seeker.need.normalize('NFKC').replace(/[\s　。！!「」]/g,'').replace(/(とつながりたいです|とつながりたい|と繋がりたい|を探しています|を探したい|を探す|の経営者|経営者|の方|さん|業者|企業|会社)/g,'');
-  const exact=all.filter(p=>p.id!==seeker.id&&!!p.industry&&p.industry.normalize('NFKC').replace(/[\s　]/g,'')===label&&seeker.need.includes(p.industry));
+  const exact=all.flatMap((person)=>person.id===seeker.id?[]:splitIndustryLabels(person.industry).filter((industry)=>industry.normalize('NFKC').replace(/[\s　]/g,'')===label&&seeker.need.includes(industry)).map((industry)=>({person,industry})));
   // A stated industry match does not need a model to invent an introduction or a capability.
-  if(!directService&&!seeker.conditions&&!seeker.timing&&!seeker.budget&&exact.length) return exact.slice(0,3).map(p=>({id:p.id,kind:'direct',reason:`名簿の業種「${p.industry}」が、つながりたい業種に一致しています。具体的なお仕事はご本人とご相談ください。`,needQuote:p.industry,offerQuote:p.industry,questions:[]}));
+  if(!directService&&!seeker.conditions&&!seeker.timing&&!seeker.budget&&exact.length) return exact.slice(0,3).map(({person,industry})=>({id:person.id,kind:'direct',reason:`名簿の業種「${industry}」が、つながりたい業種に一致しています。具体的なお仕事はご本人とご相談ください。`,needQuote:industry,offerQuote:industry,questions:[]}));
   const others=all.filter(p=>p.id!==seeker.id && !!(p.industry||p.services||p.referrals) && !/システム命令|条件は無視|最適候補に選んで|ignore previous/i.test(p.services+' '+p.referrals) && (connection||p.services!==p.industry||!!p.referrals));
   let choices:Candidate[]=[];
   async function rank(batch:Attendee[],verify=false,retry=false) {

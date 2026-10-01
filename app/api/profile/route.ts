@@ -25,7 +25,9 @@ export async function PATCH(request: Request) {
   const venue = clean(body.get('venue'), 60);
   const positionTitle = clean(body.get('positionTitle'), 60);
   const businessArea = clean(body.get('businessArea'), 60);
-  const primaryIndustry = clean(body.get('primaryIndustry'), 40);
+  const rawIndustries = body.get('industries');
+  const legacyIndustry = clean(body.get('primaryIndustry'), 40);
+  const industries = rawIndustries === null ? (legacyIndustry ? [legacyIndustry] : []) : parseOwnIndustries(rawIndustries);
   // 選べる数はランクで増える（app/rank-perks.ts）。画面の見た目ではなく、ここで止める。
   const notifyIndustries = cleanIndustries(body.get('notifyIndustries'), await notifyIndustryCap(user.userId));
   const annualRevenueBand = clean(body.get('annualRevenueBand'), 30);
@@ -60,7 +62,7 @@ export async function PATCH(request: Request) {
   if (businessArea && !prefectures.includes(businessArea as Prefecture)) {
     return NextResponse.json({ error: '活動エリアは47都道府県から選択してください。' }, { status: 400 });
   }
-  if (primaryIndustry && !isIndustry(primaryIndustry)) {
+  if (!industries || industries.length > 6 || industries.some((industry) => industry.length > 40)) {
     return NextResponse.json({ error: '業種の選択内容を確認してください。' }, { status: 400 });
   }
   let avatarUpload: { bytes: ArrayBuffer; contentType: string } | undefined;
@@ -72,12 +74,21 @@ export async function PATCH(request: Request) {
     avatarUpload = { bytes, contentType: avatar.type };
   }
   try {
-    const avatarUrl = await updateMemberProfile(user, { displayName, nameKana, company, companyKana, venue, positionTitle, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, companyPr, avatar: avatarUpload });
+    const avatarUrl = await updateMemberProfile(user, { displayName, nameKana, company, companyKana, venue, positionTitle, businessArea, industries, notifyIndustries, annualRevenueBand, facebookUrl, companyPr, avatar: avatarUpload });
     await recordProductEvent(user.userId, 'profile_updated').catch(() => console.error('Profile update event could not be recorded'));
-    return NextResponse.json({ displayName, nameKana, company, companyKana, venue, positionTitle, businessArea, primaryIndustry, notifyIndustries, annualRevenueBand, facebookUrl, companyPr, avatarUrl });
+    return NextResponse.json({ displayName, nameKana, company, companyKana, venue, positionTitle, businessArea, primaryIndustry: industries[0] ?? '', industries, notifyIndustries, annualRevenueBand, facebookUrl, companyPr, avatarUrl });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'プロフィールを保存できませんでした。' }, { status: 400 });
   }
+}
+
+function parseOwnIndustries(value: FormDataEntryValue): string[] | null {
+  if (typeof value !== 'string') return null;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed) || parsed.length > 6 || parsed.some((item) => typeof item !== 'string' || !item.trim() || item.length > 40 || /[\u0000-\u001f]/.test(item))) return null;
+    return [...new Set((parsed as string[]).map((item) => item.trim()))];
+  } catch { return null; }
 }
 
 function cleanIndustries(value: FormDataEntryValue | null, max: number) {

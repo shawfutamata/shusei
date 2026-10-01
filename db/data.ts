@@ -13,7 +13,7 @@ import { isAdminEmail } from '@/app/admin-emails';
 import { sampleRequests } from './sample-requests';
 import { effectivePlanState, isPlanOverridden } from '@/app/effective-plan';
 import { freeCampaign } from '@/app/campaign';
-import { isIndustry, matchesIndustry } from '@/app/industry-options';
+import { isIndustry, matchesIndustry, splitIndustryLabels } from '@/app/industry-options';
 import { MESSAGE_IMAGE_DAYS } from '@/app/message-options';
 import { toBudgetBand } from '@/app/budget-options';
 
@@ -88,6 +88,7 @@ export type MemberStats = {
   positionTitle: string;
   businessArea: string;
   primaryIndustry: string;
+  industries: string[];
   notifyIndustries: string[];
   annualRevenueBand: string;
   facebookUrl: string;
@@ -299,6 +300,7 @@ const statements = [
     badge TEXT NOT NULL DEFAULT '',
     business_area TEXT NOT NULL DEFAULT '',
     primary_industry TEXT NOT NULL DEFAULT '',
+    industries_json TEXT NOT NULL DEFAULT '[]',
     notify_industries TEXT NOT NULL DEFAULT '[]',
     annual_revenue_band TEXT NOT NULL DEFAULT '',
     membership_status TEXT NOT NULL DEFAULT 'active',
@@ -664,6 +666,7 @@ export async function ensureDatabase() {
     ['badge', "ALTER TABLE members ADD COLUMN badge TEXT NOT NULL DEFAULT ''"],
     ['business_area', "ALTER TABLE members ADD COLUMN business_area TEXT NOT NULL DEFAULT ''"],
     ['primary_industry', "ALTER TABLE members ADD COLUMN primary_industry TEXT NOT NULL DEFAULT ''"],
+    ['industries_json', "ALTER TABLE members ADD COLUMN industries_json TEXT NOT NULL DEFAULT '[]'"],
     ['notify_industries', "ALTER TABLE members ADD COLUMN notify_industries TEXT NOT NULL DEFAULT '[]'"],
     ['annual_revenue_band', "ALTER TABLE members ADD COLUMN annual_revenue_band TEXT NOT NULL DEFAULT ''"],
     ['membership_status', "ALTER TABLE members ADD COLUMN membership_status TEXT NOT NULL DEFAULT 'invited'"],
@@ -1300,7 +1303,7 @@ export async function getBoardData(user: SessionUser) {
   const member = await env.DB.prepare(`SELECT member_no AS memberNo, display_name AS displayName, name_kana AS nameKana,
     venue, company, company_kana AS companyKana,
     position_title AS positionTitle, business_area AS businessArea,
-    primary_industry AS primaryIndustry, notify_industries AS notifyIndustriesJson,
+    primary_industry AS primaryIndustry, industries_json AS industriesJson, notify_industries AS notifyIndustriesJson,
     annual_revenue_band AS annualRevenueBand, facebook_url AS facebookUrl, company_pr AS companyPr,
     avatar_key AS avatarKey, avatar_version AS avatarVersion,
     intro_count AS introCount, deal_count AS dealCount,
@@ -1311,12 +1314,12 @@ export async function getBoardData(user: SessionUser) {
     -- いまの利用状態では絞らない。あとで運営が誰かを止めたときに、
     -- 招待した人のランクまで下がってしまうため（ランクは下がらない決まり）。
     (SELECT COUNT(*) FROM members inv WHERE inv.invited_by = members.id) AS inviteCount
-    FROM members WHERE id = ?`).bind(user.userId).first<Omit<MemberStats, 'rank' | 'level' | 'nextRankAt' | 'avatarUrl' | 'notifyIndustries'> & { notifyIndustriesJson: string; avatarKey: string; avatarVersion: number }>();
+    FROM members WHERE id = ?`).bind(user.userId).first<Omit<MemberStats, 'rank' | 'level' | 'nextRankAt' | 'avatarUrl' | 'notifyIndustries' | 'industries'> & { industriesJson: string; notifyIndustriesJson: string; avatarKey: string; avatarVersion: number }>();
 
-  const baseMember = member ?? { memberNo: 0, displayName: user.displayName, nameKana: '', venue: 'ひるのめぐろ会場', company: '', companyKana: '', positionTitle: '', businessArea: '', primaryIndustry: '', notifyIndustriesJson: '[]', annualRevenueBand: '', facebookUrl: '', companyPr: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, inviteCount: 0, dealCount: 0 };
-  const { notifyIndustriesJson, ...memberFields } = baseMember;
+  const baseMember = member ?? { memberNo: 0, displayName: user.displayName, nameKana: '', venue: 'ひるのめぐろ会場', company: '', companyKana: '', positionTitle: '', businessArea: '', primaryIndustry: '', industriesJson: '[]', notifyIndustriesJson: '[]', annualRevenueBand: '', facebookUrl: '', companyPr: '', avatarKey: '', avatarVersion: 0, introCount: 0, receivedIntroCount: 0, inviteCount: 0, dealCount: 0 };
+  const { notifyIndustriesJson, industriesJson, ...memberFields } = baseMember;
   const plan = await getPlanSummary(user.userId);
-  const stats = calculateRank({ ...memberFields, memberId: user.userId, notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion),
+  const stats = calculateRank({ ...memberFields, memberId: user.userId, industries: memberIndustryLabels(industriesJson, baseMember.primaryIndustry), notifyIndustries: parseStringArray(notifyIndustriesJson), avatarUrl: avatarUrl(user.userId, baseMember.avatarKey, baseMember.avatarVersion),
     plan: plan.activePlan, paid: plan.paid, planPeriodEnd: plan.planPeriodEnd, adminPlan: plan.adminPlan,
     campaignPlan: plan.campaign, campaignUntil: plan.campaignUntil,
     contractedPlan: plan.contracted, bonusPlan: plan.bonus, bonusPeriodEnd: plan.bonusPeriodEnd ?? '',
@@ -1338,7 +1341,7 @@ export async function getBoardData(user: SessionUser) {
   return { requests: [...requests, ...sampleRequests()], stats, ads: await listActiveAds(user.userId) };
 }
 
-export async function updateMemberProfile(user: SessionUser, input: { displayName: string; nameKana: string; company: string; companyKana: string; venue: string; positionTitle: string; businessArea: string; primaryIndustry: string; notifyIndustries: string[]; annualRevenueBand: string; facebookUrl: string; companyPr: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {
+export async function updateMemberProfile(user: SessionUser, input: { displayName: string; nameKana: string; company: string; companyKana: string; venue: string; positionTitle: string; businessArea: string; industries: string[]; notifyIndustries: string[]; annualRevenueBand: string; facebookUrl: string; companyPr: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {
   await upsertMember(user);
   const existing = await env.DB.prepare('SELECT avatar_key AS avatarKey, avatar_version AS avatarVersion FROM members WHERE id = ?')
     .bind(user.userId).first<{ avatarKey: string; avatarVersion: number }>();
@@ -1358,11 +1361,11 @@ export async function updateMemberProfile(user: SessionUser, input: { displayNam
   // 呼ぶ順番も upsertMember → UPDATE なので、新しい名前が最後に残る。
   await env.DB.prepare(`UPDATE members SET display_name = ?, name_kana = ?,
     company = ?, company_kana = ?, venue = ?, position_title = ?,
-    business_area = ?, primary_industry = ?, notify_industries = ?, annual_revenue_band = ?,
+    business_area = ?, primary_industry = ?, industries_json = ?, notify_industries = ?, annual_revenue_band = ?,
     facebook_url = ?, company_pr = ?, avatar_key = ?, avatar_version = ? WHERE id = ?`)
     .bind(input.displayName, input.nameKana,
       input.company, input.companyKana, input.venue, input.positionTitle, input.businessArea,
-      input.primaryIndustry, JSON.stringify(input.notifyIndustries), input.annualRevenueBand,
+      input.industries[0] ?? '', JSON.stringify(input.industries), JSON.stringify(input.notifyIndustries), input.annualRevenueBand,
       cleanFacebookUrl(input.facebookUrl), input.companyPr, avatarKey, avatarVersion, user.userId).run();
   return avatarUrl(user.userId, avatarKey, avatarVersion);
 }
@@ -2530,6 +2533,11 @@ async function sendMatchingMobileNotifications(authorId: string, request: { id: 
   }
 }
 
+function memberIndustryLabels(json: string, primary: string): string[] {
+  const selected = parseStringArray(json);
+  return selected.length ? [...new Set(selected)] : splitIndustryLabels(primary);
+}
+
 function parseStringArray(value: string) {
   try {
     const parsed = JSON.parse(value) as unknown;
@@ -2943,7 +2951,7 @@ async function countAdEvents(ids: string[], kind: 'views' | 'clicks') {
  */
 export type MemberProfile = {
   id: string; displayName: string; company: string; positionTitle: string; venue: string;
-  businessArea: string; primaryIndustry: string; facebookUrl: string; avatarUrl: string;
+  businessArea: string; primaryIndustry: string; industries: string[]; facebookUrl: string; avatarUrl: string;
   /** 自社のPR。本人が書いたものをそのまま出す（運営は手を入れない）。 */
   companyPr: string;
   rank: string; level: number; introCount: number; joinedAt: string;
@@ -2954,7 +2962,7 @@ export type MemberProfile = {
 /** 会員を探す一覧に出す1人ぶん。**連絡先は出さない**（プロフィールと同じ考え）。 */
 export type MemberCard = {
   id: string; displayName: string; company: string; positionTitle: string;
-  businessArea: string; primaryIndustry: string; avatarUrl: string;
+  businessArea: string; primaryIndustry: string; industries: string[]; avatarUrl: string;
   rank: string; level: number;
   /** いま出している募集中の案件の数。0でも出す（探せることが値打ちなので）。 */
   openRequests: number;
@@ -2982,14 +2990,14 @@ export async function searchMembers(viewerId: string, filter: { keyword?: string
   }
   if (keyword) {
     // メールでは探させない。**会員どうしの画面なので、連絡先は伏せたまま。**
-    where.push('(m.display_name LIKE ? OR m.company LIKE ? OR m.primary_industry LIKE ?)');
-    binds.push(like, like, like);
+    where.push('(m.display_name LIKE ? OR m.company LIKE ? OR m.primary_industry LIKE ? OR m.industries_json LIKE ?)');
+    binds.push(like, like, like, like);
   }
   if (filter.prefecture) { where.push('m.business_area = ?'); binds.push(filter.prefecture); }
 
   const rows = await env.DB.prepare(`SELECT m.id, m.display_name AS displayName, m.company,
     m.position_title AS positionTitle, m.business_area AS businessArea,
-    m.primary_industry AS primaryIndustry, m.notify_industries AS notifyIndustriesJson,
+    m.primary_industry AS primaryIndustry, m.industries_json AS industriesJson, m.notify_industries AS notifyIndustriesJson,
     m.avatar_key AS avatarKey, m.avatar_version AS avatarVersion, m.email,
     (SELECT COUNT(*) FROM members inv WHERE inv.invited_by = m.id) AS inviteCount,
     (SELECT COUNT(*) FROM requests r WHERE r.author_id = m.id AND r.status = 'open' AND r.deadline >= ?) AS openRequests
@@ -2997,17 +3005,17 @@ export async function searchMembers(viewerId: string, filter: { keyword?: string
     ORDER BY openRequests DESC, m.created_at DESC LIMIT 200`)
     .bind(today, ...binds)
     .all<{ id: string; displayName: string; company: string; positionTitle: string; businessArea: string;
-      primaryIndustry: string; notifyIndustriesJson: string; avatarKey: string; avatarVersion: number;
+      primaryIndustry: string; industriesJson: string; notifyIndustriesJson: string; avatarKey: string; avatarVersion: number;
       email: string; inviteCount: number; openRequests: number }>();
 
   // 業種は「自分の業種」と「おすすめに出したい業種」の両方を見る。片方だけだと、
   // 大分類で探した人に細かい業種の人が当たらない。
   const industry = (filter.industry ?? '').trim();
   return rows.results
-    .filter((row) => !industry || matchesIndustry([row.primaryIndustry, ...parseStringArray(row.notifyIndustriesJson)], industry))
+    .filter((row) => !industry || matchesIndustry([...memberIndustryLabels(row.industriesJson, row.primaryIndustry), ...parseStringArray(row.notifyIndustriesJson)], industry))
     .map((row) => ({
       id: row.id, displayName: row.displayName, company: row.company, positionTitle: row.positionTitle,
-      businessArea: row.businessArea, primaryIndustry: row.primaryIndustry,
+      businessArea: row.businessArea, primaryIndustry: row.primaryIndustry, industries: memberIndustryLabels(row.industriesJson, row.primaryIndustry),
       avatarUrl: avatarUrl(row.id, row.avatarKey, row.avatarVersion),
       ...memberRank(row.email, Number(row.inviteCount ?? 0)),
       openRequests: Number(row.openRequests ?? 0),
@@ -3019,12 +3027,12 @@ export async function getMemberProfile(memberId: string): Promise<MemberProfile 
   await ensureDatabase();
   const row = await env.DB.prepare(`SELECT id, display_name AS displayName, company,
     position_title AS positionTitle, venue, business_area AS businessArea,
-    primary_industry AS primaryIndustry, facebook_url AS facebookUrl, company_pr AS companyPr,
+    primary_industry AS primaryIndustry, industries_json AS industriesJson, facebook_url AS facebookUrl, company_pr AS companyPr,
     avatar_key AS avatarKey, avatar_version AS avatarVersion,
     intro_count AS introCount, created_at AS createdAt, membership_status AS status
     FROM members WHERE id = ?`)
     .bind(memberId).first<{ id: string; displayName: string; company: string; positionTitle: string; venue: string;
-      businessArea: string; primaryIndustry: string; facebookUrl: string; companyPr: string; avatarKey: string; avatarVersion: number;
+      businessArea: string; primaryIndustry: string; industriesJson: string; facebookUrl: string; companyPr: string; avatarKey: string; avatarVersion: number;
       introCount: number; createdAt: string; status: MembershipStatus }>();
   // 利用を止めた人のページは出さない。掲示板から消えた人が、
   // 広告のリンクからだけ見えてしまうのを防ぐ。
@@ -3041,7 +3049,7 @@ export async function getMemberProfile(memberId: string): Promise<MemberProfile 
   const { rank, level } = await getMemberRank(memberId);
   return {
     id: row.id, displayName: row.displayName, company: row.company, positionTitle: row.positionTitle,
-    venue: row.venue, businessArea: row.businessArea, primaryIndustry: row.primaryIndustry,
+    venue: row.venue, businessArea: row.businessArea, primaryIndustry: row.primaryIndustry, industries: memberIndustryLabels(row.industriesJson, row.primaryIndustry),
     facebookUrl: row.facebookUrl, companyPr: row.companyPr ?? '',
     avatarUrl: avatarUrl(row.id, row.avatarKey, row.avatarVersion),
     rank, level, introCount: Number(row.introCount ?? 0), joinedAt: row.createdAt.slice(0, 10),
@@ -3378,6 +3386,7 @@ export type SurveyIntroduction = {
   positionTitle: string;
   venue: string;
   primaryIndustry: string;
+  industries: string[];
   avatarUrl: string;
   note: string;
   createdAt: string;
@@ -3404,14 +3413,14 @@ export async function getMatchingSurveys(memberId: string): Promise<MatchingSurv
 
   const introductions = await env.DB.prepare(`SELECT si.id, si.survey_id AS surveyId,
       m.id AS memberId, m.display_name AS displayName, m.company, m.position_title AS positionTitle,
-      m.venue, m.primary_industry AS primaryIndustry, m.avatar_key AS avatarKey,
+      m.venue, m.primary_industry AS primaryIndustry, m.industries_json AS industriesJson, m.avatar_key AS avatarKey,
       m.avatar_version AS avatarVersion, si.note, si.created_at AS createdAt
     FROM survey_introductions si JOIN members m ON m.id = si.member_id
     WHERE si.survey_id IN (${surveys.results.map(() => '?').join(',')})
     ORDER BY si.created_at`)
     .bind(...surveys.results.map((row) => row.id))
     .all<{ id: string; surveyId: string; memberId: string; displayName: string; company: string;
-      positionTitle: string; venue: string; primaryIndustry: string; avatarKey: string;
+      positionTitle: string; venue: string; primaryIndustry: string; industriesJson: string; avatarKey: string;
       avatarVersion: number; note: string; createdAt: string }>();
 
   return surveys.results.map(({ industryTagsJson, status, ...survey }) => ({
@@ -3420,7 +3429,7 @@ export async function getMatchingSurveys(memberId: string): Promise<MatchingSurv
     status: status === 'introduced' || status === 'closed' ? status : 'new',
     introductions: introductions.results.filter((row) => row.surveyId === survey.id).map((row) => ({
       id: row.id, memberId: row.memberId, displayName: row.displayName, company: row.company,
-      positionTitle: row.positionTitle, venue: row.venue, primaryIndustry: row.primaryIndustry,
+      positionTitle: row.positionTitle, venue: row.venue, primaryIndustry: row.primaryIndustry, industries: memberIndustryLabels(row.industriesJson, row.primaryIndustry),
       avatarUrl: avatarUrl(row.memberId, row.avatarKey, row.avatarVersion), note: row.note, createdAt: row.createdAt,
     })),
   }));

@@ -27,3 +27,11 @@ assert.deepEqual(await matchAttendee(ai,bundled,[bundled,mover]),[]);
 const unavailable={...mover,services:'運送のみ。引越は対応外です。'};
 assert.deepEqual(await matchAttendee(ai,requester,[requester,unavailable]),[]);
 console.log('PASS: an explicit moving service covers only the moving facet; bundled and unavailable work are excluded');
+
+const multipleIndustries=person('multiple-industries',{industry:'引越し、税理士',services:'法人税務の相談を受けています。'});
+const taxRequester=person('tax-requester',{need:'税理士とつながりたい'});
+const taxMatches=await matchAttendee(ai,taxRequester,[taxRequester,multipleIndustries]);
+assert.equal(taxMatches.length,1);
+assert.equal(taxMatches[0].id,'multiple-industries');
+assert.equal(taxMatches[0].offerQuote,'税理士');
+console.log('PASS: a secondary industry can be matched and quoted on its own');

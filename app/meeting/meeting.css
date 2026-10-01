@@ -192,7 +192,8 @@ body:has(.meeting-survey),.meeting-survey{background:#fff}
 .meeting-wish-board .meeting-wish-card{border-color:#e1e8ef;border-radius:10px}
 .meeting-wish-board .meeting-wish-test{background:#f1f5f9;color:#5f6d7f}
 .meeting-wish-board .meeting-wish-input input{border-color:#d5dee9}
-.meeting-wish-board .meeting-wish-industry{display:inline-flex;align-items:center;gap:6px;max-width:100%;margin-top:6px;padding:3px 9px;border-radius:6px;background:#edf5ff;color:#145799;font-size:12px;font-weight:650;line-height:1.5}
+.meeting-wish-board .meeting-wish-industries{display:flex;flex-wrap:wrap;gap:4px 6px;margin-top:6px}
+.meeting-wish-board .meeting-wish-industry{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:3px 9px;border-radius:6px;background:#edf5ff;color:#145799;font-size:12px;font-weight:650;line-height:1.5}
 .meeting-wish-board .meeting-wish-industry .industry-icon{width:16px;height:16px;flex:none;background:currentColor}
 .meeting-wish-board .meeting-wish-industry span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:760px){
@@ -484,3 +485,5 @@ body:has(.meeting-wish-board),.meeting-wish-board{background:#fff}
  .meeting-admin-event-actions .meeting-help{width:100%}
  .meeting-page .meeting-admin-event-actions button{width:100%}
 }
+
+.meeting-match-industries{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.meeting-match-industries span{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:#e9f4ff;color:#145b91;font-size:11px;font-weight:700;line-height:1.4}

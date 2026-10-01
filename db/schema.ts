@@ -11,6 +11,7 @@ export const members = sqliteTable('members', {
   badge: text('badge').notNull().default(''),
   businessArea: text('business_area').notNull().default(''),
   primaryIndustry: text('primary_industry').notNull().default(''),
+  industriesJson: text('industries_json').notNull().default('[]'),
   notifyIndustries: text('notify_industries').notNull().default('[]'),
   annualRevenueBand: text('annual_revenue_band').notNull().default(''),
   membershipStatus: text('membership_status').notNull().default('invited'),
