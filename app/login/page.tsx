@@ -1,7 +1,7 @@
 import LoginForm from './LoginForm';
 import { loginMessage } from './login-errors';
 
-export const metadata = { robots: { index: false, follow: false } };
+export const metadata = { alternates: { canonical: 'https://tasuki.club/login' } };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ login?: string }> }) {
   const { login = '' } = await searchParams;
