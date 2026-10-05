@@ -42,5 +42,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ l
   const { ad, tab, contact, member, action } = await searchParams;
   const adReturn = ad === 'done' || ad === 'cancel' ? ad : '';
   const initialTab = tab === 'survey' ? 'survey' : contact||member||action==='post' ? 'home' : undefined;
-  return <BoardClient canManageMeetings={isAdminEmail(access.user.email)} initialRequests={requests} initialStats={stats} initialAds={ads} userName={access.user.displayName} adReturn={adReturn} initialTab={initialTab} />;
+  const target=contact||member||'';
+  const validTarget=target.length<=160&&/^[a-zA-Z0-9_-]+$/.test(target);
+  const initialMemberId=!contact&&validTarget?member||'':'';
+  const initialPost=!validTarget&&action==='post';
+  return <BoardClient initialMemberId={initialMemberId} initialPost={initialPost} canManageMeetings={isAdminEmail(access.user.email)} initialRequests={requests} initialStats={stats} initialAds={ads} userName={access.user.displayName} adReturn={adReturn} initialTab={initialTab} />;
 }

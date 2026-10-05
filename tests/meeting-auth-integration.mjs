@@ -43,6 +43,6 @@ try {
  const directPage=await fetch('/register');assert.equal(directPage.status,200);assert.match(await directPage.text(),/Googleで登録/);
  const directPost=(body)=>fetch('/api/register',{method:'POST',headers:{origin:base,'content-type':'application/json'},body:JSON.stringify(body)});
  const requested=await directPost({action:'request',consent:true,email:'lp@example.com',profile});assert.equal(requested.status,200,await requested.text());const done=await directPost({action:'verify',consent:true,email:'lp@example.com',code:otp});assert.equal(done.status,200,await done.text());
- const pending=await fetch('/register/complete',{headers:{cookie:done.headers.get('set-cookie').split(';')[0]}});assert.equal(pending.status,200);assert.match(await pending.text(),/登録ありがとうございます/);
+ const pending=await fetch('/register/complete',{headers:{cookie:done.headers.get('set-cookie').split(';')[0]}});assert.equal(pending.status,200);const pendingHtml=await pending.text();assert.match(pendingHtml,/アカウント登録を受け付けました/);assert.match(pendingHtml,/現在、運営確認待ちです/);
  console.log('Passed full application: signup UI, email session cookie, authenticated survey, receipt separation, Google registration and exact return destination.');
 }finally{await mf.dispose();}

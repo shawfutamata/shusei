@@ -3,13 +3,12 @@ import {useEffect,useState} from 'react';
 import type {Meeting,RosterPerson} from './types';
 import {GoogleMark} from '@/app/login/LoginForm';
 const empty={name:'',company:'',industry:'',services:'',area:'',table:''};
-export default function MeetingSignup({event,requests=false,signedIn=false}:{event:Meeting;requests?:boolean;signedIn?:boolean}) {
- const [email,setEmail]=useState(''),[code,setCode]=useState(''),[sent,setSent]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[loading,setLoading]=useState(true);
+export default function MeetingSignup({event,requests=false,signedIn=false,initialMessage=""}:{event:Meeting;requests?:boolean;signedIn?:boolean;initialMessage?:string}) {
+ const [email,setEmail]=useState(''),[code,setCode]=useState(''),[sent,setSent]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(initialMessage),[loading,setLoading]=useState(true);
  const [people,setPeople]=useState<Pick<RosterPerson,'id'|'name'|'company'>[]>([]),[rosterId,setRosterId]=useState(''),[profile,setProfile]=useState(empty),[walkIn,setWalkIn]=useState(false),[consent,setConsent]=useState(false);
  const back=`/meeting/${event.id}${requests?'/requests':''}`,api=`/api/meeting/${event.id}/account`;
  useEffect(()=>{
   const receipt=window.location.hash.match(/^#receipt=([a-f0-9]{64})$/)?.[1];if(receipt){try{localStorage.setItem(`tasuki-meeting-${event.id}`,receipt);}catch{}}
-  if(new URLSearchParams(window.location.search).has('login'))setError('認証できませんでした。会社情報を確認してもう一度進むか、メールをご利用ください。');
   let alive=true;fetch(api+'?people=1',{cache:'no-store'}).then(async r=>{const d=await r.json() as {people:typeof people;error?:string};if(!r.ok)throw new Error(d.error);if(alive)setPeople(d.people);}).catch(e=>{if(alive)setError(e.message);}).finally(()=>{if(alive)setLoading(false);});return()=>{alive=false;};
  },[event.id,api]);
  async function choose(id:string){setRosterId(id);setConsent(false);setProfile(empty);if(!id)return;setBusy(true);setError('');try{const r=await fetch(api+'?rosterId='+encodeURIComponent(id),{cache:'no-store'}),d=await r.json() as {person:RosterPerson;error?:string};if(!r.ok)throw new Error(d.error);setProfile(d.person);}catch(e){setError(e instanceof Error?e.message:'名簿を読み込めませんでした。');setRosterId('');}finally{setBusy(false);}}

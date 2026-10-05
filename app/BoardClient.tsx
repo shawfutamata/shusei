@@ -281,7 +281,7 @@ type MyRequest = {
   thumbUrl: string; imageCount: number; hasVideo: boolean;
 };
 
-export default function BoardClient({ initialRequests, initialStats, initialAds, userName, canManageMeetings=false, adReturn = '', initialTab }: { initialRequests: BoardRequest[]; initialStats: MemberStats; initialAds: AdSlot[]; userName: string; canManageMeetings?:boolean; adReturn?: string; initialTab?: MyTab }) {
+export default function BoardClient({ initialRequests, initialStats, initialAds, userName, canManageMeetings=false, adReturn = '', initialTab, initialMemberId = '', initialPost = false }: { initialRequests: BoardRequest[]; initialStats: MemberStats; initialAds: AdSlot[]; userName: string; canManageMeetings?:boolean; adReturn?: string; initialTab?: MyTab; initialMemberId?: string; initialPost?: boolean }) {
   const [requests, setRequests] = useState(initialRequests);
   const [stats, setStats] = useState(initialStats);
   const [ads, setAds] = useState(initialAds);
@@ -301,7 +301,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   // 顔写真がまだの人は先にプロフィール設定へ。出稿枠を買って戻ってきた人は、
   // 入稿できるマイページから始める。
   const [activeTab, setActiveTab] = useState<MyTab>(
-    initialTab ?? (!initialStats.avatarUrl ? 'profile' : adReturn === 'done' ? 'mypage' : 'home'));
+    (initialPost && !initialStats.avatarUrl ? 'profile' : initialTab) ?? (!initialStats.avatarUrl ? 'profile' : adReturn === 'done' ? 'mypage' : 'home'));
   const [myRequests, setMyRequests] = useState<MyRequest[]>([]);
   /** 編集中の投稿。null なら新規投稿。投稿のモーダルを両方で使い回す。 */
   const [meetingDraft,setMeetingDraft]=useState('');
@@ -387,7 +387,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [cropping, setCropping] = useState(false);
   /** 選んだ写真が端末で読めるか確かめているあいだ。大きい写真だと少し待つ。 */
   const [photoChecking, setPhotoChecking] = useState(false);
-  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'report' | 'thread' | 'responses' | 'ads' | 'perks' | 'categories' | 'upgrade' | 'adDetail' | 'member' | 'gacha' | null>(null);
+  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'report' | 'thread' | 'responses' | 'ads' | 'perks' | 'categories' | 'upgrade' | 'adDetail' | 'member' | 'gacha' | null>(initialMemberId ? 'member' : initialPost && initialStats.avatarUrl ? 'request' : null);
   /**
    * オファーの種類。**知り合いの紹介は無料、自社で請け負う（受注）は有料。**
    * 画面はここで出し分けるだけで、実際に止めているのは `createIntroduction()`。
@@ -399,7 +399,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [adDetail, setAdDetail] = useState<AdSlot | null>(null);
   /** 開いている会員のプロフィール。読み込み中は null のまま。 */
   const [memberProfile, setMemberProfile] = useState<MemberProfile | null>(null);
-  const [memberLoading, setMemberLoading] = useState(false);
+  const [memberLoading, setMemberLoading] = useState(!!initialMemberId);
   /** 初めて来た人への案内。出したかどうかは端末側に持つ（app/Tutorial.tsx）。 */
   const [tutorial, setTutorial] = useState(false);
   /** 投稿したあと、そのまま広告の申し込みへ進むか。新規の投稿のときだけ聞く。 */
@@ -994,6 +994,11 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     setStats((current) => ({ ...current, displayName: profileName.trim(), nameKana: profileNameKana.trim(), company: profileCompany, companyKana: profileCompanyKana.trim(), venue: stats.venue, positionTitle: profilePosition, businessArea: profileArea, primaryIndustry: profileIndustries[0] ?? '', industries: profileIndustries, notifyIndustries: profileNotifyIndustries, annualRevenueBand: profileRevenue, facebookUrl: profileFacebook, companyPr: profileCompanyPr.trim(), avatarUrl }));
     setProfilePhoto(null); setPhotoPreview(avatarUrl);
     await refreshBoard(); showToast('顔写真とプロフィールを保存しました。');
+    if (meetingPostPending.current && avatarUrl) {
+      meetingPostPending.current = false;
+      beginRequest();
+      setRequestDetail(!!meetingDraft);
+    }
   }
 
   async function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
@@ -1038,6 +1043,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
   function openRequest() {
     if (!stats.avatarUrl) { showProfileSettings(); return showToast('投稿の前に顔写真を登録してください。'); }
+    beginRequest();
+  }
+
+  function beginRequest() {
     setEditingRequest(null); setRequestIndustries([]); clearRequestPhoto(); removeRequestVideo();
     setRequestDetail(false);
     setModal('request');
@@ -1655,30 +1664,28 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
    * 新しく作ると、同じ相手との話が2本に見えてしまう。
    */
   // Event handoff opens a draft conversation or profile; it never sends a message.
-  const handoffOpened=useRef(false);
-  const meetingPostPending=useRef(false);
+  const meetingPostPending=useRef(initialPost && !initialStats.avatarUrl);
   useEffect(()=>{
-    if(handoffOpened.current)return;
+    const controller=new AbortController();let alive=true;
     const q=new URLSearchParams(window.location.search),target=q.get('contact')||q.get('member');
     if(target&&target.length<=160&&/^[a-zA-Z0-9_-]+$/.test(target)){
-      handoffOpened.current=true;
-      if(q.has('contact'))void fetch(`/api/members/${encodeURIComponent(target)}`).then(async response=>{if(!response.ok)throw new Error();messageMember(await response.json() as MemberProfile);}).catch(()=>showToast('この会員には現在連絡できません。'));
-      else void openMember(target);
+      void fetch(`/api/members/${encodeURIComponent(target)}`,{signal:controller.signal}).then(async response=>{
+        if(!response.ok)throw new Error();
+        const member=await response.json() as MemberProfile;if(!alive)return;
+        if(q.has('contact'))messageMember(member);
+        else {setMemberProfile(member);setMemberLoading(false);}
+      }).catch(()=>{if(alive){setModal(null);setMemberLoading(false);showToast(q.has('contact')?'この会員には現在連絡できません。':'この会員のプロフィールを開けませんでした。');}});
     }else if(q.get('action')==='post'){
-      handoffOpened.current=true;
-      void (async()=>{const eventId=q.get('meeting');let need='';
-        if(eventId&&/^[a-zA-Z0-9-]+$/.test(eventId))try{const response=await fetch(`/api/meeting/${encodeURIComponent(eventId)}?mine=1`);if(!response.ok)throw new Error();const data=await response.json() as {answer:{need:string}};need=data.answer.need;setMeetingDraft(need);}catch{showToast('希望を読み込めませんでした。募集内容を入力してください。');}
-        meetingPostPending.current=!stats.avatarUrl;openRequest();setRequestDetail(!!need);
-      })();
+      const eventId=q.get('meeting');
+      if(eventId&&/^[a-zA-Z0-9-]+$/.test(eventId))void fetch(`/api/meeting/${encodeURIComponent(eventId)}?mine=1`,{signal:controller.signal}).then(async response=>{
+        if(!response.ok)throw new Error();const data=await response.json() as {answer:{need:string}};
+        if(alive){setMeetingDraft(data.answer.need);setRequestDetail(!!data.answer.need);}
+      }).catch(()=>{if(alive)showToast('希望を読み込めませんでした。募集内容を入力してください。');});
     }
-  // Run once for an explicitly requested destination; state changes must not reopen it.
+    return()=>{alive=false;controller.abort();};
+  // The destination initializes on the server; this effect only loads its data.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
-
-  useEffect(()=>{if(meetingPostPending.current&&stats.avatarUrl){meetingPostPending.current=false;openRequest();setRequestDetail(!!meetingDraft);}
-  // Resume the account's own reviewed draft after the required photo is saved.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[stats.avatarUrl,meetingDraft]);
 
   function messageMember(member: { id: string; displayName: string; company: string; avatarUrl: string }) {
     const chatId = `dm:${member.id}`;

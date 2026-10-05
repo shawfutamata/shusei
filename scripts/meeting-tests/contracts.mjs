@@ -1,10 +1,8 @@
-import { readFileSync } from 'node:fs';
-import { stripTypeScriptTypes } from 'node:module';
+import { build } from 'esbuild';
 import assert from 'node:assert/strict';
-const moduleUrl=source=>'data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes(source)).toString('base64');
-const typesUrl=moduleUrl(readFileSync(new URL('../../app/meeting/types.ts',import.meta.url),'utf8'));
-const {validateCandidates,validateAnswer}=await import(typesUrl);
-const {matchAttendee,inferObject}=await import(moduleUrl(readFileSync(new URL('../../app/meeting/matching.ts',import.meta.url),'utf8').replace("'./types'",JSON.stringify(typesUrl))));
+const loadModule=async path=>{const result=await build({entryPoints:[new URL(path,import.meta.url).pathname],bundle:true,write:false,platform:'node',format:'esm'});return import('data:text/javascript;base64,'+Buffer.from(result.outputFiles[0].text).toString('base64'));};
+const {validateCandidates,validateAnswer}=await loadModule('../../app/meeting/types.ts');
+const {matchAttendee,inferObject}=await loadModule('../../app/meeting/matching.ts');
 const base={name:'仮名',company:'架空社',table:'1',industry:'建築',services:'飲食店の給排水工事を行います。',referrals:'',need:'飲食店の給排水工事を依頼したい',area:'東京',timing:'',budget:'',conditions:'',present:1,analyzed:0,candidates:[]};
 const seeker={...base,id:'s'}, provider={...base,id:'p',need:''};
 const candidate={id:'p',kind:'direct',reason:'給排水工事の対応が一致',needQuote:'給排水工事',offerQuote:'給排水工事',questions:[]};
