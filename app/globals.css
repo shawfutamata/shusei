@@ -2853,3 +2853,10 @@ button.viz-export{border:0;background:transparent;cursor:pointer;font-family:inh
 .admin-nav-group-label{font-size:11px;font-weight:700;letter-spacing:.04em;color:#78859b;margin:0;padding:4px 12px 7px;line-height:1.5}
 .admin-nav-group:last-child{border-top:1px solid #2a3040;padding-top:12px}
 .admin-meeting-links .admin-meeting-delete{color:#be2434;margin-left:auto}.admin-meeting-links .admin-meeting-delete:hover{text-decoration:underline}
+
+/* Keep first-time registration distinct from existing-member authentication. */
+.signin-card .login-registration { margin:24px 0; padding:20px 0; border-top:1px solid #e3e8f0; border-bottom:1px solid #e3e8f0; }
+.signin-card .login-registration h3 { margin:0 0 8px; font-size:16px; color:#17233c; }
+.signin-card .login-registration p { margin:8px 0; font-size:13px; line-height:1.8; color:#30425f; }
+.signin-card .login-registration .secondary-link { display:inline-flex; align-items:center; min-height:44px; text-decoration:underline; text-underline-offset:3px; }
+.signin-card .login-registration a:focus-visible { outline:2px solid #1478d6; outline-offset:4px; }
