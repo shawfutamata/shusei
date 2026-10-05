@@ -2860,3 +2860,5 @@ button.viz-export{border:0;background:transparent;cursor:pointer;font-family:inh
 .signin-card .login-registration p { margin:8px 0; font-size:13px; line-height:1.8; color:#30425f; }
 .signin-card .login-registration .secondary-link { display:inline-flex; align-items:center; min-height:44px; text-decoration:underline; text-underline-offset:3px; }
 .signin-card .login-registration a:focus-visible { outline:2px solid #1478d6; outline-offset:4px; }
+
+.tasuki-signup .meeting-auth-legal a { display:inline-block; }
