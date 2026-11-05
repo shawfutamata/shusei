@@ -21,6 +21,8 @@ try{
  assert.match(registrationHtml,/会社名・屋号/);assert.match(registrationHtml,/利用規約/);assert.match(registrationHtml,/運営確認/);
  assert.doesNotMatch(registrationHtml,/またはメールで|メールで登録|メールでも新規登録|one-time-code|type="email"/);
  const registrationError=await fetch('/register?login=failed');assert.match(await registrationError.text(),/認証できませんでした/);
+ // 登録画面へ案内する入口でも、廃止したメール登録を勧めない。
+ for(const path of ['/login','/login/member']){const page=await fetch(path);assert.equal(page.status,200);const html=await page.text();assert.match(html,/Googleアカウントで登録/);assert.doesNotMatch(html,/Googleまたはメールで登録|Google・メールで無料登録/);}
  await fetch('/meeting/missing');
  await post('/api/mobile/auth/request-code',{email:'invalid'});
  for(const [id,mail,status] of [['existing','member@example.com','active'],['admin','admin@example.com','pending'],['denied','denied@example.com','pending']])await db.prepare('INSERT INTO members(id,email,display_name,membership_status,created_at) VALUES(?,?,?,?,?)').bind(id,mail,'Existing Name',status,new Date().toISOString()).run();
