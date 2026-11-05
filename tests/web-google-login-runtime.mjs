@@ -15,6 +15,12 @@ try{
  const worker=await mf.getWorker(),db=await mf.getD1Database('DB'),base=(await mf.ready).origin;
  const fetch=(path,options={})=>worker.fetch(base+path,{redirect:'manual',...options});
  const post=(path,body,cookie='')=>fetch(path,{method:'POST',headers:{origin:base,'content-type':'application/json',cookie},body:JSON.stringify(body)});
+ // 初回登録の画面はGoogleだけにし、会社情報・規約・運営確認の案内を残す。
+ const registration=await fetch('/register');assert.equal(registration.status,200);const registrationHtml=await registration.text();
+ assert.match(registrationHtml,/Googleで登録/);assert.match(registrationHtml,/Googleアカウントで登録できます/);
+ assert.match(registrationHtml,/会社名・屋号/);assert.match(registrationHtml,/利用規約/);assert.match(registrationHtml,/運営確認/);
+ assert.doesNotMatch(registrationHtml,/またはメールで|メールで登録|メールでも新規登録|one-time-code|type="email"/);
+ const registrationError=await fetch('/register?login=failed');assert.match(await registrationError.text(),/認証できませんでした/);
  await fetch('/meeting/missing');
  await post('/api/mobile/auth/request-code',{email:'invalid'});
  for(const [id,mail,status] of [['existing','member@example.com','active'],['admin','admin@example.com','pending'],['denied','denied@example.com','pending']])await db.prepare('INSERT INTO members(id,email,display_name,membership_status,created_at) VALUES(?,?,?,?,?)').bind(id,mail,'Existing Name',status,new Date().toISOString()).run();
