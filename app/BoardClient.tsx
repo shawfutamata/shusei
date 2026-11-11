@@ -2897,6 +2897,11 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {modal === 'perks' && <Modal title="ランクの特典" lead="招待して参加した仲間の人数でランクが上がり、できることが増えます。一度上がったランクは下がりません。" onClose={() => { setModal(null); setOpenPerk(''); }}>
         <div className="perk-panel">
+          <div className="perk-membership" aria-label={`あなたは${stats.rank}会員です`}>
+            <span>あなたの現在の会員ランク</span>
+            <strong>{stats.rank}<small>会員</small></strong>
+            <p>下のランクを選ぶと、それぞれの特典を比較できます。</p>
+          </div>
           <ol className="perk-ladder" aria-label="ランクの段階">{rankNames.map((name, index) => {
             const level = index + 1;
             return <li key={name} className={`${level === previewRankLevel ? 'now' : ''}${level < previewRankLevel ? ' done' : ''}`}>
@@ -2905,14 +2910,15 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
               <b>{name}</b>
               {/* ランクの物差しは**招待して参加した仲間の人数**。オファーの件数ではない。 */}
               <small>{rankThresholds[index] === 0 ? 'はじめから' : `招待${rankThresholds[index]}人`}</small>
+              <span className="perk-member-marker">{level === stats.level ? 'あなたのランク' : ''}</span>
               </button>
             </li>;
           })}</ol>
 
           <p className="perk-now" id="rank-perk-preview" aria-live="polite">
-            <b><small>選択中のランク</small>{rankNames[previewRankLevel - 1]}</b>
+            <b><small>比較中の特典</small>{rankNames[previewRankLevel - 1]}</b>
             <span>{previewRankLevel === 1 ? 'はじめからのランクです。追加の特典はGOLDから解放されます。' : `招待した仲間が${rankThresholds[previewRankLevel - 1]}人になると解放される特典です。`}</span>
-            <span>あなたの会員ランク：{stats.rank}</span>
+            <span className="perk-current-reminder">あなたは{stats.rank}会員です{previewRankLevel !== stats.level && '（会員ランクは変わりません）'}</span>
           </p>
 
           <ul className="perk-grid">{rankPerks.map((perk) => {
@@ -3277,11 +3283,13 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       </Modal>}
 
       {/* メッセージの一覧から開くやり取り。**ここで完結する。**
-          相手の名前を見出しに、何についての話かを下に添える。 */}
-      {modal === 'thread' && openChat && <Modal title={`${openChat.partnerName}さんとのやり取り`}
+          案件名を最初の見出しにして、何についての会話かひと目で分かるようにする。 */}
+      {modal === 'thread' && openChat && <Modal title={openChat.kind === 'dm'
+          ? `${openChat.partnerName}さんとのやり取り`
+          : <span className="thread-subject"><small>{openChat.kind === 'ad' ? '広告についてのやり取り' : '案件についてのやり取り'}</small>{openChat.title}</span>}
         lead={openChat.kind === 'dm'
           ? 'おふたりだけのやり取りです。ほかの会員には見えません。'
-          : `${openChat.kind === 'ad' ? '広告' : '案件'}「${openChat.title}」でのおふたりだけのやり取りです。ほかの会員には見えません。`}
+          : `${openChat.partnerName}さんとのやり取りです。ほかの会員には見えません。`}
         onClose={() => { setModal(null); setOpenChat(null); }}>
         {openChat.locked
           ? <div className="quota-block">
@@ -3663,7 +3671,7 @@ function ActivityCounts({ need, size = 'card' }: { need: BoardRequest; size?: 'c
  * 絵と結果とボタンが縦に並んで初めて成り立つものは、いつもの高さ（画面の
  * 9割）だと中身が見切れて、回した結果を見るのにスクロールが要る。
  */
-function Modal({ title, lead, onClose, children, full = false }: { title: string; lead: string; onClose: () => void; children: React.ReactNode; full?: boolean }) { return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className={`modal${full ? ' is-full' : ''}`} role="dialog" aria-modal="true" aria-labelledby="modal-title"><div className="modal-top"><span className="sheet-handle" /><button className="modal-close" onClick={onClose} aria-label="閉じる">×</button></div><h2 id="modal-title">{title}</h2><p className="modal-lead">{lead}</p>{children}</section></div>; }
+function Modal({ title, lead, onClose, children, full = false }: { title: React.ReactNode; lead: string; onClose: () => void; children: React.ReactNode; full?: boolean }) { return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className={`modal${full ? ' is-full' : ''}`} role="dialog" aria-modal="true" aria-labelledby="modal-title"><div className="modal-top"><span className="sheet-handle" /><button className="modal-close" onClick={onClose} aria-label="閉じる">×</button></div><h2 id="modal-title">{title}</h2><p className="modal-lead">{lead}</p>{children}</section></div>; }
 function Avatar({ src, name, className }: { src: string; name: string; className: string }) { return <span className={className}>{src ? <img src={src} alt={`${name}さんの顔写真`} /> : <span>{name.slice(0, 1)}</span>}</span>; }
 /**
  * 画面に出すプラン名。**管理画面の一覧と同じ言い方にそろえる。**
