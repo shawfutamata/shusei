@@ -44,14 +44,14 @@ function ReferralBanner({ level, invitedCount, onInvite, onDetails }: Props) {
     <div className={styles.bannerDetails}>
       {hasRank ? <>
         <div className={styles.bannerRankRow}>
-          <div className={styles.bannerRank}><PerkIcon perk="crest" /><div><span>現在のランク</span><strong>{currentRank}</strong></div></div>
+          <div className={styles.bannerRank} aria-label={`現在のランク ${currentRank}`}><PerkIcon perk="crest" /><strong>{currentRank}</strong></div>
           {highest && <span className={styles.rankAchieved}><span aria-hidden="true">✓</span>最高ランク達成</span>}
         </div>
         {!highest && <p className={styles.bannerProgress}>{remaining !== null
           ? <>あと<b>{remaining}人</b>の登録で <strong>{rankNames[nextLevel! - 1]}</strong></>
           : '招待人数を確認できません。招待画面でご確認ください。'}</p>}
-        <p className={styles.perksLabel}>{preview ? `${rankNames[1]}で使える特典` : '現在の特典'}</p>
-        <ul className={styles.bannerPerks}>
+        {preview && <p className={styles.perksLabel}>{rankNames[1]}で使える特典</p>}
+        <ul className={styles.bannerPerks} aria-label={preview ? `${rankNames[1]}で使える特典` : '現在の特典'}>
           {summaryPerks.map(perk => <li key={perk.key}><span className={preview ? styles.perkPending : styles.perkCheck} aria-hidden="true">{preview ? '○' : '✓'}</span><span>{perk.label}</span></li>)}
           {discount > 0 && <li><span className={styles.perkCheck} aria-hidden="true">✓</span><span>広告{discount}% OFF{freeAds && <small>無料期間終了後</small>}</span></li>}
         </ul>

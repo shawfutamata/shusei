@@ -2404,11 +2404,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             ? <>あなたの招待リンクから入会して{referral.qualifyDays}日続いた方1人につき、{stats.contractedPlan !== 'free' ? '会費が1ヶ月無料になります' : 'スタンダードが1ヶ月使えます'}（合計{referral.capTotal}ヶ月まで）。</>
             : <>あなたの招待リンクから入会した方の人数で、あなたのランクが上がります。</>}</span></div>
           <button className="invite-link" onClick={copyInviteLink}><span>{referral.url.replace(/^https?:\/\//, '')}</span><i>{inviteCopied ? 'コピーしました' : 'リンクをコピー'}</i></button>
-          {/* リンクを送れない場面のために、コードそのものも出しておく。
-              対面で口頭で伝えたり、名刺に書いて渡したりできる。
-              受け取った人はログイン画面の「招待コードをお持ちの方」から入れる。 */}
+          {/* コードは招待リンクを識別するためにも表示する。
+              登録前のコード入力欄はなくなったので、相手にはリンクを案内する。 */}
           <p className="invite-code"><small>あなたの招待コード</small><b>{referral.code}</b>
-            <em>リンクを送れないときは、このコードをお伝えください。相手はログイン画面（tasuki.club）の「招待コードをお持ちの方はこちら」から入力して参加できます。</em></p>
+            <em>このコードは招待リンクに含まれています。相手には招待リンクを送り、リンクから会員登録してもらってください。</em></p>
           <dl className="invite-stats">
             <div><dt>招待した人</dt><dd>{referral.invitedCount}<small>人</small></dd></div>
             <div><dt>利用中</dt><dd>{referral.activeCount}<small>人</small></dd></div>

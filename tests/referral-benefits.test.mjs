@@ -9,6 +9,8 @@ const detailModal = board.slice(board.indexOf("{modal === 'perks' &&"), board.in
 assert.match(detailModal, /招待リンク・コードから会員登録した方が対象/);
 assert.match(detailModal, /広告の割引は重複せず/);
 assert.match(detailModal, /adsFree &&.*campaignUntilLabel\(\).*無料期間終了後/s);
+assert.doesNotMatch(board, /招待コードをお持ちの方はこちら/);
+assert.match(board, /このコードは招待リンクに含まれています/);
 
 // ブラウザを起動しない回帰テスト。表示内容としきい値を本物の定義で確かめる。
 const result = await build({
@@ -35,16 +37,18 @@ const result = await build({
     // ホームは青いバナー＋短い要約。画像に書かれた固定ランクや長文を戻さない。
     assert.doesNotMatch(render(1, 0, true), /referral-benefits-v1.png|bannerConditions/);
     assert.match(plain(render(1, 0, true)), /仲間を招待して、TASUKIをもっと便利に/);
-    assert.match(plain(render(1, 0, true)), /現在のランクSILVER/);
+    assert.match(render(1, 0, true), /aria-label="現在のランク SILVER"/);
     assert.match(plain(render(1, 0, true)), /GOLDで使える特典/);
     assert.doesNotMatch(plain(render(1, 0, true)), /最高ランク達成|予算での絞り込み|広告30% OFF|現在の特典/);
-    assert.match(plain(render(2, 10, true)), /現在のランクGOLD/);
-    assert.match(plain(render(2, 10, true)), /現在の特典.*募集の延長.*掲載文章の上限なし/);
+    assert.match(render(2, 10, true), /aria-label="現在のランク GOLD"/);
+    assert.match(render(2, 10, true), /aria-label="現在の特典"/);
+    assert.match(plain(render(2, 10, true)), /募集の延長.*掲載文章の上限なし/);
     assert.doesNotMatch(plain(render(2, 10, true)), /最高ランク達成|広告10% OFF|広告30% OFF/);
-    assert.match(plain(render(3, 30, true)), /現在のランクPLATINUM/);
+    assert.match(render(3, 30, true), /aria-label="現在のランク PLATINUM"/);
     assert.match(plain(render(3, 30, true)), /予算での絞り込み.*広告10% OFF/);
     assert.doesNotMatch(plain(render(3, 30, true)), /最高ランク達成|広告30% OFF/);
-    assert.match(plain(render(4, 0, true)), /現在のランクDIAMOND.*最高ランク達成/);
+    assert.match(render(4, 0, true), /aria-label="現在のランク DIAMOND"/);
+    assert.match(plain(render(4, 0, true)), /DIAMOND.*最高ランク達成/);
     assert.match(plain(render(4, 50, true)), /予算での絞り込み.*広告30% OFF/);
     assert.doesNotMatch(plain(render(4, 0, true)), /あと.*人|広告10% OFF/);
     for (const level of [0, -1, 5, NaN, undefined]) {

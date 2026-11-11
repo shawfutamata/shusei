@@ -247,11 +247,14 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .invite-link { width:100%; min-height:54px; padding:11px 13px; display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px; border:1px dashed #93b4f0; border-radius:13px; background:#fff; color:var(--navy); text-align:left; }
 .invite-link>span { overflow:hidden; font-size:11px; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
 .invite-link>i { flex:0 0 auto; padding:6px 11px; border-radius:99px; background:var(--blue); color:#fff; font-size:10px; font-style:normal; font-weight:900; white-space:nowrap; }
-.invite-stats { margin:0; display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
-.invite-stats>div { padding:11px 9px; border-radius:12px; background:#fff; border:1px solid #dfe8f5; text-align:center; }
-.invite-stats dt { color:#7f8da1; font-size:9px; font-weight:800; }
-.invite-stats dd { margin:5px 0 0; color:var(--navy); font-size:22px; font-weight:900; font-variant-numeric:tabular-nums; }
-.invite-stats dd small { margin-left:2px; font-size:10px; font-weight:800; }
+/* ランク名の横幅で人数欄を圧迫しないよう、人数2列＋ランク1行に分ける。 */
+.invite-stats { margin:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.invite-stats>div { min-width:0; padding:12px 10px; border-radius:12px; background:#fff; border:1px solid #dfe8f5; text-align:center; }
+.invite-stats dt { color:#7f8da1; font-size:12px; font-weight:800; line-height:1.6; white-space:nowrap; }
+.invite-stats dd { display:flex; align-items:baseline; justify-content:center; gap:3px; margin:5px 0 0; color:var(--navy); font-size:22px; font-weight:900; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.invite-stats dd small { font-size:12px; font-weight:800; }
+.invite-stats>div:last-child { grid-column:1 / -1; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; text-align:left; }
+.invite-stats>div:last-child dd { margin:0; }
 .invite-note { margin:0; padding:0; list-style:none; display:grid; gap:6px; }
 .invite-note li { display:grid; grid-template-columns:auto 1fr; align-items:baseline; gap:9px; }
 .invite-note b { color:var(--navy); font-size:12px; font-weight:900; white-space:nowrap; font-variant-numeric:tabular-nums; }
@@ -612,8 +615,8 @@ body { font-weight:600; }
 .invite-heading span { font-size:12px; }
 .invite-link>span { font-size:12px; }
 .invite-link>i { font-size:11px; }
-.invite-stats dt { font-size:10px; }
-.invite-stats dd { font-size:25px; }
+.invite-stats dt { font-size:12px; }
+.invite-stats dd { font-size:clamp(22px,6vw,25px); }
 .invite-note b { font-size:13px; }
 .invite-note span { font-size:11px; }
 .invite-terms { font-size:11px; }
