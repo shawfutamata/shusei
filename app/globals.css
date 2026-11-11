@@ -954,8 +954,11 @@ body { font-weight:600; }
 
 /* ランクの特典。解放済みと、まだ届いていないものを一目で分ける。 */
 .perk-panel { display:grid; gap:16px; }
-.perk-ladder { margin:0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(5,1fr); gap:4px; }
-.perk-ladder li { display:grid; justify-items:center; gap:3px; opacity:.42; }
+.perk-ladder { margin:0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px; }
+.perk-ladder li { display:grid; min-width:0; }
+.perk-ladder button { width:100%; min-height:64px; padding:8px 2px; display:grid; justify-items:center; gap:3px; border:1px solid transparent; border-radius:10px; background:transparent; color:inherit; cursor:pointer; }
+.perk-ladder li.now button { border-color:var(--accent-line); background:var(--accent-soft); }
+.perk-ladder button:focus-visible { outline:2px solid var(--blue-dark); outline-offset:2px; }
 .perk-ladder li.done,.perk-ladder li.now { opacity:1; }
 .perk-ladder li.now b { color:var(--accent-ink); }
 .perk-ladder-dot { width:13px; height:13px; border-radius:50%; border:1px solid var(--line); }
@@ -985,17 +988,10 @@ body { font-weight:600; }
 .perk-badge { width:56px; height:56px; display:grid; place-items:center; border-radius:50%; border:1px solid #cfe0fb; background:linear-gradient(150deg,#eaf3ff,#f7fbff); color:var(--blue-dark); }
 .perk-icon { width:26px; height:26px; display:block; }
 .perk-tile small { color:#3a4a63; font-size:10px; font-weight:800; line-height:1.35; text-align:center; }
-/* ロック中は、どのランクで開くのかを色で見分けられるようにする。
-   全部おなじ灰色だと、あと何を目指せばいいのかが読み取れない。
-   色は上のランクカード（.rank-pearl など）と同じ宝石の色にそろえてある。 */
-.perk-tile.locked .perk-badge { border:1px dashed var(--need-line,#ccd5e1); background:var(--need-bg,#f4f6f9); color:var(--need-ink,#aab4c2); }
-.perk-tile.locked small { color:#8e9bad; }
-.perk-tile.locked>i { background:var(--need-ink,#59677d); }
-.perk-tile.needs-gold     { --need-ink:#8a6512; --need-bg:#fdf6e3; --need-line:#e0c884; }
-/* 3つのランクは色相で分ける。もとは PLATINUM #2f4a5e と DIAMOND #1f3448 で、
-   どちらも同じ濃紺だった。並べても見分けがつかない。 */
-.perk-tile.needs-platinum { --need-ink:#5c6b7d; --need-bg:#f0f3f7; --need-line:#c2ccd9; }
-.perk-tile.needs-diamond  { --need-ink:#0e7490; --need-bg:#e4f5fa; --need-line:#8fd0e2; }
+/* 未解放の特典は灰色に統一。必要なランクは文字で示す。 */
+.perk-tile.locked .perk-badge { border:1px dashed #c5cbd3; background:#f1f3f5; color:#8a929c; }
+.perk-tile.locked small { color:#77818d; }
+.perk-tile.locked>i { background:#697582; }
 .perk-tile.open .perk-badge { box-shadow:0 0 0 3px var(--accent-soft); border-color:var(--accent); }
 
 .perk-detail { padding:14px; display:grid; gap:7px; border:1px solid var(--accent-line); border-radius:13px; background:#fff; }

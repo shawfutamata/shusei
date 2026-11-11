@@ -475,6 +475,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [openStats, setOpenStats] = useState('');
   const [adStats, setAdStats] = useState<{ slot: AdSlot; days: AdDay[] } | null>(null);
   const [openPerk, setOpenPerk] = useState('');
+  // 比較用の選択だけを変え、会員自身のランクや利用権限には触れない。
+  const [previewRankLevel, setPreviewRankLevel] = useState(initialStats.level);
 
   /**
    * ログアウト。**会員側にも入口が無かった。**
@@ -2235,7 +2237,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div><p>MY PAGE</p><h1 id="profile-page-title">マイページ</h1></div>
           <button className="mypage-signout" onClick={signOut} disabled={busy}>{busy ? '…' : 'ログアウト'}</button>
         </header>
-        <button className={`rank-card rank-${stats.rank.toLowerCase()} rank-card-slim`} onClick={() => setModal('perks')} aria-label={`${stats.rank}会員ランクカード。特典を見る`}>
+        <button className={`rank-card rank-${stats.rank.toLowerCase()} rank-card-slim`} onClick={() => { setPreviewRankLevel(stats.level); setOpenPerk(''); setModal('perks'); }} aria-label={`${stats.rank}会員ランクカード。特典を見る`}>
           <p className="rank-slim-top"><CrownMark /><b>{serviceName}</b></p>
           <RankCrest rank={stats.rank} />
           <h2 className="rank-slim-title">{stats.rank}</h2>
@@ -2248,7 +2250,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           </div>
           <span className="rank-slim-more">特典を見る ›</span>
         </button>
-        <button className="rank-next" onClick={() => setModal('perks')}>
+        <button className="rank-next" onClick={() => { setPreviewRankLevel(stats.level); setOpenPerk(''); setModal('perks'); }}>
           <div className="rank-next-copy"><b>{stats.level >= rankThresholds.length ? '最高ランクに到達' : `あと${invitesToNextRank}人の招待でランクアップ`}</b><span>参加した仲間 {stats.inviteCount}人・オファー {stats.introCount}件</span></div>
           <span className="rank-next-track"><i style={{ width: `${rankProgress}%` }} /></span>
         </button>
@@ -2555,8 +2557,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <header className="profile-page-heading"><p>PROFILE</p><h1 id="profile-settings-title">プロフィール設定</h1><span>ここで登録した内容が、案件やオファーのときに相手に見えます。</span></header>
         <div className="profile-form profile-page-form">
           <label className="photo-upload"><input type="file" accept="image/*" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />スマホで撮った写真をそのまま選べます</small></span><i>{photoChecking ? '読み込んでいます…' : stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
-          <label>お名前 <small className="req">必須</small><input value={profileName} onChange={(event) => setProfileName(event.target.value)} maxLength={40} placeholder="二俣 将" required /></label>
-          <label>お名前のふりがな <small>任意</small><input value={profileNameKana} onChange={(event) => setProfileNameKana(event.target.value)} maxLength={60} placeholder="ふたまた しょう" /></label>
+          <label>お名前 <small className="req">必須</small><input value={profileName} onChange={(event) => setProfileName(event.target.value)} maxLength={40} placeholder="鈴木 襷" required /></label>
+          <label>お名前のふりがな <small>任意</small><input value={profileNameKana} onChange={(event) => setProfileNameKana(event.target.value)} maxLength={60} placeholder="すずき たすき" /></label>
           {/* 会社名は相手に見える札なので必須のまま。ただし**屋号を持たない人が
               いる**。法人名しか受け付けない書き方だと、フリーランスの方はここで
               手が止まってしまうので、名前を広げて、一押しで入る道を横に置く。 */}
@@ -2897,21 +2899,24 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <div className="perk-panel">
           <ol className="perk-ladder" aria-label="ランクの段階">{rankNames.map((name, index) => {
             const level = index + 1;
-            return <li key={name} className={`${level === stats.level ? 'now' : ''}${level < stats.level ? ' done' : ''}`}>
+            return <li key={name} className={`${level === previewRankLevel ? 'now' : ''}${level < previewRankLevel ? ' done' : ''}`}>
+              <button type="button" aria-pressed={level === previewRankLevel} aria-controls="rank-perk-preview" onClick={() => { setPreviewRankLevel(level); setOpenPerk(''); }}>
               <span className={`perk-ladder-dot rank-${name.toLowerCase()}`} aria-hidden="true" />
               <b>{name}</b>
               {/* ランクの物差しは**招待して参加した仲間の人数**。オファーの件数ではない。 */}
               <small>{rankThresholds[index] === 0 ? 'はじめから' : `招待${rankThresholds[index]}人`}</small>
+              </button>
             </li>;
           })}</ol>
 
-          <p className="perk-now">
-            <b><small>会員ランク</small>{stats.rank}</b>
-            <span>{stats.level >= rankNames.length ? '最高ランクです。ありがとうございます。' : `あと${invitesToNextRank}人の仲間をご招待いただくと ${rankNames[stats.level]} になります。`}</span>
+          <p className="perk-now" id="rank-perk-preview" aria-live="polite">
+            <b><small>選択中のランク</small>{rankNames[previewRankLevel - 1]}</b>
+            <span>{previewRankLevel === 1 ? 'はじめからのランクです。追加の特典はGOLDから解放されます。' : `招待した仲間が${rankThresholds[previewRankLevel - 1]}人になると解放される特典です。`}</span>
+            <span>あなたの会員ランク：{stats.rank}</span>
           </p>
 
           <ul className="perk-grid">{rankPerks.map((perk) => {
-            const unlocked = stats.level >= perk.minLevel;
+            const unlocked = previewRankLevel >= perk.minLevel && !perk.soon;
             return <li key={perk.key}>
               <button className={`perk-tile${unlocked ? '' : ' locked'}${openPerk === perk.key ? ' open' : ''} needs-${rankNames[perk.minLevel - 1].toLowerCase()}`} onClick={() => setOpenPerk(openPerk === perk.key ? '' : perk.key)}>
                 <span className="perk-badge"><PerkIcon perk={perk.key} /></span>
@@ -2924,12 +2929,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           {openPerk && (() => {
             const perk = rankPerks.find((entry) => entry.key === openPerk);
             if (!perk) return null;
-            const unlocked = stats.level >= perk.minLevel;
+            const unlocked = previewRankLevel >= perk.minLevel && !perk.soon;
             return <div className={`perk-detail${unlocked ? '' : ' locked'}`}>
-              <p className="perk-detail-head"><b>{perk.label}</b><span>{perk.soon ? '近日公開' : unlocked ? '使用可' : `${rankNames[perk.minLevel - 1]}で解放`}</span></p>
+              <p className="perk-detail-head"><b>{perk.label}</b><span>{perk.soon ? '近日公開' : unlocked ? 'このランクで解放' : `${rankNames[perk.minLevel - 1]}で解放`}</span></p>
               <p className="perk-detail-body">{perk.detail}</p>
               {perk.soon && <p className="perk-detail-note">この特典はまだ作っている途中です。できあがったら、いまのランクのままお使いいただけます。</p>}
-              {!unlocked && !perk.soon && <p className="perk-detail-note">あと{Math.max(0, rankThresholds[perk.minLevel - 1] - stats.inviteCount)}人の仲間をご招待いただくと使えるようになります。</p>}
+              {!unlocked && !perk.soon && <p className="perk-detail-note">{rankNames[perk.minLevel - 1]}（招待{rankThresholds[perk.minLevel - 1]}人）で解放される特典です。</p>}
             </div>;
           })()}
 
