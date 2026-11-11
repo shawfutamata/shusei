@@ -10,7 +10,6 @@ import { UNLIMITED, bonusPlan, campaignPlan, can, contractedPlan, currentPlan, e
 import { adGacha, consolationPrize, drawPrize, gachaOpen, gachaSeason, giftExpiryFrom, jstDate, jstMonth, previousDay } from '@/app/gacha';
 import { EXTEND_DAYS, MAX_LEVEL, canExtendRequest, canPostVideo, descriptionLimit, levelFor, notifyIndustryLimit, photoLimit, rankName, rankThresholds } from '@/app/rank-perks';
 import { isAdminEmail } from '@/app/admin-emails';
-import { sampleRequests } from './sample-requests';
 import { effectivePlanState, isPlanOverridden } from '@/app/effective-plan';
 import { freeCampaign } from '@/app/campaign';
 import { isIndustry, matchesIndustry, splitIndustryLabels } from '@/app/industry-options';
@@ -65,7 +64,7 @@ export type BoardRequest = {
   referralCount: number;
   /**
    * 見本の投稿か。**本物の会員の投稿ではない。**
-   * 画面には札を出し、オファーは送れないようにする（db/sample-requests.ts）。
+   * 旧データとの互換性のため残す。通常の掲示板には保存済みの投稿だけを返す。
    */
   sample: boolean;
 };
@@ -1332,9 +1331,8 @@ export async function getBoardData(user: SessionUser) {
     imageUrl: requestImageUrl(request.id, imageVersion, 'full'),
     authorAvatarUrl: avatarUrl(authorId, authorAvatarKey, authorAvatarVersion),
   }));
-  // 見本は本物のうしろに置く。**先に出すと、本物の投稿が下に沈む。**
-  // 掲示板が育ったら、db/sample-requests.ts を空にすれば消える。
-  return { requests: [...requests, ...sampleRequests()], stats, ads: await listActiveAds(user.userId) };
+  // 固定の見本を混ぜず、保存済みの投稿だけを返す。履歴やジャンル件数も実投稿に揃う。
+  return { requests, stats, ads: await listActiveAds(user.userId) };
 }
 
 export async function updateMemberProfile(user: SessionUser, input: { displayName: string; nameKana: string; company: string; companyKana: string; venue: string; positionTitle: string; businessArea: string; industries: string[]; notifyIndustries: string[]; annualRevenueBand: string; facebookUrl: string; companyPr: string; avatar?: { bytes: ArrayBuffer; contentType: string } }) {

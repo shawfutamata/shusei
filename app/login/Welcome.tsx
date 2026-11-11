@@ -18,7 +18,6 @@ const faqItems = [
   { question: '無料プランでは何ができますか？', answer: '掲示板の閲覧、会員検索、リファラル、案件投稿、メッセージの返信などを利用できます。はじめての相手への新規メッセージは月3人までです。オファーの送受信はスタンダードで利用できます。' },
   { question: 'スマートフォンから利用できますか？', answer: 'はい。スマートフォンのブラウザに合わせた画面で、案件の閲覧や投稿、会員検索、メッセージなどを利用できます。' },
   { question: 'パソコンやネットの操作が苦手でも使えますか？', answer: 'はい。スマートフォンで、見やすい文字と大きなボタンを順番に操作できる画面です。使い方に迷った場合は、お問い合わせ窓口へご相談いただけます。' },
-  { question: 'このページのデモで入力した内容は公開されますか？', answer: '公開されません。デモで入力した内容は保存・送信されず、表示される案件や会社名も操作体験用のサンプルです。' },
 ];
 function WelcomeIcon({ name }: { name: IconName }) {
   const paths: Record<IconName, ReactNode> = {
@@ -92,23 +91,9 @@ function Recording({ name, label }: { name: 'find' | 'post'; label: string }) {
   </figure>;
 }
 
-// Public examples only. Never load member posts or profiles before authentication.
-const examples = [
-  { kind: '発注先', tag: '清掃・クリーニング', title: '店舗の定期清掃をお願いできる会社を探しています', budget: '月額5〜10万円（3店舗ぶん）', area: '東京都', detail: '都内3店舗の床とトイレの清掃を、週1回でお願いできる会社を探しています。閉店後の作業になります。まずは1店舗から試させていただけると助かります。', offer: '店舗の定期清掃に対応しています。店舗の場所とご希望の曜日を伺えますか？', image: '/samples/cleaning-thumb.webp', imageLarge: '/samples/cleaning.webp', company: 'サンプル商事株式会社', response: 'オファー2件・紹介1件' },
-  { kind: '協業先', tag: '内装・リフォーム', title: 'オフィス移転を一緒に進めてくれる内装会社を探しています', budget: '300〜500万円', area: '東京都', detail: '来春に事務所を移転します。引越しの手配はこちらで進めますが、レイアウトの設計と内装工事をお願いできる方を探しています。20名ほどの規模です。', offer: 'オフィス内装の設計・施工に対応しています。移転時期と候補物件についてお話を伺えますか？', image: '/samples/moving-thumb.webp', imageLarge: '/samples/moving.webp', company: 'サンプル製作所', response: 'オファー1件・紹介3件' },
-  { kind: '相談相手', tag: 'イベント企画・運営', title: '創立20周年の記念パーティーについて相談させてください', budget: '相談して決めたい', area: '東京都', detail: '来年で創立20周年になります。取引先を80名ほどお招きしての式を考えていて、会場とお食事の手配をどう進めればよいか、経験のある方にお話を伺いたいです。', offer: '企業イベントの企画・運営をしています。人数と開催時期を伺い、会場選びからご提案できます。', image: '/samples/catering-thumb.webp', imageLarge: '/samples/catering.webp', company: '株式会社サンプル工業', response: '紹介2件' },
-];
-
 export default function Welcome({ children, initialMessage }: { children: ReactNode; initialMessage: string }) {
   const campaignActive = campaignRunning();
-  const [mode, setMode] = useState<'find' | 'post'>('find');
-  const [selected, setSelected] = useState<number | null>(null);
-  const [offer, setOffer] = useState(false);
-  const [draft, setDraft] = useState(examples[0].title);
-  const [postSample, setPostSample] = useState<number | null>(0);
-  const [preview, setPreview] = useState(false);
   const [login, setLogin] = useState(!!initialMessage);
-  const item = selected === null ? null : examples[selected];
 
   useEffect(() => {
     if (initialMessage) document.getElementById('member-login')?.scrollIntoView({ block: 'start' });
@@ -149,8 +134,8 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
     </section>
     <section className="welcome-walkthrough" aria-labelledby="walkthrough-heading">
       <div className="welcome-section-heading"><p className="welcome-kicker"><span className="welcome-desktop-only">使い方が見える、操作ムービー。</span><span className="welcome-mobile-only">かんたん3ステップ</span></p><h2 id="walkthrough-heading"><span className="welcome-desktop-only">次の仕事は、<br />こんな操作から始まります。</span><span className="welcome-mobile-only">使い方を動画で見る</span></h2><p className="welcome-desktop-only">操作の流れを短いムービーで自動再生します。</p></div>
-      <article className="welcome-step"><div className="welcome-step-copy"><p className="welcome-step-number">STEP 01 <span>仕事を受けたい方へ</span></p><h3><span className="welcome-desktop-only">「うちならできる」案件に、<br />自分からアプローチ。</span><span className="welcome-mobile-only">案件を探して、<br />オファーする。</span></h3><p><span className="welcome-desktop-only">依頼内容・予算・エリアを見て、自社の得意が活きる仕事を探す。気になる案件から詳細を確認し、オファーへ進めます。</span><span className="welcome-mobile-only">気になる仕事を選ぶだけ。</span></p><ul className="welcome-desktop-only"><li><WelcomeIcon name="check" />具体的な依頼を見てから提案できる</li><li><WelcomeIcon name="check" />条件を確かめて、商談を始められる</li></ul><a href="#try" onClick={() => { setMode('find'); setSelected(null); setOffer(false); }}>操作を試す →</a></div><Recording name="find" label="案件を探してオファーの流れを見る" /></article>
-      <article className="welcome-step reverse"><div className="welcome-step-copy"><p className="welcome-step-number">STEP 02 <span>仕事を頼みたい方へ</span></p><h3><span className="welcome-desktop-only">任せたい仕事を投稿。<br />対応できる相手と、つながる。</span><span className="welcome-mobile-only">依頼を投稿して、<br />相談する。</span></h3><p><span className="welcome-desktop-only">「誰にお願いしよう」と思ったら、まず依頼を掲示板へ。会員からのオファーをきっかけに、条件や進め方を相談できます。</span><span className="welcome-mobile-only">内容を入力して待つだけ。</span></p><ul className="welcome-desktop-only"><li><WelcomeIcon name="check" />仕事内容をまとめて伝えられる</li><li><WelcomeIcon name="check" />メッセージで具体的な相談へ進める</li></ul><a href="#try" onClick={() => setMode('post')}>投稿を試す →</a></div><Recording name="post" label="依頼を入力して掲載イメージを見る" /></article>
+      <article className="welcome-step"><div className="welcome-step-copy"><p className="welcome-step-number">STEP 01 <span>仕事を受けたい方へ</span></p><h3><span className="welcome-desktop-only">「うちならできる」案件に、<br />自分からアプローチ。</span><span className="welcome-mobile-only">案件を探して、<br />オファーする。</span></h3><p><span className="welcome-desktop-only">依頼内容・予算・エリアを見て、自社の得意が活きる仕事を探す。気になる案件から詳細を確認し、オファーへ進めます。</span><span className="welcome-mobile-only">気になる仕事を選ぶだけ。</span></p><ul className="welcome-desktop-only"><li><WelcomeIcon name="check" />具体的な依頼を見てから提案できる</li><li><WelcomeIcon name="check" />条件を確かめて、商談を始められる</li></ul><a href="/register">登録して案件を探す →</a></div><Recording name="find" label="案件を探してオファーの流れを見る" /></article>
+      <article className="welcome-step reverse"><div className="welcome-step-copy"><p className="welcome-step-number">STEP 02 <span>仕事を頼みたい方へ</span></p><h3><span className="welcome-desktop-only">任せたい仕事を投稿。<br />対応できる相手と、つながる。</span><span className="welcome-mobile-only">依頼を投稿して、<br />相談する。</span></h3><p><span className="welcome-desktop-only">「誰にお願いしよう」と思ったら、まず依頼を掲示板へ。会員からのオファーをきっかけに、条件や進め方を相談できます。</span><span className="welcome-mobile-only">内容を入力して待つだけ。</span></p><ul className="welcome-desktop-only"><li><WelcomeIcon name="check" />仕事内容をまとめて伝えられる</li><li><WelcomeIcon name="check" />メッセージで具体的な相談へ進める</li></ul><a href="/register">登録して依頼を投稿する →</a></div><Recording name="post" label="依頼を入力して掲載イメージを見る" /></article>
       <p className="welcome-metric-note">録画は公開サンプルの操作です。架空の案件・金額を使用し、実際の投稿や送信は行っていません。</p>
     </section>
     <section className="welcome-features" aria-labelledby="features-heading"><div className="welcome-section-heading"><p className="welcome-kicker">FEATURES</p><h2 id="features-heading"><span className="welcome-desktop-only">仕事の出会いから相談まで。<br />TASUKIの主な機能</span><span className="welcome-mobile-only">TASUKIの主な機能</span></h2><p className="welcome-desktop-only">受注も発注も、日々のやり取りも。スマホで使える機能をひとつに。</p></div><div className="welcome-feature-grid">
@@ -163,31 +148,6 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         ['ads', '広告出稿', 'バナー広告や掲示板の上位枠に掲載し、自社のサービスを会員へ届ける。'],
       ] as [IconName, string, string][]).map(([icon, title, description]) => <article key={title}><div className="welcome-feature-art"><FeatureArt name={icon} /></div><div><h3>{title}</h3><p>{description}</p></div></article>)}
     </div><p className="welcome-feature-note">仕事を探すところから相談まで、スマホでひとつにつながります。</p></section>
-    <section className="welcome-hands-on"><div className="welcome-section-heading"><p className="welcome-kicker"><span className="welcome-desktop-only">登録前に、触ってみよう。</span><span className="welcome-mobile-only">操作体験</span></p><h2><span className="welcome-desktop-only">TASUKIの操作を、ここで体験。</span><span className="welcome-mobile-only">実際に触ってみる</span></h2><p className="welcome-desktop-only">案件をタップしたり、依頼文を入力したり。実際の流れを試せます。</p></div>
-      <section className="welcome-demo" id="try" aria-label="TASUKIの操作体験">
-        <div className="welcome-demo-top"><b><WelcomeIcon name="briefcase" />仕事の掲示板</b><span>サンプル体験</span></div>
-        <div className="welcome-tabs" aria-label="体験する機能">
-          <button aria-pressed={mode === 'find'} onClick={() => { setMode('find'); setSelected(null); setOffer(false); }}><WelcomeIcon name="search" />仕事を探す</button>
-          <button aria-pressed={mode === 'post'} onClick={() => setMode('post')}><WelcomeIcon name="send" />仕事を依頼する</button>
-        </div>
-        <div className="welcome-demo-body">
-          {mode === 'find' && !item && <>
-            <p className="welcome-demo-hint">気になる案件をタップしてみてください。</p>
-            {examples.map((entry, index) => <button className="welcome-job" key={entry.tag} onClick={() => { setSelected(index); setOffer(false); }}><span className="welcome-job-card"><span><span className="welcome-job-tag">{entry.kind} <em>サンプル</em><span>／ {entry.tag}</span></span><strong>{entry.title}</strong><span className="welcome-job-bottom"><b>{entry.budget}</b><span>{entry.area} <i aria-hidden="true">↗</i></span></span></span>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={entry.image} alt="" /></span><small className="welcome-job-meta">{entry.company}<span>{entry.response}</span></small></button>)}
-          </>}
-          {mode === 'find' && item && <div className="welcome-detail">
-            <button className="welcome-back" onClick={() => { setSelected(null); setOffer(false); }}>← 案件一覧に戻る</button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}<img className="welcome-detail-image" src={item.imageLarge} alt="" />
-            <span className="welcome-job-tag">{item.kind} <em>サンプル</em> ／ {item.tag}</span><h2>{item.title}</h2><p>{item.detail}</p>
-            <dl><div><dt>予算の目安</dt><dd>{item.budget}</dd></div><div><dt>エリア</dt><dd>{item.area}</dd></div></dl>
-            <p className="welcome-detail-author"><b>{item.company}</b><span>{item.response}</span></p>
-            {!offer ? <><button className="welcome-primary" onClick={() => setOffer(true)}>オファーの流れを見る →</button><p className="welcome-note">得意を伝えて、具体的な商談のきっかけに。</p></> : <div className="welcome-conversation"><b>こんなふうに、仕事の話を始められます</b><p>{item.offer}</p><small>やり取りの例です。実際には送信されません。</small><a className="welcome-primary" href="/register">登録して、自分の仕事を探す →</a></div>}
-          </div>}
-          {mode === 'post' && <div className="welcome-post"><p className="welcome-demo-hint">公開用のサンプル案件を選ぶか、自由に入力して掲載カードを作れます。</p><div className="welcome-post-presets"><span>サンプル案件から試す</span><div>{examples.map((entry, index) => <button className={postSample === index ? 'active' : ''} key={entry.tag} onClick={() => { setPostSample(index); setDraft(entry.title); setPreview(false); }}>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={entry.image} alt="" /><span>{entry.kind}<b>{entry.title}</b></span></button>)}</div></div><label htmlFor="demo-title">どんな仕事をお願いしたいですか？</label><textarea id="demo-title" rows={3} maxLength={100} value={draft} onChange={event => { setDraft(event.target.value); setPostSample(null); setPreview(false); }} /><div className="welcome-post-fields"><span><small>募集する相手</small><b>{postSample === null ? '相談相手' : examples[postSample].kind}</b></span><span><small>予算</small><b>{postSample === null ? '相談して決めたい' : examples[postSample].budget}</b></span><span><small>エリア</small><b>{postSample === null ? 'エリア応相談' : examples[postSample].area}</b></span></div><button className="welcome-primary" disabled={!draft.trim()} onClick={() => setPreview(true)}>掲載イメージを見る →</button>{preview && <div className="welcome-post-result" aria-live="polite">{postSample !== null && <>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={examples[postSample].imageLarge} alt="" /></>}<span className="welcome-job-tag">{postSample === null ? '相談相手' : examples[postSample].kind} <em>サンプル</em></span><h2>{draft}</h2><p>{postSample === null ? '相談して決めたい ／ エリア応相談' : `${examples[postSample].budget} ／ ${examples[postSample].area}`}</p><b>依頼内容を見た会員から、オファーが届くきっかけに。</b><a href="/register">登録して依頼を投稿する →</a></div>}<p className="welcome-note">体験用です。入力内容は保存・公開されません。</p></div>}
-        </div>
-        <p className="welcome-demo-disclaimer">公開用のサンプル案件による操作イメージです。実在する会員の投稿・情報は表示していません。</p>
-      </section>
-    </section>
     <section className="welcome-safety" id="safety" aria-labelledby="safety-heading"><div className="welcome-safety-inner">
       <div className="welcome-safety-copy"><p className="welcome-kicker">TASUKI ご利用ルール</p><h2 id="safety-heading">安心して仕事を話せる場を、<br />みんなで守るために。</h2><p>仕事の相談や商談を目的とした会員サービスです。次の行為は、TASUKI内で禁止しています。</p></div>
       <div className="welcome-prohibited"><h3>禁止事項</h3><ol>
