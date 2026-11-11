@@ -15,10 +15,10 @@ try{
  const worker=await mf.getWorker(),db=await mf.getD1Database('DB'),base=(await mf.ready).origin;
  const fetch=(path,options={})=>worker.fetch(base+path,{redirect:'manual',...options});
  const post=(path,body,cookie='')=>fetch(path,{method:'POST',headers:{origin:base,'content-type':'application/json',cookie},body:JSON.stringify(body)});
- // 初回登録の画面はGoogleだけにし、会社情報・規約・運営確認の案内を残す。
+ // 初回登録の画面はGoogleだけにし、会社情報・規約・本人認証後の利用開始案内を残す。
  const registration=await fetch('/register');assert.equal(registration.status,200);const registrationHtml=await registration.text();
  assert.match(registrationHtml,/Googleで登録/);assert.match(registrationHtml,/Googleアカウントで登録できます/);
- assert.match(registrationHtml,/会社名・屋号/);assert.match(registrationHtml,/利用規約/);assert.match(registrationHtml,/運営確認/);
+ assert.match(registrationHtml,/会社名・屋号/);assert.match(registrationHtml,/利用規約/);assert.match(registrationHtml,/本人認証が完了するとすぐに利用できます/);assert.doesNotMatch(registrationHtml,/運営確認/);
  assert.doesNotMatch(registrationHtml,/またはメールで|メールで登録|メールでも新規登録|one-time-code|type="email"/);
  const registrationError=await fetch('/register?login=failed');assert.match(await registrationError.text(),/認証できませんでした/);
  // 登録画面へ案内する入口でも、廃止したメール登録を勧めない。
