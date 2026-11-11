@@ -3,12 +3,12 @@ import {Response} from 'undici';
 import assert from 'node:assert/strict';
 import {readdirSync} from 'node:fs';
 import {resolve} from 'node:path';
-const root=resolve('.');let otp='';
+const root=resolve('.');let otp='',googleEmail='google@example.com';
 const mf=new Miniflare({modulesRoot:root+'/dist/server',modules:readdirSync(root+'/dist/server',{recursive:true}).filter(p=>/\.m?js$/.test(p)).sort((a,b)=>a==='index.js'?-1:b==='index.js'?1:0).map(p=>({type:'ESModule',path:root+'/dist/server/'+p})),compatibilityDate:'2026-05-22',compatibilityFlags:['nodejs_compat'],assets:{directory:root+'/dist/client',runWorkerFirst:true},d1Databases:{DB:'auth-integration'},r2Buckets:['AVATARS'],bindings:{AUTH_CODE_PEPPER:'test-pepper',RESEND_API_KEY:'test',AUTH_FROM_EMAIL:'test@example.com',GOOGLE_CLIENT_ID:'fake-client',GOOGLE_CLIENT_SECRET:'fake-secret'},outboundService:async request=>{
  const u=new URL(request.url);
  if(u.hostname==='api.resend.com'){const b=await request.json();otp=b.html.match(/>(\d{6})</)[1];return new Response('{}');}
- if(u.hostname==='oauth2.googleapis.com')return new Response(JSON.stringify({id_token:'x.'+Buffer.from(JSON.stringify({email:'google@example.com',email_verified:true,name:'Google User'})).toString('base64url')+'.x'}),{headers:{'content-type':'application/json'}});
- if(u.hostname==='openidconnect.googleapis.com')return new Response(JSON.stringify({email:'google@example.com',email_verified:true,name:'Google User'}),{headers:{'content-type':'application/json'}});
+ if(u.hostname==='oauth2.googleapis.com')return new Response(JSON.stringify({id_token:'x.'+Buffer.from(JSON.stringify({email:googleEmail,email_verified:true,name:'Google User'})).toString('base64url')+'.x'}),{headers:{'content-type':'application/json'}});
+ if(u.hostname==='openidconnect.googleapis.com')return new Response(JSON.stringify({email:googleEmail,email_verified:true,name:'Google User'}),{headers:{'content-type':'application/json'}});
  return new Response('Denied',{status:403});
 }});
 try {
@@ -43,6 +43,18 @@ try {
  const directPage=await fetch('/register');assert.equal(directPage.status,200);assert.match(await directPage.text(),/Googleで登録/);
  const directPost=(body)=>fetch('/api/register',{method:'POST',headers:{origin:base,'content-type':'application/json'},body:JSON.stringify(body)});
  const requested=await directPost({action:'request',consent:true,email:'lp@example.com',profile});assert.equal(requested.status,200,await requested.text());const done=await directPost({action:'verify',consent:true,email:'lp@example.com',code:otp});assert.equal(done.status,200,await done.text());
- const pending=await fetch('/register/complete',{headers:{cookie:done.headers.get('set-cookie').split(';')[0]}});assert.equal(pending.status,200);const pendingHtml=await pending.text();assert.match(pendingHtml,/アカウント登録を受け付けました/);assert.match(pendingHtml,/現在、運営確認待ちです/);
+ const completed=await fetch('/register/complete',{headers:{cookie:done.headers.get('set-cookie').split(';')[0]}});assert.equal(completed.status,307);assert.equal(new URL(completed.headers.get('location'),base).href,base+'/');
+ assert.equal((await db.prepare("SELECT membership_status FROM members WHERE email='lp@example.com'").first()).membership_status,'active');
+ // Google direct signup also lands in the app after verified profile registration.
+ googleEmail='direct-google@example.com';
+ const directDraft=await directPost({action:'draft',consent:true,profile});assert.equal(directDraft.status,200);const directId=(await directDraft.json()).draft;
+ const gs=await fetch('/api/auth/google/start?signup=1&draft='+directId);const gc=gs.headers.getSetCookie().map(s=>s.split(';')[0]).join('; '),state2=new URL(gs.headers.get('location')).searchParams.get('state');
+ const finished=await fetch('/api/auth/google/callback?state='+state2+'&code=fake',{headers:{cookie:gc}});assert.equal(finished.status,307);assert.equal(finished.headers.get('location'),base+'/register/complete');
+ const finalCookie=finished.headers.getSetCookie().find(s=>s.startsWith('member_session=')).split(';')[0];
+ const completePage=await fetch('/register/complete',{headers:{cookie:finalCookie}});assert.equal(completePage.status,307);assert.equal(new URL(completePage.headers.get('location'),base).href,base+'/');
+ assert.equal((await db.prepare("SELECT membership_status FROM members WHERE email='direct-google@example.com'").first()).membership_status,'active');
+ // Waiting existing accounts are not upgraded by a new signup attempt.
+ await db.prepare("UPDATE members SET membership_status='invited' WHERE email='direct-google@example.com'").run();
+ const waitingPage=await fetch('/register/complete',{headers:{cookie:finalCookie}});assert.equal(waitingPage.status,200);assert.match(await waitingPage.text(),/現在、運営確認待ちです/);
  console.log('Passed full application: signup UI, email session cookie, authenticated survey, receipt separation, Google registration and exact return destination.');
 }finally{await mf.dispose();}

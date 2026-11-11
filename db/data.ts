@@ -826,11 +826,7 @@ export async function ensureDatabase() {
   await env.DB.prepare(`UPDATE members SET bonus_plan = plan, bonus_period_end = plan_period_end,
       plan = 'free', plan_period_end = '', plan_source = ''
     WHERE plan_source = 'referral'`).run();
-  // 登録した人はその場で使えるようにしたので、承認待ちで止まっていた人を通す。
-  // 以後 'invited' は作られない。利用を止めるときは 'suspended' を使うこと。
-  await env.DB.prepare(`UPDATE members SET membership_status = 'active',
-      activated_at = CASE WHEN activated_at = '' THEN created_at ELSE activated_at END
-    WHERE membership_status = 'invited'`).run();
+  // 登録経路ごとの利用開始判定を維持する。既存の確認待ち会員は一括変更しない。
   await env.DB.prepare("UPDATE members SET plan = 'premium' WHERE plan = 'pro'").run();
   // 広告が無料のあいだは券を使えないので、**キャンペーン中に切れる券を延ばす。**
   // すでに配った券は当たった日から90日で書き込んであり、このままだと
@@ -4074,8 +4070,8 @@ export async function registerEarlyAccessMember(rawEmail: string, displayName: s
   return result.meta.changes > 0 ? { email } : null;
 }
 
-/** LPからの直接登録。招待コードも人数上限も使わず、承認待ちで作る。 */
-export async function registerDirectMember(rawEmail: string, displayName: string) {
+/** 本人認証後の登録。通常登録だけ即時利用にし、例会の参加確認は維持する。 */
+export async function registerDirectMember(rawEmail: string, displayName: string, activate = false) {
   await ensureDatabase();
   const email = normalizeAuthEmail(rawEmail);
   if (!email) return null;
@@ -4083,9 +4079,9 @@ export async function registerDirectMember(rawEmail: string, displayName: string
   const now = new Date().toISOString();
   const result = await env.DB.prepare(`INSERT INTO members
     (id, email, display_name, membership_status, membership_source, activated_at, created_at)
-    SELECT ?, ?, ?, 'invited', 'lp_signup', '', ?
+    SELECT ?, ?, ?, ?, 'lp_signup', ?, ?
     WHERE NOT EXISTS (SELECT 1 FROM members WHERE email = ?)`)
-    .bind(`signup-${crypto.randomUUID()}`, email, displayName.trim() || email.split('@')[0], now, email)
+    .bind(`signup-${crypto.randomUUID()}`, email, displayName.trim() || email.split('@')[0], activate ? 'active' : 'invited', activate ? now : '', now, email)
     .run();
   return result.meta.changes > 0 ? { email } : null;
 }

@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE } from '@/app/app-auth';
 import { GOOGLE_PROFILE_COOKIE, GOOGLE_MEETING_COOKIE, GOOGLE_INVITE_COOKIE, GOOGLE_RETURN_COOKIE, GOOGLE_SIGNUP_COOKIE, GOOGLE_STATE_COOKIE, exchangeGoogleCode, googleRedirectUri, safeReturnPath } from '@/app/google-auth';
-import { registerDirectMember, registerEarlyAccessMember, registerInvitedMember, startMemberSessionByEmail } from '@/db/data';
+import { registerEarlyAccessMember, registerInvitedMember, startMemberSessionByEmail } from '@/db/data';
 import { memberLoginPath } from '@/app/auth-return';
 
 export async function GET(request: Request) {
@@ -78,10 +78,9 @@ export async function GET(request: Request) {
         }
       }
     }
-    // LPからは招待コードなしで登録できる。承認前にセッションは発行しない。
+    // 旧LPの入口も会社情報と規約同意のある登録画面へ揃える。
     if (directSignup) {
-      const registered = await registerDirectMember(account.email, account.name);
-      return redirectHome(request, registered ? 'pending' : 'failed', back);
+      return redirectHome(request, undefined, '/register');
     }
     // 先行テストの枠（先着50名）。空いていれば、そのまま会員として入れる。
     // 埋まったらこの経路は閉じ、招待リンク経由だけになる。

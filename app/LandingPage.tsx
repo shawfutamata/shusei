@@ -70,9 +70,9 @@ export default function LandingPage({ error = '', pending = false }: { error?: s
     <section className={styles.lavenderBand} aria-labelledby="give-title"><p className={styles.eyebrow}>GOOD CONNECTIONS. GREAT BUSINESS.</p><h2 id="give-title">あなたの「知っている」が、<br/>誰かの力になる。</h2><p>紹介は、商売をつなぐ最初の一歩。<br/>いつものつながりを、毎日の商売の力に。</p><a href="#start">仲間と一緒に始める <span aria-hidden="true">→</span></a></section>
     <section className={styles.how} id="how" aria-labelledby="how-title">
       <div className={styles.sectionTop}><span>02 / HOW TO JOIN</span><span>Googleアカウントで登録。</span></div>
-      <div className={styles.howGrid}><div className={styles.howArt}><p className={styles.smallLabel}>YOUR NEXT CONNECTION</p><h3>アカウント登録が、<br/>新しい商売の入口に。</h3><div className={styles.joinDiagram}><div><span>01</span><b>無料登録</b><small>招待コードは不要</small></div><span aria-hidden="true">↓</span><div><span>02</span><b>運営確認</b><small>登録内容を確認</small></div><span aria-hidden="true">↓</span><div><span>03</span><b>TASUKIを利用</b><small>案件を見る・仕事を依頼する</small></div></div></div><div className={styles.steps}><h2 id="how-title">つながる準備は、<br/>この3ステップ。</h2><ol>{[
+      <div className={styles.howGrid}><div className={styles.howArt}><p className={styles.smallLabel}>YOUR NEXT CONNECTION</p><h3>アカウント登録が、<br/>新しい商売の入口に。</h3><div className={styles.joinDiagram}><div><span>01</span><b>無料登録</b><small>招待コードは不要</small></div><span aria-hidden="true">↓</span><div><span>02</span><b>本人認証</b><small>Googleアカウントで確認</small></div><span aria-hidden="true">↓</span><div><span>03</span><b>TASUKIを利用</b><small>案件を見る・仕事を依頼する</small></div></div></div><div className={styles.steps}><h2 id="how-title">つながる準備は、<br/>この3ステップ。</h2><ol>{[
         ['Googleで登録する', '招待コードは不要です。ご自身のGoogleアカウントで登録します。'],
-        ['運営確認を待つ', '安心して利用できる環境を保つため、運営が登録内容を確認します。'],
+        ['本人認証をする', 'Googleアカウントで本人認証が完了すると、すぐに利用できます。'],
         ['さっそく、つながる', '確認完了後、案件を見たり、仕事を依頼したりできます。'],
       ].map(([title, body], i) => <li key={title}><span>0{i + 1}</span><div><h3>{title}</h3><p>{body}</p></div></li>)}</ol><a href="#start" className={styles.primary}>無料でアカウント登録 <span aria-hidden="true">↗</span></a></div></div>
     </section>
@@ -91,10 +91,10 @@ export default function LandingPage({ error = '', pending = false }: { error?: s
       <h2 id="faq-title">はじめる前に、知っておきたいこと。</h2>
       <details><summary>TASUKIはどんなサービスですか？</summary><p>経営者・事業者向けの招待制ビジネスマッチングサービスです。案件の投稿や会員検索、知り合いの紹介を通じて、新しい商売や協業のきっかけをつなぎます。</p></details>
       <details><summary>無料で利用できますか？</summary><p>{campaignUntilLabel()}までのキャンペーン期間中は、全機能と広告掲載料が無料です。お支払い手続きは不要で、終了後に自動課金されることもありません。通常のプランは<a href="#plans">料金プラン</a>をご覧ください。</p></details>
-      <details><summary>登録に必要なものは何ですか？</summary><p>Googleアカウントが必要です。招待コードは必要ありません。登録後、運営確認が完了すると利用できます。</p></details>
+      <details><summary>登録に必要なものは何ですか？</summary><p>Googleアカウントが必要です。招待コードは必要ありません。新規登録は、本人認証が完了するとすぐに利用できます。</p></details>
       <details><summary>登録後、すぐに利用できますか？</summary><p>安心して利用できる環境を保つため、登録後に運営が確認します。確認についてご不明な点は<a href="/support">運営窓口</a>へお問い合わせください。</p></details>
     </section>
-    <section className={styles.start} id="start" aria-labelledby="start-title"><div className={styles.startInner}><div className={styles.startCopy}><p className={styles.eyebrow}>LET’S CONNECT</p><h2 id="start-title">次のご縁は、<br/>あなたの<br/>つながりから。</h2><p>招待コードなしでアカウント登録。<br/>TASUKIで最初の一歩を。</p></div><div className={styles.startCard}><p className={styles.smallLabel}>FREE ACCOUNT</p><h3>TASUKIを始める</h3><a className={styles.primary} href="/register">Google・メールで無料登録 <span aria-hidden="true">↗</span></a><p className={styles.memberLogin}>登録後、運営確認が完了するとご利用いただけます。</p><a className={styles.memberLogin} href="/api/auth/google/start">登録済みの方：Googleでログイン ↗</a></div></div></section>
+    <section className={styles.start} id="start" aria-labelledby="start-title"><div className={styles.startInner}><div className={styles.startCopy}><p className={styles.eyebrow}>LET’S CONNECT</p><h2 id="start-title">次のご縁は、<br/>あなたの<br/>つながりから。</h2><p>招待コードなしでアカウント登録。<br/>TASUKIで最初の一歩を。</p></div><div className={styles.startCard}><p className={styles.smallLabel}>FREE ACCOUNT</p><h3>TASUKIを始める</h3><a className={styles.primary} href="/register">Google・メールで無料登録 <span aria-hidden="true">↗</span></a><p className={styles.memberLogin}>新規登録は、本人認証後すぐにご利用いただけます。</p><a className={styles.memberLogin} href="/api/auth/google/start">登録済みの方：Googleでログイン ↗</a></div></div></section>
     <footer className={styles.footer}><a className={styles.brand} href="#top"><BrandMark/><b>{serviceName}</b></a><p>人から人へ。商売のたすきをつなぐ。</p><nav aria-label="規約とお問い合わせ"><a href="/terms">利用規約</a><a href="/privacy">プライバシーポリシー</a><a href="/refund">返金・キャンセル</a><a href="/tokushoho">特定商取引法に基づく表記</a><a href="/support">お問い合わせ</a></nav><small>運営：株式会社ColourJam</small></footer>
   </main>;
 }

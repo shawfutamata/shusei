@@ -44,7 +44,7 @@ export async function startMeetingAccount(rawEmail:string,name='',eventId='',dra
  if(draft?.rosterId&&eventId!=='direct'){await ensureMeetings();const owner=await env.DB.prepare('SELECT m.email FROM meeting_member_links l JOIN members m ON m.id=l.member_id WHERE l.event_id=? AND l.roster_id=?').bind(eventId,draft.rosterId).first<{email:string}>();if(owner&&owner.email!==email)throw new Error('この方は登録済みです。登録したアカウントでお進みください。');}
  if(directProfile?.invite&&!await findInviterByCode(directProfile.invite))throw new Error('紹介リンクを確認してください。');
  const invited=directProfile?.invite?await registerInvitedMember(email,name,directProfile.invite):null;
- const registered=invited&&!invited.alreadyMember?invited:await registerDirectMember(email,name);
+ const registered=invited&&!invited.alreadyMember?invited:await registerDirectMember(email,name,eventId==='direct'&&Boolean(draft));
  if(registered&&eventId&&eventId!=='direct')await env.DB.prepare("UPDATE members SET membership_source='meeting_signup' WHERE email=? AND membership_source='lp_signup'").bind(email).run();
  const member=await env.DB.prepare('SELECT id,membership_status AS status FROM members WHERE email=?').bind(email).first<{id:string;status:string}>();
  if(!member)throw new Error('登録できませんでした。もう一度お試しください。');
