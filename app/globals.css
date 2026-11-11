@@ -32,6 +32,7 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 /* Home dashboard: carousel, history, favorites and industry discovery. */
 .home-dashboard { padding:12px 0 28px; }
 .hero-carousel { margin:0 14px; position:relative; }
+.hero-swipe-area { touch-action:pan-y pinch-zoom; }
 /* バナーに重ねるオファーの入口。バナー自体は広告主のページへ飛ぶので、
    そこと取り違えないよう隅に小さく置く。 */
 /* 右上に置く。左上はPRの札、下は広告の見出しと説明が入るので、空いているのは

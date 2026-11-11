@@ -36,6 +36,7 @@ import AdAnalytics, { formatRange } from './AdAnalytics';
 import type { AdDay } from '@/db/data';
 
 import AdBanner from './AdBanner';
+import useBannerSwipe from './useBannerSwipe';
 
 const categories = {
   project: { label: '発注先', className: 'project' },
@@ -1803,15 +1804,21 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     ];
   }, [bannerAds, myIndustryGroups, mounted]);
   const slide = slides[Math.min(carouselIndex, slides.length - 1)];
+  const bannerSwipe = useBannerSwipe((direction) => {
+    if (slides.length < 2) return;
+    // ドットで選んだときと同じく、自分で選んだバナーは読み終わるまで止めておく。
+    setCarouselPaused(true);
+    setCarouselIndex((index) => (Math.min(index, slides.length - 1) + direction + slides.length) % slides.length);
+  });
 
   // 広告は自分から送らないと見てもらえないので、一定の間隔で次へ送る。
   // 枚数は広告の数で変わるため、必ず slides.length で折り返すこと（固定の数にしない）。
   // ホームを見ているあいだだけ動かす。自分で送った人は、そこで止める。
   useEffect(() => {
-    if (activeTab !== 'home' || slides.length < 2 || carouselPaused) return;
+    if (activeTab !== 'home' || slides.length < 2 || carouselPaused || bannerSwipe.interacting) return;
     const timer = window.setInterval(() => setCarouselIndex((index) => (index + 1) % slides.length), AD_ROTATE_MS);
     return () => window.clearInterval(timer);
-  }, [activeTab, slides.length, carouselPaused]);
+  }, [activeTab, slides.length, carouselPaused, bannerSwipe.interacting]);
 
   // 見られた数は、同じ広告につき1日1回だけ数える。掲示板を開くたびに書くと
   // D1の書き込み回数が読めなくなるので、間引きはここ（端末側）で済ませる。
@@ -2019,9 +2026,11 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </button>}
 
         <section className="hero-carousel" aria-label={`${serviceName}の使い方`}>
+          <div className="hero-swipe-area" {...bannerSwipe.handlers}>
           <button key={carouselIndex} className={`hero-image-slide${slide?.ad ? ' is-ad' : ''}${slide?.sample ? ' is-sample' : ''}`} onClick={openCurrentBanner} aria-label={`${slide?.alt ?? ''}を開く`}>{slide?.sample && <span className="sample-flag">サンプル</span>}{slide?.ad
             ? <AdBanner ad={{ title: slide.ad.title, description: slide.ad.description, imageUrl: slide.ad.imageUrl, by: slide.ad.memberCompany || slide.ad.memberName }} />
             : <img src={slide?.src} alt={slide?.alt ?? ''} />}</button>
+          </div>
           <div className="carousel-dots" aria-label="バナーを切り替える">{slides.map((entry, index) => <button key={index} aria-label={`${index + 1}枚目${entry.ad ? '（広告）' : ''}`} className={`${carouselIndex === index ? 'active' : ''}${entry.ad ? ' is-ad' : ''}`} onClick={() => { setCarouselPaused(true); setCarouselIndex(index); }} />)}</div>
         </section>
 
