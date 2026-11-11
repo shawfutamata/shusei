@@ -17,7 +17,7 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic';
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ login?: string; ad?: string; tab?: string; contact?:string; member?:string; action?:string; meeting?:string }> }) {
+export default async function Home({ searchParams }: { searchParams: Promise<{ login?: string; ad?: string; tab?: string; welcome?: string; contact?:string; member?:string; action?:string; meeting?:string }> }) {
   // admin.tasuki.club は同じWorkerが受ける。管理画面の入口として使うので、
   // その名前で来た人は掲示板ではなく /admin へ送る。
   // **入れるかどうかは /admin 側でメールを見て決める。** ここは道案内だけ。
@@ -39,9 +39,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ l
   const { requests, stats, ads } = await getBoardData(access.user);
   await recordProductEvent(access.user.userId, 'tasuki_opened').catch(() => console.error('Product visit could not be recorded'));
   // 出稿枠の決済から戻ってきたかどうか。開く画面をサーバー側で決めておく。
-  const { ad, tab, contact, member, action } = await searchParams;
+  const { ad, tab, contact, member, action, welcome } = await searchParams;
   const adReturn = ad === 'done' || ad === 'cancel' ? ad : '';
-  const initialTab = tab === 'survey' ? 'survey' : contact||member||action==='post' ? 'home' : undefined;
+  const initialTab = welcome === 'registered' && !stats.company.trim() ? 'profile' : tab === 'survey' ? 'survey' : contact||member||action==='post' ? 'home' : undefined;
   const target=contact||member||'';
   const validTarget=target.length<=160&&/^[a-zA-Z0-9_-]+$/.test(target);
   const initialMemberId=!contact&&validTarget?member||'':'';

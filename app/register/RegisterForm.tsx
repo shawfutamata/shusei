@@ -1,8 +1,50 @@
- 'use client';
-import {useState} from 'react';
-import {GoogleMark} from '@/app/login/LoginForm';
-export default function RegisterForm({invite,initialMessage=""}:{invite:string;initialMessage?:string}){
- const [profile,setProfile]=useState({name:'',company:'',industry:'',services:'',area:''}),[consent,setConsent]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(initialMessage);
- async function go(){if(busy)return;setBusy(true);setError('');try{const r=await fetch('/api/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'draft',profile,consent,invite})}),d=await r.json() as {draft?:string;error?:string};if(!r.ok)throw new Error(d.error||'登録できませんでした。');window.location.href=`/api/auth/google/start?signup=1&draft=${encodeURIComponent(d.draft||'')}`;}catch(e){setError(e instanceof Error?e.message:'通信できませんでした。');}finally{setBusy(false);}}
- return <main className="meeting-page meeting-survey meeting-signup tasuki-signup"><header className="meeting-hiru-brand"><strong>TASUKI</strong><small>仕事でつながる会員サービス</small></header><h1>あなたの得意を、<br/>次の仕事へ。</h1><section className="meeting-signup-form"><h2>無料アカウントを作成</h2><p className="meeting-auth-legal">招待コードは必要ありません。Googleアカウントで登録できます。</p><p className="meeting-auth-legal">① 会社情報を入力 → ② 本人認証 → ③ 利用開始<br />新規登録は、本人認証が完了するとすぐに利用できます。</p><fieldset disabled={busy} className="meeting-registration-profile">{([['name','お名前'],['company','会社名・屋号'],['industry','業種']] as const).map(([key,label])=><label key={key}>{label}<input value={profile[key]} maxLength={120} onChange={e=>setProfile({...profile,[key]:e.target.value})}/></label>)}<label>できる仕事・事業内容<textarea rows={2} maxLength={500} value={profile.services} placeholder="例：チラシのデザイン・印刷" onChange={e=>setProfile({...profile,services:e.target.value})}/></label><label className="meeting-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span><a href="/terms" target="_blank">利用規約</a>・<a href="/privacy" target="_blank">プライバシーポリシー</a>に同意して登録します。</span></label></fieldset>{error&&<p role="alert" className="meeting-auth-error">{error}</p>}<button className="meeting-google" disabled={!consent||busy} onClick={()=>void go()}><GoogleMark/>{busy?'確認中…':'Googleで登録'}</button><p className="meeting-auth-legal">登録後のログインには、登録に使用したGoogleアカウントをご利用ください。<a href="/login/member">ログインはこちら</a></p></section></main>;
+'use client';
+
+import { useRef, useState } from 'react';
+import { GoogleMark } from '@/app/login/LoginForm';
+import { serviceName } from '@/app/brand';
+
+export default function RegisterForm({ invite, initialMessage = '' }: { invite: string; initialMessage?: string }) {
+  const [consent, setConsent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(initialMessage);
+  const submitting = useRef(false);
+
+  async function go() {
+    if (submitting.current || !consent) return;
+    submitting.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const response = await fetch('/api/register', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'draft', consent, invite }),
+      });
+      const result = await response.json() as { draft?: string; error?: string };
+      if (!response.ok || !result.draft) throw new Error(result.error || '登録できませんでした。');
+      window.location.assign(`/api/auth/google/start?signup=1&draft=${encodeURIComponent(result.draft)}`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '通信できませんでした。');
+    } finally {
+      submitting.current = false;
+      setBusy(false);
+    }
+  }
+
+  return <main className="meeting-page meeting-survey meeting-signup tasuki-signup">
+    <header className="meeting-hiru-brand"><strong>{serviceName}</strong><small>仕事でつながる会員サービス</small></header>
+    <h1>あなたの得意を、<br />次の仕事へ。</h1>
+    <section className="meeting-signup-form">
+      <h2>新規会員登録</h2>
+      <p className="meeting-auth-legal">Googleアカウントで登録できます。招待コードは必要ありません。</p>
+      <p className="meeting-auth-legal">① Googleで本人認証 → ② プロフィールを入力 → ③ 利用開始<br />お名前・会社名・業種などは、登録後の{serviceName}内で一度だけ入力します。</p>
+      <fieldset disabled={busy} className="meeting-registration-profile">
+        <label className="meeting-consent"><input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} /><span><a href="/terms" target="_blank" rel="noreferrer">利用規約</a>・<a href="/privacy" target="_blank" rel="noreferrer">プライバシーポリシー</a>に同意して登録します。</span></label>
+      </fieldset>
+      {error && <p role="alert" className="meeting-auth-error">{error}</p>}
+      <button type="button" className="meeting-google" disabled={!consent || busy} onClick={() => void go()}><GoogleMark />{busy ? '確認中…' : 'Googleで登録'}</button>
+      <p className="meeting-auth-legal">登録済みの方は、同じGoogleアカウントでお進みください。<br /><a href="/login/member">ログインはこちら</a></p>
+      <a href="/login">サービス紹介へ戻る</a>
+    </section>
+  </main>;
 }

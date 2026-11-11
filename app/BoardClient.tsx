@@ -407,6 +407,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [memberLoading, setMemberLoading] = useState(!!initialMemberId);
   /** 初めて来た人への案内。出したかどうかは端末側に持つ（app/Tutorial.tsx）。 */
   const [tutorial, setTutorial] = useState(false);
+  const [registrationProfilePending, setRegistrationProfilePending] = useState(initialTab === 'profile' && !initialStats.company.trim());
   const [homeScreenGuide, setHomeScreenGuide] = useState(false);
   /** 投稿したあと、そのまま広告の申し込みへ進むか。新規の投稿のときだけ聞く。 */
   const [postAsAd, setPostAsAd] = useState(false);
@@ -584,7 +585,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       page.tasukiEntryPromptHandled = true;
       const kind = entryPrompt(window.location.href, document.referrer, entry?.type ?? 'navigate', entry?.name ?? window.location.href);
       if (kind) {
-        setModal(current => current ?? (kind === 'registered' ? 'welcomePost' : 'welcomeConsult'));
+        // 入口の重複フォームをなくしたぶん、初回の会社情報はここで一度だけ入力する。
+        if (kind === 'registered' && !initialStats.company.trim()) {
+          setRegistrationProfilePending(true);
+          setActiveTab('profile');
+          return; // 再読み込みでも入力画面に戻れるよう、完了するまで welcome を残す。
+        } else setModal(current => current ?? (kind === 'registered' ? 'welcomePost' : 'welcomeConsult'));
         const url = new URL(window.location.href);
         url.searchParams.delete('welcome');
         if (['invited', 'early'].includes(url.searchParams.get('login') ?? '')) url.searchParams.delete('login');
@@ -592,7 +598,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [initialStats.company]);
 
   useEffect(() => {
     const result = new URLSearchParams(window.location.search).get('billing');
@@ -1015,6 +1021,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     setStats((current) => ({ ...current, displayName: profileName.trim(), nameKana: profileNameKana.trim(), company: profileCompany, companyKana: profileCompanyKana.trim(), venue: stats.venue, positionTitle: profilePosition, businessArea: profileArea, primaryIndustry: profileIndustries[0] ?? '', industries: profileIndustries, notifyIndustries: profileNotifyIndustries, annualRevenueBand: profileRevenue, facebookUrl: profileFacebook, companyPr: profileCompanyPr.trim(), avatarUrl }));
     setProfilePhoto(null); setPhotoPreview(avatarUrl);
     await refreshBoard(); showToast('プロフィールを保存しました。');
+    if (registrationProfilePending) {
+      setRegistrationProfilePending(false);
+      const url = new URL(window.location.href);
+      url.searchParams.delete('welcome');
+      window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+      setActiveTab('home');
+      setModal('welcomePost');
+    }
 
   }
 
@@ -2579,7 +2593,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section> : <section className="profile-page" aria-labelledby="profile-settings-title">
         {/* プロフィール設定。入口は右上の顔写真と、マイページの「プロフィールを編集する」。 */}
-        <header className="profile-page-heading"><p>PROFILE</p><h1 id="profile-settings-title">プロフィール設定</h1><span>ここで登録した内容が、案件やオファーのときに相手に見えます。</span></header>
+        <header className="profile-page-heading"><p>PROFILE</p><h1 id="profile-settings-title">プロフィール設定</h1>{registrationProfilePending && <p>会員登録ができました。会社名や業種を入力して、プロフィールを完成させましょう。</p>}<span>ここで登録した内容が、案件やオファーのときに相手に見えます。</span></header>
         <div className="profile-form profile-page-form">
           <label className="photo-upload"><input type="file" accept="image/*" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>任意</em></b><small>写真なしでも利用できます<br />あとから登録・変更できます</small></span><i>{photoChecking ? '読み込んでいます…' : stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
           <label>お名前 <small className="req">必須</small><input value={profileName} onChange={(event) => setProfileName(event.target.value)} maxLength={40} placeholder="鈴木 襷" required /></label>

@@ -62,7 +62,7 @@ export async function startMeetingAccount(rawEmail:string,name='',eventId='',dra
   if(!draft){await env.DB.prepare('DELETE FROM mobile_sessions WHERE token_hash=?').bind(await hash(token)).run();throw new Error('会社情報の確認期限が切れています。');}
   try{if(eventId==='direct'){
     // Existing members keep their established profiles and membership status.
-    if(registered)await env.DB.prepare('UPDATE members SET display_name=?,company=?,primary_industry=?,company_pr=?,business_area=?,venue=? WHERE id=?').bind(directProfile.name,directProfile.company,directProfile.industry,directProfile.services,directProfile.area,directProfile.venue||'',member.id).run();
+    if(registered&&!directProfile.profileDeferred)await env.DB.prepare('UPDATE members SET display_name=?,company=?,primary_industry=?,company_pr=?,business_area=?,venue=? WHERE id=?').bind(directProfile.name,directProfile.company,directProfile.industry,directProfile.services,directProfile.area,directProfile.venue||'',member.id).run();
    }else await saveMeetingProfile(eventId,member.id,{rosterId:draft.rosterId,walkIn:draft.walkIn===1,profile:JSON.parse(draft.profile)},true);}
   catch(error){await env.DB.prepare('DELETE FROM mobile_sessions WHERE token_hash=?').bind(await hash(token)).run();throw error;}
  }
@@ -100,6 +100,20 @@ async function checkedProfile(eventId:string,input:Record<string,unknown>) {
  if(invite&&!await findInviterByCode(invite))throw new Error('紹介リンクが無効です。');
  if(profile.services.length<2)throw new Error('事業内容を入力してください。');
  return {event,rosterId,walkIn:!base,profile:{...profile,table:'',...(eventId==='direct'?{invite,venue:typeof input.venue==='string'?input.venue.trim().slice(0,120):''}:{})}};
+}
+/** LPでは同じ会社情報を二度入力させず、認証後のプロフィール設定にまとめる。 */
+export async function createDirectSignupDraft(input:Record<string,unknown>) {
+ if(input.consent!==true)throw new Error('規約への同意をご確認ください。');
+ await schema();
+ const invite=typeof input.invite==='string'?input.invite.trim().toUpperCase().slice(0,16):'';
+ if(invite&&!await findInviterByCode(invite))throw new Error('紹介リンクが無効です。');
+ const id=crypto.randomUUID();
+ // 同意と紹介コードだけを短期間預かる。会員作成は従来どおり本人認証後に限る。
+ await env.DB.batch([
+  env.DB.prepare('DELETE FROM meeting_signup_drafts WHERE expires_at<?').bind(new Date().toISOString()),
+  env.DB.prepare('INSERT INTO meeting_signup_drafts VALUES(?,?,?,?,?,?)').bind(id,'direct','',JSON.stringify({profileDeferred:true,invite}),1,new Date(Date.now()+1200000).toISOString()),
+ ]);
+ return id;
 }
 export async function createSignupDraft(eventId:string,input:Record<string,unknown>) {
  await schema();const data=await checkedProfile(eventId,input),id=crypto.randomUUID();

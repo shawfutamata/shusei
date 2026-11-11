@@ -12,7 +12,7 @@ const campaignUntil = campaignUntilLabel();
 const faqItems = [
   { question: 'TASUKIはどんなサービスですか？', answer: '経営者・事業者が、仕事を探す、依頼を投稿する、会員を探す、オファーや紹介を送る、メッセージで相談するといった商談のきっかけをつくれるビジネスマッチングサービスです。' },
   { question: 'アカウント登録に招待コードは必要ですか？', answer: 'このLPから登録する場合、招待コードは必要ありません。Googleアカウントで本人認証を済ませると、すぐに利用を開始できます。' },
-  { question: '登録後、すぐに利用できますか？', answer: '新規登録は、会社情報の入力と本人認証が完了すると、掲示板や会員検索などの機能をすぐに利用できます。' },
+  { question: '登録後、すぐに利用できますか？', answer: 'Googleで本人認証を済ませると利用できます。会社名や業種などは、登録後のプロフィール設定で一度だけ入力します。' },
   { question: '全機能無料キャンペーンでは何が使えますか？', answer: `${campaignUntil}までは、通常のスタンダードプランで提供するオファーの送受信、新規メッセージ無制限、案件投稿、会員検索などの全機能と広告掲載を無料で利用できます。` },
   { question: 'キャンペーン終了後、自動で課金されますか？', answer: '自動で有料プランに切り替わることはありません。キャンペーン終了後も無料プランを利用でき、スタンダードを希望する場合だけご自身で申し込みます。' },
   { question: '無料プランでは何ができますか？', answer: '掲示板の閲覧、会員検索、リファラル、案件投稿、メッセージの返信などを利用できます。はじめての相手への新規メッセージは月3人までです。オファーの送受信はスタンダードで利用できます。' },
@@ -100,7 +100,7 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
   }, [initialMessage]);
 
   return <main className="welcome">
-    <header className="welcome-nav"><a href="/login" className="welcome-brand"><BrandMark /><span>TASUKI</span></a><a className="welcome-login-link" href="/login/member"><span className="welcome-desktop-only">会員ログイン <span aria-hidden="true">↗</span></span><span className="welcome-mobile-only">ログイン</span></a></header>
+    <header className="welcome-nav"><a href="/login" className="welcome-brand"><BrandMark /><span>TASUKI</span></a><nav className="welcome-account-nav" aria-label="会員登録とログイン"><a className="welcome-signup-link" href="/register">新規会員登録</a><a className="welcome-login-link" href="/login/member">ログイン</a></nav></header>
     <div className="welcome-hero"><div className="welcome-intro">
       <section className="welcome-copy">
         <p className="welcome-kicker"><WelcomeIcon name="briefcase" /><span className="welcome-desktop-only">経営者・事業者のビジネスマッチング</span><span className="welcome-mobile-only">仕事でつながる会員サービス</span></p>
@@ -108,7 +108,7 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         <p className="welcome-lead"><span className="welcome-desktop-only">あなたの「できます」と、<br />誰かの「お願いしたい」が出会う場所。</span><span className="welcome-mobile-only">パソコン操作が苦手でも、<br />スマホだけで使えます。</span></p>
         <div className="welcome-easy"><WelcomeIcon name="check" /><span><strong>パソコンやネットの操作が苦手でも大丈夫。</strong><small>見やすい文字とボタンで、順番に進めるだけです。</small></span></div>
         <div className="welcome-hero-points"><span><WelcomeIcon name="check" />スマホだけで使える</span><span><WelcomeIcon name="check" />かんたん操作</span><span><WelcomeIcon name="chat" />困ったときは相談できる</span></div>
-        <a className="welcome-primary" href="/register">アカウントを作成 <span aria-hidden="true">→</span></a>
+        <a className="welcome-primary" href="/register">新規会員登録 <span aria-hidden="true">→</span></a>
       </section>
       <div className="welcome-keyvisual">
         <picture>
@@ -117,7 +117,7 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
         </picture>
         <p className="welcome-keyvisual-caption"><strong>スマホだけで、仕事がつながる。</strong><span>依頼も相手探しも、順番にタップするだけ。</span></p>
       </div>
-      <div className="welcome-mobile-hero-cta"><a href="/register"><small>2026年12月31日まで全機能無料</small><strong>無料でアカウントを作成 <span aria-hidden="true">→</span></strong></a></div>
+      <div className="welcome-mobile-hero-cta"><a href="/register"><small>{campaignActive ? `${campaignUntil}まで全機能無料` : '無料で始められます'}</small><strong>新規会員登録 <span aria-hidden="true">→</span></strong></a></div>
     </div></div>
     <section className="welcome-metrics" aria-labelledby="metrics-heading">
       <div className="welcome-section-heading"><p className="welcome-kicker">TASUKIでできること</p><h2 id="metrics-heading"><span className="welcome-desktop-only">仕事の機会を、<br />待つだけにしない。</span><span className="welcome-mobile-only">見つける・頼む・話す</span></h2></div>
@@ -195,9 +195,13 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
       <p className="welcome-faq-contact">解決しない場合は、<a href="mailto:info@tasuki.club">info@tasuki.club</a> までお問い合わせください。</p>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faqItems.map(item => ({ '@type': 'Question', name: item.question, acceptedAnswer: { '@type': 'Answer', text: item.answer } })) }) }} />
     </section>
-    <section className="welcome-start" id="start"><div><p className="welcome-kicker"><WelcomeIcon name="check" />全機能無料キャンペーン</p><h2>つながりを、商売の機会に。</h2><p>招待コードは必要ありません。<br />Googleアカウントで本人認証後、すぐにご利用いただけます。</p><small>{campaignUntil}まで全機能・広告掲載料が完全無料。終了後も自動課金はありません。</small></div><div className="welcome-signup"><a className="welcome-primary" href="/register"><GoogleMark />Googleで無料登録 <span aria-hidden="true">→</span></a><p className="welcome-note">新規登録は、本人認証後すぐにご利用いただけます。</p></div></section>
+    <section className="welcome-start" id="start"><div><p className="welcome-kicker"><WelcomeIcon name="check" />全機能無料キャンペーン</p><h2>つながりを、商売の機会に。</h2><p>招待コードは必要ありません。<br />Googleアカウントで本人認証後、すぐにご利用いただけます。</p><small>{campaignUntil}まで全機能・広告掲載料が完全無料。終了後も自動課金はありません。</small></div><div className="welcome-signup"><a className="welcome-primary" href="/register"><GoogleMark />新規会員登録 <span aria-hidden="true">→</span></a><p className="welcome-note">新規登録は、本人認証後すぐにご利用いただけます。</p></div></section>
     <section id="member-login" className="welcome-login"><button className="welcome-login-toggle" onClick={() => setLogin(!login)} aria-expanded={login} aria-controls="login-content">すでに会員の方はこちら <span>{login ? '−' : 'ログイン →'}</span></button><div id="login-content" hidden={!login}>{children}</div></section>
     <footer className="welcome-footer"><a href="#features-heading">TASUKIについて</a><a href="mailto:info@tasuki.club">お問い合わせ</a><span>© TASUKI</span><LegalLinks /></footer>
+    <nav className="welcome-mobile-account-bar" aria-label="いつでも会員登録・ログイン">
+      <a className="welcome-fixed-signup" href="/register">新規会員登録</a>
+      <a className="welcome-fixed-login" href="/login/member">ログイン</a>
+    </nav>
   </main>;
 }
 
