@@ -13,6 +13,7 @@ import BoardClient from './app/BoardClient';
 import './app/globals.css';
 window.fetch=async()=>new Response('{}',{status:503,headers:{'Content-Type':'application/json'}});
 localStorage.setItem('tasuki:tutorial:v1','done');
+window.tasukiEntryPromptHandled=true; // 初回の相談案内は別テスト。バナーを覆わない状態で操作する。
 const stats={memberId:'qa',memberNo:1,displayName:'検証用会員',nameKana:'',venue:'',company:'検証用会社',companyKana:'',positionTitle:'',businessArea:'東京都',primaryIndustry:'システム開発',industries:['システム開発'],notifyIndustries:[],annualRevenueBand:'',facebookUrl:'',companyPr:'',avatarUrl:'',introCount:0,receivedIntroCount:0,inviteCount:0,dealCount:0,rank:'SILVER',level:1,nextRankAt:10,plan:'standard',paid:false,adminPlan:false,contractedPlan:'free',bonusPlan:'free',bonusPeriodEnd:'',planPeriodEnd:'',campaignPlan:true,campaignUntil:'2026-12-31',requestsThisMonth:0,requestLimit:-1};
 const ad={id:'qa-ad',startDate:'2026-11-11',endDate:'2026-12-10',title:'バナーのタッチ操作を確認しています',description:'これは隔離テスト専用の広告です。実際の会員・広告・投稿データは使いません。',linkUrl:'',imageUrl:'/banners/top-ad.webp',status:'active',placement:'banner',industry:'',memberName:'検証用会員',memberCompany:'検証用会社',memberId:'qa-advertiser',mine:false};
 createRoot(document.getElementById('root')).render(<BoardClient initialRequests={[]} initialStats={stats} initialAds={[ad]} userName="検証用会員"/>);`;
