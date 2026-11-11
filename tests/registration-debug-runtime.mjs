@@ -30,8 +30,8 @@ try {
  assert.equal((await post({action:'draft',consent:true,profile,invite:'INVALID'})).status,400);
  const firstDraft=await draft();
  googleEmail='retry@example.com';
- let s=await start(firstDraft),r=await callback(s,'error=access_denied');assert.equal(sessionCookie(r),undefined);assert.equal(await member(googleEmail),null);
- s=await start(firstDraft);r=await callback(s,'state=wrong&code=fake');assert.equal(sessionCookie(r),undefined);assert.equal(await member(googleEmail),null);
+ let s=await start(firstDraft),r=await callback(s,'error=access_denied');assert.equal(sessionCookie(r),undefined);assert.equal(await member(googleEmail),null);assert.equal(new URL(r.headers.get('location')).pathname,'/register');
+ s=await start(firstDraft);r=await callback(s,'state=wrong&code=fake');assert.equal(sessionCookie(r),undefined);assert.equal(await member(googleEmail),null);assert.equal(new URL(r.headers.get('location')).pathname,'/register');
  s=await start(firstDraft);r=await callback(s);let cookie=sessionCookie(r);assert.ok(cookie);assert.equal((await member(googleEmail)).membership_status,'active');
  let home=await fetch('/',{headers:{cookie}});assert.equal(home.status,200,'verified new member can enter app');
  const original=await member(googleEmail);const changedDraft=await draft({...profile,company:'上書き禁止'});

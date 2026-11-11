@@ -17,17 +17,21 @@ export async function GET(request: Request) {
   const back = safeReturnPath(jar.get(GOOGLE_RETURN_COOKIE)?.value ?? '');
   const state = url.searchParams.get('state') ?? '';
   const code = url.searchParams.get('code') ?? '';
+  // 新規登録の認証失敗は登録画面へ戻す。会員ログインへ迷い込ませない。
+  const authFailure = () => directSignup && !jar.get(GOOGLE_MEETING_COOKIE)?.value
+    ? redirectHome(request, undefined, '/register?login=failed')
+    : redirectHome(request, 'failed', back);
 
   // stateが一致しなければ、こちらが始めたログインではない。
   if (!code || !state || state !== expectedState) {
-    return redirectHome(request, 'failed', back);
+    return authFailure();
   }
 
   let account;
   try {
     account = await exchangeGoogleCode(code, googleRedirectUri(request));
   } catch {
-    return redirectHome(request, 'failed', back);
+    return authFailure();
   }
 
   const meetingId=jar.get(GOOGLE_MEETING_COOKIE)?.value||'';
