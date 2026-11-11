@@ -17,12 +17,45 @@
 .tiers ul { padding-left: 18px; margin: 12px 0; font-size: 13px; line-height: 1.8; }
 @media (max-width: 640px) { .panel { padding: 18px; } .tiers { grid-template-columns: 1fr; } .actions { flex-direction: column; } .actions button { width: 100%; } }
 
-.bannerPanel { margin: 18px 0; overflow: hidden; border: 1px solid #cee2f3; border-radius: 20px; background: #fff; color: #14344b; }
-.bannerLink { display: block; width: 100%; padding: 0; border: 0; background: #0572ed; cursor: pointer; }
-.bannerLink img { display: block; width: 100%; height: auto; object-fit: contain; }
-.bannerLink:focus-visible, .bannerMore:focus-visible { outline: 3px solid #f4ba30; outline-offset: -3px; }
-.bannerDetails { padding: 12px 18px 16px; }
-.bannerDetails .progress { margin: 0 0 8px; }
-.bannerConditions { margin: 6px 0; font-size: 12px; line-height: 1.8; color: #435d70; }
-.bannerMore { display: block; min-height: 44px; margin-top: 8px; padding: 8px 0; border: 0; background: transparent; color: #0065bc; font: inherit; font-size: 13px; font-weight: 700; text-align: left; cursor: pointer; }
-@media (max-width: 640px) { .bannerPanel { border-radius: 16px; } .bannerDetails { padding: 12px 14px; } }
+.bannerPanel { margin: 18px 0; overflow: hidden; border: 1px solid #cfe0eb; border-radius: 20px; background: #fff; color: #203b50; }
+.bannerHero { position: relative; isolation: isolate; overflow: hidden; min-height: 180px; padding: 22px 20px 20px; color: #fff; background: linear-gradient(115deg, #086ac4 0%, #0091d3 65%, #1ac4d7 100%); }
+.bannerHero::before { position: absolute; z-index: -1; right: -55px; top: -56px; width: 195px; height: 195px; border: 24px solid rgb(255 255 255 / 10%); border-radius: 50%; content: ''; }
+.bannerEyebrow { display: inline-block; position: relative; margin: 0 0 14px; border: 1px solid rgb(255 255 255 / 26%); border-radius: 999px; padding: 4px 10px; background: rgb(255 255 255 / 16%); color: #fff; font-size: 11px; font-weight: 750; line-height: 1.6; }
+.bannerHero h2 { position: relative; z-index: 1; margin: 0; color: #fff; font-size: clamp(20px, 5.5vw, 27px); font-weight: 800; line-height: 1.5; letter-spacing: -.04em; overflow-wrap: anywhere; }
+.bannerTagline { position: relative; z-index: 1; width: calc(100% - 94px); margin: 13px 0 0; color: #f2fbff; font-size: 11px; line-height: 1.7; }
+.bannerIllustration { position: absolute; right: 13px; bottom: 13px; width: 82px; height: 66px; pointer-events: none; }
+.bannerIllustration > span { position: absolute; }
+.bannerIllustration .connectionOne, .bannerIllustration .connectionTwo { top: 23px; left: 40px; width: 43px; height: 2px; background: #bfefff; transform-origin: left center; }
+.connectionOne { transform: rotate(132deg); }
+.connectionTwo { transform: rotate(48deg); }
+.personTop, .personLeft, .personRight { display: grid; place-items: center; width: 25px; height: 25px; border: 2px solid #c5f0ff; border-radius: 50%; background: #effbff; color: #1b79b0; }
+.personTop { top: 0; left: 28px; }
+.personLeft { left: 0; bottom: 0; }
+.personRight { right: 0; bottom: 0; }
+.bannerIllustration .personTop svg, .bannerIllustration .personLeft svg, .bannerIllustration .personRight svg { width: 15px; height: 15px; }
+.gift { left: 29px; bottom: 0; display: grid; place-items: center; width: 28px; height: 28px; border: 2px solid #fff2c5; border-radius: 8px; background: #ffdb7b; color: #8d6118; }
+.gift svg { width: 19px; height: 19px; }
+.bannerDetails { padding: 17px 18px 4px; }
+.bannerRankRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 9px; }
+.bannerRank { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.bannerRank > svg { width: 25px; height: 25px; color: #2994c5; flex: none; }
+.bannerRank span { display: block; margin-bottom: 2px; color: #637b8c; font-size: 11px; line-height: 1.5; }
+.bannerRank strong { display: block; font-size: 22px; font-weight: 800; line-height: 1.3; letter-spacing: .04em; }
+.rankAchieved { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 6px 9px; background: #eaf7f1; color: #20785e; font-size: 11px; font-weight: 700; line-height: 1.5; white-space: nowrap; }
+.bannerProgress { margin: 10px 0 0; font-size: 13px; line-height: 1.7; color: #476a80; }
+.bannerProgress b { margin: 0 2px; font-size: 17px; color: #203b50; }
+.perksLabel { margin: 13px 0 7px; color: #627b8d; font-size: 11px; font-weight: 600; line-height: 1.5; }
+.bannerPerks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; list-style: none; padding: 0; margin: 0 0 17px; }
+.bannerPerks li { display: flex; align-items: flex-start; min-width: 0; gap: 6px; color: #365e78; font-size: 13px; font-weight: 650; line-height: 1.6; }
+.bannerPerks small { display: block; color: #657f91; font-size: 11px; font-weight: 500; }
+.perkCheck { color: #1677b6; flex: none; }
+.perkPending { color: #7891a1; flex: none; }
+.bannerInvite { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 48px; border: 0; border-radius: 12px; padding: 11px 12px; background: #1677b6; color: #fff; font: inherit; font-size: 15px; font-weight: 750; line-height: 1.6; cursor: pointer; }
+.bannerInvite svg { width: 20px; height: 20px; flex: none; }
+.bannerMore { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 46px; margin: 0; padding: 8px 4px; border: 0; background: transparent; color: #226e98; font: inherit; font-size: 13px; font-weight: 700; line-height: 1.6; text-align: center; cursor: pointer; }
+.bannerMore > span { font-size: 22px; line-height: 1; }
+.bannerInvite:focus-visible, .bannerMore:focus-visible { outline: 3px solid #cf7b13; outline-offset: -3px; }
+.bannerCampaign { margin: 0; padding: 11px 16px; border-top: 1px solid #e4ecf2; background: #f7fbfe; color: #526f83; font-size: 11px; line-height: 1.7; text-align: center; }
+.bannerUnavailable { margin: 0 0 14px; font-size: 13px; line-height: 1.8; color: #526f83; }
+@media (max-width: 640px) { .bannerPanel { border-radius: 17px; } .bannerHero { padding: 20px 16px 17px; } .bannerDetails { padding: 15px 15px 2px; } }
+@media (max-width: 375px) { .bannerHero h2 { font-size: 20px; } .bannerRank strong { font-size: 20px; } .rankAchieved { font-size: 10px; padding: 6px 8px; } .bannerPerks { gap: 8px; } .bannerPerks li { font-size: 12px; } }

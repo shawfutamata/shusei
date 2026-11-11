@@ -2994,6 +2994,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             </div>;
           })()}
 
+          <p className="perk-terms">招待リンク・コードから会員登録した方が対象です。リンクを送るだけでは人数に含まれません。</p>
+          <p className="perk-terms">広告の割引は重複せず、到達ランクの割引率だけが適用されます。{adsFree && <>{campaignUntilLabel()}までは広告掲載料が無料のため、割引は無料期間終了後に適用されます。</>}</p>
           <p className="perk-terms">特典の内容は、予告なく変更または終了することがあります。ランクは招待して参加した仲間の人数で決まり、下がることはありません。</p>
         </div>
       </Modal>}
