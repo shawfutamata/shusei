@@ -1,6 +1,8 @@
 'use client';
 
 import { ChangeEvent, CSSProperties, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import IndustryPicker from './IndustryPicker';
+import ReferralBenefits from './ReferralBenefits';
 import Cropper, { type Area } from 'react-easy-crop';
 import type { AdSlot, BoardRequest, MatchingSurvey, MemberCard, MemberProfile, MemberStats, MessageThread, ReferralSummary } from '@/db/data';
 import ReceivedIntroductions from './ReceivedIntroductions';
@@ -18,7 +20,9 @@ import type { GachaView } from './gacha-view';
 import { adDailyPrice, adTotalPrice, newChatLimit, planCatalog, planPerMonthNote, planPostLimit, planPrice } from './plan-catalog';
 import RankCrest, { CrownMark } from './RankCrest';
 import LegalLinks from './LegalLinks';
-import Tutorial, { tutorialSeen } from './Tutorial';
+import Tutorial from './Tutorial';
+import { entryPrompt } from './entry-prompt';
+import HomeScreenInstallGuide, { canOfferHomeScreenGuide } from './HomeScreenInstallGuide';
 import { InviteIcon, OfferIcon, PlanIcon, PostsIcon, ProfileIcon, ReceiptIcon, VoiceIcon } from './MyPageIcons';
 import type { BillingRecord } from './stripe';
 import PerkIcon from './PerkIcon';
@@ -298,10 +302,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [statusFilter, setStatusFilter] = useState<'open' | 'closed' | 'all'>('open');
   const [industryFilter, setIndustryFilter] = useState('all');
   // 'mypage' はランク・プラン・招待・広告。'profile' は入力するプロフィール設定。
-  // 顔写真がまだの人は先にプロフィール設定へ。出稿枠を買って戻ってきた人は、
+  // 写真は任意。出稿枠を買って戻ってきた人は、
   // 入稿できるマイページから始める。
   const [activeTab, setActiveTab] = useState<MyTab>(
-    (initialPost && !initialStats.avatarUrl ? 'profile' : initialTab) ?? (!initialStats.avatarUrl ? 'profile' : adReturn === 'done' ? 'mypage' : 'home'));
+    initialTab ?? (adReturn === 'done' ? 'mypage' : 'home'));
   const [myRequests, setMyRequests] = useState<MyRequest[]>([]);
   /** 編集中の投稿。null なら新規投稿。投稿のモーダルを両方で使い回す。 */
   const [meetingDraft,setMeetingDraft]=useState('');
@@ -368,7 +372,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [profileCompanyKana, setProfileCompanyKana] = useState(initialStats.companyKana);
   const [profileArea, setProfileArea] = useState(prefectures.includes(initialStats.businessArea as Prefecture) ? initialStats.businessArea : '');
   const [profileIndustries, setProfileIndustries] = useState(initialStats.industries);
-  const [profileIndustryGroup, setProfileIndustryGroup] = useState<string>(getIndustryGroup(initialStats.industries[0] ?? '')?.name ?? 'IT・システム');
+  const [profileIndustryGroup, setProfileIndustryGroup] = useState<string>(getIndustryGroup(initialStats.industries[0] ?? '')?.name ?? (initialStats.industries.length ? 'その他' : 'IT・システム'));
   const [profileNotifyIndustries, setProfileNotifyIndustries] = useState(initialStats.notifyIndustries);
   const [profileNotifyGroup, setProfileNotifyGroup] = useState<string>(getIndustryGroup(initialStats.notifyIndustries[0] ?? '')?.name ?? 'IT・システム');
   const [profileRevenue, setProfileRevenue] = useState(initialStats.annualRevenueBand);
@@ -387,7 +391,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [cropping, setCropping] = useState(false);
   /** 選んだ写真が端末で読めるか確かめているあいだ。大きい写真だと少し待つ。 */
   const [photoChecking, setPhotoChecking] = useState(false);
-  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'report' | 'thread' | 'responses' | 'ads' | 'perks' | 'categories' | 'upgrade' | 'adDetail' | 'member' | 'gacha' | null>(initialMemberId ? 'member' : initialPost && initialStats.avatarUrl ? 'request' : null);
+  const [modal, setModal] = useState<'request' | 'intro' | 'detail' | 'report' | 'thread' | 'responses' | 'ads' | 'perks' | 'categories' | 'upgrade' | 'adDetail' | 'member' | 'gacha' | 'welcomePost' | 'welcomeConsult' | null>(initialMemberId ? 'member' : initialPost ? 'request' : null);
   /**
    * オファーの種類。**知り合いの紹介は無料、自社で請け負う（受注）は有料。**
    * 画面はここで出し分けるだけで、実際に止めているのは `createIntroduction()`。
@@ -402,6 +406,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const [memberLoading, setMemberLoading] = useState(!!initialMemberId);
   /** 初めて来た人への案内。出したかどうかは端末側に持つ（app/Tutorial.tsx）。 */
   const [tutorial, setTutorial] = useState(false);
+  const [homeScreenGuide, setHomeScreenGuide] = useState(false);
   /** 投稿したあと、そのまま広告の申し込みへ進むか。新規の投稿のときだけ聞く。 */
   const [postAsAd, setPostAsAd] = useState(false);
   /** プラン案内に出す一言。断られた理由をそのまま見せるため、空なら既定の文。 */
@@ -568,10 +573,23 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   const rankProgress = stats.level >= rankThresholds.length ? 100 : Math.max(0, Math.min(100, ((stats.inviteCount - rankStart) / Math.max(1, stats.nextRankAt - rankStart)) * 100));
   /** 次のランクまで、あと何人を招待すればよいか。 */
   const invitesToNextRank = Math.max(0, stats.nextRankAt - stats.inviteCount);
-  // 初めての人にだけ出す。**描き終わってから出す。** サーバー側では端末の
-  // 記録を読めないので、最初の描画に混ぜるとサーバーと食い違ってしまう。
+  // 初回ロードのTOPだけで案内する。画面内の移動や戻る操作では繰り返さない。
+  // 登録後の案内を優先し、使い方ガイドとは重ねない（ガイドはマイページから開ける）。
   useEffect(() => {
-    const timer = window.setTimeout(() => { if (!tutorialSeen()) setTutorial(true); }, 0);
+    const timer = window.setTimeout(() => {
+      const entry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+      const page = window as Window & { tasukiEntryPromptHandled?: boolean };
+      if (page.tasukiEntryPromptHandled) return;
+      page.tasukiEntryPromptHandled = true;
+      const kind = entryPrompt(window.location.href, document.referrer, entry?.type ?? 'navigate', entry?.name ?? window.location.href);
+      if (kind) {
+        setModal(current => current ?? (kind === 'registered' ? 'welcomePost' : 'welcomeConsult'));
+        const url = new URL(window.location.href);
+        url.searchParams.delete('welcome');
+        if (['invited', 'early'].includes(url.searchParams.get('login') ?? '')) url.searchParams.delete('login');
+        window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+      }
+    }, 0);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -766,14 +784,14 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
    * かぶせない。使い方の案内（チュートリアル）が出ているあいだは待つ。
    */
   useEffect(() => {
-    if (!gacha?.season || gacha.drawnToday || tutorial || modal || activeTab !== 'home') return;
+    if (!gacha?.season || gacha.drawnToday || tutorial || homeScreenGuide || modal || activeTab !== 'home') return;
     let seen = '';
     try { seen = localStorage.getItem(GACHA_SEEN_KEY) ?? ''; } catch { return; }
     if (seen === gacha.today) return;
     try { localStorage.setItem(GACHA_SEEN_KEY, gacha.today); } catch { /* 保存できなくても開く */ }
     const timer = setTimeout(() => setModal('gacha'), 600);
     return () => clearTimeout(timer);
-  }, [gacha, tutorial, modal, activeTab]);
+  }, [gacha, tutorial, homeScreenGuide, modal, activeTab]);
 
 
   /**
@@ -995,12 +1013,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     const avatarUrl = result.avatarUrl ?? stats.avatarUrl;
     setStats((current) => ({ ...current, displayName: profileName.trim(), nameKana: profileNameKana.trim(), company: profileCompany, companyKana: profileCompanyKana.trim(), venue: stats.venue, positionTitle: profilePosition, businessArea: profileArea, primaryIndustry: profileIndustries[0] ?? '', industries: profileIndustries, notifyIndustries: profileNotifyIndustries, annualRevenueBand: profileRevenue, facebookUrl: profileFacebook, companyPr: profileCompanyPr.trim(), avatarUrl }));
     setProfilePhoto(null); setPhotoPreview(avatarUrl);
-    await refreshBoard(); showToast('顔写真とプロフィールを保存しました。');
-    if (meetingPostPending.current && avatarUrl) {
-      meetingPostPending.current = false;
-      beginRequest();
-      setRequestDetail(!!meetingDraft);
-    }
+    await refreshBoard(); showToast('プロフィールを保存しました。');
+
   }
 
   async function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
@@ -1044,7 +1058,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   }
 
   function openRequest() {
-    if (!stats.avatarUrl) { showProfileSettings(); return showToast('投稿の前に顔写真を登録してください。'); }
     beginRequest();
   }
 
@@ -1137,14 +1150,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
     // 自分の広告に自分でオファーはできない。送ってから断られるより、
     // 押した時点で「どこで見られるか」まで伝えるほうが早い。
     if (ad.mine) return showToast('ご自身の広告です。届いたオファーは「広告」タブから見られます。');
-    if (!stats.avatarUrl) { showProfileSettings(); return showToast('オファーの前に顔写真を登録してください。'); }
     setOfferAd(ad); setSelected(null); setOfferKind('referral'); setModal('intro');
   }
 
   function openIntroduction(need: BoardRequest) {
     // 見本の投稿には送れない。**送ってから断るのは失礼にあたる。**
     if (need.sample) return showToast('これは掲示板の見本です。実在の会員の投稿ではありません。');
-    if (!stats.avatarUrl) { showProfileSettings(); return showToast('オファーの前に顔写真を登録してください。'); }
     setOfferAd(null); setOfferKind('referral');
     setSelected(need); setModal('intro');
   }
@@ -1666,7 +1677,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
    * 新しく作ると、同じ相手との話が2本に見えてしまう。
    */
   // Event handoff opens a draft conversation or profile; it never sends a message.
-  const meetingPostPending=useRef(initialPost && !initialStats.avatarUrl);
   useEffect(()=>{
     const controller=new AbortController();let alive=true;
     const q=new URLSearchParams(window.location.search),target=q.get('contact')||q.get('member');
@@ -1781,7 +1791,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
   //
   // そのうえで、**業種が合うものを先に回す**。ここでやるのは並べ替えだけで、
   // 合わないものを**外しはしない**。バナーの値打ちは「開けば全員が見る」ことで、
-  // 「10枠が3秒ずつ」と約束している以上、見せる相手を減らしてはいけない。
+  // 「10枠が5秒ずつ」と約束している以上、見せる相手を減らしてはいけない。
   // 1周30秒を最後まで見ない人のほうが多いので、順番を寄せるだけでよく効く。
   // sort は安定なので、寄せたあとも組の中の入れ替え（shuffle）は保たれる。
   const slides = useMemo(() => {
@@ -2015,6 +2025,10 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div className="carousel-dots" aria-label="バナーを切り替える">{slides.map((entry, index) => <button key={index} aria-label={`${index + 1}枚目${entry.ad ? '（広告）' : ''}`} className={`${carouselIndex === index ? 'active' : ''}${entry.ad ? ' is-ad' : ''}`} onClick={() => { setCarouselPaused(true); setCarouselIndex(index); }} />)}</div>
         </section>
 
+        <ReferralBenefits compact level={stats.level} invitedCount={stats.inviteCount}
+          onInvite={() => goTab('invite')}
+          onDetails={() => { setPreviewRankLevel(Math.min(stats.level + 1, rankNames.length)); setOpenPerk(''); setModal('perks'); }} />
+
         <HomeShelf title={recommendFallback ? '募集中の案件' : 'あなたにおすすめの案件'} count={recommended.length}
           note={!recommendFallback ? ''
             : !stats.notifyIndustries.length ? 'マイページで「おすすめに出したい業種」を選ぶと、関係のありそうな案件が先に並びます。'
@@ -2068,7 +2082,6 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </section>
 
 
-        {!stats.avatarUrl && <button className="photo-required-banner" onClick={() => showProfileSettings()}><span>顔写真の登録が必要です</span><b>本人だと分かる写真を登録すると、投稿・オファーができます。</b><i>登録する →</i></button>}
       </div> : activeTab === 'search' ? <section className="mobile-board search-page" id="board">
         {/* 探しているものが2通りあるので、先に分ける。仕事の一覧に会員が
             混ざっていると、どちらを探しているときも余計なものが目に入る。 */}
@@ -2391,6 +2404,9 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             : 'ランクの特典は、予告なく内容の変更または終了をすることがあります。'}</p>
         </section>}
 
+        <ReferralBenefits level={stats.level} invitedCount={stats.inviteCount}
+          onDetails={() => { setPreviewRankLevel(Math.min(stats.level + 1, rankNames.length)); setOpenPerk(''); setModal('perks'); }} />
+
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section> : activeTab === 'receipts' ? <section className="profile-page" aria-labelledby="receipts-title">
         <header className="profile-page-heading"><p>RECEIPTS</p><h1 id="receipts-title">支払い履歴</h1><span>お支払いのたびに領収書が作られます。ここからいつでも開いて、印刷や保存ができます。</span></header>
@@ -2556,7 +2572,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         {/* プロフィール設定。入口は右上の顔写真と、マイページの「プロフィールを編集する」。 */}
         <header className="profile-page-heading"><p>PROFILE</p><h1 id="profile-settings-title">プロフィール設定</h1><span>ここで登録した内容が、案件やオファーのときに相手に見えます。</span></header>
         <div className="profile-form profile-page-form">
-          <label className="photo-upload"><input type="file" accept="image/*" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>必須</em></b><small>本人だと分かる正面の写真を選択<br />スマホで撮った写真をそのまま選べます</small></span><i>{photoChecking ? '読み込んでいます…' : stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
+          <label className="photo-upload"><input type="file" accept="image/*" onChange={choosePhoto} /><span className="photo-upload-preview">{photoPreview ? <img src={photoPreview} alt="登録する顔写真のプレビュー" /> : <b>＋</b>}</span><span><b>顔写真 <em>任意</em></b><small>写真なしでも利用できます<br />あとから登録・変更できます</small></span><i>{photoChecking ? '読み込んでいます…' : stats.avatarUrl ? '変更する' : '写真を選ぶ'}</i></label>
           <label>お名前 <small className="req">必須</small><input value={profileName} onChange={(event) => setProfileName(event.target.value)} maxLength={40} placeholder="鈴木 襷" required /></label>
           <label>お名前のふりがな <small>任意</small><input value={profileNameKana} onChange={(event) => setProfileNameKana(event.target.value)} maxLength={60} placeholder="すずき たすき" /></label>
           {/* 会社名は相手に見える札なので必須のまま。ただし**屋号を持たない人が
@@ -2568,7 +2584,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <label>役職 <small>任意</small><input value={profilePosition} onChange={(event) => setProfilePosition(event.target.value)} maxLength={60} placeholder="例：代表取締役" /></label>
           <label>会社名のふりがな <small>任意</small><input value={profileCompanyKana} onChange={(event) => setProfileCompanyKana(event.target.value)} maxLength={100} placeholder="かぶしきがいしゃ〇〇" /></label>
           <label>活動エリア <small>任意・検索に使われます</small><select value={profileArea} onChange={(event) => setProfileArea(event.target.value)}><option value="">選択しない</option>{prefectures.map((prefecture) => <option value={prefecture} key={prefecture}>{prefecture}</option>)}</select></label>
-          <IndustryPicker id="own-industries" legend="自分の業種" note="6個まで選択できます" description="複数の仕事をしている方は、該当する業種をすべて選んでください。会員検索やマッチングに使われます。" selected={profileIndustries} activeGroup={profileIndustryGroup} onGroupChange={setProfileIndustryGroup} onToggle={(industry) => toggleIndustry(industry, profileIndustries, setProfileIndustries, 6)} className="profile-tag-field" />
+          <IndustryPicker allowCustom maxSelected={6} id="own-industries" legend="自分の業種" note="6個まで選択できます" description="複数の仕事をしている方は、該当する業種をすべて選んでください。会員検索やマッチングに使われます。" selected={profileIndustries} activeGroup={profileIndustryGroup} onGroupChange={setProfileIndustryGroup} onToggle={(industry) => toggleIndustry(industry, profileIndustries, setProfileIndustries, 6)} className="profile-tag-field" />
           <IndustryPicker id="notify-industries" legend="おすすめに出したい業種" note={`${notifyIndustryLimit(stats.level)}個まで`} description="選んだ詳細業種の案件が、ホームの「あなたにおすすめ」に出ます。" selected={profileNotifyIndustries} activeGroup={profileNotifyGroup} onGroupChange={setProfileNotifyGroup} onToggle={(industry) => toggleIndustry(industry, profileNotifyIndustries, setProfileNotifyIndustries, notifyIndustryLimit(stats.level))} className="profile-tag-field" />
           <label>会社の年商 <small>任意</small><select value={profileRevenue} onChange={(event) => setProfileRevenue(event.target.value)}><option value="">選択しない</option>{Object.entries(revenueBands).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
           {/* 自社のPR。**案件とは別。** 案件は「いま探しているもの」、ここは
@@ -2580,7 +2596,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
             <em className="profile-pr-count">{profileCompanyPr.length} / {COMPANY_PR_MAX}</em>
           </label>
           <label>Facebook <small>任意・オファーのあとに直接やり取りできます</small><input value={profileFacebook} onChange={(event) => setProfileFacebook(event.target.value)} maxLength={200} placeholder="https://www.facebook.com/your.name" inputMode="url" /></label>
-          <button className="profile-save-button" onClick={saveProfile} disabled={busy || !profileName.trim() || !profileCompany.trim() || (!stats.avatarUrl && !profilePhoto)}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
+          <button className="profile-save-button" onClick={saveProfile} disabled={busy || !profileName.trim() || !profileCompany.trim()}>{busy ? '保存中…' : 'プロフィールを保存する'}</button>
         </div>
         <button className="profile-back" onClick={showMyPage}>マイページへ戻る</button>
       </section>}
@@ -2609,6 +2625,17 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
         </button>
         <button className={`nav-mypage${navHere === 'mypage' ? ' active' : ''}`} onClick={showMyPage}><span><PersonIcon /></span><small>マイページ</small></button>
       </nav>
+
+      {(modal === 'welcomePost' || modal === 'welcomeConsult') && <Modal
+        title={modal === 'welcomePost' ? 'まずは投稿してみよう！' : '仕事の相談をしよう！'}
+        lead={modal === 'welcomePost' ? '登録ありがとうございます。探している人や、仕事の困りごとを仲間に伝えてみませんか。' : '「こんな人いませんか？」「誰に頼めばいい？」仕事の相談を、仲間に投稿してみませんか。'}
+        onClose={() => setModal(null)}>
+        <div className="entry-prompt-actions">
+          <p>ひとことで大丈夫です。内容を入力してから投稿できるので、まずは気軽に書いてみましょう。</p>
+          <button className="submit-button" onClick={openRequest}>投稿してみる</button>
+          <button className="quota-cancel" onClick={() => setModal(null)}>あとで</button>
+        </div>
+      </Modal>}
 
       {modal === 'request' && !canPostRequest && !editingRequest && <Modal title="今月分の投稿は完了しています" lead={`${planCatalog[stats.plan].name}プランで投稿できる案件は月${stats.requestLimit}件までです。`} onClose={() => setModal(null)}><div className="quota-block"><p>来月になるとまた投稿できます。今すぐ続けて投稿したい場合は、マイページのプラン欄からスタンダードへお切り替えください。何件でも投稿できるようになります。</p>{referral?.freeMonths && <p>仲間を1人招待して{referral.qualifyDays}日続けてご利用いただくと、スタンダードを1ヶ月お試しいただけます。マイページの「仲間を招待する」から招待リンクをお送りください。</p>}<button className="submit-button" onClick={() => { setModal(null); showMyPage(); }}>マイページを開く</button></div></Modal>}
 
@@ -2953,7 +2980,12 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           見てから決められるようにする。 */}
       {modal === 'adDetail' && adDetail && <Modal title="広告の詳細" lead={`${adDetail.memberCompany || adDetail.memberName}さまの広告です。`} onClose={() => { setModal(null); setAdDetail(null); }}>
         <div className="ad-detail">
-          <AdBanner ad={{ title: adDetail.title, description: adDetail.description, imageUrl: adDetail.imageUrl, by: adDetail.memberCompany || adDetail.memberName }} />
+          {/* 文字入りの広告画像も隠さず読めるよう、詳細では画像と本文を分ける。 */}
+          <header className="ad-detail-heading">
+            <span className="ad-detail-label">PR · {adDetail.memberCompany || adDetail.memberName}</span>
+            {adDetail.imageUrl && <img className="ad-detail-image" src={adDetail.imageUrl} alt={`${adDetail.title}の広告画像`} />}
+            <h3>{adDetail.title || 'こんな人を探しています'}</h3>
+          </header>
           <dl className="ad-detail-facts">
             <div><dt>出しているのは</dt><dd>
               <button className="ad-detail-who" onClick={() => openMember(adDetail.memberId)}>
@@ -3316,7 +3348,8 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
 
       {cropSource && <div className="crop-backdrop"><section className="crop-dialog" role="dialog" aria-modal="true" aria-labelledby="crop-title"><header><button onClick={() => setCropSource('')}>キャンセル</button><div><h2 id="crop-title">顔写真を調整</h2><p>指で動かして、顔が中央に来るようにします</p></div><button className="crop-confirm" onClick={confirmCrop} disabled={cropping || !croppedArea}>{cropping ? '処理中' : '決定'}</button></header><div className="crop-stage"><Cropper image={cropSource} crop={crop} zoom={zoom} aspect={1} cropShape="round" showGrid={false} minZoom={1} maxZoom={4} zoomSpeed={0.35} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_, pixels) => setCroppedArea(pixels)} disableAutomaticStylesInjection /></div><div className="crop-controls"><label><span>顔の大きさ</span><input type="range" min="1" max="4" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} aria-label="顔写真の拡大率" /><b>{Math.round(zoom * 100)}%</b></label><p>写真を指で動かせます。丸の中がプロフィール写真に表示されます。</p></div></section></div>}
       {tutorial && <Tutorial onClose={() => setTutorial(false)}
-        onFinish={() => { setTutorial(false); showProfileSettings(); }} />}
+        onFinish={() => { setTutorial(false); if (canOfferHomeScreenGuide()) setHomeScreenGuide(true); else showProfileSettings(); }} />}
+      <HomeScreenInstallGuide open={homeScreenGuide} onClose={() => { setHomeScreenGuide(false); showProfileSettings(); }} />
       {toast && <div className="toast" role="status">{toast}</div>}
   </>);
 }
@@ -3581,53 +3614,6 @@ function HomeShelf({ title, count, note = '', emptyTitle, emptyText, onMore, chi
   return <section className="home-shelf"><div className="home-section-heading"><div><h2>{title}</h2><p>{count ? `${count}件` : 'まだありません'}</p></div><button onClick={onMore}>もっと見る</button></div>{note && <p className="home-shelf-note">{note}</p>}{count ? <div className="home-card-row">{children}</div> : <div className="home-empty"><span>♡</span><div><b>{emptyTitle}</b><p>{emptyText}</p></div><button onClick={onMore}>探してみる</button></div>}</section>;
 }
 
-/**
- * 業種を選ぶところ。上段は**大分類の切り替え**で、選択そのものではない。
- *
- * もとは上段にも下段（実際の選択）にも同じ青い塗りを使っていたため、
- * 「6個まで」と書いてあるのに1つしか選べない、と読めてしまっていた。
- * 上段は「いま開いている」だけの見た目にして、選んだ数を各大分類の肩に出す。
- * どこに何個入っているかが、開かなくても分かる。
- */
-function IndustryPicker({ id, legend, note, description, selected, activeGroup, onGroupChange, onToggle, className = '' }: {
-  /** 外から「ここまで送る」と指せるようにする目印。 */
-  id?: string;
-  legend: string; note: string; description?: string; selected: string[];
-  activeGroup: string; onGroupChange: (value: string) => void; onToggle: (value: string) => void; className?: string;
-}) {
-  const active = industryGroups.find((group) => group.name === activeGroup) ?? industryGroups[0];
-  const countIn = (group: typeof industryGroups[number]) => group.children.filter((child) => selected.includes(child)).length;
-
-  return <fieldset id={id} className={`tag-field hierarchical-industry-picker ${className}`}>
-    <legend>{legend} <small>{note}</small></legend>
-    {description && <p>{description}</p>}
-
-    {/* 切り替えであることが分かるように、タブとして読ませる */}
-    <div className="industry-major-picker" role="tablist" aria-label="業種の大分類を切り替える">
-      {industryGroups.map((group) => {
-        const count = countIn(group);
-        return <button type="button" key={group.name} role="tab"
-          aria-selected={active.name === group.name}
-          className={active.name === group.name ? 'open' : ''}
-          onClick={() => onGroupChange(group.name)}>
-          {group.name}{count > 0 && <em>{count}</em>}
-        </button>;
-      })}
-    </div>
-
-    <div className="industry-detail-panel">
-      <h4><span>大分類</span>{active.name}<small>この中から選びます{selected.length > 0 && `（選択中 ${selected.length}）`}</small></h4>
-      <div className="tag-picker">{active.children.map((industry) => <button type="button" key={industry}
-        className={selected.includes(industry) ? 'selected' : ''}
-        onClick={() => onToggle(industry)}>{industry}</button>)}</div>
-    </div>
-
-    {selected.length > 0 && <div className="selected-industry-list">
-      <b>選択中</b>
-      {selected.map((industry) => <button type="button" key={industry} onClick={() => onToggle(industry)}>{industry}<span>×</span></button>)}
-    </div>}
-  </fieldset>;
-}
 
 function HomeRequestCard({ need, favorite, onOpen, onFavorite }: { need: BoardRequest; favorite: boolean; onOpen: () => void; onFavorite: () => void }) {
   const primaryIndustry = need.industryTags[0] || 'その他';

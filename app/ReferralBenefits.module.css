@@ -1,0 +1,28 @@
+.panel { margin: 18px 0; padding: 22px; border: 1px solid #c8dce9; border-radius: 20px; background: linear-gradient(135deg, #edf7fc, #fff9ec); color: #14344b; }
+.eyebrow { margin: 0 0 8px; color: #456176; font-size: 12px; font-weight: 700; }
+.panel h2 { margin: 0; font-size: clamp(18px, 4.8vw, 23px); line-height: 1.5; }
+.progress { margin: 12px 0; font-size: 15px; }
+.progress b { margin: 0 3px; font-size: 23px; }
+.summary, .note { margin: 10px 0; line-height: 1.85; font-size: 13px; }
+.note { color: #52616b; font-size: 12px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.actions button { min-height: 46px; border: 1px solid #164867; border-radius: 12px; background: #164867; color: white; padding: 10px 16px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.actions .secondary { background: white; color: #164867; }
+.actions button:focus-visible { outline: 3px solid #d48519; outline-offset: 3px; }
+.tiers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; list-style: none; padding: 0; margin: 18px 0; }
+.tiers > li { min-width: 0; padding: 16px; border-radius: 14px; border: 1px solid #dbe3e7; background: white; }
+.tierHeading { display: flex; flex-direction: column; gap: 5px; }
+.tierHeading strong { font-size: 15px; letter-spacing: .04em; }
+.tierHeading span, .tiers small { font-size: 12px; color: #52616b; }
+.tiers ul { padding-left: 18px; margin: 12px 0; font-size: 13px; line-height: 1.8; }
+@media (max-width: 640px) { .panel { padding: 18px; } .tiers { grid-template-columns: 1fr; } .actions { flex-direction: column; } .actions button { width: 100%; } }
+
+.bannerPanel { margin: 18px 0; overflow: hidden; border: 1px solid #cee2f3; border-radius: 20px; background: #fff; color: #14344b; }
+.bannerLink { display: block; width: 100%; padding: 0; border: 0; background: #0572ed; cursor: pointer; }
+.bannerLink img { display: block; width: 100%; height: auto; object-fit: contain; }
+.bannerLink:focus-visible, .bannerMore:focus-visible { outline: 3px solid #f4ba30; outline-offset: -3px; }
+.bannerDetails { padding: 12px 18px 16px; }
+.bannerDetails .progress { margin: 0 0 8px; }
+.bannerConditions { margin: 6px 0; font-size: 12px; line-height: 1.8; color: #435d70; }
+.bannerMore { display: block; min-height: 44px; margin-top: 8px; padding: 8px 0; border: 0; background: transparent; color: #0065bc; font: inherit; font-size: 13px; font-weight: 700; text-align: left; cursor: pointer; }
+@media (max-width: 640px) { .bannerPanel { border-radius: 16px; } .bannerDetails { padding: 12px 14px; } }

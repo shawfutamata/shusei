@@ -37,7 +37,7 @@ type Step = {
 const steps: Step[] = [
   {
     eyebrow: 'STEP 1', title: 'プロフィールを登録する',
-    body: '顔写真とお仕事の内容を登録します。誰からのオファーか分かることが前提なので、顔写真は必須です。',
+    body: 'お名前やお仕事の内容を登録します。顔写真は任意です。写真なしでも利用でき、あとから登録・変更できます。',
     targets: ['.header-profile'], click: 'ここをタップ',
   },
   {
@@ -179,7 +179,7 @@ export default function Tutorial({ onClose, onFinish }: { onClose: () => void; o
   const height = Math.min(Math.max(room, needed), band.height - 24);
   const arrowVar = { ['--arrow-x' as string]: `${arrowX}px` };
   const cardStyle: React.CSSProperties = !spot
-    ? { top: band.top + 16, maxHeight: band.height - 32 }
+    ? { top: band.top + band.height / 2, maxHeight: band.height - 32 }
     : tight
       ? { top: below ? band.bottom - 12 - height : band.top + 12, maxHeight: height, ...arrowVar }
       : below
@@ -206,11 +206,11 @@ export default function Tutorial({ onClose, onFinish }: { onClose: () => void; o
       <div className="tut-top">
         <span className="tut-count">{index + 1} / {steps.length}</span>
         {/* いつでも閉じられるようにする。読ませきる作りにはしない。 */}
-        <button className="tut-skip" onClick={close}>閉じる</button>
+        <button type="button" className="tut-skip" onClick={close}>ガイドをスキップ</button>
       </div>
       <p className="tut-eyebrow">{step.eyebrow}</p>
       <h2 id="tutorial-title">{step.title}</h2>
-      <p className="tut-body">{step.body}</p>
+      <p className="tut-body">{step.body}<span className="tut-reopen-note">スキップしても、マイページの「使い方をもう一度見る」から確認できます。</span></p>
       {/* 明るく残したところを指す。矢印は、案内から目印へ向く向きに合わせる。 */}
       {spot && <p className="tut-hint"><i aria-hidden="true">{below ? '↑' : '↓'}</i>{step.click}</p>}
       <div className="tut-dots" aria-hidden="true">
@@ -219,7 +219,7 @@ export default function Tutorial({ onClose, onFinish }: { onClose: () => void; o
       <div className="tut-actions">
         {index > 0 && <button className="tut-back" onClick={() => setIndex(index - 1)}>戻る</button>}
         <button className="tut-next" onClick={() => last ? (markTutorialSeen(), onFinish()) : setIndex(index + 1)}>
-          {last ? 'プロフィールを登録する' : '次へ'}
+          {last ? 'ガイドを完了する' : '次へ'}
         </button>
       </div>
     </section>

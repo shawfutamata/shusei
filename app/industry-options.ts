@@ -1,3 +1,5 @@
+export const restaurantIndustries = ['和食', '寿司', 'そば・うどん', 'ラーメン', '焼肉', '焼き鳥', '中華料理', 'イタリアン', 'フレンチ', '韓国料理', 'エスニック料理', '洋食', 'カレー'] as const;
+
 export const industryGroups = [
   { name: 'IT・システム', children: ['システム開発', 'アプリ開発', 'SaaS', 'ITインフラ', 'サイバーセキュリティ', 'AI・DX支援', 'ITサポート'] },
   { name: 'Web・広告', children: ['Webサイト制作', 'SEO対策', 'Web広告運用', 'SNS運用', 'PR・広報', 'マーケティング', 'ライティング'] },
@@ -5,8 +7,8 @@ export const industryGroups = [
   { name: 'デザイン・印刷', children: ['グラフィックデザイン', 'ロゴ・ブランディング', 'イラスト制作', 'UI・UXデザイン', '印刷', '看板・サイン', 'パッケージ制作'] },
   { name: '建設・不動産', children: ['建築設計', '工務店・建設会社', '内装・リフォーム', '家具の組み立て', '電気・設備工事', '不動産売買', '賃貸・物件管理', '外構・造園'] },
   { name: '製造・卸売', children: ['金属加工', '樹脂・プラスチック加工', 'OEM・受託製造', '機械・部品製造', '雑貨卸', '食品卸', '伝統工芸'] },
-  { name: '小売・EC', children: ['アパレル', 'ジュエリー・宝飾', '革製品・革細工', '生活雑貨', '家具・インテリア', '化粧品', 'ECサイト運営', 'ギフト・贈答品'] },
-  { name: '飲食・食品', children: ['飲食店', 'カフェ・喫茶店', '居酒屋・バー', '菓子・スイーツ', '食品製造', 'ケータリング', '農産物・生産者', '酒類'] },
+  { name: '小売・EC', children: ['アパレル', 'ジュエリー・宝飾', '革製品・革細工', '生活雑貨', '花屋', '家具・インテリア', '化粧品', 'ECサイト運営', 'ギフト・贈答品'] },
+  { name: '飲食・食品', children: ['飲食店', ...restaurantIndustries, 'カフェ・喫茶店', '居酒屋・バー', '菓子・スイーツ', '食品製造', 'ケータリング', '農産物・生産者', '酒類'] },
   { name: '美容・健康', children: ['美容室・理容室', 'ネイル・まつげ', 'エステ・サロン', '整体・鍼灸', 'フィットネス', '健康食品', 'リラクゼーション'] },
   { name: '医療・福祉', children: ['病院・クリニック', '歯科', '薬局', '介護サービス', '障害福祉', '訪問看護', '医療機器'] },
   { name: '士業・コンサル', children: ['税理士・会計士', '社会保険労務士', '弁護士', '司法書士', '行政書士', '経営コンサルティング', '補助金・助成金支援'] },
@@ -74,6 +76,8 @@ export function splitIndustryLabels(value: string): string[] {
 
 export function matchesIndustry(tags: string[], filter: string) {
   if (filter === 'all') return true;
+  // 料理ジャンルを指定した会員・案件も、既存の「飲食店」検索に含める。
+  if (filter === '飲食店') return tags.some((tag) => tag === '飲食店' || (restaurantIndustries as readonly string[]).includes(tag));
   const group = industryGroups.find((item) => item.name === filter);
   if (!group) return tags.includes(filter);
   return tags.some((tag) => tag === group.name || (group.children as readonly string[]).includes(tag));

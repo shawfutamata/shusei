@@ -1351,7 +1351,6 @@ export async function updateMemberProfile(user: SessionUser, input: { displayNam
       customMetadata: { ownerId: user.userId },
     });
   }
-  if (!avatarKey) throw new Error('顔写真を登録してください。');
   // display_name もここで書き替える。upsertMember はセッションが持っている名前を
   // 書き戻すが、その名前は毎回このテーブルから読んだものなので、上書き合戦にならない。
   // 呼ぶ順番も upsertMember → UPDATE なので、新しい名前が最後に残る。
@@ -1372,7 +1371,6 @@ export type RequestVideoUpload = { bytes: ArrayBuffer; contentType: string };
 
 export async function createRequest(user: SessionUser, input: { category: string; title: string; description: string; budgetLabel: string; budgetBand: string; area: string; industryTags: string[]; deadline: string; images?: RequestImageUpload[]; video?: RequestVideoUpload | null }) {
   await upsertMember(user);
-  await requireFacePhoto(user.userId);
   const requestPlan = await getPlanState(user.userId);
   const requestCap = limits(requestPlan).requestsPerMonth;
   if (requestCap !== UNLIMITED && await countRequestsThisMonth(user.userId) >= requestCap) {
@@ -1576,7 +1574,6 @@ export async function deletePushSubscription(user: SessionUser, endpoint: string
  */
 export async function createIntroduction(user: SessionUser, input: { requestId: string; personName: string; personCompany: string; relationship: string; fitReason: string; kind?: OfferKind }) {
   await upsertMember(user);
-  await requireFacePhoto(user.userId);
   const kind: OfferKind = input.kind === 'self' ? 'self' : 'referral';
   if (kind === 'self' && !can(await getPlanState(user.userId), 'self_offer')) {
     throw new Error(`${PAYWALL}オファー（自社で請け負う）は、スタンダードプランでお送りいただけます。リファラル（知り合いのご紹介）は、無料プランのままお使いいただけます。`);
@@ -1617,7 +1614,6 @@ export const PAYWALL = '[plan]';
  */
 export async function createAdIntroduction(user: SessionUser, input: { adId: string; personName: string; personCompany: string; relationship: string; fitReason: string; kind?: OfferKind }) {
   await upsertMember(user);
-  await requireFacePhoto(user.userId);
   const kind: OfferKind = input.kind === 'self' ? 'self' : 'referral';
   if (kind === 'self' && !can(await getPlanState(user.userId), 'self_offer')) {
     throw new Error(`${PAYWALL}オファー（自社で請け負う）は、スタンダードプランでお送りいただけます。リファラル（知り合いのご紹介）は、無料プランのままお使いいただけます。`);
@@ -2111,12 +2107,6 @@ export async function updateAttendancePerson(user: SessionUser, input: {
     WHERE id = ? AND owner_id = ?`)
     .bind(input.personName, input.company, input.note, input.isImportant ? 1 : 0, input.id, user.userId).run();
   if (!result.meta.changes) throw new Error('対象の出席者が見つかりません。');
-}
-
-async function requireFacePhoto(memberId: string) {
-  const member = await env.DB.prepare('SELECT avatar_key AS avatarKey FROM members WHERE id = ?')
-    .bind(memberId).first<{ avatarKey: string }>();
-  if (!member?.avatarKey) throw new Error('投稿・オファーの前に、プロフィールへ顔写真を登録してください。');
 }
 
 function avatarUrl(memberId: string, avatarKey: string, avatarVersion: number) {
@@ -2972,14 +2962,14 @@ export type MemberCard = {
  * 探せないと、掲示板に出ていない相手には一生たどり着けない。
  *
  * 利用を止めた人は出さない（プロフィールを開けないので、出すと行き止まりになる）。
- * 顔写真がまだの人も出さない。**誰だか分からない相手に声はかけられない。**
+ * 顔写真は任意なので、未登録の会員も名前と会社で探せる。
  */
 export async function searchMembers(viewerId: string, filter: { keyword?: string; industry?: string; prefecture?: string } = {}): Promise<MemberCard[]> {
   await ensureDatabase();
   const today = new Date().toISOString().slice(0, 10);
   const keyword = (filter.keyword ?? '').trim();
   const like = `%${keyword}%`;
-  const where: string[] = ["m.membership_status != 'canceled'", "m.avatar_key != ''", "m.display_name != ''"];
+  const where: string[] = ["m.membership_status != 'canceled'", "m.display_name != ''"];
   const binds: string[] = [];
   if (!import.meta.env.DEV) {
     where.push("m.email NOT LIKE '%@example.jp'", "m.email NOT LIKE '%@example.com'");

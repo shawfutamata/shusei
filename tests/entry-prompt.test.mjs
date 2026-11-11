@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { build } from 'esbuild';
+const bundle=await build({entryPoints:['app/entry-prompt.ts'],bundle:true,write:false,format:'esm'});
+const {entryPrompt}=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
+const root='https://tasuki.club/';
+assert.equal(entryPrompt(root,'','navigate',root),'consult');
+assert.equal(entryPrompt(root,root+'other','navigate',root),null);
+assert.equal(entryPrompt(root,root,'back_forward',root),null);
+assert.equal(entryPrompt(root,root+'login/member','navigate',root),'consult');
+assert.equal(entryPrompt(root,root,'reload',root),'consult');
+assert.equal(entryPrompt(root,'','navigate',root+'other'),null);
+assert.equal(entryPrompt(root+'?welcome=registered',root+'register/complete','navigate',root),'registered');
+for(const key of ['tab=survey','action=post','contact=1','member=1','ad=done','billing=done','meeting=1'])assert.equal(entryPrompt(root+'?'+key,'','navigate',root),null);
+for(const login of ['invited','early'])assert.equal(entryPrompt(root+'?login='+login,'','navigate',root),'registered');
+console.log('PASS direct entry, reload, internal return, back/forward, SPA entry, signup priority, deep links.');

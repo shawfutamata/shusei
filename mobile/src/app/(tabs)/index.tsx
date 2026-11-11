@@ -49,7 +49,7 @@ export default function HomeScreen() {
         slider.current?.scrollTo({ x: next * bannerWidth, animated: true });
         return next;
       });
-    }, 5200);
+    }, 5000);
     return () => clearInterval(timer);
   }, [ads.length, bannerWidth]);
   // 見られた数は、同じ広告につきこの起動で1回だけ数える。書き込みを増やさないため。

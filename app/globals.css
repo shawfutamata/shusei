@@ -38,6 +38,12 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
    ここだけ。文字に重ねると、広告主が伝えたいことを隠してしまう。 */
 /* バナーを押して開く、広告の中身。オファーの入口はこの中のいちばん下。 */
 .ad-detail { display:grid; gap:14px; }
+/* 画像に含まれる文字も見えるよう、PR・画像・見出しをそれぞれ独立した行にする。 */
+.ad-detail-heading { min-width:0; display:grid; gap:12px; }
+.ad-detail-label { color:var(--muted); font-size:12px; font-weight:800; overflow-wrap:anywhere; }
+.ad-detail-image { display:block; width:100%; height:auto; border-radius:12px; }
+.ad-detail-heading h3 { margin:0; color:var(--ink); font-size:clamp(20px,5vw,24px); line-height:1.5; overflow-wrap:anywhere; }
+.ad-detail-body { overflow-wrap:anywhere; }
 .ad-detail-facts { margin:0; padding:0; display:grid; gap:10px; }
 .ad-detail-facts div { display:grid; grid-template-columns:88px minmax(0,1fr); gap:10px; align-items:baseline; }
 .ad-detail-facts dt { color:#8b98ac; font-size:11px; font-weight:800; }
@@ -208,7 +214,8 @@ button,a,input,select,textarea { font:inherit; } button { cursor:pointer; } a { 
 .tut-card.points-down::before { top:100%; border-top-color:#fff; }
 .tut-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
 .tut-count { color:#93a0b3; font-size:11px; font-weight:900; }
-.tut-skip { min-height:36px; padding:0 10px; border:0; border-radius:10px; background:transparent; color:#7b8ca4; font-size:12px; font-weight:800; cursor:pointer; }
+.tut-skip { min-height:44px; padding:0 12px; border:1px solid var(--line); border-radius:10px; background:#f4f7fb; color:#4c5c73; font-size:12px; font-weight:800; cursor:pointer; }
+.tut-reopen-note { display:block; margin-top:8px; color:#4c5c73; font-size:11px; }
 .tut-eyebrow { margin:8px 0 0; color:var(--blue); font-size:11px; font-weight:900; letter-spacing:.14em; }
 .tut-card h2 { margin:5px 0 0; color:var(--ink); font-size:17px; line-height:1.4; letter-spacing:-.02em; }
 .tut-body { margin:7px 0 0; color:#4c5c73; font-size:11px; font-weight:600; line-height:1.75; }
@@ -2871,3 +2878,29 @@ button.viz-export{border:0;background:transparent;cursor:pointer;font-family:inh
 /* 会話の案件名は説明文に埋めず、全文を読める見出しとして先頭に出す。 */
 .thread-subject { display:block; color:var(--navy); font-size:24px; line-height:1.45; overflow-wrap:anywhere; }
 .thread-subject > small { display:block; margin-bottom:6px; color:#0f5fc4; font-size:12px; font-weight:800; line-height:1.5; }
+
+/* 大分類から移動した先が固定ヘッダーに隠れないようにする。 */
+.industry-detail-panel { scroll-margin-top:90px; }
+.industry-detail-panel:focus-visible { outline:2px solid #1478d6; outline-offset:3px; }
+.industry-custom-entry { display:grid; gap:10px; margin-top:16px; padding-top:16px; border-top:1px solid #cbdcf1; }
+.industry-custom-entry label { display:grid; gap:7px; min-width:0; }
+.industry-custom-entry label>span { font-size:13px; font-weight:800; }
+.industry-custom-entry label small { font-size:11px; color:#607089; }
+.industry-custom-entry input { width:100%; min-width:0; min-height:44px; padding:10px; border:1px solid #c4d3e7; border-radius:8px; background:#fff; color:#243854; font-size:16px; }
+.industry-custom-entry>button { min-height:44px; padding:10px 14px; border:0; border-radius:8px; background:#0f5fc4; color:#fff; font-weight:800; }
+.industry-custom-entry>p { margin:0; color:#536984; font-size:12px; line-height:1.6; }
+.industry-custom-entry>p[role="alert"] { color:#b42318; font-weight:700; }
+
+.industry-restaurant-options { margin-top:16px; padding-top:14px; border-top:1px solid #cbdcf1; }
+.industry-restaurant-options h5 { margin:0 0 6px; color:#23447c; font-size:14px; }
+.industry-restaurant-options p { margin:0 0 10px; color:#536984; font-size:12px; line-height:1.6; }
+
+/* 投稿フォームの長い選択肢・ファイル入力の固有幅でシートが横に広がらないようにする。 */
+.modal-backdrop { min-width:0; grid-template-columns:minmax(0,1fr); }
+.modal { min-width:0; max-width:100%; overflow-x:hidden; overscroll-behavior-x:none; }
+.modal .form { min-width:0; grid-template-columns:minmax(0,1fr); }
+.modal .form > *, .modal .form label { min-width:0; }
+.modal .form input, .modal .form select, .modal .form textarea { min-width:0; max-width:100%; }
+.modal h2, .modal-lead, .entry-prompt-actions p { overflow-wrap:anywhere; }
+.entry-prompt-actions { display:grid; gap:12px; padding-bottom:12px; }
+.entry-prompt-actions p { margin:0 0 6px; color:var(--muted); line-height:1.8; }
