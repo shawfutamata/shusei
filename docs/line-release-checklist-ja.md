@@ -30,9 +30,9 @@
 | 退会・共有情報 | 自動退会はOFF。共有DM/紹介特典/請求/例会等を勝手に消さない | 受付方法と、何を消し何を残すかを決定。単に「アプリからすべて消せる」と案内しない。LINE開始前に実行できる受付・処理経路を用意 |
 | 通知テスト | 実受信・通数は未確認。有料プランへ変更していない | 受信先本人・試す件数・無料枠内かを確認。限定テストから開始し、プラン変更や課金上限を勝手に選ばない |
 
-2026年11月11日の本人指定に合わせ、未公開コードの問い合わせ先をs_futamata@colourjam-inc.comへ統一した（app/company.ts）。既存の公開版にあるinfo@tasuki.clubを変更したことにはならない。LINEチャネルの管理連絡先も指定のアドレスを使用する。実配送と削除・復旧受付の運用確認は別途必要。
+2026年11月11日の本人指定に合わせた問い合わせ先s_futamata@colourjam-inc.comは、11月12日の公開commit a531fdbに反映済み（app/company.ts）。LINEチャネルの管理連絡先も指定のアドレスを使用する。実配送と削除・復旧受付の運用確認は別途必要。
 
-プライバシー追記草案は `docs/line-integration-ja.md`。既存 `/privacy` と `/support` の自動退会の説明も実際の受付方法と合わせる必要がある。問い合わせ先の指定だけを未公開コードに反映し、保存・削除の本文は変更していない。
+プライバシー追記草案は `docs/line-integration-ja.md`。既存 `/privacy` と `/support` の自動退会の説明も実際の受付方法と合わせる必要がある。問い合わせ先は公開済みだが、LINEの保存・削除方針の本文はまだ公開していない。
 
 ## 管理画面で確認する対象
 
@@ -41,10 +41,10 @@
 - LINE Developers：Provider「ColourJam」2005057441。
 - LINE Login：2012557414。開発中のまま。公式アカウントとリンク、callback `https://tasuki.club/api/auth/line/callback`。
 - Messaging API：2012557366。公式アカウント「TASUKI」@771inxtc。webhook `https://tasuki.club/api/line/webhook`、OFF。
-- Cloudflare：Account `06113a41b9a334699aeef23f430117cb` の本体Worker `tasuki`。検証済み管理URLは https://dash.cloudflare.com/06113a41b9a334699aeef23f430117cb/workers/services/view/tasuki/production 。D1名は `tasuki`。定期Worker `tasuki-line-notifications` は未作成。
+- Cloudflare：Account `06113a41b9a334699aeef23f430117cb` の本体Worker `tasuki`。検証済み管理URLは https://dash.cloudflare.com/06113a41b9a334699aeef23f430117cb/workers/services/view/tasuki/production 。D1名は `tasuki`。定期Worker `tasuki-line-notifications` は本人の具体的承認後に作成済み。専用コード・binding・secret・Cronの設定と成功確認は作業中。
 - Resend：TASUKIの確認コード送信元ドメイン・実配送。LINE登録を有効にする前に確認する。
 
-今回、本人Macの既存セッションから本体設定を読み取り、配信100%の版が `db7ed797`（コード `eaf791e`、Build ready）であることを確認した。Runtime variables & secretsは11項目で、`LINE_` 項目はゼロ。既存の `AUTH_CODE_PEPPER` / `AUTH_FROM_EMAIL` / `RESEND_API_KEY` とGoogle/Stripe等の設定は存在するが、秘密値は表示・コピーせず、実配送・有効性まで確認したものではない。設定変更・token発行・配信は行っていない。
+本人Macの既存セッションで、本体version `8241e958`（コード `a531fdb`、Build ready、100%）を確認。Runtime variables & secretsは旧11項目を保持した26項目。LINE非秘密設定10項目とLINE秘密5項目があり、LINE関連4フラグと `ACCOUNT_ERASURE_ENABLED` はすべてfalse。秘密値は会話・ログ・スクリーンショットへ出していない。Messaging tokenは初回発行して安全に保存済みだが、実認証・実配送は未検証。`LINE_BOT_USER_ID` は未設定。定期secretは未使用の専用tokenだけを本体と新Workerへ同値で更新する承認を得ている。
 
 ### 秘密を表示せず確認する設定
 
@@ -93,4 +93,4 @@
 - ローカルDOM/React状態テストは、実ブラウザの見た目や実LINE往復の合格ではない。
 - Macの隔離localhost閲覧は以前にorigin承認で拒否された。新しい適切な承認なしの再試行や別経路への迂回はしない。
 - 本番ブランチへのpushはCloudflare自動公開と同義。過去に拒否された公開操作を別のツールへ置き換えて通さない。
-- D1本番のデータ変更、LINEチャネル公開、webhook有効化、実通知、秘密値追加、ポリシー公開は未実施。実行済みでない欄を完了にしない。
+- LINEチャネル公開、webhook有効化、実認証・実通知/メール、LINEポリシー追記公開は未実施。コード配置と秘密値追加は済んでいても、実利用の合格とはしない。

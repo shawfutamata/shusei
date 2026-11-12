@@ -2,17 +2,17 @@
 
 ## 現在の状態
 
-ローカル実装と隔離テストの段階。コード公開、Cloudflare Secretsの追加、実LINE認証、実会員への通知・メール送信、LINE審査申請は行っていない。`/privacy` の公開文面も未変更。
+2026年11月12日、本人による公開commit `a531fdb` とCloudflare本番version `8241e958`（100%）を確認。無料期間延長とLINEコードは配置済みだが、LINE関連4フラグと自動退会はすべてfalse。必要なLINE秘密5項目は暗号化保存済み。実LINE認証・実通知/メール・審査申請は未実施で、実環境E2E合格ではない。`/privacy` の問い合わせ先は本人指定に更新済みだが、LINE保存/削除方針の追記草案は未承認・未公開。
 
 承認された登録方式は、**LINEから氏名・メールを取得せず、TASUKIで本人が入力し、メール確認コードの認証後にLINE本人確認を行う方式**。通常の登録・ログイン・連携・解除用の認証scopeは `openid` のみ。LINEのメール取得権限申請は不要。
 
 機能は `LINE_DATA_POLICY_READY` と用途別の `LINE_LOGIN_ENABLED` / `LINE_SIGNUP_ENABLED` / `LINE_NOTIFICATIONS_ENABLED` が未設定またはfalseなら無効。必要な暗号鍵・LoginチャネルID/secretが欠けてもログイン・登録は無効。秘密値を追加しただけでは有効にならない。オンライン退会は別の `ACCOUNT_ERASURE_ENABLED` で停止している。
 
-**通知方式は友だち状態を照会しない方式に確定。** 通常ログインと通知設定の両方でopenidだけを要求し、friendship/profile APIを呼ばない。友だち追加を案内し、同じLINEで本人確認した通知同意を記録する。LINEの配達条件を満たさない場合には、保存・API受付が成功しても通知が届かないことを表示する。実設定・実配信はまだ行わない。
+**通知方式は友だち状態を照会しない方式に確定。** 通常ログインと通知設定の両方でopenidだけを要求し、friendship/profile APIを呼ばない。友だち追加を案内し、同じLINEで本人確認した通知同意を記録する。LINEの配達条件を満たさない場合には、保存・API受付が成功しても通知が届かないことを表示する。本体の安全な設定準備は済んだが、実配信はまだ行っていない。
 
 ## LINE管理画面の準備記録
 
-2026年11月11日に管理画面で確認された非秘密値。Cloudflareには未反映。
+2026年11月11〜12日に管理画面で確認された非秘密値。下記IDとOFFフラグは本体Cloudflareにも設定済み。
 
 | 項目 | 値・状態 |
 |---|---|
@@ -26,7 +26,7 @@
 | 連絡先 | s_futamata@colourjam-inc.com |
 | LINE Login | 開発中、一般公開していない |
 | Webhook | OFF、実エンドポイント検証前 |
-| Messaging API token | 未発行 |
+| Messaging API token | 初回発行し、本体WorkerのSecretへ暗号化保存済み。値は記録しない |
 | メール取得権限 | 未申請。新方式では申請不要 |
 
 非秘密設定は `LINE_OFFICIAL_ACCOUNT_ID=@771inxtc`、`LINE_LOGIN_CHANNEL_ID=2012557414`、`LINE_PROVIDER_ID=2005057441`、`LINE_MESSAGING_PROVIDER_ID=2005057441`。`LINE_BOT_USER_ID` は未確認。MessagingチャネルIDをBotユーザーIDとして入れない。
@@ -88,23 +88,29 @@
 | LINE_NOTIFICATIONS_ENABLED | 本人同意、配達条件の表示、送達/停止/再送/通数確認後にtrue |
 | ACCOUNT_ERASURE_ENABLED | 共有記録・バックアップ・画像削除失敗の方針が未完成のため、現時点で設定しない |
 
-stateless tokenは発行後に失効させられず、15分で期限切れになる。手作業の解除用token更新は不要だが、Login secret自体の漏洩対策は引き続き必要。実発行・Secrets設定・公開は未実施。
+stateless tokenは発行後に失効させられず、15分で期限切れになる。手作業の解除用token更新は不要だが、Login secret自体の漏洩対策は引き続き必要。解除用stateless tokenの実発行は未実施。Login/Messagingの必要Secretと本体コードは配置済みだが、機能はOFF。
 
 Provider一致は設定ミス防止であり実所属の証明ではない。管理画面の所属・公式アカウント連携・token対象を確認する。
 
 ### 定期Workerと一時データの削除
 
-`wrangler.line-notifications.jsonc` の `tasuki-line-notifications` は5分ごとにサービスバインディングで本体APIを呼ぶ。D1やLINE tokenは渡さず、専用cron tokenだけを持つ。デプロイは未実施。
+`wrangler.line-notifications.jsonc` の `tasuki-line-notifications` は5分ごとにサービスバインディングで本体APIを呼ぶ。D1やLINE tokenは渡さず、専用cron tokenだけを持つ。専用Workerの作成は本人の具体的承認後に完了。初期Hello Worldのworkers.dev公開口はOFFにし、PreviewもOFF・独自ドメイン/経路なしを確認。現在はコード置換・binding・専用secret・Cronの設定確認中で、定期処理の成功はまだ未確認。Wrangler設定にも `workers_dev: false` / `preview_urls: false` を記載し、再配備で公開口を復活させない。
 
 通知OFFでも定期APIの先頭で期限切れOAuthフロー、登録draft、解除コード/grantを清掃する。通常の設定アクセス・次の登録時にも清掃するが、**有効期限と物理削除時刻は別**。定期Workerの配置・成功監視がない状態で、期限ちょうどの消去を約束しない。LINEログインのみ有効化する場合も清掃の定期実行が必要。
 
 通知再送は1回最大50件。無料枠・月間上限・費用を運営が決め、勝手に有料プランへ変更しない。
 
+### 運営限定の接続診断（次の公開候補）
+
+`GET /api/admin/line-connection` は既存の運営認証を必須とし、保存済みMessaging tokenで公式 `GET https://api.line.me/v2/bot/info` だけを参照する。5秒timeout・redirect禁止・外部本文32KB制限・no-store。戻り値はBot ID、公式ID、設定済みBot IDとの一致だけで、名前/画像/秘密/外部エラー本文は返さない。通知・token発行・設定保存は行わない。公式ID不一致や不正IDを拒否し、設定済みBot ID不一致は409とする。
+
+これはBotの識別確認であり、通知の実配送やLINEログインの合格ではない。隔離35ケース・lint/typecheck/buildは通過したが、診断ルート自身の公開と実LINE接続はまだ未実施。取得したBot IDを運営が確認してから通常の `LINE_BOT_USER_ID` へ設定する。
+
 ## 退会とバックアップの制限
 
 `deleteMobileAccount` はLINE連携が残っていれば先に公式解除を要求する。取引・請求・紹介特典・例会等の共有記録がある場合は無変更で拒否し、運営判断へ回す。未知の外部キーがあってもD1 batchをrollbackする。R2削除が失敗した場合は完了と偽らない。ただし再削除ジョブと運営記録は未整備。詳細は `account-withdrawal-safety.md`。
 
-今後のR2 dumpでは全line_表を除外する。本人入力の会員情報は既存バックアップに含まれる。過去のバックアップ、D1 Time Travel、ダウンロード済み控えを消去したことにはならない。退会記録と復元後の再削除、LINE再連携/通知同意の再取得、鍵を含む障害復旧の運用を決める必要がある。旧LINE由来メール会員の任意通知は、由来/同意記録が欠けた復元でも送らない。
+今後のR2 dumpでは全line_表を除外する。本人入力の会員情報は既存バックアップに含まれる。過去のバックアップ、D1 Time Travel（Freeは7日、Paidは30日。現アカウントはFree）、ダウンロード済み控えを消去したことにはならない。退会記録と復元後の再削除、LINE再連携/通知同意の再取得、鍵を含む障害復旧の運用を決める必要がある。旧LINE由来メール会員の任意通知は、由来/同意記録が欠けた復元でも送らない。
 
 ## 未決定事項と公開順序
 
@@ -144,6 +150,7 @@ TASUKI側でLINE連携を解除すると通知を停止し、LINE側のTASUKIと
 npm run lint
 npm run typecheck
 npm run preflight
+node tests/line-connection-diagnostics.mjs
 node tests/line-signup-runtime.mjs
 node tests/line-runtime.mjs
 node tests/line-email-runtime.mjs

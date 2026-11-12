@@ -10,7 +10,7 @@ import { ensureDatabase } from './data';
  * 元には戻らない。だから毎日、丸ごと写しを取って別の場所（R2）に置く。
  *
  * 守りは3枚重ねにしてある。
- *   1. D1のTime Travel … 直近30日なら、どの時点にも戻せる（Cloudflareの機能。
+ *   1. D1のTime Travel … Freeは7日、Paidは30日を保持する（Cloudflareの機能。
  *      設定はいらない。戻し方は docs/backup-ja.md）。
  *   2. ここ … 毎日R2へ書き出す。表ごと消してしまったときは、こちらから戻す。
  *   3. 手元へのダウンロード … 管理画面から取れる。**Cloudflareのアカウント
