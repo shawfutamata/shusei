@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     if (!lineRecoveryReady()) return failure(request, '/account/privacy?line=line_unconfigured');
     const token = (await cookies()).get(LINE_PRIVACY_COOKIE)?.value || '', grant = await readLinePrivacyGrant(token);
     if (!grant || body.get('consent') !== 'yes') return failure(request, '/account/privacy?line=line_session');
-    return start(request, 'unlink_recovery', grant.memberId, await hashMobileSecret(token), '/account/privacy', '');
+    return start(request, 'unlink_recovery', grant.memberId, await hashMobileSecret(token), '/account/privacy', '', request.headers.get('accept') === 'application/json');
   }
   if (!lineLoginReady()) return failure(request, `${LINE_SETTINGS_PATH}?line=line_unconfigured`);
   const token = await getSessionCookieToken(), access = token ? await getMobileSessionAccess(token) : null;
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   if (body.get('consent') !== 'yes') return failure(request, `${LINE_SETTINGS_PATH}?line=line_consent`);
   const preferences = body.get('action') === 'preferences';
   if (preferences && !lineMessagingReady()) return failure(request, `${LINE_SETTINGS_PATH}?line=line_unconfigured`);
-  return start(request, preferences ? 'preferences' : 'link', access.user.userId, await hashMobileSecret(token), LINE_SETTINGS_PATH, preferences ? JSON.stringify({ message: body.get('message') === 'yes', offer: body.get('offer') === 'yes' }) : '');
+  return start(request, preferences ? 'preferences' : 'link', access.user.userId, await hashMobileSecret(token), LINE_SETTINGS_PATH, preferences ? JSON.stringify({ message: body.get('message') === 'yes', offer: body.get('offer') === 'yes' }) : '', request.headers.get('accept') === 'application/json');
 }
 async function start(request: Request, mode: 'login' | 'link' | 'signup' | 'preferences' | 'unlink_recovery' | 'test_link', memberId: string, sessionHash: string, returnTo: string, draftId: string, jsonResponse = false) {
   if (!await checkSubmissionLimit('line-auth', `start:${request.headers.get('cf-connecting-ip') || 'local'}`)) return NextResponse.json({ error: '少し待って再試行してください。' }, { status: 429 });

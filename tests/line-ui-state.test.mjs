@@ -16,7 +16,8 @@ function children(node) { return (node?.children || []).flat(Infinity); }
 function textOf(node) { return typeof node === 'string' || typeof node === 'number' ? String(node) : children(node).map(textOf).join(''); }
 function all(node, predicate) { if (!node || typeof node !== 'object') return []; return [...(predicate(node) ? [node] : []), ...children(node).flatMap(child => all(child, predicate))]; }
 function fixture(kind, props = {}) {
-  const slots = [], effects = [], requests = [], navigations = [], focus = [], lateUpdates = [];
+  const slots = [], effects = [], requests = [], navigations = [], focus = [], lateUpdates = [], timers = new Map();
+  let timerId = 0;
   let cursor = 0, tree, mounted = true, dirty = false;
   class Element { constructor(label) { this.label = label; } focus() { focus.push(this.label); } }
   const trigger = new Element('privacy trigger');
@@ -26,7 +27,7 @@ function fixture(kind, props = {}) {
     useEffect(effect, dependencies) { const index = cursor++, prior = slots[index]; if (!prior || !dependencies || dependencies.some((value, i) => !Object.is(value, prior.dependencies[i]))) { slots[index] = { dependencies, cleanup: prior?.cleanup }; effects.push(() => { slots[index].cleanup?.(); slots[index].cleanup = effect(); }); } },
   };
   const loaded = { exports: {} };
-  const context = { module: loaded, exports: loaded.exports, require(name) { if (name === 'react') return hooks; if (name === 'next/link') return 'a'; throw Error(`Unexpected dependency: ${name}`); }, __ui: { Fragment: Symbol('Fragment'), createElement(type, props, ...children) { return { type, props: props || {}, children }; } }, AbortController, document: { activeElement: trigger }, HTMLElement: Element, window: { location: { assign(url) { navigations.push(url); } } }, fetch(url, options = {}) { assert.ok(['/api/account/privacy', '/api/line/settings'].includes(url), `only mocked local endpoints: ${url}`); const wait = deferred(); const request = { url, options, body: options.body ? JSON.parse(options.body) : undefined, ...wait }; requests.push(request); return wait.promise; } };
+  const context = { module: loaded, exports: loaded.exports, require(name) { if (name === 'react') return hooks; if (name === 'next/link') return 'a'; throw Error(`Unexpected dependency: ${name}`); }, __ui: { Fragment: Symbol('Fragment'), createElement(type, props, ...children) { return { type, props: props || {}, children }; } }, AbortController, URL, URLSearchParams, setTimeout(fn, ms) { assert.equal(ms,20000); const id=++timerId; timers.set(id,fn); return id; }, clearTimeout(id) { timers.delete(id); }, document: { activeElement: trigger }, HTMLElement: Element, window: { location: { assign(url) { navigations.push(url); } } }, fetch(url, options = {}) { assert.ok(['/api/account/privacy', '/api/line/settings', '/api/auth/line/start'].includes(url), `only mocked local endpoints: ${url}`); const wait = deferred(); const request = { url, options, body: options.body ? (url === '/api/auth/line/start' ? Object.fromEntries(new URLSearchParams(options.body)) : JSON.parse(options.body)) : undefined, ...wait }; requests.push(request); return wait.promise; } };
   vm.runInNewContext(bundles.get(kind), context, { filename: `${kind}.test-bundle.cjs` });
   const component = loaded.exports.default;
   function render() {
@@ -40,13 +41,13 @@ function fixture(kind, props = {}) {
     render(); const node = all(tree, node => node.type === 'button' && textOf(node) === label)[0]; assert.ok(node && !node.props.disabled, `enabled submit: ${label}`);
     const form = all(tree, candidate => candidate.type === 'form' && all(candidate, child => child === node).length)[0]; assert.ok(form, `form: ${label}`); form.props.onSubmit({ preventDefault() {} });
   }
-  function change(predicate, value) { const node = nodes(predicate)[0]; assert.ok(node, 'input exists'); assert.ok(!node.props.disabled, 'input enabled'); node.props.onChange({ target: { value } }); }
+  function change(predicate, value) { const node = nodes(predicate)[0]; assert.ok(node, 'input exists'); assert.ok(!node.props.disabled, 'input enabled'); node.props.onChange({ target: { value, checked: value } }); }
   async function settle() { for (let i = 0; i < 8; i++) await Promise.resolve(); if (mounted) render(); }
   async function respond(index, data, ok = true) { assert.ok(requests[index], `request ${index}`); requests[index].resolve({ ok, json: async () => data }); await settle(); }
   async function reject(index, message = '通信に失敗しました。') { requests[index].reject(new Error(message)); await settle(); }
   function unmount() { mounted = false; for (const slot of slots) slot?.cleanup?.(); }
   render();
-  return { kind, render, nodes, button, click(label) { const node = button(label); assert.ok(!node.props.disabled, `enabled button: ${label}`); assert.equal(typeof node.props.onClick, 'function', `click handler: ${label}`); node.props.onClick(); }, submit, change, settle, respond, reject, unmount, requests, navigations, focus, lateUpdates, text: () => textOf(render()) };
+  return { kind, expireOAuth() { for(const fn of timers.values()) fn(); }, render, nodes, button, click(label) { const node = button(label); assert.ok(!node.props.disabled, `enabled button: ${label}`); assert.equal(typeof node.props.onClick, 'function', `click handler: ${label}`); node.props.onClick(); }, submit, change, settle, respond, reject, unmount, requests, navigations, focus, lateUpdates, text: () => textOf(render()) };
 }
 async function ready(kind, props = {}) {
   const f = fixture(kind, props);
@@ -202,4 +203,55 @@ test('settings: notification stop and privacy actions use the same synchronous l
   assert.equal(f.requests.length, before + 1); assert.equal(f.requests.at(-1).body.action, 'preferences');
   f.unmount(); await f.respond(before, linkedStatus);
   assert.deepEqual(f.lateUpdates, []); assert.deepEqual(f.navigations, []);
+});
+
+const lineUrl = 'https://access.line.me/oauth2/v2.1/authorize?state=fixture';
+async function oauthFixture(kind, action) {
+  if(action === 'unlink_recovery') { const f = await ready(kind); await pending(f); return f; }
+  const f = fixture('settings'); await f.respond(0, { ...linkedStatus, linked: action === 'preferences' });
+  f.change(node => node.type === 'input' && node.props.name === (action === 'link' ? 'consent' : 'message'), true); return f;
+}
+const oauthLabel = action => action === 'link' ? 'LINEを連携する' : action === 'preferences' ? 'LINEで確認して設定を保存' : 'LINEで本人確認して解除を完了';
+for(const [kind, action] of [['settings','link'],['settings','preferences'],['settings','unlink_recovery'],['privacy','unlink_recovery']]) {
+  test(`${kind} ${action}: explicit POST, double click lock and fixed destination`, async () => {
+    const f = await oauthFixture(kind, action), button = f.button(oauthLabel(action)), before = f.requests.length;
+    button.props.onClick(); button.props.onClick(); assert.equal(f.requests.length, before+1);
+    const req = f.requests.at(-1); assert.equal(req.url, '/api/auth/line/start'); assert.equal(req.body.action,action); assert.equal(req.body.consent,'yes');
+    assert.equal(req.options.redirect,'error'); assert.equal(req.options.credentials,'same-origin'); assert.equal(req.options.cache,'no-store'); assert.equal(req.options.headers.Accept,'application/json');
+    if(action==='preferences') { assert.equal(req.body.message,'yes'); assert.equal(req.body.offer,undefined); }
+    await f.respond(before,{authorizeUrl:lineUrl}); assert.deepEqual(f.navigations,[lineUrl]);
+  });
+  test(`${kind} ${action}: error visible and retryable`, async () => {
+    const f=await oauthFixture(kind,action);f.click(oauthLabel(action));await f.reject(f.requests.length-1);
+    assert.match(f.text(),/完了は確認できていません/);assert.equal(f.button(oauthLabel(action)).props.disabled,action==='preferences'?undefined:false);assert.deepEqual(f.navigations,[]);
+  });
+  test(`${kind} ${action}: unmount suppresses delayed navigation`, async () => {
+    const f=await oauthFixture(kind,action);f.click(oauthLabel(action));const index=f.requests.length-1;f.unmount();assert.equal(f.requests[index].options.signal.aborted,true);
+    await f.respond(index,{authorizeUrl:lineUrl});assert.deepEqual(f.navigations,[]);assert.deepEqual(f.lateUpdates,[]);
+  });
+}
+for(const kind of ['settings','privacy']) {
+  for(const destination of ['https://evil.example/oauth2/v2.1/authorize','https://user@access.line.me/oauth2/v2.1/authorize','https://access.line.me/other','https://access.line.me/oauth2/v2.1/authorize#bad']) {
+    test(`${kind}: rejects unsafe OAuth destination ${destination}`,async()=>{
+      const f=await oauthFixture(kind,'unlink_recovery');f.click(oauthLabel('unlink_recovery'));await f.respond(f.requests.length-1,{authorizeUrl:destination});assert.deepEqual(f.navigations,[]);assert.match(f.text(),/完了は確認できていません/);
+    });
+  }
+  test(`${kind}: cancel aborts OAuth and ignores late successful start`,async()=>{
+    const f=await oauthFixture(kind,'unlink_recovery');f.click(oauthLabel('unlink_recovery'));const index=f.requests.length-1;
+    f.click(cancelLabel(kind));assert.equal(f.requests[index].options.signal.aborted,true);assert.equal(f.requests.at(-1).body.action,'cancel');
+    await f.respond(f.requests.length-1,{canceled:true});await f.respond(index,{authorizeUrl:lineUrl});assert.deepEqual(f.navigations,[]);assert.match(f.text(),/送信した解除処理は取り消されません/);
+  });
+}
+test('settings: unchecked consent blocks link and both OFF bypass OAuth',async()=>{
+  const f=fixture('settings');await f.respond(0,{...linkedStatus,linked:false});const button=f.button('LINEを連携する');assert.equal(button.props.disabled,true);button.props.onClick();assert.equal(f.requests.length,1);
+  const g=fixture('settings');await g.respond(0,linkedStatus);g.click('LINE通知を停止');assert.equal(g.requests.at(-1).url,'/api/line/settings');assert.deepEqual(g.requests.at(-1).body,{action:'preferences',message:false,offer:false});await g.respond(1,linkedStatus);
+});
+
+for(const kind of ['settings','privacy']) test(`${kind}: OAuth timeout cannot navigate on late response`,async()=>{
+  const f=await oauthFixture(kind,'unlink_recovery');f.click(oauthLabel('unlink_recovery'));const index=f.requests.length-1;
+  f.expireOAuth();assert.equal(f.requests[index].options.signal.aborted,true);await f.respond(index,{authorizeUrl:lineUrl});assert.deepEqual(f.navigations,[]);assert.match(f.text(),/完了は確認できていません/);
+});
+
+for(const [kind,action] of [['settings','link'],['settings','preferences'],['settings','unlink_recovery'],['privacy','unlink_recovery']]) test(`${kind} ${action}: form submit uses guarded JSON entry too`,async()=>{
+  const f=await oauthFixture(kind,action);f.submit(oauthLabel(action));assert.equal(f.requests.at(-1).body.action,action);await f.respond(f.requests.length-1,{authorizeUrl:lineUrl});assert.deepEqual(f.navigations,[lineUrl]);
 });
