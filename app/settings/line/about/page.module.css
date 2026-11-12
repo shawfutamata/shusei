@@ -1,0 +1,21 @@
+.page { width:min(100% - 32px,620px); margin:24px auto 72px; color:#263c32; font-size:14px; font-weight:400; line-height:1.85; }
+.page a { color:#1764ad; text-decoration:underline; text-underline-offset:3px; }
+.page .back { display:inline-flex; min-height:44px; align-items:center; font-size:13px; }
+.page header { margin:18px 0 24px; }
+.page .eyebrow { margin:0; color:#367459; font-size:11px; font-weight:800; letter-spacing:.12em; }
+.page h1 { margin:7px 0 14px; font-size:26px; line-height:1.45; letter-spacing:-.02em; }
+.page h2 { margin:0 0 14px; font-size:18px; line-height:1.6; }
+.page section { margin:16px 0; padding:22px; background:#fff; border:1px solid #dce7e2; border-radius:17px; scroll-margin-top:20px; }
+.page p { margin:12px 0; font-weight:400; overflow-wrap:anywhere; }
+.page .disclosure { padding:14px; border-radius:11px; background:#eff8f2; color:#315440; }
+.page small { color:#6b7a71; font-size:11px; }
+.page dl { margin:0; }
+.page dl div { margin:12px 0; }
+.page dt { font-weight:700; }
+.page dd { margin:4px 0 0; color:#566b5e; }
+.page ul { padding-left:20px; }
+.page li + li { margin-top:10px; }
+.page section > a { display:block; padding:10px 0; min-height:44px; box-sizing:border-box; }
+.page .returnButton { display:flex; align-items:center; justify-content:center; min-height:48px; padding:12px; border-radius:12px; background:#067b35; color:#fff; font-weight:700; text-decoration:none; }
+.page a:focus-visible { outline:3px solid #1764ad; outline-offset:3px; }
+@media(max-width:380px) { .page section { padding:18px; }.page h1 { font-size:24px; } }

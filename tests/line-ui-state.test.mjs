@@ -7,7 +7,7 @@ import { build } from 'esbuild';
 
 const bundles = new Map();
 for (const [name, path] of [['privacy', 'app/account/privacy/PrivacyForm.tsx'], ['settings', 'app/settings/line/LineSettings.tsx']]) {
-  const result = await build({ entryPoints: [path], bundle: true, write: false, format: 'cjs', platform: 'node', external: ['react', 'next/link'], loader: { '.css': 'empty' }, jsx: 'transform', jsxFactory: '__ui.createElement', jsxFragment: '__ui.Fragment', tsconfigRaw: { compilerOptions: { jsx: 'react', paths: { '@/*': ['./*'] } } } });
+  const result = await build({ entryPoints: [path], bundle: true, write: false, format: 'cjs', platform: 'node', external: ['react', 'next/link'], loader: { '.css': 'empty', '.module.css': 'empty' }, jsx: 'transform', jsxFactory: '__ui.createElement', jsxFragment: '__ui.Fragment', tsconfigRaw: { compilerOptions: { jsx: 'react', paths: { '@/*': ['./*'] } } } });
   bundles.set(name, result.outputFiles[0].text);
 }
 const linkedStatus = { withdrawalReady: true, enabled: true, notificationsReady: true, linked: true, displayName: '', notifyMessage: false, notifyOffer: false, canUnlink: true, canEnable: true, friendUrl: '' };
@@ -283,4 +283,40 @@ for(const [kind,action] of [['settings','link'],['settings','preferences'],['set
   if(kind==='settings')await f.respond(f.requests.length-1,{...linkedStatus,linked:action!=='link'});
   if(action==='preferences')f.change(node=>node.type==='input'&&node.props.name==='message',true);
   f.click(oauthLabel(action));assert.equal(f.requests.at(-1).url,'/api/auth/line/start');await f.respond(f.requests.length-1,{authorizeUrl:lineUrl});assert.deepEqual(f.navigations,[lineUrl]);
+});
+
+// 設定画面の簡素化でも、短い同意ラベルと別ページリンクを同意操作と混同しない。
+test('settings design: short consent is unchecked and details link does not authorize', async () => {
+  const f = fixture('settings'); await f.respond(0, { ...linkedStatus, linked: false });
+  const checkbox = f.nodes(n => n.type === 'input' && n.props.name === 'consent')[0];
+  assert.equal(checkbox.props.checked, false); assert.equal(checkbox.props.required, true);
+  assert.match(f.text(), /LINE情報の取扱いに同意する.*24時間を超えて保存/); assert.match(f.text(), /ログイン・連携管理に使います/);
+  const links = f.nodes(n => n.type === 'a' && n.props.href === '/settings/line/about');
+  assert.ok(links.length); for (const link of links) { assert.equal(link.props.onClick, undefined); assert.equal(link.props.target, undefined); }
+  assert.equal(f.button('LINEを連携する').props.disabled, true); assert.equal(f.requests.length, 1);
+});
+test('settings design: general OFF keeps stop and unlink reachable outside closed details', async () => {
+  const f = fixture('settings'); await f.respond(0, { ...linkedStatus, enabled: false, notificationsReady: false });
+  assert.match(f.text(), /LINE連携済み/); assert.match(f.text(), /新しいLINE連携は準備中/);
+  const details = f.nodes(n => n.type === 'details');
+  for (const label of ['LINE通知をすべて停止', 'メールで本人確認して連携解除']) {
+    const button = f.button(label); assert.equal(button.props.disabled, false); assert.ok(details.every(detail => !all(detail, node => node.type === 'button' && textOf(node) === label).length));
+  }
+});
+test('settings design: irreversible warnings and errors stay outside disclosures', async () => {
+  const f = await ready('settings');
+  const confirmation = f.nodes(n => n.type === 'section' && n.props['aria-label'] === '操作の確認')[0];
+  assert.match(textOf(confirmation), /LINEでログインした端末はログアウト/); assert.match(textOf(confirmation), /会員情報・投稿・登録メールは残ります/); assert.match(textOf(confirmation), /同じGoogleアカウント/);
+  assert.ok(f.nodes(n => n.type === 'details').every(detail => !all(detail, node => node.type === 'section' && node.props['aria-label'] === '操作の確認').length));
+  request(f); await f.reject(f.requests.length - 1); const alert = f.nodes(n => n.props.role === 'alert')[0]; assert.ok(alert); assert.ok(f.focus.includes(textOf(alert)));
+});
+test('settings design: saved notification summary does not claim unsaved draft is active', async () => {
+  const f = fixture('settings'); await f.respond(0, linkedStatus);
+  f.change(n => n.type === 'input' && n.props.name === 'message', true);
+  const summary = f.nodes(n => n.type === 'dl')[0]; assert.match(textOf(summary), /LINE通知の設定オフ/); assert.doesNotMatch(textOf(summary), /通知がオン/); assert.match(f.text(), /変更はまだ保存されていません/);
+  assert.equal(f.nodes(n => n.type === 'input' && n.props.type === 'checkbox' && n.props.name === 'consent').length, 0, 'notification selection is separate from link consent');
+});
+test('settings design: unavailable notification service never claims stored preferences are active', async () => {
+  const f = fixture('settings'); await f.respond(0, { ...linkedStatus, enabled: false, notificationsReady: false, notifyMessage: true });
+  const summary = f.nodes(n => n.type === 'dl')[0]; assert.match(textOf(summary), /LINE通知の設定準備中/); assert.doesNotMatch(textOf(summary), /通知がオン/);
 });

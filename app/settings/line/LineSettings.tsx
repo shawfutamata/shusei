@@ -3,8 +3,9 @@
 import { requestLineAuthorization } from '@/app/line-authorization-client';
 import { useEffect, useRef, useState } from 'react';
 import { serviceName } from '@/app/brand';
-import { LINE_LINK_DISCLOSURE } from '@/app/line-data-consent';
+import { LINE_LINK_CONSENT_LABEL } from '@/app/line-data-consent';
 import '@/app/line.css';
+import styles from './LineSettings.module.css';
 type Status = { withdrawalReady: boolean; enabled: boolean; notificationsReady: boolean; linked: boolean; displayName: string; notifyMessage: boolean; notifyOffer: boolean; canUnlink: boolean; canEnable: boolean; friendUrl: string };
 export default function LineSettings({ initialMessage }: { initialMessage: string }) {
   const [status, setStatus] = useState<Status | null>(null), [error, setError] = useState(''), [message, setMessage] = useState(initialMessage), [busy, setBusy] = useState(false);
@@ -86,32 +87,64 @@ export default function LineSettings({ initialMessage }: { initialMessage: strin
       privacyTriggerRef.current?.focus();
     } catch (e) { if (current === operation.current) setPrivacyError(e instanceof Error ? e.message : '通信できませんでした。'); } finally { if (current === operation.current) { submitting.current = false; setBusy(false); } }
   }
-  return <main className="line-settings-page"><a href="/">← {serviceName}に戻る</a><h1>LINE連携・通知</h1><p>LINEログインとお知らせを、ご自身で管理できます。</p>
-    {(error || message) && <p ref={feedbackRef} tabIndex={-1} role={error ? 'alert' : 'status'} className={`line-feedback ${error ? 'line-error' : 'line-status'}`}>{error || message}</p>}
-    {!status ? <p>{error ? 'ページを読み直してお試しください。' : '設定を読み込み中…'}</p> : <>
-      {!status.enabled && <section><h2>LINE連携は準備中です</h2><p>新しい連携はまだ行えません。既存の連携解除・通知停止は下から行えます。</p></section>}
-      <section><h2>{status.linked ? 'LINE連携済み' : 'LINEを連携する'}</h2>
-        {status.linked ? <><p>{status.displayName || 'あなたのLINE'}と連携しています。</p><p>会員情報や投稿は、今の{serviceName}アカウントにそのまま残ります。</p></> : status.enabled && status.canEnable ? <form action="/api/auth/line/start" method="post" onSubmit={e => { e.preventDefault(); void authorize('link'); }}><label><input type="checkbox" name="consent" value="yes" required disabled={busy} checked={consent} onChange={e => setConsent(e.target.checked)} />{LINE_LINK_DISCLOSURE}</label><p><a href="/privacy">プライバシーポリシー</a>をご確認ください。通知は別に選べます。</p><button type="button" onClick={() => void authorize('link')} className="line-button" disabled={!consent || busy}>LINEを連携する</button></form> : <p>現在の会員状態では新しいLINE連携を行えません。</p>}
+  const notificationState = !status?.notificationsReady ? '準備中' : !status.canEnable ? '利用状況の確認が必要' : status.notifyMessage || status.notifyOffer ? '選択した通知がオン' : 'オフ';
+  return <main className={`line-settings-page ${styles.page}`}>
+    <a className={styles.back} href="/">← {serviceName}に戻る</a>
+    <header className={styles.header}><span className={styles.eyebrow}>LINE SETTINGS</span><h1>LINE連携・通知</h1><p>連携の確認と、お知らせの設定はこちら。</p></header>
+    {(error || message) && <p ref={feedbackRef} tabIndex={-1} role={error ? 'alert' : 'status'} className={`line-feedback ${styles.feedback} ${error ? 'line-error' : 'line-status'}`}>{error || message}</p>}
+    {!status ? <div className={styles.loading} role="status">{error ? 'ページを読み直してお試しください。' : '設定を読み込み中…'}</div> : <>
+      <section className={styles.overview} aria-label="現在のLINE連携状況">
+        <div className={styles.overviewTitle}><span className={styles.lineMark} aria-hidden="true">LINE</span><div><span className={styles.kicker}>いまの連携状況</span><h2>{status.linked ? 'LINE連携済み' : 'LINEは未連携です'}</h2></div></div>
+        <p className={styles.overviewDescription}>会員情報や投稿は、今の{serviceName}アカウントにそのまま残ります。</p>
+        <dl className={styles.statusGrid}><div><dt>LINE通知の設定</dt><dd>{status.linked ? notificationState : '連携後に選択'}</dd></div></dl>
+        {!status.enabled && <div className={styles.availability}><b>新しいLINE連携は準備中です</b><p>新しい連携はまだ行えません。{status.linked ? '連携済みの方は、通知停止・連携解除を下から行えます。' : '受付開始までお待ちください。'}</p></div>}
       </section>
-      {status.linked && <><section><h2>LINEで受け取るお知らせ</h2><p>通知は最初はオフです。相手の名前や本文はLINEに載せず、届いたことだけお知らせします。</p>
-        {status.notificationsReady && status.canEnable ? <>
-          <div className="line-status"><p>公式LINEを友だち追加して、受け取る通知を選んでください。保存時にLINEで本人確認しますが、友だち・ブロック状態は照会しません。未追加・ブロック中などは、設定を保存しても届かない場合があります。</p>{status.friendUrl && <a className="line-button" href={status.friendUrl} target="_blank" rel="noreferrer">公式LINEを友だち追加</a>}</div>
-          <form action="/api/auth/line/start" method="post" onSubmit={e => { e.preventDefault(); void authorize('preferences'); }}>
-            <input type="hidden" name="action" value="preferences" /><input type="hidden" name="consent" value="yes" />
-            <fieldset disabled={busy}><legend>受け取る通知を選んでください</legend><label><input type="checkbox" name="message" value="yes" checked={notifyMessage} onChange={e => setNotifyMessage(e.target.checked)} />新しいメッセージ</label><label><input type="checkbox" name="offer" value="yes" checked={notifyOffer} onChange={e => setNotifyOffer(e.target.checked)} />新しいオファー・リファラル</label><p>選んだお知らせをLINEへ送ることに同意して保存します。両方外すと通知を停止します。</p><button type="button" onClick={() => void authorize('preferences')} className="line-button">{notifyMessage || notifyOffer ? 'LINEで確認して設定を保存' : 'LINE通知を停止'}</button></fieldset>
-          </form>
-        </> : <p>現在は通知を新しく有効にできません。</p>}
-        <button className="line-unlink" disabled={busy} onClick={() => void stop()}>LINE通知をすべて停止</button><p>LINEでブロックすると通知が停止します。ブロック解除後もご自身で設定するまで再開しません。既に送信中のお知らせは取り消せない場合があります。</p>
-      </section><section><h2>LINEとの連携を解除する</h2><p>LINE通知が止まり、LINE側のTASUKIとの連動も解除します。LINEでログインした端末はログアウトします。会員情報・投稿・登録メールは残ります。再ログインには、登録メールと同じGoogleアカウントが必要です。ご用意できない場合は、先に運営窓口へご相談ください。</p><button className="line-unlink" disabled={busy} onClick={() => choose('unlink')}>メールで本人確認して連携解除</button></section></>}
-      <section><h2>メールのお知らせ</h2><p>LINE登録時のメールのお知らせは、別の同意で選びます。通知を止めても、ご自身で依頼する本人確認コードは送信されます。</p><button className="line-unlink" disabled={busy} onClick={() => void stop(true)}>メールのお知らせを停止</button></section>
-      <section><h2>退会</h2><p>会員登録とLINE連携を削除します。元に戻せません。取引・請求・共有記録がある場合は、この画面では削除せず運営窓口での確認が必要です。バックアップ等の取扱いは運営への確認が必要です。</p>{status.withdrawalReady ? <button className="line-unlink" disabled={busy} onClick={() => choose('withdraw')}>退会の本人確認へ</button> : <p>オンライン退会は準備中です。運営窓口に退会・削除をご依頼ください。</p>}</section>
-      {purpose && <section aria-label="操作の確認"><h2 ref={privacyHeadingRef} tabIndex={-1}>{purpose === 'unlink' ? 'LINE連携解除の確認' : '退会の確認'}</h2><p>この操作のため、登録メールアドレスへの確認コード送信を依頼します。</p>
+
+      {!status.linked && status.enabled && status.canEnable && <section className={styles.card} aria-labelledby="line-connect-heading">
+        <div className={styles.cardHeading}><span className={styles.step} aria-hidden="true">1</span><div><h2 id="line-connect-heading">LINEを連携する</h2><p>内容に同意して、LINEで本人確認します。</p></div></div>
+        <form action="/api/auth/line/start" method="post" onSubmit={e => { e.preventDefault(); void authorize('link'); }}>
+          <a className={styles.detailLink} href="/settings/line/about">LINE情報の取扱いを読む <span aria-hidden="true">›</span></a><p className={styles.consentPurpose}>ログイン・連携管理に使います。希望するLINE通知は別に選べます。</p>
+          <label className={styles.consent}><input type="checkbox" name="consent" value="yes" required disabled={busy} checked={consent} onChange={e => setConsent(e.target.checked)} /><span>{LINE_LINK_CONSENT_LABEL}</span></label>
+          <button type="button" onClick={() => void authorize('link')} className="line-button" disabled={!consent || busy}>LINEを連携する</button>
+        </form>
+      </section>}
+      {!status.linked && status.enabled && !status.canEnable && <p className={styles.availability}>現在の会員状態では新しいLINE連携を行えません。</p>}
+
+      {status.linked && <>
+        <section className={styles.card} aria-labelledby="line-notifications-heading">
+          <div className={styles.cardHeading}><span className={styles.sectionIcon} aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0v5l2 3H4l2-3zM10 21h4" /></svg></span><div><h2 id="line-notifications-heading">LINEで受け取るお知らせ</h2><p>相手の名前や本文は載せず、届いたことだけお知らせ。</p></div></div>
+          {status.notificationsReady && status.canEnable ? <>
+            <div className={styles.friendStep}><span className={styles.step} aria-hidden="true">1</span><div><b>公式LINEを友だち追加</b><p>追加済みの方は、そのまま次へ。</p></div>{status.friendUrl && <a className={styles.friendLink} href={status.friendUrl} target="_blank" rel="noreferrer">公式LINEを友だち追加</a>}</div>
+            <form action="/api/auth/line/start" method="post" onSubmit={e => { e.preventDefault(); void authorize('preferences'); }}>
+              <input type="hidden" name="action" value="preferences" /><input type="hidden" name="consent" value="yes" />
+              <fieldset disabled={busy}><legend className={styles.legend}><span className={styles.step} aria-hidden="true">2</span>受け取る通知を選んでください</legend>
+                <label className={`${styles.choice} ${notifyMessage ? styles.selected : ''}`}><input type="checkbox" name="message" value="yes" checked={notifyMessage} onChange={e => setNotifyMessage(e.target.checked)} /><span><b>新しいメッセージ</b><small>メッセージが届いたとき</small></span><span className={styles.choiceState} aria-hidden="true">{notifyMessage ? '選択中' : 'オフ'}</span></label>
+                <label className={`${styles.choice} ${notifyOffer ? styles.selected : ''}`}><input type="checkbox" name="offer" value="yes" checked={notifyOffer} onChange={e => setNotifyOffer(e.target.checked)} /><span><b>新しいオファー・リファラル</b><small>オファーや紹介が届いたとき</small></span><span className={styles.choiceState} aria-hidden="true">{notifyOffer ? '選択中' : 'オフ'}</span></label>
+                {(notifyMessage !== status.notifyMessage || notifyOffer !== status.notifyOffer) && <p className={styles.draftNotice} role="status">変更はまだ保存されていません。</p>}
+                <p className={styles.saveConsent}>選んだお知らせをLINEへ送ることに同意して保存します。両方外すと通知を停止します。</p>
+                <button type="button" onClick={() => void authorize('preferences')} className="line-button">{notifyMessage || notifyOffer ? 'LINEで確認して設定を保存' : 'LINE通知を停止'}</button>
+              </fieldset>
+            </form>
+            <p className={styles.small}>保存時はLINEで本人確認します。友だち未追加・ブロック中などは届かない場合があります。<a href="/settings/line/about#notifications">通知の詳しい説明</a></p>
+          </> : <div className={styles.emptyNotice}><b>{status.notificationsReady ? '通知の新規設定は利用できません' : 'LINE通知は準備中です'}</b><p>現在は通知を新しく有効にできません。</p></div>}
+          <div className={styles.stopRow}><button className="line-unlink" disabled={busy} onClick={() => void stop()}>LINE通知をすべて停止</button><p>送信中のお知らせは取り消せない場合があります。</p></div>
+        </section>
+
+        <section className={`${styles.card} ${styles.manageCard}`} aria-labelledby="line-unlink-heading"><div className={styles.manageHeading}><h2 id="line-unlink-heading">LINEとの連携を解除する</h2><span className={styles.subtleBadge}>会員情報は残ります</span></div><p>LINEの通知と連動を解除する手続きです。</p><button className="line-unlink" disabled={busy} onClick={() => choose('unlink')}>メールで本人確認して連携解除</button><a className={styles.detailLink} href="/settings/line/about#unlink">解除するとどうなる？</a></section>
+      </>}
+
+      <details className={styles.details}><summary><span><b>メールのお知らせ</b><small>LINE通知とは別の設定です</small></span><span className={styles.expand} aria-hidden="true">＋</span></summary><div className={styles.detailsBody}><p>LINE登録時のメールのお知らせは、別の同意で選びます。通知を止めても、ご自身で依頼する本人確認コードは送信されます。</p><button className="line-unlink" disabled={busy} onClick={() => void stop(true)}>メールのお知らせを停止</button></div></details>
+      <section className={`${styles.card} ${styles.manageCard}`} aria-labelledby="line-withdraw-heading"><h2 id="line-withdraw-heading">退会について</h2>{status.withdrawalReady ? <><p>会員登録とLINE連携を削除します。元に戻せません。</p><button className="line-unlink" disabled={busy} onClick={() => choose('withdraw')}>退会の本人確認へ</button></> : <p>オンライン退会は準備中です。運営窓口に退会・削除をご依頼ください。</p>}<a className={styles.detailLink} href="/settings/line/about#withdraw">退会・削除について確認する</a></section>
+
+      {purpose && <section className={`${styles.card} ${styles.confirmation}`} aria-label="操作の確認"><span className={styles.kicker}>手続きの前にご確認ください</span><h2 ref={privacyHeadingRef} tabIndex={-1}>{purpose === 'unlink' ? 'LINE連携解除の確認' : '退会の確認'}</h2>
+        <div className={styles.caution}>{purpose === 'unlink' ? <><b>LINEとの連動を解除します</b><ul><li>LINE通知が止まり、LINE側の{serviceName}との連動も解除します。LINEでログインした端末はログアウトします。</li><li>会員情報・投稿・登録メールは残ります。</li><li>再ログインには、登録メールと同じGoogleアカウントが必要です。ご用意できない場合は、先に運営窓口へご相談ください。</li></ul></> : <><b>退会は元に戻せません</b><p>会員登録とLINE連携を削除します。取引・請求・共有記録がある場合は、この画面では削除せず運営窓口での確認が必要です。バックアップ等の取扱いは運営への確認が必要です。</p></>}</div>
+        <p className={styles.confirmLead}>この操作のため、登録メールアドレスへの確認コード送信を依頼します。</p>
         {!privacyPending && <button className="line-unlink" disabled={busy} onClick={() => void privacy()}>{sent ? '確認コードを再送' : '確認コードをメールで送る'}</button>}
-        {(privacyError || privacyMessage) && <p ref={privacyFeedbackRef} tabIndex={-1} role={privacyError ? 'alert' : 'status'} className={`line-feedback ${privacyError ? 'line-error' : 'line-status'}`}>{privacyError || privacyMessage}</p>}
-        {sent && !privacyPending && <form onSubmit={e => { e.preventDefault(); void privacy(true); }}><label className="line-privacy-code">6桁の確認コード<input aria-label="6桁の確認コード" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={code} onChange={e => setCode(e.target.value)} disabled={busy} /></label><button className="line-unlink" disabled={busy || !/^\d{6}$/.test(code)}>{purpose === 'unlink' ? 'LINE連携を解除する' : '退会して会員情報を削除する'}</button></form>}
-        {privacyPending && <><button className="line-unlink" disabled={busy} onClick={() => void privacy(false, true)}>解除の処理を再試行</button>{needsLineConfirmation && <form action="/api/auth/line/start" method="post" onSubmit={e => { e.preventDefault(); void authorize('unlink_recovery'); }}><input type="hidden" name="action" value="unlink_recovery" /><input type="hidden" name="consent" value="yes" /><p>同じLINEで本人確認し、TASUKIとの連動解除を完了します。</p><button type="button" onClick={() => void authorize('unlink_recovery')} className="line-button" disabled={busy}>LINEで本人確認して解除を完了</button></form>}<p>LINEで本人確認できない場合は、運営窓口での確認が必要です。</p></>}
-        <button className="line-unlink" disabled={busy && !startingOAuth} onClick={() => void cancelPrivacy()}>キャンセル</button></section>}
-      <p><a href="/account/privacy">ログインできない場合のLINE連携解除・退会確認</a></p>
+        {(privacyError || privacyMessage) && <p ref={privacyFeedbackRef} tabIndex={-1} role={privacyError ? 'alert' : 'status'} className={`line-feedback ${styles.feedback} ${privacyError ? 'line-error' : 'line-status'}`}>{privacyError || privacyMessage}</p>}
+        {sent && !privacyPending && <form onSubmit={e => { e.preventDefault(); void privacy(true); }}><label className="line-privacy-code">6桁の確認コード<input aria-label="6桁の確認コード" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={code} onChange={e => setCode(e.target.value)} disabled={busy} /></label><button className={`line-unlink ${styles.dangerButton}`} disabled={busy || !/^\d{6}$/.test(code)}>{purpose === 'unlink' ? 'LINE連携を解除する' : '退会して会員情報を削除する'}</button></form>}
+        {privacyPending && <><div className={styles.pendingNotice}><b>解除はまだ完了していません</b><p>状況を確認して、続きの手続きを行ってください。</p></div><button className="line-unlink" disabled={busy} onClick={() => void privacy(false, true)}>解除の処理を再試行</button>{needsLineConfirmation && <form action="/api/auth/line/start" method="post" onSubmit={e => { e.preventDefault(); void authorize('unlink_recovery'); }}><input type="hidden" name="action" value="unlink_recovery" /><input type="hidden" name="consent" value="yes" /><p>同じLINEで本人確認し、{serviceName}との連動解除を完了します。</p><button type="button" onClick={() => void authorize('unlink_recovery')} className="line-button" disabled={busy}>LINEで本人確認して解除を完了</button></form>}<p className={styles.small}>LINEで本人確認できない場合は、運営窓口での確認が必要です。</p></>}
+        <button className={`line-unlink ${styles.cancelButton}`} disabled={busy && !startingOAuth} onClick={() => void cancelPrivacy()}>キャンセル</button></section>}
+      <footer className={styles.footer}><a href="/settings/line/about">LINE連携・データの取扱いについて</a><a href="/account/privacy">ログインできない場合のLINE連携解除・退会確認</a><a href="/privacy">プライバシーポリシー</a></footer>
     </>}
   </main>;
 }
