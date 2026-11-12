@@ -7,15 +7,15 @@ const state=()=>({closed:false,linkedReady:true,slots:[{slot:1,status:'unused'},
 function all(node,predicate){if(!node||typeof node!=='object')return[];if(Array.isArray(node))return node.flatMap(n=>all(n,predicate));return[...(predicate(node)?[node]:[]),...(node.children||[]).flatMap(n=>all(n,predicate))];}
 function text(node){if(node==null||typeof node==='boolean')return'';if(typeof node!=='object')return String(node);if(Array.isArray(node))return node.map(text).join('');return(node.children||[]).map(text).join('');}
 function fixture(initial=state()){
- let cursor=0;const slots=[],requests=[];let tree;
+ let cursor=0;const slots=[],requests=[],navigations=[];let tree;
  const loaded={exports:{}};
  const hooks={useState(value){const i=cursor++;if(!(i in slots))slots[i]=value;return[slots[i],v=>{slots[i]=typeof v==='function'?v(slots[i]):v;}];},useRef(value){const i=cursor++;if(!(i in slots))slots[i]={current:value};return slots[i];}};
- vm.runInNewContext(built.outputFiles[0].text,{module:loaded,exports:loaded.exports,require(name){if(name==='next/link')return 'a';assert.equal(name,'react');return hooks;},__ui:{createElement(type,props,...children){return{type,props:props||{},children};}},requestAnimationFrame(fn){fn();},fetch(url,options){assert.equal(url,'/api/admin/line-test');let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});requests.push({url,options,body:JSON.parse(options.body),resolve,reject});return promise;}});
+ vm.runInNewContext(built.outputFiles[0].text,{module:loaded,exports:loaded.exports,require(name){if(name==='next/link')return 'a';assert.equal(name,'react');return hooks;},__ui:{createElement(type,props,...children){return{type,props:props||{},children};}},URL, URLSearchParams,window:{location:{assign(url){navigations.push(url);}}},requestAnimationFrame(fn){fn();},fetch(url,options){assert.ok(['/api/admin/line-test','/api/auth/line/start'].includes(url));let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});requests.push({url,options,body:url==='/api/auth/line/start'?Object.fromEntries(new URLSearchParams(options.body)):JSON.parse(options.body),resolve,reject});return promise;}});
  function render(){cursor=0;tree=loaded.exports.default({email:'owner@example.invalid',initialStatus:initial,friendUrl:'https://line.me/R/ti/p/@fixture',initialMessage:''});for(const n of all(tree,n=>n.props.ref))n.props.ref.current={focus(){}};return tree;}
  const nodes=p=>all(render(),p);const button=label=>{const n=nodes(n=>n.type==='button'&&text(n)===label);assert.equal(n.length,1,label);return n[0];};
  const check=()=>nodes(n=>n.type==='input'&&n.props.type==='checkbox').at(-1).props.onChange({target:{checked:true}});
  async function settle(){for(let i=0;i<8;i++)await Promise.resolve();render();}
- render();return{render,nodes,button,check,requests,async reply(i,data,ok=true){requests[i].resolve({ok,json:async()=>data});await settle();},async reject(i){requests[i].reject(new Error('fixture'));await settle();},text:()=>text(render())};
+ render();return{render,nodes,button,check,requests,navigations,async reply(i,data,ok=true){requests[i].resolve({ok,json:async()=>data});await settle();},async reject(i){requests[i].reject(new Error('fixture'));await settle();},text:()=>text(render())};
 }
 const send1='本人へテスト 1 を送る',send2='本人へテスト 2 を送る',close='残りの枠を閉じてテストを終了';
 {
@@ -27,6 +27,14 @@ const send1='本人へテスト 1 を送る',send2='本人へテスト 2 を送�
 }
 for(const mode of ['reject','error','malformed']){
  const f=fixture();f.check();f.button(send1).props.onClick();if(mode==='reject')await f.reject(0);else await f.reply(0,mode==='error'?{error:'fixture'}:{broken:true},mode!=='error');assert.equal(f.button(send1).props.disabled,true);assert.equal(f.button(send2).props.disabled,true);assert.equal(f.button(close).props.disabled,true);assert.match(f.text(),/同じ操作は繰り返さず/);assert.equal(f.requests.length,1);
+}
+for(const valid of [true,false]) {
+ const f=fixture({...state(),linkedReady:false}); const button=f.button('本人のLINEで連携する');button.props.onClick();assert.equal(f.requests.length,0,'consent required inside handler');
+ f.nodes(n=>n.type==='input'&&n.props.name==='consent')[0].props.onChange({target:{checked:true}});
+ const click=f.button('本人のLINEで連携する').props.onClick;click();click();assert.equal(f.requests.length,1);assert.deepEqual(JSON.parse(JSON.stringify(f.requests[0].body)),{action:'test_link',consent:'yes'});assert.equal(f.requests[0].options.headers.Accept,'application/json');assert.equal(f.requests[0].options.redirect,'error');
+ await f.reply(0,{authorizeUrl:valid?'https://access.line.me/oauth2/v2.1/authorize?state=fixture':'https://evil.invalid/authorize'});
+ assert.equal(f.navigations.length,valid?1:0);assert.equal(f.button('本人のLINEで連携する').props.disabled,true);
+ if(!valid)assert.match(f.text(),/通知は送っていません/);
 }
 for(const status of ['accepted','unknown','failed']){const f=fixture({...state(),slots:[{slot:1,status},{slot:2,status}]});f.check();assert.equal(f.button(send1).props.disabled,true);assert.equal(f.button(send2).props.disabled,true);}
 console.log('PASS: owner-only TSX consent/link guards, fixed request, double-click lock, two-slot/busy/closed states, uncertain/malformed failure lock. Element tree only; no browser rendering or real communications.');

@@ -1,6 +1,6 @@
 'use client';
+/* eslint-disable @next/next/no-html-link-for-pages -- 認証試験画面はRSC prefetchを使わず、通常遷移で状態を読み直す。 */
 import { useRef, useState } from 'react';
-import Link from 'next/link';
 import { serviceName } from '@/app/brand';
 import { LINE_LINK_DISCLOSURE } from '@/app/line-data-consent';
 import styles from './line-test.module.css';
@@ -18,6 +18,25 @@ export default function LineTest({ email, initialStatus, friendUrl, initialMessa
   const [consent, setConsent] = useState(false), [sendConsent, setSendConsent] = useState(false);
   const [busy, setBusy] = useState(false), [uncertain, setUncertain] = useState(false), [message, setMessage] = useState(initialMessage);
   const active = useRef(false), notice = useRef<HTMLParagraphElement>(null);
+  async function beginLink() {
+    if (active.current || uncertain || !consent) return;
+    active.current = true; setBusy(true); setMessage('LINEの本人確認画面を開いています…');
+    try {
+      // 標準フォームの遷移に依存せず、同じ認証・Origin・state/PKCEの検証を通す。
+      const response = await fetch('/api/auth/line/start', { method: 'POST', credentials: 'same-origin', redirect: 'error', cache: 'no-store',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+        body: new URLSearchParams({ action: 'test_link', consent: 'yes' }).toString() });
+      const result = await response.json() as { authorizeUrl?: unknown };
+      if (!response.ok || typeof result.authorizeUrl !== 'string') throw new Error('start_failed');
+      const destination = new URL(result.authorizeUrl);
+      if (destination.origin !== 'https://access.line.me' || destination.pathname !== '/oauth2/v2.1/authorize') throw new Error('invalid_destination');
+      window.location.assign(destination.href);
+    } catch {
+      setUncertain(true); active.current = false; setBusy(false);
+      setMessage('LINEの本人確認画面を開けませんでした。通知は送っていません。この画面を再読み込みしてから接続状態を確認してください。');
+      requestAnimationFrame(() => notice.current?.focus());
+    }
+  }
   async function act(action: 'send' | 'close', slot?: 1 | 2) {
     if (active.current || uncertain) return;
     active.current = true; setBusy(true); setMessage('処理中です。画面を閉じずにお待ちください。');
@@ -36,10 +55,10 @@ export default function LineTest({ email, initialStatus, friendUrl, initialMessa
     <p ref={notice} tabIndex={-1} role="status" className={styles.notice}>{message || 'LINEへ送る前に、本人のアカウントであることを確認してください。'}</p>
     {!status.closed && !status.linkedReady && <section>
       <h2>1. 本人のLINEと連携</h2>
-      <form action="/api/auth/line/start" method="post">
+      <form action="/api/auth/line/start" method="post" onSubmit={event => { event.preventDefault(); void beginLink(); }}>
         <input type="hidden" name="action" value="test_link" />
         <label className={styles.check}><input type="checkbox" name="consent" value="yes" required checked={consent} onChange={event => setConsent(event.target.checked)} /><span>{LINE_LINK_DISCLOSURE} 今回は本人限定テストに使います。</span></label>
-        <button className={styles.lineButton} type="submit" disabled={!consent || busy || uncertain}>本人のLINEで連携する</button>
+        <button className={styles.lineButton} type="button" onClick={() => void beginLink()} disabled={!consent || busy || uncertain}>本人のLINEで連携する</button>
       </form>
     </section>}
     <section>
@@ -57,8 +76,8 @@ export default function LineTest({ email, initialStatus, friendUrl, initialMessa
       <h2>3. 終了・連携解除</h2>
       <button className={styles.stopButton} type="button" disabled={status.closed || busy || uncertain} onClick={() => void act('close')}>残りの枠を閉じてテストを終了</button>
       {status.closed && <p>テストは終了しています。未使用の枠も再開できません。</p>}
-      <p>テスト終了だけではLINE連携情報は削除されません。既にLINE本人確認の処理が進んでいる場合も、その結果は取り消せません。<Link href="/settings/line">LINE連携設定</Link>からメール本人確認を行って解除できます。確認メールは今回の承認範囲の1通だけとし、届かない場合も再送せず確認します。</p>
+      <p>テスト終了だけではLINE連携情報は削除されません。既にLINE本人確認の処理が進んでいる場合も、その結果は取り消せません。<a href="/settings/line">LINE連携設定</a>からメール本人確認を行って解除できます。確認メールは今回の承認範囲の1通だけとし、届かない場合も再送せず確認します。</p>
     </section>
-    <Link href="/">{serviceName}へ戻る</Link>
+    <a href="/">{serviceName}へ戻る</a>
   </main>;
 }

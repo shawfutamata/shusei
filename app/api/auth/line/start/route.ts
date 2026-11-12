@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     if (!token || !access?.membership.canUseApp || access.user.userId !== owner.userId) return failure(request, '/admin/line-test?line=line_session');
     if (body.get('consent') !== 'yes') return failure(request, '/admin/line-test?line=line_consent');
     if ((await getLineTestStatus(owner.userId)).closed) return failure(request, '/admin/line-test?line=line_failed');
-    return start(request, 'test_link', owner.userId, await hashMobileSecret(token), '/admin/line-test', '');
+    return start(request, 'test_link', owner.userId, await hashMobileSecret(token), '/admin/line-test', '', request.headers.get('accept') === 'application/json');
   }
   if (body.get('action') === 'unlink_recovery') {
     if (!lineRecoveryReady()) return failure(request, '/account/privacy?line=line_unconfigured');
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
   if (preferences && !lineMessagingReady()) return failure(request, `${LINE_SETTINGS_PATH}?line=line_unconfigured`);
   return start(request, preferences ? 'preferences' : 'link', access.user.userId, await hashMobileSecret(token), LINE_SETTINGS_PATH, preferences ? JSON.stringify({ message: body.get('message') === 'yes', offer: body.get('offer') === 'yes' }) : '');
 }
-async function start(request: Request, mode: 'login' | 'link' | 'signup' | 'preferences' | 'unlink_recovery' | 'test_link', memberId: string, sessionHash: string, returnTo: string, draftId: string) {
+async function start(request: Request, mode: 'login' | 'link' | 'signup' | 'preferences' | 'unlink_recovery' | 'test_link', memberId: string, sessionHash: string, returnTo: string, draftId: string, jsonResponse = false) {
   if (!await checkSubmissionLimit('line-auth', `start:${request.headers.get('cf-connecting-ip') || 'local'}`)) return NextResponse.json({ error: '少し待って再試行してください。' }, { status: 429 });
   const flow = await createLineFlow({ mode, memberId, sessionHash, returnTo, draftId });
   const authorize = new URL('https://access.line.me/oauth2/v2.1/authorize');
@@ -55,7 +55,7 @@ async function start(request: Request, mode: 'login' | 'link' | 'signup' | 'pref
     scope: 'openid', nonce: flow.nonce,
     code_challenge: flow.challenge, code_challenge_method: 'S256' };
   for (const [key, value] of Object.entries(params)) authorize.searchParams.set(key, value);
-  const response = NextResponse.redirect(authorize, 303);
+  const response = jsonResponse ? NextResponse.json({ authorizeUrl: authorize.toString() }) : NextResponse.redirect(authorize, 303);
   response.headers.set('Cache-Control', 'no-store'); response.headers.set('Referrer-Policy', 'no-referrer');
   response.cookies.set(LINE_BROWSER_COOKIE, flow.browser, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 600 });
   return response;
