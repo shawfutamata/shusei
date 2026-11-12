@@ -26,7 +26,7 @@ export default function LineSettings({ initialMessage }: { initialMessage: strin
     };
     window.addEventListener('pagehide', leave);
     window.addEventListener('pageshow', restore);
-    return () => { leave(); window.removeEventListener('pagehide', leave); window.removeEventListener('pageshow', restore); };
+    return () => { leave(); submitting.current = false; window.removeEventListener('pagehide', leave); window.removeEventListener('pageshow', restore); };
   }, []);
   useEffect(() => { if (error || message) feedbackRef.current?.focus(); }, [error, message]);
   useEffect(() => { if (purpose) privacyHeadingRef.current?.focus(); }, [purpose]);

@@ -25,7 +25,7 @@ function fixture(kind, props = {}) {
   const hooks = {
     useState(initial) { const index = cursor++; if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial; return [slots[index], next => { if (!mounted) lateUpdates.push(index); slots[index] = typeof next === 'function' ? next(slots[index]) : next; dirty = true; }]; },
     useRef(initial) { const index = cursor++; if (!(index in slots)) slots[index] = { current: initial }; return slots[index]; },
-    useEffect(effect, dependencies) { const index = cursor++, prior = slots[index]; if (!prior || !dependencies || dependencies.some((value, i) => !Object.is(value, prior.dependencies[i]))) { slots[index] = { dependencies, cleanup: prior?.cleanup }; effects.push(() => { slots[index].cleanup?.(); slots[index].cleanup = effect(); }); } },
+    useEffect(effect, dependencies) { const index = cursor++, prior = slots[index]; if (!prior || !dependencies || dependencies.some((value, i) => !Object.is(value, prior.dependencies[i]))) { slots[index] = { dependencies, effect, cleanup: prior?.cleanup }; effects.push(() => { slots[index].cleanup?.(); slots[index].cleanup = effect(); }); } },
   };
   const loaded = { exports: {} };
   const context = { module: loaded, exports: loaded.exports, require(name) { if (name === 'react') return hooks; if (name === 'next/link') return 'a'; throw Error(`Unexpected dependency: ${name}`); }, __ui: { Fragment: Symbol('Fragment'), createElement(type, props, ...children) { return { type, props: props || {}, children }; } }, AbortController, URL, URLSearchParams, setTimeout(fn, ms) { assert.equal(ms,20000); const id=++timerId; timers.set(id,fn); return id; }, clearTimeout(id) { timers.delete(id); }, document: { activeElement: trigger }, HTMLElement: Element, window: { addEventListener(type, fn) { if(!listeners.has(type))listeners.set(type,new Set());listeners.get(type).add(fn); }, removeEventListener(type, fn) { listeners.get(type)?.delete(fn); }, location: { reload() { reloads.push(true); }, assign(url) { navigations.push(url); } } }, fetch(url, options = {}) { assert.ok(['/api/account/privacy', '/api/line/settings', '/api/auth/line/start'].includes(url), `only mocked local endpoints: ${url}`); const wait = deferred(); const request = { url, options, body: options.body ? (url === '/api/auth/line/start' ? Object.fromEntries(new URLSearchParams(options.body)) : JSON.parse(options.body)) : undefined, ...wait }; requests.push(request); return wait.promise; } };
@@ -48,7 +48,7 @@ function fixture(kind, props = {}) {
   async function reject(index, message = '通信に失敗しました。') { requests[index].reject(new Error(message)); await settle(); }
   function unmount() { mounted = false; for (const slot of slots) slot?.cleanup?.(); }
   render();
-  return { kind, reloads, pageEvent(type,persisted=true) { for(const fn of listeners.get(type)||[])fn({persisted}); }, expireOAuth() { for(const fn of timers.values()) fn(); }, render, nodes, button, click(label) { const node = button(label); assert.ok(!node.props.disabled, `enabled button: ${label}`); assert.equal(typeof node.props.onClick, 'function', `click handler: ${label}`); node.props.onClick(); }, submit, change, settle, respond, reject, unmount, requests, navigations, focus, lateUpdates, text: () => textOf(render()) };
+  return { kind, strictEffects() { for(const slot of slots) if(slot?.effect) { slot.cleanup?.(); slot.cleanup=slot.effect(); } }, reloads, pageEvent(type,persisted=true) { for(const fn of listeners.get(type)||[])fn({persisted}); }, expireOAuth() { for(const fn of timers.values()) fn(); }, render, nodes, button, click(label) { const node = button(label); assert.ok(!node.props.disabled, `enabled button: ${label}`); assert.equal(typeof node.props.onClick, 'function', `click handler: ${label}`); node.props.onClick(); }, submit, change, settle, respond, reject, unmount, requests, navigations, focus, lateUpdates, text: () => textOf(render()) };
 }
 async function ready(kind, props = {}) {
   const f = fixture(kind, props);
@@ -276,4 +276,11 @@ for(const kind of ['settings','privacy']) test(`${kind}: pagehide invalidates se
 });
 test('settings: pagehide aborts initial status read',async()=>{
   const f=fixture('settings');f.pageEvent('pagehide');assert.equal(f.requests[0].options.signal.aborted,true);f.pageEvent('pageshow');await f.respond(0,linkedStatus);assert.equal(f.reloads.length,1);assert.match(f.text(),/設定を読み込み中/);
+});
+
+for(const [kind,action] of [['settings','link'],['settings','preferences'],['settings','unlink_recovery'],['privacy','unlink_recovery']]) test(`${kind} ${action}: StrictMode effect replay does not retain lock`,async()=>{
+  const f=await oauthFixture(kind,action);f.strictEffects();
+  if(kind==='settings')await f.respond(f.requests.length-1,{...linkedStatus,linked:action!=='link'});
+  if(action==='preferences')f.change(node=>node.type==='input'&&node.props.name==='message',true);
+  f.click(oauthLabel(action));assert.equal(f.requests.at(-1).url,'/api/auth/line/start');await f.respond(f.requests.length-1,{authorizeUrl:lineUrl});assert.deepEqual(f.navigations,[lineUrl]);
 });

@@ -19,7 +19,7 @@ export default function PrivacyForm({initialMessage='',initialPending=false,with
     };
     window.addEventListener('pagehide', leave);
     window.addEventListener('pageshow', restore);
-    return () => { leave(); window.removeEventListener('pagehide', leave); window.removeEventListener('pageshow', restore); };
+    return () => { leave(); submitting.current = false; window.removeEventListener('pagehide', leave); window.removeEventListener('pageshow', restore); };
   }, []);
   useEffect(()=>{if(error||message)feedback.current?.focus();},[error,message]);
   async function act(action:'request'|'confirm'|'retry'|'cancel') {
