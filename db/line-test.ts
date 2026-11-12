@@ -31,8 +31,8 @@ export async function closeLineTest(memberId: string) {
   await owner(memberId);
   // 連携前でも永久閉鎖できる。既に送信を開始したリクエストは取り消せない。
   await env.DB.prepare(`INSERT INTO line_test_budget(test_id,owner_member_id,linked_at,authorization_revision,closed,retry1,retry2)
-    VALUES(?,?,'','',1,?,?) ON CONFLICT(test_id) DO UPDATE SET closed=1`)
-    .bind(LINE_TEST_ID, memberId, crypto.randomUUID(), crypto.randomUUID()).run();
+    VALUES(?,'','','',1,?,?) ON CONFLICT(test_id) DO UPDATE SET closed=1,owner_member_id='',linked_at='',authorization_revision=''`)
+    .bind(LINE_TEST_ID, crypto.randomUUID(), crypto.randomUUID()).run();
   return getLineTestStatus(memberId);
 }
 export async function sendLineTestNotice(memberId: string, slot: 1 | 2) {

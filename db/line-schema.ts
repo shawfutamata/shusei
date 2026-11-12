@@ -21,6 +21,10 @@ export const lineStatements = [
     consent_at TEXT NOT NULL DEFAULT '', consent_version TEXT NOT NULL,
     UNIQUE(provider_id, line_user_id)
   )`,
+  // 通常のLINE解除でも試験を終了し、再連携で残枠を復活させない。
+  `CREATE TRIGGER IF NOT EXISTS line_test_unlink AFTER DELETE ON line_accounts BEGIN
+    UPDATE line_test_budget SET owner_member_id='',linked_at='',authorization_revision='',closed=1 WHERE owner_member_id=OLD.member_id;
+  END`,
   `CREATE TABLE IF NOT EXISTS line_authorizations (
     member_id TEXT PRIMARY KEY REFERENCES line_accounts(member_id) ON DELETE CASCADE,
     provider_id TEXT NOT NULL, channel_id TEXT NOT NULL, subject TEXT NOT NULL,
