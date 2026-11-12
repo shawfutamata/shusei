@@ -1,5 +1,16 @@
 // 既存の会員IDは変えず、LINEだけを後から取り外せるよう別の表で持つ。
 export const lineStatements = [
+  // テスト予算は解除・退会・期限切れでも復活させない。LINE由来識別子や秘密を保存しない。
+  `CREATE TABLE IF NOT EXISTS line_test_budget (
+    test_id TEXT PRIMARY KEY, owner_member_id TEXT NOT NULL, linked_at TEXT NOT NULL, authorization_revision TEXT NOT NULL,
+    closed INTEGER NOT NULL DEFAULT 0, slot1 TEXT NOT NULL DEFAULT 'unused', slot2 TEXT NOT NULL DEFAULT 'unused',
+    retry1 TEXT NOT NULL, retry2 TEXT NOT NULL,
+    CHECK(slot1 IN ('unused','accepted','unknown','failed')), CHECK(slot2 IN ('unused','accepted','unknown','failed'))
+  )`,
+  // 退会時はTASUKI側の識別子も消し、消費済み枠と永久閉鎖だけ残す。
+  `CREATE TRIGGER IF NOT EXISTS line_test_owner_erasure AFTER DELETE ON members BEGIN
+    UPDATE line_test_budget SET owner_member_id='',linked_at='',authorization_revision='',closed=1 WHERE owner_member_id=OLD.id;
+  END`,
   `CREATE TABLE IF NOT EXISTS line_accounts (
     member_id TEXT PRIMARY KEY REFERENCES members(id) ON DELETE CASCADE,
     provider_id TEXT NOT NULL, line_user_id TEXT NOT NULL, display_name TEXT NOT NULL DEFAULT '',
