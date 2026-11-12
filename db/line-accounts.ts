@@ -5,7 +5,7 @@ import { prepareLineAuthorization, storeLineAuthorization, requestLineDeauthoriz
 import { LINE_DATA_CONSENT_VERSION } from '@/app/line-data-consent';
 import { lineHash, lineReturnPath, randomLineSecret, type LineIdentity } from '@/app/line-auth';
 
-export type LineFlow = { mode: 'login' | 'link' | 'signup' | 'preferences' | 'unlink_recovery'; memberId: string; sessionHash: string; returnTo: string; draftId: string; nonce: string; verifier: string };
+export type LineFlow = { mode: 'login' | 'link' | 'signup' | 'preferences' | 'unlink_recovery' | 'test_link'; memberId: string; sessionHash: string; returnTo: string; draftId: string; nonce: string; verifier: string };
 export async function createLineFlow(input: Omit<LineFlow, 'nonce' | 'verifier'>) {
   await ensureDatabase();
   const state = randomLineSecret(), browser = randomLineSecret(), nonce = randomLineSecret(), verifier = randomLineSecret();

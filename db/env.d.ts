@@ -14,6 +14,8 @@ declare namespace Cloudflare {
     REVIEW_AUTH_CODE: string;
     // LINEは明示的に有効化するまで既存認証・通知に影響しない。
     LINE_NOTIFY_CRON_TOKEN: string;
+    // 一度きりの運営本人限定テスト。一般公開フラグは全てfalseを維持。
+    LINE_TEST_MEMBER_ID: string;
     TASUKI: Fetcher;
     LINE_TOKEN_ENCRYPTION_KEY: string;
     LINE_TOKEN_KEY_VERSION: string;

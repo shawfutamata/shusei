@@ -94,7 +94,7 @@ Provider一致は設定ミス防止であり実所属の証明ではない。管
 
 ### 定期Workerと一時データの削除
 
-`wrangler.line-notifications.jsonc` の `tasuki-line-notifications` は5分ごとにサービスバインディングで本体APIを呼ぶ。D1やLINE tokenは渡さず、専用cron tokenだけを持つ。専用Workerの作成は本人の具体的承認後に完了。初期Hello Worldのworkers.dev公開口はOFFにし、PreviewもOFF・独自ドメイン/経路なしを確認。現在はコード置換・binding・専用secret・Cronの設定確認中で、定期処理の成功はまだ未確認。Wrangler設定にも `workers_dev: false` / `preview_urls: false` を記載し、再配備で公開口を復活させない。
+`wrangler.line-notifications.jsonc` の `tasuki-line-notifications` は5分ごとにサービスバインディングで本体APIを呼ぶ。D1やLINE tokenは渡さず、専用cron tokenだけを持つ。専用Workerは本人の具体的承認後に作成し、scheduled-onlyコード（HTTP fetch handlerなし）とTASUKI→tasuki service bindingを配置済み。workers.dev/PreviewはOFF、独自ドメイン/経路なし。未使用の専用cron secretだけを本体・新Workerで同値に更新し、旧25設定と全5フラグfalseを保持。5分Cronは最終保存・再読込で残存を確認し、2026年11月12日15:40:53 JSTの自然実行がoutcome=okで完了。専用Worker版は2b52d680、本体の専用secretのみ更新した版は23c008df。LINEの実通知・実認証の合格とは区別する。Wrangler設定にも `workers_dev: false` / `preview_urls: false` を記載し、再配備で公開口を復活させない。
 
 通知OFFでも定期APIの先頭で期限切れOAuthフロー、登録draft、解除コード/grantを清掃する。通常の設定アクセス・次の登録時にも清掃するが、**有効期限と物理削除時刻は別**。定期Workerの配置・成功監視がない状態で、期限ちょうどの消去を約束しない。LINEログインのみ有効化する場合も清掃の定期実行が必要。
 
@@ -102,9 +102,24 @@ Provider一致は設定ミス防止であり実所属の証明ではない。管
 
 ### 運営限定の接続診断（次の公開候補）
 
-`GET /api/admin/line-connection` は既存の運営認証を必須とし、保存済みMessaging tokenで公式 `GET https://api.line.me/v2/bot/info` だけを参照する。5秒timeout・redirect禁止・外部本文32KB制限・no-store。戻り値はBot ID、公式ID、設定済みBot IDとの一致だけで、名前/画像/秘密/外部エラー本文は返さない。通知・token発行・設定保存は行わない。公式ID不一致や不正IDを拒否し、設定済みBot ID不一致は409とする。
+`GET /api/admin/line-connection` は既存の運営認証、または明示指定された有効会員本人の限定試験認証を必須とし、保存済みMessaging tokenで公式 `GET https://api.line.me/v2/bot/info` だけを参照する。5秒timeout・redirect禁止・外部本文32KB制限・no-store。戻り値はBot ID、公式ID、設定済みBot IDとの一致だけで、名前/画像/秘密/外部エラー本文は返さない。通知・token発行・設定保存は行わない。公式ID不一致や不正IDを拒否し、設定済みBot ID不一致は409とする。
 
-これはBotの識別確認であり、通知の実配送やLINEログインの合格ではない。隔離35ケース・lint/typecheck/buildは通過したが、診断ルート自身の公開と実LINE接続はまだ未実施。取得したBot IDを運営が確認してから通常の `LINE_BOT_USER_ID` へ設定する。
+これはBotの識別確認であり、通知の実配送やLINEログインの合格ではない。隔離35ケースと本人限定認証の追加ケース・lint/typecheck/buildは通過したが、診断ルート自身の公開と実LINE接続はまだ未実施。取得したBot IDを運営が確認してから通常の `LINE_BOT_USER_ID` へ設定する。
+
+## 本人限定の実受信テスト（一般提供とは別）
+
+本人から、現在ログインしている本人のTASUKI会員・LINEだけを対象に、登録メールへ確認コード1通、LINEテスト通知最大2通の承認を受領。ここに実メールアドレスや会員IDは記録しない。実送信はまだ未実施。
+
+- Cloudflareの `LINE_TEST_MEMBER_ID` で、ブラウザの既存セッションを読み取り確認した本人の会員IDだけを指定する。`getAppAccess` の有効会員とID完全一致を要求。既存 `getAdmin` / `ADMIN_EMAILS` は変更せず、管理画面の権限を追加しない。
+- LINE関連4フラグと自動退会はすべて文字列falseを維持する。どれかがtrue、未設定、不正値なら限定試験も閉じる。一般ログイン/新規登録/通常通知のready判定は変更しない。
+- `/admin/line-test` の専用 `test_link` だけが既存PKCE/state/nonce/同じ会員sessionの照合で本人LINEを連携する。通常のLINEログインセッション発行・新規登録・通知同意ONは行わない。試験同意を画面でも確認する。
+- `/api/admin/line-test` の本人認証・同一Origin・固定本文・slot 1/2のみ。クライアント指定の宛先/本文/会員IDは拒否する。Bot診断では、Bot IDが未設定でも指定本人に識別情報の読取だけを許可する。
+- `line_test_budget` の固定案件に2枠。各Push HTTP試行の前に原子的に消費し、同時クリック・失敗・結果不明・日付/会員設定変更・解除・退会で枠を戻さない。自動再送なし。外部認可確認と送信直前に同じlinked_at/revisionを照合する。
+- 台帳にLINEの宛先・本文・tokenは保存しない。終了・解除・退会で台帳のTASUKI会員IDと紐付けメタデータも消し、閉鎖と枠の使用状況だけ残す。既に送信中のHTTPは取り消せず、LINE受付は端末配達とは別。
+- 試験終了とLINE連携解除は別。終了と進行中OAuthが競合すると連携の保存だけは完了する場合がある。必要に応じ既存のメール本人確認で解除し、結果を確認する。
+- 確認メールは既存privacy経路で1回だけ依頼し、不明でも再送しない。今回の1通上限は実行記録で管理し、通常の本人確認メール機能そのものを全会員向けに1通へ制限したわけではない。
+- テスト終了後は `LINE_TEST_MEMBER_ID` を未設定にする。D1 Time Travelや手動復旧では台帳も巻き戻り得るため、**復旧前にもこの設定を外し、枠の消費記録を照合するまで再設定しない**。通常操作での2枠保証と、バックアップ復元は区別する。
+- LINE Loginは開発中を維持。本人LINEがチャネルの許可された利用者でなければ停止し、一般公開に切り替えて回避しない。今回の試験はLINE一般ログイン・新規登録・停止/ブロック等の全実環境E2E合格を意味しない。
 
 ## 退会とバックアップの制限
 

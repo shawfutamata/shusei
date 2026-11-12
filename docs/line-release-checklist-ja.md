@@ -1,6 +1,6 @@
 # LINE連携の公開前チェックリスト
 
-この文書は公開作業の準備用。承認済みの運営方針、設定済みの秘密値、実環境の合格を証明するものではない。実LINE・メール送信や本番変更は、この文書の作成では行っていない。
+この文書は公開作業の準備用。承認済みの運営方針、設定済みの秘密値、実環境の合格を証明するものではない。実LINE・メール送信や本番変更の実施状況は以下の記録で区別する。
 
 ## 先に分けて考えること
 
@@ -25,7 +25,7 @@
 |---|---|---|
 | 連携中の保存 | LINE識別子・暗号化tokenを24時間超保存。解除成功時に現用DBから削除。期限切れtokenは停止し、解除するまでは連携情報を保持 | 既存草案のこの説明を運営確認。保存を終了する追加条件が必要なら仕様を決めてから実装 |
 | 一時情報 | 登録draft20分、コード/解除grant10分。期限後は無効、清掃は定期処理等で実施 | 5分ごとの清掃を配置し成功監視。期限と物理削除時刻を同一と約束しない |
-| バックアップ | 新しいR2 dumpからline_表を除外。本人入力情報は通常の控えに含まれる。R2の通常清掃コードは日次30日＋月初約1年。D1 Time Travel、既存/手元の控えは別 | 実際の保持設定・過去の控えを確認。復元時はLINEと通知を停止し、解除/退会の記録を照合してから復旧する責任者・手順を決める。復元用の再削除台帳は未実装 |
+| バックアップ | 新しいR2 dumpからline_表を除外。本人入力情報は通常の控えに含まれる。R2の通常清掃コードは日次30日＋月初約1年。D1 Time Travel、既存/手元の控えは別 | 実際の保持設定・過去の控えを確認。復元時はLINEと通知を停止し、本人限定試験のLINE_TEST_MEMBER_IDも外して、解除/退会の記録を照合してから復旧する責任者・手順を決める。復元用の再削除台帳は未実装 |
 | LINE本人確認ができない場合 | メール確認後に同じLINEの再認証へ進める。元のLINEが使えないと自動処理だけでは公式解除完了を確認できない | 受信できる窓口と対応者を確定。手動判断中に勝手に本人情報を上書きしたり、完了と案内したりしない |
 | 退会・共有情報 | 自動退会はOFF。共有DM/紹介特典/請求/例会等を勝手に消さない | 受付方法と、何を消し何を残すかを決定。単に「アプリからすべて消せる」と案内しない。LINE開始前に実行できる受付・処理経路を用意 |
 | 通知テスト | 実受信・通数は未確認。有料プランへ変更していない | 受信先本人・試す件数・無料枠内かを確認。限定テストから開始し、プラン変更や課金上限を勝手に選ばない |
@@ -41,7 +41,7 @@
 - LINE Developers：Provider「ColourJam」2005057441。
 - LINE Login：2012557414。開発中のまま。公式アカウントとリンク、callback `https://tasuki.club/api/auth/line/callback`。
 - Messaging API：2012557366。公式アカウント「TASUKI」@771inxtc。webhook `https://tasuki.club/api/line/webhook`、OFF。
-- Cloudflare：Account `06113a41b9a334699aeef23f430117cb` の本体Worker `tasuki`。検証済み管理URLは https://dash.cloudflare.com/06113a41b9a334699aeef23f430117cb/workers/services/view/tasuki/production 。D1名は `tasuki`。定期Worker `tasuki-line-notifications` は本人の具体的承認後に作成済み。専用コード・binding・secret・Cronの設定と成功確認は作業中。
+- Cloudflare：Account `06113a41b9a334699aeef23f430117cb` の本体Worker `tasuki`。検証済み管理URLは https://dash.cloudflare.com/06113a41b9a334699aeef23f430117cb/workers/services/view/tasuki/production 。D1名は `tasuki`。定期Worker `tasuki-line-notifications` は本人の具体的承認後に作成済み。専用コード・binding・secret・5分Cronは保存/再読込で確認済み。11月12日15:40:53 JSTの初回自然実行はoutcome=ok。実通知は0通。
 - Resend：TASUKIの確認コード送信元ドメイン・実配送。LINE登録を有効にする前に確認する。
 
 本人Macの既存セッションで、本体version `8241e958`（コード `a531fdb`、Build ready、100%）を確認。Runtime variables & secretsは旧11項目を保持した26項目。LINE非秘密設定10項目とLINE秘密5項目があり、LINE関連4フラグと `ACCOUNT_ERASURE_ENABLED` はすべてfalse。秘密値は会話・ログ・スクリーンショットへ出していない。Messaging tokenは初回発行して安全に保存済みだが、実認証・実配送は未検証。`LINE_BOT_USER_ID` は未設定。定期secretは未使用の専用tokenだけを本体と新Workerへ同値で更新する承認を得ている。
@@ -94,3 +94,7 @@
 - Macの隔離localhost閲覧は以前にorigin承認で拒否された。新しい適切な承認なしの再試行や別経路への迂回はしない。
 - 本番ブランチへのpushはCloudflare自動公開と同義。過去に拒否された公開操作を別のツールへ置き換えて通さない。
 - LINEチャネル公開、webhook有効化、実認証・実通知/メール、LINEポリシー追記公開は未実施。コード配置と秘密値追加は済んでいても、実利用の合格とはしない。
+
+## 本人限定試験の追加設定
+
+実受信試験は `docs/line-integration-ja.md` の専用経路で、本人以外には送らず、確認メール1通・LINE Push最大2試行に限定する。LINE_TEST_MEMBER_IDを設定しても既存の管理権限は追加しない。一般向け5フラグは全falseを維持し、D1復旧前・試験後は限定設定も外す。

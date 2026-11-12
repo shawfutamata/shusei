@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { getAdmin } from '@/app/admin-auth';
+import { getLineTestOwner } from '@/app/line-test-auth';
 
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'private, no-store, max-age=0', 'X-Content-Type-Options': 'nosniff' };
@@ -9,8 +10,8 @@ const reply = (body: Record<string, unknown>, status = 200) => Response.json(bod
 /** 保存済みの資格情報で公式Botだけを確認する。通知・token発行・設定保存はしない。 */
 export async function GET() {
   try {
-    // LINEの公開フラグとは独立だが、既存の運営認証を省略しない。
-    if (!await getAdmin()) return reply({ ok: false, error: 'not_found' }, 404);
+    // 既存運営、または明示指定された本人テスターにだけBot識別の読取を許可する。
+    if (!await getAdmin() && !await getLineTestOwner()) return reply({ ok: false, error: 'not_found' }, 404);
     const token = env.LINE_MESSAGING_CHANNEL_TOKEN || '';
     const officialId = env.LINE_OFFICIAL_ACCOUNT_ID || '';
     const configuredBotId = env.LINE_BOT_USER_ID || '';

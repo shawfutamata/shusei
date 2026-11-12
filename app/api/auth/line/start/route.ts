@@ -7,6 +7,9 @@ import { createLineFlow } from '@/db/line-accounts';
 import { hashMobileSecret, getMobileSessionAccess } from '@/db/data';
 import { verifiedLineSignup, LINE_SIGNUP_BROWSER_COOKIE } from '@/db/line-signup';
 import { LINE_PRIVACY_COOKIE, readLinePrivacyGrant } from '@/db/line-privacy';
+import { getLineTestOwner } from '@/app/line-test-auth';
+import { lineTestReadyForMember } from '@/app/line-test-config';
+import { getLineTestStatus } from '@/db/line-test';
 import { checkSubmissionLimit } from '@/db/meetings';
 export async function GET(request: Request) {
   const url = new URL(request.url), signup = url.searchParams.get('signup') === '1';
@@ -21,6 +24,15 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   if (request.headers.get('origin') !== new URL(request.url).origin) return NextResponse.json({ error: '送信元を確認してください。' }, { status: 403 });
   const body = await request.formData();
+  if (body.get('action') === 'test_link') {
+    const owner = await getLineTestOwner();
+    if (!owner || !lineTestReadyForMember(owner.userId)) return new Response('Not found', { status: 404 });
+    const token = await getSessionCookieToken(), access = token ? await getMobileSessionAccess(token) : null;
+    if (!token || !access?.membership.canUseApp || access.user.userId !== owner.userId) return failure(request, '/admin/line-test?line=line_session');
+    if (body.get('consent') !== 'yes') return failure(request, '/admin/line-test?line=line_consent');
+    if ((await getLineTestStatus(owner.userId)).closed) return failure(request, '/admin/line-test?line=line_failed');
+    return start(request, 'test_link', owner.userId, await hashMobileSecret(token), '/admin/line-test', '');
+  }
   if (body.get('action') === 'unlink_recovery') {
     if (!lineRecoveryReady()) return failure(request, '/account/privacy?line=line_unconfigured');
     const token = (await cookies()).get(LINE_PRIVACY_COOKIE)?.value || '', grant = await readLinePrivacyGrant(token);
@@ -35,7 +47,7 @@ export async function POST(request: Request) {
   if (preferences && !lineMessagingReady()) return failure(request, `${LINE_SETTINGS_PATH}?line=line_unconfigured`);
   return start(request, preferences ? 'preferences' : 'link', access.user.userId, await hashMobileSecret(token), LINE_SETTINGS_PATH, preferences ? JSON.stringify({ message: body.get('message') === 'yes', offer: body.get('offer') === 'yes' }) : '');
 }
-async function start(request: Request, mode: 'login' | 'link' | 'signup' | 'preferences' | 'unlink_recovery', memberId: string, sessionHash: string, returnTo: string, draftId: string) {
+async function start(request: Request, mode: 'login' | 'link' | 'signup' | 'preferences' | 'unlink_recovery' | 'test_link', memberId: string, sessionHash: string, returnTo: string, draftId: string) {
   if (!await checkSubmissionLimit('line-auth', `start:${request.headers.get('cf-connecting-ip') || 'local'}`)) return NextResponse.json({ error: '少し待って再試行してください。' }, { status: 429 });
   const flow = await createLineFlow({ mode, memberId, sessionHash, returnTo, draftId });
   const authorize = new URL('https://access.line.me/oauth2/v2.1/authorize');

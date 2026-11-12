@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { serviceName } from '@/app/brand';
 import { LINE_TEST_ID, lineTestReadyForMember } from '@/app/line-test-config';
 import { ensureDatabase, getMembershipAccess } from './data';
 import { checkLineAuthorization } from './line-authorization';
@@ -63,7 +64,7 @@ export async function sendLineTestNotice(memberId: string, slot: 1 | 2) {
       const response = await fetch('https://api.line.me/v2/bot/message/push', {
         method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(5000),
         headers: { authorization: `Bearer ${env.LINE_MESSAGING_CHANNEL_TOKEN}`, 'content-type': 'application/json', 'X-Line-Retry-Key': claimed[`retry${slot}`] },
-        body: JSON.stringify({ to: id.subject, messages: [{ type: 'text', text: `TASUKIの本人限定テスト通知（${slot}/2）です。他の会員には送信していません。` }] }),
+        body: JSON.stringify({ to: id.subject, messages: [{ type: 'text', text: `${serviceName}の本人限定テスト通知（${slot}/2）です。他の会員には送信していません。` }] }),
       });
       // 受付と配達を混同しない。本文や外部エラーは保存・返却しない。
       result = response.status === 200 ? 'accepted' : response.status >= 400 && response.status < 500 ? 'failed' : 'unknown';

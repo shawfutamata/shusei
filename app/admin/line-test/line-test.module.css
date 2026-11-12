@@ -1,0 +1,15 @@
+.page { max-width: 680px; margin: 0 auto; padding: 28px 18px 64px; color: #17233b; line-height: 1.7; overflow-wrap: anywhere; }
+.page h1 { font-size: 1.5rem; }
+.page h2 { font-size: 1.15rem; margin-top: 0; }
+.page section { margin: 24px 0; padding: 20px 16px; border: 1px solid #d7dde5; border-radius: 14px; background: #fff; }
+.email { word-break: break-all; letter-spacing: normal; }
+.notice { padding: 12px; background: #eef5ff; border-radius: 8px; outline-offset: 3px; }
+.check { display: flex; align-items: flex-start; gap: 10px; margin: 16px 0; }
+.check input { flex: none; margin-top: 6px; width: 18px; height: 18px; }
+.lineButton, .stopButton { display: block; width: 100%; border: 0; border-radius: 8px; padding: 12px; margin-top: 12px; font: inherit; font-weight: 700; line-height: 1.5; white-space: normal; cursor: pointer; }
+.lineButton { background: #06c755; color: #fff; }
+.lineButton:hover:enabled { background: #05b34c; }
+.stopButton { background: #e5e9ef; color: #17233b; }
+.lineButton:disabled, .stopButton:disabled { opacity: .5; cursor: not-allowed; }
+.slots { list-style: none; margin: 20px 0 0; padding: 0; }
+.slots li { padding: 14px 0; border-top: 1px solid #e5e9ef; }
