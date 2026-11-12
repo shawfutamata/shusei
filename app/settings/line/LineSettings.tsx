@@ -16,14 +16,26 @@ export default function LineSettings({ initialMessage }: { initialMessage: strin
   const oauth = useRef<AbortController | null>(null);
   const [startingOAuth, setStartingOAuth] = useState(false);
   // 描画前の連打も一度に絞り、画面を離れた後の応答は反映しない。
-  useEffect(() => () => { operation.current++; oauth.current?.abort(); submitting.current = false; }, []);
+  useEffect(() => {
+    // BFCacheではReactがunmountしない。離脱時に旧応答を無効化し、復元時はサーバー状態を読み直す。
+    const leave = () => { operation.current++; oauth.current?.abort(); oauth.current = null; submitting.current = true; };
+    const restore = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      leave(); setBusy(true); setStartingOAuth(false);
+      window.location.reload();
+    };
+    window.addEventListener('pagehide', leave);
+    window.addEventListener('pageshow', restore);
+    return () => { leave(); window.removeEventListener('pagehide', leave); window.removeEventListener('pageshow', restore); };
+  }, []);
   useEffect(() => { if (error || message) feedbackRef.current?.focus(); }, [error, message]);
   useEffect(() => { if (purpose) privacyHeadingRef.current?.focus(); }, [purpose]);
   useEffect(() => { if (privacyError || privacyMessage) privacyFeedbackRef.current?.focus(); }, [privacyError, privacyMessage]);
   function apply(data: Status) { setStatus(data); setNotifyMessage(data.notifyMessage); setNotifyOffer(data.notifyOffer); }
   useEffect(() => { const controller = new AbortController();
+    const leave = () => controller.abort(); window.addEventListener('pagehide', leave);
     void fetch('/api/line/settings', { cache: 'no-store', signal: controller.signal }).then(async r => { const d = await r.json() as Status & { error?: string }; if (!r.ok) throw new Error(d.error || '設定を読み込めませんでした。'); if (!controller.signal.aborted) apply(d); }).catch(e => { if (!controller.signal.aborted && e.name !== 'AbortError') setError(e.message); });
-    return () => controller.abort();
+    return () => { controller.abort(); window.removeEventListener('pagehide', leave); };
   }, []);
   async function stop(email = false) {
     if (submitting.current) return; submitting.current = true; const current = ++operation.current; setBusy(true); setError(''); setMessage('');

@@ -17,6 +17,7 @@ function textOf(node) { return typeof node === 'string' || typeof node === 'numb
 function all(node, predicate) { if (!node || typeof node !== 'object') return []; return [...(predicate(node) ? [node] : []), ...children(node).flatMap(child => all(child, predicate))]; }
 function fixture(kind, props = {}) {
   const slots = [], effects = [], requests = [], navigations = [], focus = [], lateUpdates = [], timers = new Map();
+  const listeners = new Map(), reloads = [];
   let timerId = 0;
   let cursor = 0, tree, mounted = true, dirty = false;
   class Element { constructor(label) { this.label = label; } focus() { focus.push(this.label); } }
@@ -27,7 +28,7 @@ function fixture(kind, props = {}) {
     useEffect(effect, dependencies) { const index = cursor++, prior = slots[index]; if (!prior || !dependencies || dependencies.some((value, i) => !Object.is(value, prior.dependencies[i]))) { slots[index] = { dependencies, cleanup: prior?.cleanup }; effects.push(() => { slots[index].cleanup?.(); slots[index].cleanup = effect(); }); } },
   };
   const loaded = { exports: {} };
-  const context = { module: loaded, exports: loaded.exports, require(name) { if (name === 'react') return hooks; if (name === 'next/link') return 'a'; throw Error(`Unexpected dependency: ${name}`); }, __ui: { Fragment: Symbol('Fragment'), createElement(type, props, ...children) { return { type, props: props || {}, children }; } }, AbortController, URL, URLSearchParams, setTimeout(fn, ms) { assert.equal(ms,20000); const id=++timerId; timers.set(id,fn); return id; }, clearTimeout(id) { timers.delete(id); }, document: { activeElement: trigger }, HTMLElement: Element, window: { location: { assign(url) { navigations.push(url); } } }, fetch(url, options = {}) { assert.ok(['/api/account/privacy', '/api/line/settings', '/api/auth/line/start'].includes(url), `only mocked local endpoints: ${url}`); const wait = deferred(); const request = { url, options, body: options.body ? (url === '/api/auth/line/start' ? Object.fromEntries(new URLSearchParams(options.body)) : JSON.parse(options.body)) : undefined, ...wait }; requests.push(request); return wait.promise; } };
+  const context = { module: loaded, exports: loaded.exports, require(name) { if (name === 'react') return hooks; if (name === 'next/link') return 'a'; throw Error(`Unexpected dependency: ${name}`); }, __ui: { Fragment: Symbol('Fragment'), createElement(type, props, ...children) { return { type, props: props || {}, children }; } }, AbortController, URL, URLSearchParams, setTimeout(fn, ms) { assert.equal(ms,20000); const id=++timerId; timers.set(id,fn); return id; }, clearTimeout(id) { timers.delete(id); }, document: { activeElement: trigger }, HTMLElement: Element, window: { addEventListener(type, fn) { if(!listeners.has(type))listeners.set(type,new Set());listeners.get(type).add(fn); }, removeEventListener(type, fn) { listeners.get(type)?.delete(fn); }, location: { reload() { reloads.push(true); }, assign(url) { navigations.push(url); } } }, fetch(url, options = {}) { assert.ok(['/api/account/privacy', '/api/line/settings', '/api/auth/line/start'].includes(url), `only mocked local endpoints: ${url}`); const wait = deferred(); const request = { url, options, body: options.body ? (url === '/api/auth/line/start' ? Object.fromEntries(new URLSearchParams(options.body)) : JSON.parse(options.body)) : undefined, ...wait }; requests.push(request); return wait.promise; } };
   vm.runInNewContext(bundles.get(kind), context, { filename: `${kind}.test-bundle.cjs` });
   const component = loaded.exports.default;
   function render() {
@@ -47,7 +48,7 @@ function fixture(kind, props = {}) {
   async function reject(index, message = '通信に失敗しました。') { requests[index].reject(new Error(message)); await settle(); }
   function unmount() { mounted = false; for (const slot of slots) slot?.cleanup?.(); }
   render();
-  return { kind, expireOAuth() { for(const fn of timers.values()) fn(); }, render, nodes, button, click(label) { const node = button(label); assert.ok(!node.props.disabled, `enabled button: ${label}`); assert.equal(typeof node.props.onClick, 'function', `click handler: ${label}`); node.props.onClick(); }, submit, change, settle, respond, reject, unmount, requests, navigations, focus, lateUpdates, text: () => textOf(render()) };
+  return { kind, reloads, pageEvent(type,persisted=true) { for(const fn of listeners.get(type)||[])fn({persisted}); }, expireOAuth() { for(const fn of timers.values()) fn(); }, render, nodes, button, click(label) { const node = button(label); assert.ok(!node.props.disabled, `enabled button: ${label}`); assert.equal(typeof node.props.onClick, 'function', `click handler: ${label}`); node.props.onClick(); }, submit, change, settle, respond, reject, unmount, requests, navigations, focus, lateUpdates, text: () => textOf(render()) };
 }
 async function ready(kind, props = {}) {
   const f = fixture(kind, props);
@@ -254,4 +255,25 @@ for(const kind of ['settings','privacy']) test(`${kind}: OAuth timeout cannot na
 
 for(const [kind,action] of [['settings','link'],['settings','preferences'],['settings','unlink_recovery'],['privacy','unlink_recovery']]) test(`${kind} ${action}: form submit uses guarded JSON entry too`,async()=>{
   const f=await oauthFixture(kind,action);f.submit(oauthLabel(action));assert.equal(f.requests.at(-1).body.action,action);await f.respond(f.requests.length-1,{authorizeUrl:lineUrl});assert.deepEqual(f.navigations,[lineUrl]);
+});
+
+for(const [kind,action] of [['settings','link'],['settings','preferences'],['settings','unlink_recovery'],['privacy','unlink_recovery']]) {
+  for(const late of ['success','failure']) test(`${kind} ${action}: BFCache pagehide/restore rejects late ${late}`,async()=>{
+    const f=await oauthFixture(kind,action);f.pageEvent('pageshow',false);assert.equal(f.reloads.length,0);
+    f.click(oauthLabel(action));const index=f.requests.length-1;f.pageEvent('pagehide');assert.equal(f.requests[index].options.signal.aborted,true);
+    f.pageEvent('pageshow');assert.equal(f.reloads.length,1);
+    if(late==='success')await f.respond(index,{authorizeUrl:lineUrl});else await f.reject(index);
+    assert.deepEqual(f.navigations,[]);assert.doesNotMatch(f.text(),/本人確認画面を開けませんでした/);
+    const before=f.requests.length;f.button(oauthLabel(action)).props.onClick();assert.equal(f.requests.length,before,'old document locked until reload');
+    f.unmount();f.pageEvent('pageshow');assert.equal(f.reloads.length,1,'listeners removed');
+    const fresh=await oauthFixture(kind,action);fresh.click(oauthLabel(action));await fresh.respond(fresh.requests.length-1,{authorizeUrl:lineUrl});assert.deepEqual(fresh.navigations,[lineUrl],'fresh document is usable');
+  });
+}
+for(const kind of ['settings','privacy']) test(`${kind}: pagehide invalidates sent privacy response without claiming cancellation`,async()=>{
+  const f=await ready(kind);await sent(f);f.submit(confirmLabel(kind));const index=f.requests.length-1;
+  f.pageEvent('pagehide');f.pageEvent('pageshow');await f.respond(index,{done:true,signedOut:true});
+  assert.equal(f.reloads.length,1);assert.deepEqual(f.navigations,[]);assert.doesNotMatch(f.text(),/LINE連携を解除しました|本人確認をキャンセルしました/);
+});
+test('settings: pagehide aborts initial status read',async()=>{
+  const f=fixture('settings');f.pageEvent('pagehide');assert.equal(f.requests[0].options.signal.aborted,true);f.pageEvent('pageshow');await f.respond(0,linkedStatus);assert.equal(f.reloads.length,1);assert.match(f.text(),/設定を読み込み中/);
 });

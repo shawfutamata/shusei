@@ -9,7 +9,18 @@ export default function PrivacyForm({initialMessage='',initialPending=false,with
   const oauth=useRef<AbortController|null>(null);
   const [startingOAuth,setStartingOAuth]=useState(false);
   // 画面を離れた後の応答で、新しい画面へ戻したり完了表示したりしない。
-  useEffect(()=>()=>{operation.current++;oauth.current?.abort();submitting.current=false;},[]);
+  useEffect(() => {
+    // BFCacheではReactがunmountしない。離脱時に旧応答を無効化し、復元時はサーバー状態を読み直す。
+    const leave = () => { operation.current++; oauth.current?.abort(); oauth.current = null; submitting.current = true; };
+    const restore = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      leave(); setBusy(true); setStartingOAuth(false);
+      window.location.reload();
+    };
+    window.addEventListener('pagehide', leave);
+    window.addEventListener('pageshow', restore);
+    return () => { leave(); window.removeEventListener('pagehide', leave); window.removeEventListener('pageshow', restore); };
+  }, []);
   useEffect(()=>{if(error||message)feedback.current?.focus();},[error,message]);
   async function act(action:'request'|'confirm'|'retry'|'cancel') {
     if(action==='cancel'&&oauth.current){operation.current++;oauth.current.abort();oauth.current=null;setStartingOAuth(false);submitting.current=false;}
