@@ -41,7 +41,8 @@ try {
   await page.goto(url);await page.locator('.hero-image-slide').waitFor();
   const cdp=await context.newCDPSession(page);
   const active=()=>page.locator('.carousel-dots button').evaluateAll(nodes=>nodes.findIndex(n=>n.classList.contains('active')));
-  const count=await page.locator('.carousel-dots button').count();assert.ok(count>=3);
+  const count=await page.locator('.carousel-dots button').count();assert.equal(count,2, '実広告1件と出稿案内のみ');
+  assert.equal(await page.locator('.sample-flag').count(),0);
   const touch=async(type,x,y)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:type==='touchEnd'||type==='touchCancel'?[]:[{x,y,id:1}]});
   const gesture=async(dx,dy=0,kind='touchEnd')=>{
    const box=await page.locator('.hero-image-slide').boundingBox();const x=box.x+box.width/2,y=box.y+box.height/2;

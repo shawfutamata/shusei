@@ -92,11 +92,6 @@ function budgetText(need: { budgetBand: string; budgetLabel: string }) {
  */
 const topBanners = [
   { src: '/banners/top-ad.webp', alt: 'この枠に広告を出稿できます。広告出稿のご案内', to: 'ads', sample: false },
-  // 出稿の見本。**実在の広告主ではないので、必ず「サンプル」と分かるようにする。**
-  // 出せますと言われても、どう見えるかが分からないと申し込みようがない。
-  { src: '/banners/sample-cleaning.webp', alt: '出稿イメージ（サンプル）店舗清掃スタッフ募集の広告', to: 'ads', sample: true },
-  { src: '/banners/sample-moving.webp', alt: '出稿イメージ（サンプル）オフィス引越しの広告', to: 'ads', sample: true },
-  { src: '/banners/sample-catering.webp', alt: '出稿イメージ（サンプル）ケータリングの広告', to: 'ads', sample: true },
 ] as const;
 const adSeenStorageKey = 'tasuki-ad-seen-v1';
 
