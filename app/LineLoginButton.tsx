@@ -15,7 +15,3 @@ export default function LineLoginButton({ returnTo = '/' }: { returnTo?: string 
   const config = useLineAvailability();
   return config.login ? <div className="line-login-option"><a className="line-button" href={`/api/auth/line/start?return_to=${encodeURIComponent(returnTo)}`}>LINEでログイン</a><small>連携済みのLINEでログインできます。</small></div> : null;
 }
-export function LineSettingsLink() {
-  const config = useLineAvailability();
-  return config.login ? <a className="line-settings-link" href="/settings/line">LINE連携・通知の設定 →</a> : null;
-}
