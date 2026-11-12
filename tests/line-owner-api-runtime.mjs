@@ -1,3 +1,4 @@
+// Request.cf は組込みの偽メタデータを使い、外部 cf.json の自動取得を行わない。
 // 指定会員本人の限定テストAPI。共通admin権限は増やさず、認証/設定判定は実コードを使う。
 import { Response } from 'undici';
 import { Miniflare } from 'miniflare';
@@ -45,7 +46,7 @@ try {
  let network=0;
  for(const test of cases){
   let calls=0;
-  const mf=new Miniflare({modules:true,modulesRoot:dir,scriptPath:join(dir,'worker.js'),compatibilityDate:'2026-05-22',bindings:{...full,...test.overrides},outboundService(request){network++;calls++;assert.equal(request.url,'https://api.line.me/v2/bot/info');assert.equal(request.method,'GET');assert.equal(request.headers.get('authorization'),'Bearer fake-token');return Response.json({userId:full.LINE_BOT_USER_ID,basicId:'@fixture',displayName:'PRIVATE_PROFILE',pictureUrl:'PRIVATE_PROFILE'});}});
+  const mf=new Miniflare({ cf: false,modules:true,modulesRoot:dir,scriptPath:join(dir,'worker.js'),compatibilityDate:'2026-05-22',bindings:{...full,...test.overrides},outboundService(request){network++;calls++;assert.equal(request.url,'https://api.line.me/v2/bot/info');assert.equal(request.method,'GET');assert.equal(request.headers.get('authorization'),'Bearer fake-token');return Response.json({userId:full.LINE_BOT_USER_ID,basicId:'@fixture',displayName:'PRIVATE_PROFILE',pictureUrl:'PRIVATE_PROFILE'});}});
   try{
    const headers={};if(test.origin)headers.origin=test.origin;
    const response=await mf.dispatchFetch('https://fixture.invalid'+test.path,{method:test.method,headers,...(test.method==='POST'?{body:typeof test.body==='string'?test.body:JSON.stringify(test.body)}:{})});

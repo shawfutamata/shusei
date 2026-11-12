@@ -1,3 +1,4 @@
+// Request.cf は組込みの偽メタデータを使い、外部 cf.json の自動取得を行わない。
 import { mockStatelessToken } from './line-stateless-fixture.mjs';
 import { Miniflare } from 'miniflare';
 import { Response } from 'undici';
@@ -12,7 +13,7 @@ await build({ entryPoints: [resolve('tests/line-worker.ts')], outfile: join(dir,
 const A = 'U' + 'a'.repeat(32), B = 'U' + 'b'.repeat(32), C = 'U' + 'c'.repeat(32);
 const bindings = { AUTH_CODE_PEPPER: 'test-only', LINE_DATA_POLICY_READY: 'true', LINE_LOGIN_ENABLED: 'true', LINE_SIGNUP_ENABLED: 'true', LINE_NOTIFICATIONS_ENABLED: 'true', LINE_LOGIN_CHANNEL_ID: 'test-client', LINE_LOGIN_CHANNEL_SECRET: 'test-secret', LINE_PROVIDER_ID: 'test-provider', LINE_MESSAGING_PROVIDER_ID: 'test-provider', LINE_MESSAGING_CHANNEL_TOKEN: 'test-token', LINE_MESSAGING_CHANNEL_SECRET: 'test-webhook', LINE_BOT_USER_ID: 'U' + 'd'.repeat(32), LINE_TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'), LINE_TOKEN_KEY_VERSION: 'test-v1' };
 let pushStatus = 200, claims = {}, calls = [], verifyFails = false, friendshipCalls = 0;
-const mf = new Miniflare({ modules: true, modulesRoot: dir, scriptPath: join(dir, 'worker.js'), compatibilityDate: '2026-05-22', compatibilityFlags: ['nodejs_compat'], d1Databases: { DB: 'line-test' }, r2Buckets: ['AVATARS'], bindings,
+const mf = new Miniflare({ cf: false, modules: true, modulesRoot: dir, scriptPath: join(dir, 'worker.js'), compatibilityDate: '2026-05-22', compatibilityFlags: ['nodejs_compat'], d1Databases: { DB: 'line-test' }, r2Buckets: ['AVATARS'], bindings,
   outboundService: async request => {
     const url = new URL(request.url); assert.equal(url.hostname, 'api.line.me', 'no real external network');
     if (url.pathname === '/oauth2/v3/token') return mockStatelessToken(request, 'test-client', 'test-secret', 'fixture-login-channel-token');

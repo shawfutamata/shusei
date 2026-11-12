@@ -1,3 +1,4 @@
+// Request.cf は組込みの偽メタデータを使い、外部 cf.json の自動取得を行わない。
 import { mockStatelessToken } from './line-stateless-fixture.mjs';
 // 実D1とセッション認可を隔離検証。本番・実LINEに触れない。
 import { Miniflare } from 'miniflare';
@@ -13,7 +14,7 @@ let verifyStatus = 200, issueStatus = 200, deauthStatus = 204, verifyCalls = 0, 
 const member = 'test-member', subject = 'U' + 'a'.repeat(32);
 let userinfoSubject = subject;
 const deauthTokens = [];
-const mf = new Miniflare({ modules: true, modulesRoot: dir, scriptPath: join(dir, 'worker.js'), compatibilityDate: '2026-05-22', compatibilityFlags: ['nodejs_compat'], d1Databases: { DB: 'authorization-test' }, r2Buckets: ['AVATARS'], bindings: { AUTH_CODE_PEPPER: 'test-only', LINE_PROVIDER_ID: 'test-provider', LINE_LOGIN_CHANNEL_ID: 'test-channel', LINE_LOGIN_CHANNEL_SECRET: 'test-secret', LINE_TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'), LINE_TOKEN_KEY_VERSION: 'v1' }, outboundService: async request => {
+const mf = new Miniflare({ cf: false, modules: true, modulesRoot: dir, scriptPath: join(dir, 'worker.js'), compatibilityDate: '2026-05-22', compatibilityFlags: ['nodejs_compat'], d1Databases: { DB: 'authorization-test' }, r2Buckets: ['AVATARS'], bindings: { AUTH_CODE_PEPPER: 'test-only', LINE_PROVIDER_ID: 'test-provider', LINE_LOGIN_CHANNEL_ID: 'test-channel', LINE_LOGIN_CHANNEL_SECRET: 'test-secret', LINE_TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'), LINE_TOKEN_KEY_VERSION: 'v1' }, outboundService: async request => {
   const url = new URL(request.url); assert.equal(url.hostname, 'api.line.me', 'no real outbound requests');
   if (url.pathname === '/oauth2/v3/token') {
     issueCalls++; const response = await mockStatelessToken(request, 'test-channel', 'test-secret', 'fake-channel-token');

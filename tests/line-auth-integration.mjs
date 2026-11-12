@@ -1,3 +1,4 @@
+// Request.cf は組込みの偽メタデータを使い、外部 cf.json の自動取得を行わない。
 import { mockStatelessToken } from './line-stateless-fixture.mjs';
 // 実ルート＋隔離D1。LINE/Google/メールは全て偽応答。本番・実通知には触れない。
 import { Miniflare } from 'miniflare';
@@ -10,7 +11,7 @@ const root=resolve('.'), A='U'+'a'.repeat(32), B='U'+'b'.repeat(32), BOT='U'+'d'
 let subject=A,nonce='',challenge='',googleEmail='existing@example.com',tokenCount=0,deauthStatus=204,deauthCalls=0,pushCalls=0;
 const mails=[],tokens=new Map(),revoked=new Set();
 const bindings={ AUTH_CODE_PEPPER:'test-only',GOOGLE_CLIENT_ID:'fake-client',GOOGLE_CLIENT_SECRET:'fake-secret',LINE_DATA_POLICY_READY:'true',LINE_LOGIN_ENABLED:'true',LINE_SIGNUP_ENABLED:'true',LINE_NOTIFICATIONS_ENABLED:'true',LINE_LOGIN_CHANNEL_ID:'test-client',LINE_LOGIN_CHANNEL_SECRET:'test-secret',LINE_PROVIDER_ID:'test-provider',LINE_MESSAGING_PROVIDER_ID:'test-provider',LINE_MESSAGING_CHANNEL_TOKEN:'test-token',LINE_MESSAGING_CHANNEL_SECRET:'test-webhook',LINE_BOT_USER_ID:BOT,LINE_OFFICIAL_ACCOUNT_ID:'@test-only',LINE_NOTIFY_CRON_TOKEN:'fixture-not-a-secret-token'.repeat(2),LINE_TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64'),LINE_TOKEN_KEY_VERSION:'v1',RESEND_API_KEY:'fake-mail',AUTH_FROM_EMAIL:'test@example.com' };
-const mf=new Miniflare({ modulesRoot:root+'/dist/server',modules:readdirSync(root+'/dist/server',{recursive:true}).filter(p=>/\.m?js$/.test(p)).sort((a,b)=>a==='index.js'?-1:b==='index.js'?1:0).map(p=>({type:'ESModule',path:root+'/dist/server/'+p})),compatibilityDate:'2026-05-22',compatibilityFlags:['nodejs_compat'],assets:{directory:root+'/dist/client',runWorkerFirst:true},d1Databases:{DB:'line-auth-integration'},r2Buckets:['AVATARS'],bindings,outboundService:async request=>{
+const mf=new Miniflare({ cf: false, modulesRoot:root+'/dist/server',modules:readdirSync(root+'/dist/server',{recursive:true}).filter(p=>/\.m?js$/.test(p)).sort((a,b)=>a==='index.js'?-1:b==='index.js'?1:0).map(p=>({type:'ESModule',path:root+'/dist/server/'+p})),compatibilityDate:'2026-05-22',compatibilityFlags:['nodejs_compat'],assets:{directory:root+'/dist/client',runWorkerFirst:true},d1Databases:{DB:'line-auth-integration'},r2Buckets:['AVATARS'],bindings,outboundService:async request=>{
  const url=new URL(request.url);
     if (url.pathname === '/oauth2/v3/token') return mockStatelessToken(request, 'test-client', 'test-secret', 'fake-login-channel-token');
  if(url.hostname==='api.resend.com'){mails.push(await request.json());return Response.json({id:'fake-mail'});}

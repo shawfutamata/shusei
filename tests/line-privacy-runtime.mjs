@@ -1,3 +1,4 @@
+// Request.cf は組込みの偽メタデータを使い、外部 cf.json の自動取得を行わない。
 import { mockStatelessToken } from './line-stateless-fixture.mjs';
 // 隔離D1と偽メール配送のみ。実メール、本番データ、公開には触れない。
 import { Miniflare } from 'miniflare';
@@ -11,7 +12,7 @@ const dir = mkdtempSync(join(tmpdir(), 'tasuki-line-privacy-'));
 await build({ entryPoints: [resolve('tests/line-worker.ts')], outfile: join(dir, 'worker.js'), bundle: true, format: 'esm', platform: 'node', external: ['cloudflare:workers'], tsconfig: resolve('tsconfig.json'), define: { 'import.meta.env.DEV': 'false' } });
 let mailStatus = 200;
 const mails = [];
-const mf = new Miniflare({ modules: true, modulesRoot: dir, scriptPath: join(dir, 'worker.js'), compatibilityDate: '2026-05-22', compatibilityFlags: ['nodejs_compat'], d1Databases: { DB: 'privacy-test' }, r2Buckets: ['AVATARS'], bindings: { AUTH_CODE_PEPPER: 'test-only', RESEND_API_KEY: 'fake-only', AUTH_FROM_EMAIL: 'test@example.com', LINE_PROVIDER_ID: 'test-provider',LINE_LOGIN_CHANNEL_ID:'test-client', LINE_LOGIN_CHANNEL_SECRET: 'test-secret',LINE_TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64'),LINE_TOKEN_KEY_VERSION:'v1' }, outboundService: async request => {
+const mf = new Miniflare({ cf: false, modules: true, modulesRoot: dir, scriptPath: join(dir, 'worker.js'), compatibilityDate: '2026-05-22', compatibilityFlags: ['nodejs_compat'], d1Databases: { DB: 'privacy-test' }, r2Buckets: ['AVATARS'], bindings: { AUTH_CODE_PEPPER: 'test-only', RESEND_API_KEY: 'fake-only', AUTH_FROM_EMAIL: 'test@example.com', LINE_PROVIDER_ID: 'test-provider',LINE_LOGIN_CHANNEL_ID:'test-client', LINE_LOGIN_CHANNEL_SECRET: 'test-secret',LINE_TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64'),LINE_TOKEN_KEY_VERSION:'v1' }, outboundService: async request => {
   const url=new URL(request.url);
     if (url.pathname === '/oauth2/v3/token') return mockStatelessToken(request, 'test-client', 'test-secret', 'fake-deauth');
   if(url.hostname==='api.line.me'){

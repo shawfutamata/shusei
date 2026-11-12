@@ -1,3 +1,4 @@
+// Request.cf は組込みの偽メタデータを使い、外部 cf.json の自動取得を行わない。
 import { Miniflare } from 'miniflare';
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -47,7 +48,7 @@ try {
     cases.push([`notifications flag ${JSON.stringify(value)}`, { ...full, LINE_NOTIFICATIONS_ENABLED: value }, expected(true, true, true, false)]);
   }
   for (const [name, bindings, result] of cases) {
-    const mf = new Miniflare({ modules: true, modulesRoot: dir, scriptPath: join(dir, 'worker.js'), compatibilityDate: '2026-05-22', bindings,
+    const mf = new Miniflare({ cf: false, modules: true, modulesRoot: dir, scriptPath: join(dir, 'worker.js'), compatibilityDate: '2026-05-22', bindings,
       outboundService: () => { throw new Error('External requests are forbidden in feature gate tests'); },
     });
     try { assert.deepEqual(await (await mf.dispatchFetch('https://fixture.example/')).json(), result, name); }

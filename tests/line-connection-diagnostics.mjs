@@ -1,3 +1,4 @@
+// Request.cf は組込みの偽メタデータを使い、外部 cf.json の自動取得を行わない。
 import { Miniflare } from 'miniflare';
 import { build } from 'esbuild';
 import { Response } from 'undici';
@@ -41,7 +42,7 @@ try {
   add('request timeout', { FIXTURE_NETWORK_ERROR: 'timeout' }, 503, { ok: false, error: 'connection_check_failed' }, valid, 200, 0);
   for (const test of cases) {
     let calls = 0;
-    const mf = new Miniflare({ modules: true, modulesRoot: dir, scriptPath: join(dir, 'worker.js'), compatibilityDate: '2026-05-22', bindings: { ...full, ...test.overrides }, outboundService: request => {
+    const mf = new Miniflare({ cf: false, modules: true, modulesRoot: dir, scriptPath: join(dir, 'worker.js'), compatibilityDate: '2026-05-22', bindings: { ...full, ...test.overrides }, outboundService: request => {
       calls++;
       assert.equal(request.url, 'https://api.line.me/v2/bot/info');
       assert.equal(request.method, 'GET');
