@@ -14,12 +14,13 @@ export default function LineSettings({ initialMessage }: { initialMessage: strin
   const [privacyPending, setPrivacyPending] = useState(false), [needsLineConfirmation, setNeedsLineConfirmation] = useState(false);
   const [privacyError, setPrivacyError] = useState(''), [privacyMessage, setPrivacyMessage] = useState('');
   const feedbackRef = useRef<HTMLParagraphElement>(null), privacyFeedbackRef = useRef<HTMLParagraphElement>(null), privacyHeadingRef = useRef<HTMLHeadingElement>(null), privacyTriggerRef = useRef<HTMLElement | null>(null), submitting = useRef(false), operation = useRef(0);
+  const privacyReturnFocus = useRef<{ target: HTMLElement; operation: number } | null>(null);
   const oauth = useRef<AbortController | null>(null);
   const [startingOAuth, setStartingOAuth] = useState(false);
   // 描画前の連打も一度に絞り、画面を離れた後の応答は反映しない。
   useEffect(() => {
     // BFCacheではReactがunmountしない。離脱時に旧応答を無効化し、復元時はサーバー状態を読み直す。
-    const leave = () => { operation.current++; oauth.current?.abort(); oauth.current = null; submitting.current = true; };
+    const leave = () => { privacyReturnFocus.current = null; operation.current++; oauth.current?.abort(); oauth.current = null; submitting.current = true; };
     const restore = (event: PageTransitionEvent) => {
       if (!event.persisted) return;
       leave(); setBusy(true); setStartingOAuth(false);
@@ -32,6 +33,12 @@ export default function LineSettings({ initialMessage }: { initialMessage: strin
   useEffect(() => { if (error || message) feedbackRef.current?.focus(); }, [error, message]);
   useEffect(() => { if (purpose) privacyHeadingRef.current?.focus(); }, [purpose]);
   useEffect(() => { if (privacyError || privacyMessage) privacyFeedbackRef.current?.focus(); }, [privacyError, privacyMessage]);
+  // 取消成功後、busy解除と確認パネル閉鎖がDOMへ反映されてから元の入口へ一度だけ戻す。
+  useEffect(() => {
+    if (busy || purpose || !privacyReturnFocus.current) return;
+    const pendingFocus = privacyReturnFocus.current; privacyReturnFocus.current = null;
+    if (pendingFocus.operation === operation.current && !submitting.current && pendingFocus.target.isConnected) pendingFocus.target.focus();
+  }, [busy, purpose]);
   function apply(data: Status) { setStatus(data); setNotifyMessage(data.notifyMessage); setNotifyOffer(data.notifyOffer); }
   useEffect(() => { const controller = new AbortController();
     const leave = () => controller.abort(); window.addEventListener('pagehide', leave);
@@ -74,17 +81,18 @@ export default function LineSettings({ initialMessage }: { initialMessage: strin
       else { setPurpose(null); setSent(false); setCode(''); apply({ ...status!, linked: false, notifyMessage: false, notifyOffer: false }); setMessage('LINE連携を解除しました。'); }
     } catch (e) { if (current === operation.current) setPrivacyError(e instanceof Error ? e.message : '通信できませんでした。'); } finally { if (current === operation.current) { submitting.current = false; setBusy(false); } }
   }
-  function choose(value: 'unlink' | 'withdraw') { if (submitting.current) return; privacyTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setPurpose(value); setSent(false); setCode(''); setError(''); setMessage(''); setPrivacyError(''); setPrivacyMessage(''); setPrivacyPending(false); setNeedsLineConfirmation(false); }
+  function choose(value: 'unlink' | 'withdraw', trigger?: HTMLElement) { if (submitting.current) return; privacyReturnFocus.current = null; privacyTriggerRef.current = trigger || (document.activeElement instanceof HTMLElement ? document.activeElement : null); setPurpose(value); setSent(false); setCode(''); setError(''); setMessage(''); setPrivacyError(''); setPrivacyMessage(''); setPrivacyPending(false); setNeedsLineConfirmation(false); }
   async function cancelPrivacy() {
     if (oauth.current) { operation.current++; oauth.current.abort(); oauth.current = null; setStartingOAuth(false); submitting.current = false; }
-    if (submitting.current || !purpose) return; submitting.current = true; const current = ++operation.current; setBusy(true); setPrivacyError('');
+    if (submitting.current || !purpose) return; privacyReturnFocus.current = null; submitting.current = true; const current = ++operation.current; setBusy(true); setPrivacyError('');
     try {
       const response = await fetch('/api/account/privacy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'cancel', purpose }) });
       const data = await response.json() as { canceled?: boolean }; if (current !== operation.current) return;
       if (!response.ok || data.canceled !== true) throw new Error('キャンセルを確認できませんでした。もう一度お試しください。');
       setPrivacyPending(false); setNeedsLineConfirmation(false); setPurpose(null); setSent(false); setCode(''); setPrivacyError(''); setPrivacyMessage('');
       if (privacyPending) setMessage('本人確認の手続きを終了しました。通知停止や、既にLINEへ送信した解除処理は取り消されません。');
-      privacyTriggerRef.current?.focus();
+      // pending取消は取り消されない処理の結果メッセージを優先し、入口へfocusを奪わない。
+      if (!privacyPending && privacyTriggerRef.current) privacyReturnFocus.current = { target: privacyTriggerRef.current, operation: current };
     } catch (e) { if (current === operation.current) setPrivacyError(e instanceof Error ? e.message : '通信できませんでした。'); } finally { if (current === operation.current) { submitting.current = false; setBusy(false); } }
   }
   const notificationState = !status?.notificationsReady ? '準備中' : !status.canEnable ? '利用状況の確認が必要' : status.notifyMessage || status.notifyOffer ? '選択した通知がオン' : 'オフ';
@@ -130,11 +138,11 @@ export default function LineSettings({ initialMessage }: { initialMessage: strin
           <div className={styles.stopRow}><button className="line-unlink" disabled={busy} onClick={() => void stop()}>LINE通知をすべて停止</button><p>送信中のお知らせは取り消せない場合があります。</p></div>
         </section>
 
-        <section className={`${styles.card} ${styles.manageCard}`} aria-labelledby="line-unlink-heading"><div className={styles.manageHeading}><h2 id="line-unlink-heading">LINEとの連携を解除する</h2><span className={styles.subtleBadge}>会員情報は残ります</span></div><p>LINEの通知と連動を解除する手続きです。</p><button className="line-unlink" disabled={busy} onClick={() => choose('unlink')}>メールで本人確認して連携解除</button><a className={styles.detailLink} href="/settings/line/about#unlink">解除するとどうなる？</a></section>
+        <section className={`${styles.card} ${styles.manageCard}`} aria-labelledby="line-unlink-heading"><div className={styles.manageHeading}><h2 id="line-unlink-heading">LINEとの連携を解除する</h2><span className={styles.subtleBadge}>会員情報は残ります</span></div><p>LINEの通知と連動を解除する手続きです。</p><button className="line-unlink" disabled={busy} onClick={event => choose('unlink', event?.currentTarget)}>メールで本人確認して連携解除</button><a className={styles.detailLink} href="/settings/line/about#unlink">解除するとどうなる？</a></section>
       </>}
 
       <details className={styles.details}><summary><span><b>メールのお知らせ</b><small>LINE通知とは別の設定です</small></span><span className={styles.expand} aria-hidden="true">＋</span></summary><div className={styles.detailsBody}><p>LINE登録時のメールのお知らせは、別の同意で選びます。通知を止めても、ご自身で依頼する本人確認コードは送信されます。</p><button className="line-unlink" disabled={busy} onClick={() => void stop(true)}>メールのお知らせを停止</button></div></details>
-      <section className={`${styles.card} ${styles.manageCard}`} aria-labelledby="line-withdraw-heading"><h2 id="line-withdraw-heading">退会について</h2>{status.withdrawalReady ? <><p>会員登録とLINE連携を削除します。元に戻せません。</p><button className="line-unlink" disabled={busy} onClick={() => choose('withdraw')}>退会の本人確認へ</button></> : <p>オンライン退会は準備中です。運営窓口に退会・削除をご依頼ください。</p>}<a className={styles.detailLink} href="/settings/line/about#withdraw">退会・削除について確認する</a></section>
+      <section className={`${styles.card} ${styles.manageCard}`} aria-labelledby="line-withdraw-heading"><h2 id="line-withdraw-heading">退会について</h2>{status.withdrawalReady ? <><p>会員登録とLINE連携を削除します。元に戻せません。</p><button className="line-unlink" disabled={busy} onClick={event => choose('withdraw', event?.currentTarget)}>退会の本人確認へ</button></> : <p>オンライン退会は準備中です。運営窓口に退会・削除をご依頼ください。</p>}<a className={styles.detailLink} href="/settings/line/about#withdraw">退会・削除について確認する</a></section>
 
       {purpose && <section className={`${styles.card} ${styles.confirmation}`} aria-label="操作の確認"><span className={styles.kicker}>手続きの前にご確認ください</span><h2 ref={privacyHeadingRef} tabIndex={-1}>{purpose === 'unlink' ? 'LINE連携解除の確認' : '退会の確認'}</h2>
         <div className={styles.caution}>{purpose === 'unlink' ? <><b>LINEとの連動を解除します</b><ul><li>LINE通知が止まり、LINE側の{serviceName}との連動も解除します。LINEでログインした端末はログアウトします。</li><li>会員情報・投稿・登録メールは残ります。</li><li>再ログインには、登録メールと同じGoogleアカウントが必要です。ご用意できない場合は、先に運営窓口へご相談ください。</li></ul></> : <><b>退会は元に戻せません</b><p>会員登録とLINE連携を削除します。取引・請求・共有記録がある場合は、この画面では削除せず運営窓口での確認が必要です。バックアップ等の取扱いは運営への確認が必要です。</p></>}</div>

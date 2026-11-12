@@ -17,10 +17,11 @@ function textOf(node) { return typeof node === 'string' || typeof node === 'numb
 function all(node, predicate) { if (!node || typeof node !== 'object') return []; return [...(predicate(node) ? [node] : []), ...children(node).flatMap(child => all(child, predicate))]; }
 function fixture(kind, props = {}) {
   const slots = [], effects = [], requests = [], navigations = [], focus = [], lateUpdates = [], timers = new Map();
-  const listeners = new Map(), reloads = [];
+  const listeners = new Map(), reloads = [], focusAttempts = [];
+  let triggerButtonLabel = null;
   let timerId = 0;
   let cursor = 0, tree, mounted = true, dirty = false;
-  class Element { constructor(label) { this.label = label; } focus() { focus.push(this.label); } }
+  class Element { constructor(label) { this.label = label; this.disabled = false; this.isConnected = true; } focus() { focusAttempts.push({ label: this.label, disabled: this.disabled, connected: this.isConnected }); if (!this.disabled && this.isConnected) focus.push(this.label); } }
   const trigger = new Element('privacy trigger');
   const hooks = {
     useState(initial) { const index = cursor++; if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial; return [slots[index], next => { if (!mounted) lateUpdates.push(index); slots[index] = typeof next === 'function' ? next(slots[index]) : next; dirty = true; }]; },
@@ -33,7 +34,7 @@ function fixture(kind, props = {}) {
   const component = loaded.exports.default;
   function render() {
     assert.ok(mounted, 'unmounted component must not render again');
-    do { dirty = false; cursor = 0; tree = component(props); for (const node of all(tree, node => node.props.ref)) node.props.ref.current = new Element(textOf(node)); while (effects.length) effects.shift()(); } while (dirty);
+    do { dirty = false; cursor = 0; tree = component(props); if (triggerButtonLabel) { const triggerNode = all(tree, node => node.type === 'button' && textOf(node) === triggerButtonLabel)[0]; trigger.disabled = Boolean(triggerNode?.props.disabled); trigger.isConnected = Boolean(triggerNode); } for (const node of all(tree, node => node.props.ref)) node.props.ref.current = new Element(textOf(node)); while (effects.length) effects.shift()(); } while (dirty);
     return tree;
   }
   const nodes = predicate => all(render(), predicate);
@@ -43,12 +44,12 @@ function fixture(kind, props = {}) {
     const form = all(tree, candidate => candidate.type === 'form' && all(candidate, child => child === node).length)[0]; assert.ok(form, `form: ${label}`); form.props.onSubmit({ preventDefault() {} });
   }
   function change(predicate, value) { const node = nodes(predicate)[0]; assert.ok(node, 'input exists'); assert.ok(!node.props.disabled, 'input enabled'); node.props.onChange({ target: { value, checked: value } }); }
-  async function settle() { for (let i = 0; i < 8; i++) await Promise.resolve(); if (mounted) render(); }
+  async function settle(commit = true) { for (let i = 0; i < 8; i++) await Promise.resolve(); if (mounted && commit) render(); }
   async function respond(index, data, ok = true) { assert.ok(requests[index], `request ${index}`); requests[index].resolve({ ok, json: async () => data }); await settle(); }
   async function reject(index, message = '通信に失敗しました。') { requests[index].reject(new Error(message)); await settle(); }
-  function unmount() { mounted = false; for (const slot of slots) slot?.cleanup?.(); }
+  function unmount() { mounted = false; trigger.isConnected = false; for (const slot of slots) slot?.cleanup?.(); }
   render();
-  return { kind, strictEffects() { for(const slot of slots) if(slot?.effect) { slot.cleanup?.(); slot.cleanup=slot.effect(); } }, reloads, pageEvent(type,persisted=true) { for(const fn of listeners.get(type)||[])fn({persisted}); }, expireOAuth() { for(const fn of timers.values()) fn(); }, render, nodes, button, click(label) { const node = button(label); assert.ok(!node.props.disabled, `enabled button: ${label}`); assert.equal(typeof node.props.onClick, 'function', `click handler: ${label}`); node.props.onClick(); }, submit, change, settle, respond, reject, unmount, requests, navigations, focus, lateUpdates, text: () => textOf(render()) };
+  return { kind, focusAttempts, focusElsewhere() { context.document.activeElement = new Element('different control'); }, async respondWithoutCommit(index, data) { requests[index].resolve({ ok: true, json: async () => data }); await settle(false); }, strictEffects() { for(const slot of slots) if(slot?.effect) { slot.cleanup?.(); slot.cleanup=slot.effect(); } }, reloads, pageEvent(type,persisted=true) { for(const fn of listeners.get(type)||[])fn({persisted}); }, expireOAuth() { for(const fn of timers.values()) fn(); }, render, nodes, button, click(label) { const node = button(label); assert.ok(!node.props.disabled, `enabled button: ${label}`); assert.equal(typeof node.props.onClick, 'function', `click handler: ${label}`); if (kind === 'settings' && ['メールで本人確認して連携解除', '退会の本人確認へ'].includes(label)) triggerButtonLabel = label; node.props.onClick(kind === 'settings' && ['メールで本人確認して連携解除', '退会の本人確認へ'].includes(label) ? { currentTarget: trigger } : undefined); }, submit, change, settle, respond, reject, unmount, requests, navigations, focus, lateUpdates, text: () => textOf(render()) };
 }
 async function ready(kind, props = {}) {
   const f = fixture(kind, props);
@@ -79,7 +80,7 @@ for (const kind of ['privacy', 'settings']) {
     const f = await ready(kind); await pending(f); f.click(cancelLabel(kind)); await f.respond(f.requests.length - 1, { canceled: true });
     assert.equal(f.nodes(node => node.type === 'button' && textOf(node) === '解除の処理を再試行').length, 0);
     assert.match(f.text(), /既にLINEへ送信した解除処理は取り消されません/); assert.deepEqual(f.navigations, []);
-    if (kind === 'settings') { assert.ok(f.focus.includes('privacy trigger')); f.click('メールで本人確認して連携解除'); }
+    if (kind === 'settings') { assert.match(f.focus.at(-1), /通知停止や、既にLINEへ送信した解除処理は取り消されません/); f.click('メールで本人確認して連携解除'); }
     request(f); await f.respond(f.requests.length - 1, { sent: true });
     assert.equal(f.nodes(node => node.type === 'input' && node.props.autoComplete === 'one-time-code')[0].props.value, '', 'a new flow never reuses the cancelled code');
   });
@@ -319,4 +320,51 @@ test('settings design: saved notification summary does not claim unsaved draft i
 test('settings design: unavailable notification service never claims stored preferences are active', async () => {
   const f = fixture('settings'); await f.respond(0, { ...linkedStatus, enabled: false, notificationsReady: false, notifyMessage: true });
   const summary = f.nodes(n => n.type === 'dl')[0]; assert.match(textOf(summary), /LINE通知の設定準備中/); assert.doesNotMatch(textOf(summary), /通知がオン/);
+});
+
+// 実ブラウザ同様、disabled中の元ボタンへのfocusは無効。取消成功後のDOM更新が必要。
+for (const purpose of ['unlink', 'withdraw']) test(`settings cancel focus: ${purpose} returns once only after the entry is enabled`, async () => {
+  const f = fixture('settings'); await f.respond(0, linkedStatus);
+  f.click(purpose === 'unlink' ? 'メールで本人確認して連携解除' : '退会の本人確認へ');
+  f.click('キャンセル'); f.render();
+  const before = f.focus.filter(label => label === 'privacy trigger').length;
+  await f.respond(f.requests.length - 1, { canceled: true });
+  assert.equal(f.focus.filter(label => label === 'privacy trigger').length, before + 1);
+  assert.equal(f.focusAttempts.filter(attempt => attempt.label === 'privacy trigger' && attempt.disabled).length, 0);
+  f.render(); f.render(); assert.equal(f.focus.filter(label => label === 'privacy trigger').length, before + 1);
+});
+
+test('settings cancel focus: pending cancellation keeps the irreversible-result message as final focus', async () => {
+  const f = await ready('settings'); await pending(f); f.click('キャンセル'); f.render();
+  const before = f.focus.filter(label => label === 'privacy trigger').length;
+  await f.respond(f.requests.length - 1, { canceled: true });
+  assert.match(f.focus.at(-1), /通知停止や、既にLINEへ送信した解除処理は取り消されません/);
+  assert.equal(f.focus.filter(label => label === 'privacy trigger').length, before);
+});
+for (const mode of ['error', 'malformed']) test(`settings cancel focus: ${mode} does not restore entry focus`, async () => {
+  const f = await ready('settings'); f.click('キャンセル'); f.render();
+  await f.respond(f.requests.length - 1, mode === 'error' ? { error: 'fixture error' } : {}, mode !== 'error');
+  assert.equal(f.focus.filter(label => label === 'privacy trigger').length, 0);
+  assert.match(f.focus.at(-1), /キャンセルを確認できませんでした/);
+  assert.equal(f.nodes(n => n.props['aria-label'] === '操作の確認').length, 1);
+});
+test('settings cancel focus: page leave discards a successful cancellation queued before commit', async () => {
+  const f = await ready('settings'); f.click('キャンセル'); f.render();
+  await f.respondWithoutCommit(f.requests.length - 1, { canceled: true });
+  f.pageEvent('pagehide'); f.render();
+  assert.equal(f.focus.filter(label => label === 'privacy trigger').length, 0);
+});
+test('settings cancel focus: a new action cannot inherit the previous cancellation focus job', async () => {
+  const f = await ready('settings'); const next = f.button('退会の本人確認へ').props.onClick;
+  f.click('キャンセル'); f.render(); await f.respondWithoutCommit(f.requests.length - 1, { canceled: true });
+  next(); f.render();
+  assert.equal(f.focus.filter(label => label === 'privacy trigger').length, 0);
+  assert.equal(f.focus.at(-1), '退会の確認');
+});
+
+test('settings cancel focus: mouse activation uses the clicked entry even if another element was active', async () => {
+  const f = fixture('settings'); await f.respond(0, linkedStatus); f.focusElsewhere();
+  f.click('メールで本人確認して連携解除'); f.click('キャンセル'); f.render();
+  await f.respond(f.requests.length - 1, { canceled: true });
+  assert.equal(f.focus.at(-1), 'privacy trigger'); assert.ok(!f.focus.includes('different control'));
 });
