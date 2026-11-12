@@ -1,0 +1,17 @@
+export const lineMessages: Record<string, string> = {
+  line_pending: 'LINE通知は停止していますが、LINE側の連動解除は確認できていません。メールでの本人確認から再試行してください。',
+  line_removed: 'LINEとの連携を解除しました。会員情報は残っています。登録済みの別の方法でログインしてください。',
+  account_removed: '退会手続きが完了し、会員情報とLINE連携を削除しました。',
+  preferences_saved: 'LINE通知の設定を保存しました。',
+  linked: 'LINEと連携しました。お知らせは下の設定で選べます。',
+  line_failed: 'LINEでの本人確認を完了できませんでした。もう一度お試しください。',
+  line_canceled: 'LINEでの本人確認をキャンセルしました。もう一度進むか、Googleをご利用ください。',
+  line_unconfigured: 'LINE連携は準備中です。Googleをご利用ください。',
+  line_session: 'ログイン状態が変わりました。TASUKIにログインし直してから連携してください。',
+  line_conflict: 'このLINEまたはTASUKIアカウントは別の連携に使用されています。既存の連携を確認してください。',
+  line_unlinked: 'まだこのLINEは連携されていません。登録済みの方はGoogleでログインして、マイページの「LINE連携・通知」から連携してください。初めての方は新規会員登録へお進みください。',
+  line_existing: '登録済みのアカウントが見つかりました。LINE連携済みならLINEでログインしてください。それ以外は登録メールのGoogleアカウントでログインし、マイページからLINEを連携してください。',
+  line_email: 'TASUKIに入力したメールアドレスの確認を完了してから、LINE本人認証へお進みください。',
+  line_draft: '登録の確認期限が切れました。規約への同意を確認して、もう一度登録を進めてください。',
+  line_consent: 'LINEアカウントとの連携に同意してからお進みください。',
+};

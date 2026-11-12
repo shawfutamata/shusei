@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE } from '@/app/app-auth';
 import { GOOGLE_PROFILE_COOKIE, GOOGLE_MEETING_COOKIE, GOOGLE_INVITE_COOKIE, GOOGLE_RETURN_COOKIE, GOOGLE_SIGNUP_COOKIE, GOOGLE_STATE_COOKIE, exchangeGoogleCode, googleRedirectUri, safeReturnPath } from '@/app/google-auth';
-import { registerEarlyAccessMember, registerInvitedMember, startMemberSessionByEmail } from '@/db/data';
+import { startMemberSessionByEmail } from '@/db/data';
 import { memberLoginPath } from '@/app/auth-return';
 
 export async function GET(request: Request) {
@@ -58,44 +58,10 @@ export async function GET(request: Request) {
     if (error instanceof Error && error.message.includes('利用権限')) {
       return redirectHome(request, directSignup ? 'pending' : 'denied', back);
     }
-    // 会員ではない。招待コード（＝招待リンク）から来ていれば、そこで登録する。
-    // 登録できた人はそのまま使えるようにする。`registerInvitedMember()` は
-    // 利用中の会員として書いているので、ここで入口を閉じると「登録は済んで
-    // いるのに入れない」という行き止まりになる。招待した人の人数も、この
-    // 登録の時点で1人ぶん増える。
-    if (inviteCode) {
-      const registered = await registerInvitedMember(account.email, account.name, inviteCode);
-      if (registered?.alreadyMember) return redirectHome(request, 'denied', back);
-      if (registered) {
-        // ここは外側の catch の中。セッションを開くのに失敗しても
-        // 登録そのものは済んでいるので、案内を出してもう一度ログイン
-        // してもらう。失敗を外へ投げると、真っ白な画面になる。
-        try {
-          const started = await startMemberSessionByEmail(account.email);
-          const welcome = redirectHome(request, 'invited', back);
-          welcome.cookies.set(SESSION_COOKIE, started.token, {
-            httpOnly: true, secure: true, sameSite: 'lax', path: '/', expires: new Date(started.expiresAt),
-          });
-          return welcome;
-        } catch {
-          return redirectHome(request, 'pending', back);
-        }
-      }
-    }
-    // 旧LPの入口も会社情報と規約同意のある登録画面へ揃える。
-    if (directSignup) {
-      return redirectHome(request, undefined, '/register');
-    }
-    // 先行テストの枠（先着50名）。空いていれば、そのまま会員として入れる。
-    // 埋まったらこの経路は閉じ、招待リンク経由だけになる。
-    const early = await registerEarlyAccessMember(account.email, account.name);
-    if (early) {
-      const started = await startMemberSessionByEmail(account.email);
-      const welcome = redirectHome(request, 'early', back);
-      welcome.cookies.set(SESSION_COOKIE, started.token, {
-        httpOnly: true, secure: true, sameSite: 'lax', path: '/', expires: new Date(started.expiresAt),
-      });
-      return welcome;
+    // ログインは登録への同意ではない。退会直後のOAuth callbackからも
+    // 勝手に会員を作り直さず、規約同意とdraftのある登録入口へ戻す。
+    if (inviteCode || directSignup) {
+      return redirectHome(request, undefined, inviteCode ? `/register?invite=${encodeURIComponent(inviteCode)}` : '/register');
     }
     return redirectHome(request, 'notmember', back);
   }

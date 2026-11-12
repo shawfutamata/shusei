@@ -108,7 +108,7 @@ export function bonusPlan(state: PlanState, today = new Date()): Plan {
 export function campaignPlan(state: PlanState, today = new Date()): Plan {
   const plan = state.campaignPlan ?? 'free';
   if (plan === 'free') return 'free';
-  if (!state.campaignPeriodEnd || state.campaignPeriodEnd < isoDate(today)) return 'free';
+  if (!state.campaignPeriodEnd || state.campaignPeriodEnd < isoDateInJapan(today)) return 'free';
   return plan;
 }
 
@@ -145,6 +145,11 @@ export function remainingRequests(state: PlanState, usedThisMonth: number, today
 
 function rank(plan: Plan) {
   return plans.indexOf(plan);
+}
+
+/** 開設キャンペーンの日付は日本時間で判定する。契約・招待特典の既存判定は変えない。 */
+export function isoDateInJapan(value: Date) {
+  return new Date(value.getTime() + 9 * 3600_000).toISOString().slice(0, 10);
 }
 
 export function isoDate(value: Date) {

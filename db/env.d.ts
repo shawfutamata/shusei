@@ -12,6 +12,24 @@ declare namespace Cloudflare {
     AUTH_FROM_EMAIL: string;
     REVIEW_AUTH_EMAIL: string;
     REVIEW_AUTH_CODE: string;
+    // LINEは明示的に有効化するまで既存認証・通知に影響しない。
+    LINE_NOTIFY_CRON_TOKEN: string;
+    TASUKI: Fetcher;
+    LINE_TOKEN_ENCRYPTION_KEY: string;
+    LINE_TOKEN_KEY_VERSION: string;
+    LINE_DATA_POLICY_READY: string;
+    ACCOUNT_ERASURE_ENABLED: string;
+    LINE_LOGIN_ENABLED: string;
+    LINE_SIGNUP_ENABLED: string;
+    LINE_NOTIFICATIONS_ENABLED: string;
+    LINE_LOGIN_CHANNEL_ID: string;
+    LINE_LOGIN_CHANNEL_SECRET: string;
+    LINE_PROVIDER_ID: string;
+    LINE_MESSAGING_PROVIDER_ID: string;
+    LINE_MESSAGING_CHANNEL_TOKEN: string;
+    LINE_MESSAGING_CHANNEL_SECRET: string;
+    LINE_BOT_USER_ID: string;
+    LINE_OFFICIAL_ACCOUNT_ID: string;
     GOOGLE_CLIENT_ID: string;
     GOOGLE_CLIENT_SECRET: string;
     // Stripe。Web専用。アプリからは決済に触れない（App Store 3.1.1）。

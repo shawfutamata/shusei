@@ -1,4 +1,7 @@
 import { env } from 'cloudflare:workers';
+import { lineStatements } from './line-schema';
+import { sendLineNotice } from './line-notifications';
+import { lineEmailNoticeAllowed } from './line-email-consent';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import type { SessionUser } from '@/app/session-user';
 import { cleanFacebookUrl } from '@/app/social-links';
@@ -656,6 +659,7 @@ let initialized = false;
 export async function ensureDatabase() {
   if (initialized) return;
   await env.DB.batch(statements.map((sql) => env.DB.prepare(sql)));
+  await env.DB.batch(lineStatements.map((sql) => env.DB.prepare(sql)));
   const memberColumns = await env.DB.prepare('PRAGMA table_info(members)').all<{ name: string }>();
   const existingColumns = new Set(memberColumns.results.map((column) => column.name));
   const missingColumns = [
@@ -1021,7 +1025,7 @@ async function startSessionFor(memberId: string, now: string) {
   return { token, expiresAt };
 }
 
-export async function getMobileSessionAccess(token: string): Promise<{ user: SessionUser; membership: MembershipAccess } | null> {
+export async function getMobileSessionAccess(token: string, options: { skipLineAuthorization?: boolean } = {}): Promise<{ user: SessionUser; membership: MembershipAccess } | null> {
   await ensureDatabase();
   if (token.length < 32 || token.length > 256) return null;
   const tokenHash = await hashMobileSecret(token);
@@ -1033,7 +1037,22 @@ export async function getMobileSessionAccess(token: string): Promise<{ user: Ses
     WHERE s.token_hash = ? AND s.expires_at > ?`).bind(tokenHash, now)
     .first<{ userId: string; email: string; displayName: string; membershipStatus: MembershipStatus; membershipSource: string; membershipPeriodEnd: string; organizationId: string; expiresAt: string }>();
   if (!row) return null;
-  await env.DB.prepare('UPDATE mobile_sessions SET last_seen_at = ? WHERE token_hash = ?').bind(now, tokenHash).run();
+  const lineSession = await env.DB.prepare('SELECT member_id AS memberId FROM line_sessions WHERE token_hash=?').bind(tokenHash).first<{ memberId: string }>();
+  if (lineSession) {
+    if (lineSession.memberId !== row.userId) return null;
+    // skipは本人確認メールを送る前のcookie識別専用。通常の画面/API認可には使わない。
+    // Google・メールで発行した独立sessionにはLINEの障害や取消を波及させない。
+    if (!options.skipLineAuthorization) {
+      try {
+        const { checkLineAuthorization } = await import('./line-authorization');
+        if (await checkLineAuthorization(row.userId) !== 'valid') return null;
+      } catch { return null; }
+    }
+  }
+  // 外部確認の途中でログアウト/解除されたsessionを、古いSELECT結果から復活させない。
+  const touched = await env.DB.prepare('UPDATE mobile_sessions SET last_seen_at=? WHERE token_hash=? AND member_id=? AND expires_at>? RETURNING token_hash')
+    .bind(new Date().toISOString(), tokenHash, row.userId, new Date().toISOString()).first();
+  if (!touched) return null;
   const status = normalizeMembershipStatus(row.membershipStatus);
   return {
     user: { userId: row.userId, email: row.email, displayName: row.displayName, fullName: row.displayName },
@@ -1092,56 +1111,107 @@ export async function deleteMobilePushToken(user: SessionUser, token: string) {
 
 export async function deleteMobileAccount(user: SessionUser) {
   await ensureDatabase();
-  const member = await env.DB.prepare('SELECT avatar_key AS avatarKey FROM members WHERE id = ?')
-    .bind(user.userId).first<{ avatarKey: string }>();
+  const member = await env.DB.prepare('SELECT avatar_key AS avatarKey, email FROM members WHERE id = ?')
+    .bind(user.userId).first<{ avatarKey: string; email: string }>();
   if (!member) return;
-  const eventIds = await env.DB.prepare('SELECT id FROM attendance_events WHERE owner_id = ?')
-    .bind(user.userId).all<{ id: string }>();
-  const requestIds = await env.DB.prepare('SELECT id FROM requests WHERE author_id = ?')
-    .bind(user.userId).all<{ id: string }>();
-  const adIds = await env.DB.prepare('SELECT id FROM ad_slots WHERE member_id = ?')
-    .bind(user.userId).all<{ id: string }>();
-  const statementsToDelete = [
-    // 紹介のやり取りは、紹介より先に消す（外部キーで止まるため）。
-    // 自分が出した紹介ぶんと、自分の案件に届いた紹介ぶんの両方。
-    env.DB.prepare('DELETE FROM introduction_messages WHERE sender_id = ?').bind(user.userId),
-    ...requestIds.results.map(({ id }) => env.DB.prepare('DELETE FROM introduction_messages WHERE introduction_id IN (SELECT id FROM introductions WHERE request_id = ?)').bind(id)),
-    env.DB.prepare('DELETE FROM introduction_messages WHERE introduction_id IN (SELECT id FROM introductions WHERE introducer_id = ?)').bind(user.userId),
-    ...requestIds.results.map(({ id }) => env.DB.prepare('DELETE FROM introductions WHERE request_id = ?').bind(id)),
-    ...eventIds.results.map(({ id }) => env.DB.prepare('DELETE FROM attendance_people WHERE event_id = ?').bind(id)),
-    env.DB.prepare('DELETE FROM introductions WHERE introducer_id = ?').bind(user.userId),
-    // 広告へのオファーも同じ順で消す。やり取り→オファー→枠、の順でないと
-    // 外部キーで止まる（D1に ON DELETE CASCADE は無い）。
-    env.DB.prepare('DELETE FROM ad_introduction_messages WHERE sender_id = ?').bind(user.userId),
-    env.DB.prepare('DELETE FROM ad_introduction_messages WHERE ad_introduction_id IN (SELECT id FROM ad_introductions WHERE introducer_id = ?)').bind(user.userId),
-    ...adIds.results.map(({ id }) => env.DB.prepare('DELETE FROM ad_introduction_messages WHERE ad_introduction_id IN (SELECT id FROM ad_introductions WHERE ad_id = ?)').bind(id)),
-    ...adIds.results.map(({ id }) => env.DB.prepare('DELETE FROM ad_introductions WHERE ad_id = ?').bind(id)),
-    env.DB.prepare('DELETE FROM ad_introductions WHERE introducer_id = ?').bind(user.userId),
-    env.DB.prepare('DELETE FROM push_subscriptions WHERE member_id = ?').bind(user.userId),
-    env.DB.prepare('DELETE FROM mobile_push_tokens WHERE member_id = ?').bind(user.userId),
-    env.DB.prepare('DELETE FROM mobile_sessions WHERE member_id = ?').bind(user.userId),
-    env.DB.prepare('DELETE FROM attendance_people WHERE owner_id = ?').bind(user.userId),
-    env.DB.prepare('DELETE FROM attendance_events WHERE owner_id = ?').bind(user.userId),
-    env.DB.prepare('DELETE FROM request_reports WHERE reporter_id = ?').bind(user.userId),
-    ...requestIds.results.map(({ id }) => env.DB.prepare('DELETE FROM request_reports WHERE request_id = ?').bind(id)),
-    env.DB.prepare('DELETE FROM survey_introductions WHERE member_id = ?').bind(user.userId),
-    env.DB.prepare('DELETE FROM survey_introductions WHERE survey_id IN (SELECT id FROM matching_surveys WHERE member_id = ?)').bind(user.userId),
-    env.DB.prepare('DELETE FROM matching_surveys WHERE member_id = ?').bind(user.userId),
-    env.DB.prepare('DELETE FROM request_comments WHERE author_id = ?').bind(user.userId),
-    env.DB.prepare('DELETE FROM requests WHERE author_id = ?').bind(user.userId),
-    env.DB.prepare('DELETE FROM ad_slots WHERE member_id = ?').bind(user.userId),
-    env.DB.prepare('DELETE FROM feedback WHERE member_id = ?').bind(user.userId),
-    env.DB.prepare('DELETE FROM mobile_auth_codes WHERE email = ?').bind(user.email.toLowerCase()),
-    env.DB.prepare('DELETE FROM members WHERE id = ?').bind(user.userId),
+  // 退会で紐付けを黙って消さず、本人の解除操作でLINE公式deauthorizeとローカル解除を先に終える。
+  const lineLinkQuery = 'SELECT 1 FROM line_accounts WHERE member_id = ?1';
+  const lineLinkedMessage = '先にLINE連携を解除してください。LINE側の解除が確認できるまで、自動退会は完了していません。';
+  if (await env.DB.prepare(lineLinkQuery).bind(user.userId).first()) throw new Error(lineLinkedMessage);
+
+  // 相手の商談・紹介特典・課金記録まで消す方針は未決定。匿名の会員を勝手に
+  // 残すこともしない。対象がある場合は何も消さず、運営での確認へ戻す。
+  // 同じ条件を各DELETEにも付け、事前確認とbatchの間に届いた記録を守る。
+  // ここで検出する共有レコードは、このbatchでは一切削除しない。
+  const protectedQueries = [
+    // 事前確認の後に再連携された場合も、各DELETEの条件で一切削除せず止める。
+    lineLinkQuery,
+    `SELECT 1 FROM members WHERE id = ?1 AND (stripe_customer_id <> '' OR stripe_subscription_id <> '' OR plan_source = 'stripe' OR (plan <> 'free' AND plan_source <> 'referral'))`,
+    'SELECT 1 FROM members WHERE invited_by = ?1 AND id <> ?1',
+    'SELECT 1 FROM referral_credits WHERE inviter_id = ?1 OR invitee_id = ?1',
+    'SELECT 1 FROM direct_messages WHERE sender_id = ?1 OR recipient_id = ?1',
+    'SELECT 1 FROM introductions WHERE introducer_id = ?1 OR request_id IN (SELECT id FROM requests WHERE author_id = ?1)',
+    'SELECT 1 FROM introduction_messages WHERE sender_id = ?1',
+    'SELECT 1 FROM ad_slots WHERE member_id = ?1',
+    'SELECT 1 FROM ad_introductions WHERE introducer_id = ?1',
+    'SELECT 1 FROM ad_introduction_messages WHERE sender_id = ?1',
+    "SELECT 1 FROM ad_gifts WHERE member_id = ?1 AND (used_ad_id <> '' OR held_ad_id <> '' OR held_days <> 0)",
+    'SELECT 1 FROM request_comments WHERE member_id <> ?1 AND (request_id IN (SELECT id FROM requests WHERE author_id = ?1) OR thread_with = ?1)',
+    'SELECT 1 FROM request_reports WHERE reporter_id <> ?1 AND request_id IN (SELECT id FROM requests WHERE author_id = ?1)',
+    'SELECT 1 FROM survey_introductions WHERE member_id = ?1 OR survey_id IN (SELECT id FROM matching_surveys WHERE member_id = ?1)',
+    'SELECT 1 FROM attendance_people WHERE owner_id <> ?1 AND event_id IN (SELECT id FROM attendance_events WHERE owner_id = ?1)',
   ];
-  await env.DB.batch(statementsToDelete);
-  // R2に置いた画像も消す。案件の写真は一覧用と詳細用の2つある。
-  const objectKeys = [
-    member.avatarKey,
-    ...requestIds.results.flatMap(({ id }) => [`request-thumbs/${id}`, `request-images/${id}`]),
-    ...adIds.results.map(({ id }) => `ad-images/${id}`),
-  ].filter(Boolean);
-  await Promise.allSettled(objectKeys.map((key) => env.AVATARS.delete(key)));
+  // 例会は別の初期化経路で作られ、外部キーを持たない。名簿・回答・AI結果の
+  // 保持方針を決めずに紐付けだけ消すと、個人情報を取り残すため止める。
+  const meetingTable = await env.DB.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meeting_member_links'").first();
+  if (meetingTable) protectedQueries.push('SELECT 1 FROM meeting_member_links WHERE member_id = ?1');
+  const allowed = protectedQueries.map((sql) => `NOT EXISTS (${sql})`).join(' AND ');
+  const eligible = await env.DB.prepare(`SELECT 1 FROM members WHERE id = ?1 AND ${allowed}`).bind(user.userId).first();
+  const blockedMessage = '共有のやり取り・紹介特典・広告・課金・例会の記録があるため、自動退会は完了していません。データは削除していません。運営に退会手続きをお問い合わせください。';
+  if (!eligible) throw new Error(blockedMessage);
+
+  const requestIds = await env.DB.prepare('SELECT id, image_count AS imageCount FROM requests WHERE author_id = ?')
+    .bind(user.userId).all<{ id: string; imageCount: number }>();
+  const deletes = [
+    'DELETE FROM push_subscriptions WHERE member_id = ?1',
+    'DELETE FROM mobile_push_tokens WHERE member_id = ?1',
+    'DELETE FROM line_notification_outbox WHERE member_id = ?1',
+    // 専用LINE登録draftは本人が確認したメールに結び付く。先に対応OAuthを失効させる。
+    'DELETE FROM line_oauth_flows WHERE draft_id IN (SELECT id FROM line_signup_drafts WHERE email = (SELECT email FROM members WHERE id = ?1))',
+    'DELETE FROM line_signup_drafts WHERE email = (SELECT email FROM members WHERE id = ?1)',
+    // member_idが空のフローでも、本人のセッションに結び付いたものは失効する。
+    'DELETE FROM line_oauth_flows WHERE (member_id = ?1 OR session_hash IN (SELECT token_hash FROM mobile_sessions WHERE member_id = ?1) OR session_hash IN (SELECT token_hash FROM line_sessions WHERE member_id = ?1))',
+    'DELETE FROM line_privacy_codes WHERE member_id = ?1',
+    'DELETE FROM line_data_origins WHERE member_id = ?1',
+    'DELETE FROM line_sessions WHERE member_id = ?1',
+    'DELETE FROM mobile_sessions WHERE member_id = ?1',
+    'DELETE FROM member_product_events WHERE member_id = ?1',
+    'DELETE FROM thread_reads WHERE member_id = ?1',
+    'DELETE FROM thread_hides WHERE member_id = ?1',
+    'DELETE FROM member_days WHERE member_id = ?1',
+    'DELETE FROM gacha_days WHERE member_id = ?1',
+    'DELETE FROM gacha_draws WHERE member_id = ?1',
+    'DELETE FROM ad_gifts WHERE member_id = ?1',
+    'DELETE FROM attendance_people WHERE owner_id = ?1',
+    'DELETE FROM attendance_events WHERE owner_id = ?1',
+    'DELETE FROM request_reports WHERE reporter_id = ?1',
+    'DELETE FROM matching_surveys WHERE member_id = ?1',
+    'DELETE FROM request_comments WHERE member_id = ?1',
+    'DELETE FROM requests WHERE author_id = ?1',
+    'DELETE FROM feedback WHERE member_id = ?1',
+    'DELETE FROM mobile_auth_codes WHERE email = (SELECT email FROM members WHERE id = ?1)',
+    'DELETE FROM members WHERE id = ?1',
+  ];
+  // 登録用メールコードも失効する（通常ログイン用とは別表）。確実にこの
+  // メールだけに結び付くdraftとOAuthフローに限り、一緒に取り除く。
+  const registrationColumns = await env.DB.prepare('PRAGMA table_info(meeting_registration_codes)').all<{ name: string }>();
+  if (registrationColumns.results.length) {
+    const registrationDeletes: string[] = [];
+    if (registrationColumns.results.some((column) => column.name === 'draft_id')) {
+      const ownedDrafts = `SELECT c.draft_id FROM meeting_registration_codes c
+        WHERE c.email = (SELECT email FROM members WHERE id = ?1) AND c.draft_id <> ''
+        AND NOT EXISTS (SELECT 1 FROM meeting_registration_codes other WHERE other.draft_id = c.draft_id AND other.email <> c.email)`;
+      registrationDeletes.push(`DELETE FROM line_oauth_flows WHERE draft_id IN (${ownedDrafts})`);
+      const draftTable = await env.DB.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meeting_signup_drafts'").first();
+      if (draftTable) registrationDeletes.push(`DELETE FROM meeting_signup_drafts WHERE id IN (${ownedDrafts})`);
+    }
+    registrationDeletes.push('DELETE FROM meeting_registration_codes WHERE email = (SELECT email FROM members WHERE id = ?1)');
+    deletes.splice(deletes.length - 1, 0, ...registrationDeletes);
+  }
+  // D1のbatchは原子的。未把握の外部キーが増えても、一部だけ消さず全体を戻す。
+  const results = await env.DB.batch(deletes.map((sql) => env.DB.prepare(`${sql} AND ${allowed}`).bind(user.userId)));
+  if (!results.at(-1)?.meta.changes) throw new Error(blockedMessage);
+
+  // 2枚目以降の写真と動画も対象。DBの削除が成立するまではR2に触らない。
+  const objectKeys = [member.avatarKey, ...requestIds.results.flatMap(({ id, imageCount }) => [
+    requestVideoKey(id),
+    ...Array.from({ length: Math.max(1, imageCount || 0) }, (_, index) => [requestImageKey(id, 'thumb', index), requestImageKey(id, 'full', index)]).flat(),
+  ])].filter(Boolean);
+  const imageResults = await Promise.allSettled(objectKeys.map((key) => env.AVATARS.delete(key)));
+  if (imageResults.some((result) => result.status === 'rejected')) {
+    // R2とD1は同じトランザクションにできない。完全消去と偽って成功を返さない。
+    throw new Error('アカウントとLINE連携は削除しましたが、一部の画像の削除に失敗しました。運営に画像の削除確認をお問い合わせください。');
+  }
 }
 
 function normalizeAuthEmail(value: string) {
@@ -1214,18 +1284,16 @@ async function seedDemoData() {
 /**
  * 会員の行があることを確かめ、名前とメールを最新にする。
  *
- * **新しく作る場合は `invited`。`active` にしない。** 以前はChatGPT Sitesの
- * ヘッダでログインした人をここで自動的に有効会員にしていたが、その経路は
- * 無くなった。いま呼ばれるのは既にセッションを持っている人だけなので、
- * 行は必ず既にある。作る枝が動くとしたら想定外の経路なので、そのときに
- * 権限まで与えてしまわないようにしておく。
+ * 既にセッションを持つ会員だけを更新する。退会と競合した古いリクエストから
+ * 会員が復活しないよう、新規行は作らない。登録は同意付きの専用経路で行う。
  */
 export async function upsertMember(user: SessionUser) {
   await ensureDatabase();
-  const now = new Date().toISOString();
-  await env.DB.prepare(`INSERT INTO members (id, email, display_name, membership_status, created_at)
-    VALUES (?, ?, ?, 'invited', ?)
-    ON CONFLICT(id) DO UPDATE SET email = excluded.email, display_name = excluded.display_name`).bind(user.userId, user.email, user.displayName, now).run();
+  // 認証後に別リクエストが退会を完了していたら、古いSessionUserから
+  // 会員を復活させない。新規作成は同意を確認する登録経路だけに限る。
+  const updated = await env.DB.prepare('UPDATE members SET email = ?, display_name = ? WHERE id = ?')
+    .bind(user.email, user.displayName, user.userId).run();
+  if (!updated.meta.changes) throw new Error('このアカウントは退会済みか存在しません。ログインし直してください。');
   // 会員番号を振る。**まだ0の人だけ**なので、何度呼んでも番号は変わらない。
   // D1は1つずつ順に書くので、同じ番号が2人に付くことはない。
   await env.DB.prepare(`UPDATE members SET member_no = (SELECT COALESCE(MAX(member_no), 0) + 1 FROM members)
@@ -1360,6 +1428,7 @@ export async function updateMemberProfile(user: SessionUser, input: { displayNam
       input.company, input.companyKana, input.venue, input.positionTitle, input.businessArea,
       input.industries[0] ?? '', JSON.stringify(input.industries), JSON.stringify(input.notifyIndustries), input.annualRevenueBand,
       cleanFacebookUrl(input.facebookUrl), input.companyPr, avatarKey, avatarVersion, user.userId).run();
+  await env.DB.prepare('UPDATE line_data_origins SET name_from_line=0 WHERE member_id=?').bind(user.userId).run();
   return avatarUrl(user.userId, avatarKey, avatarVersion);
 }
 
@@ -1592,6 +1661,7 @@ export async function createIntroduction(user: SessionUser, input: { requestId: 
       .bind(id, input.requestId, user.userId, input.personName, input.personCompany, input.relationship, input.fitReason, 1, 'proposed', createdAt, kind, (notifyNow || isSelfPost) ? 1 : 0),
     env.DB.prepare('UPDATE members SET intro_count = intro_count + 1 WHERE id = ?').bind(user.userId),
   ]);
+  if (!isSelfPost) await sendLineNotice(request.authorId, 'offer', `offer:${id}`).catch(() => undefined);
   if (notifyNow) await sendOfferMail(request.authorId, user.displayName, request.title).catch(() => undefined);
   return id;
 }
@@ -1633,6 +1703,7 @@ export async function createAdIntroduction(user: SessionUser, input: { adId: str
       .bind(id, input.adId, user.userId, input.personName, input.personCompany, input.relationship, input.fitReason, kind, new Date().toISOString(), notifyNow ? 1 : 0),
     env.DB.prepare('UPDATE members SET intro_count = intro_count + 1 WHERE id = ?').bind(user.userId),
   ]);
+  await sendLineNotice(ad.memberId, 'offer', `ad-offer:${id}`).catch(() => undefined);
   if (notifyNow) await sendOfferMail(ad.memberId, user.displayName, ad.title || '広告').catch(() => undefined);
   return `${AD_OFFER_PREFIX}${id}`;
 }
@@ -1828,6 +1899,7 @@ export async function addIntroductionMessage(user: SessionUser, introductionId: 
   // 相手に知らせる。届かなくてもやり取りは残るので、失敗は握りつぶす。
   const preview = messagePreview(text, Boolean(image));
   await sendIntroductionMessageNotice(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
+  await sendLineNotice(access.partnerId, 'message', `message:${id}`).catch(() => undefined);
   await sendMessageMail(access.partnerId, user.displayName, access.requestTitle, preview).catch(() => undefined);
   return listIntroductionMessages(user, introductionId);
 }
@@ -1978,6 +2050,7 @@ async function addDirectMessage(user: SessionUser, partnerId: string, body: stri
   if (image) await putMessageImage('direct_messages', id, user.userId, image);
   const preview = messagePreview(text, Boolean(image));
   await sendDirectMessageNotice(partnerId, user.displayName).catch(() => undefined);
+  await sendLineNotice(partnerId, 'message', `message:${id}`).catch(() => undefined);
   await sendMessageMail(partnerId, user.displayName, '', preview).catch(() => undefined);
   return listDirectMessages(user, partnerId);
 }
@@ -1994,6 +2067,7 @@ async function addAdIntroductionMessage(user: SessionUser, adIntroductionId: str
   // 相手に知らせる。届かなくてもやり取りは残るので、失敗は握りつぶす。
   const preview = messagePreview(text, Boolean(image));
   await sendIntroductionMessageNotice(access.partnerId, user.displayName, access.requestTitle).catch(() => undefined);
+  await sendLineNotice(access.partnerId, 'message', `message:${id}`).catch(() => undefined);
   await sendMessageMail(access.partnerId, user.displayName, access.requestTitle, preview).catch(() => undefined);
   return listAdIntroductionMessages(user, id);
 }
@@ -2176,7 +2250,7 @@ async function sendMessageMail(recipientId: string, senderName: string, about: s
   if (!env.RESEND_API_KEY || !env.AUTH_FROM_EMAIL) return;
   const row = await env.DB.prepare(`SELECT email, mail_on_message AS mailOn FROM members WHERE id = ?`)
     .bind(recipientId).first<{ email: string; mailOn: number }>();
-  if (!row?.email || !Number(row.mailOn)) return;
+  if (!row?.email || !Number(row.mailOn) || !await lineEmailNoticeAllowed(recipientId)) return;
   const safeSenderName = escapeMailHtml(senderName);
   const safeAbout = escapeMailHtml(about);
   const safeMessage = escapeMailHtml(message).replace(/\r?\n/g, '<br>');
@@ -2235,9 +2309,9 @@ export async function setMailOnMessage(memberId: string, on: boolean) {
  */
 async function sendOfferMail(recipientId: string, senderName: string, title: string) {
   if (!env.RESEND_API_KEY || !env.AUTH_FROM_EMAIL) return;
-  const row = await env.DB.prepare('SELECT email FROM members WHERE id = ?')
-    .bind(recipientId).first<{ email: string }>();
-  if (!row?.email) return;
+  const row = await env.DB.prepare('SELECT email,mail_on_offer AS mailOn FROM members WHERE id = ?')
+    .bind(recipientId).first<{ email: string; mailOn: number }>();
+  if (!row?.email || !row.mailOn || !await lineEmailNoticeAllowed(recipientId)) return;
   const safeSenderName = escapeMailHtml(senderName);
   const safeTitle = escapeMailHtml(title);
   await fetch('https://api.resend.com/emails', {
@@ -2275,7 +2349,7 @@ async function claimImmediateOfferSlot(recipientId: string) {
   const today = jstDate();
   const row = await env.DB.prepare('SELECT mail_on_offer AS mailOn, offer_notified_day AS notifiedDay FROM members WHERE id = ?')
     .bind(recipientId).first<{ mailOn: number; notifiedDay: string }>();
-  if (!row || !Number(row.mailOn) || row.notifiedDay === today) return false;
+  if (!row || !Number(row.mailOn) || row.notifiedDay === today || !await lineEmailNoticeAllowed(recipientId)) return false;
   await env.DB.prepare('UPDATE members SET offer_notified_day = ? WHERE id = ?').bind(today, recipientId).run();
   return true;
 }
@@ -2307,7 +2381,7 @@ export async function sendPendingOfferDigest() {
   for (const row of pending.results) {
     const member = await env.DB.prepare('SELECT email, mail_on_offer AS mailOn FROM members WHERE id = ?')
       .bind(row.recipientId).first<{ email: string; mailOn: number }>();
-    if (member?.email && Number(member.mailOn)) {
+    if (member?.email && Number(member.mailOn) && await lineEmailNoticeAllowed(row.recipientId)) {
       await sendOfferDigestMail(member.email, Number(row.pending)).catch(() => undefined);
       sent += 1;
     }
@@ -2448,12 +2522,14 @@ async function sendMatchingRequestMails(authorId: string, request: {
 }) {
   if (!request.industryTags.length || !env.RESEND_API_KEY || !env.AUTH_FROM_EMAIL) return;
   const now = new Date().toISOString();
-  const rows = await env.DB.prepare(`SELECT m.email, m.notify_industries AS notifyIndustriesJson
+  const rows = await env.DB.prepare(`SELECT m.id, m.email, m.notify_industries AS notifyIndustriesJson
     FROM members m
     WHERE m.id != ? AND m.email != '' AND m.mail_on_request = 1
+      AND (m.membership_source!='line_signup' OR EXISTS(SELECT 1 FROM line_data_origins l WHERE l.member_id=m.id AND l.email_notice_consent=1))
+      AND NOT EXISTS(SELECT 1 FROM line_data_origins l WHERE l.member_id=m.id AND l.email_from_line=1 AND l.email_notice_consent=0)
       AND (m.membership_status = 'active'
         OR (m.membership_status = 'past_due' AND m.membership_period_end > ?))`)
-    .bind(authorId, now).all<{ email: string; notifyIndustriesJson: string }>();
+    .bind(authorId, now).all<{ id: string; email: string; notifyIndustriesJson: string }>();
   const targets = rows.results
     .filter((row) => parseStringArray(row.notifyIndustriesJson)
       .some((industry) => matchesIndustry(request.industryTags, industry)))
@@ -2464,7 +2540,7 @@ async function sendMatchingRequestMails(authorId: string, request: {
   const safeAuthor = escapeMailHtml(request.authorName);
   const safeTags = escapeMailHtml(request.industryTags.join('・'));
   const link = `${serviceUrl}/?request=${encodeURIComponent(request.id)}`;
-  await Promise.allSettled(targets.map((target) => fetch('https://api.resend.com/emails', {
+  await Promise.allSettled(targets.map(async (target) => { if (!await lineEmailNoticeAllowed(target.id)) return; return fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -2482,7 +2558,7 @@ async function sendMatchingRequestMails(authorId: string, request: {
         + `</div>`,
       text: `おすすめに出したい業種の案件が投稿されました\n\n${request.title}\n${request.authorName}さん｜${request.industryTags.join('・')}\n\n案件を見る: ${link}`,
     }),
-  })));
+  }); }));
 }
 
 async function sendMatchingMobileNotifications(authorId: string, request: { id: string; title: string; industryTags: string[] }) {

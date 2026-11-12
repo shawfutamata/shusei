@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import BrandMark from '../BrandMark';
+import { company } from '../company';
 import LegalLinks from '../LegalLinks';
 import { campaignRunning, campaignUntilLabel } from '../campaign';
 import { planCatalog, yearlyYen, YEARLY_DISCOUNT } from '../plan-catalog';
@@ -161,14 +162,14 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
     <section className="welcome-pricing" id="plans" aria-labelledby="pricing-heading">
       <div className="welcome-section-heading"><p className="welcome-kicker">PLANS &amp; CAMPAIGN</p><h2 id="pricing-heading"><span className="welcome-desktop-only">使い方を見てから、<br />プランを選べます。</span><span className="welcome-mobile-only">まずは無料で始められます。</span></h2><p className="welcome-desktop-only">登録前にサービスの中身を確認できるから、自分の仕事に合うかを判断してから始められます。</p></div>
       {campaignActive && <div className="welcome-pricing-campaign">
-        <div><span>{campaignUntil}まで</span><h3><span className="welcome-desktop-only">年内は、全機能を完全無料で。</span><span className="welcome-mobile-only">全機能 0円</span></h3><p className="welcome-desktop-only">通常はスタンダードで利用できる機能に加え、広告掲載料も0円。お申し込みもお支払いも必要ありません。</p></div>
+        <div><span>{campaignUntil}まで</span><h3><span className="welcome-desktop-only">期間中は、全機能を完全無料で。</span><span className="welcome-mobile-only">全機能 0円</span></h3><p className="welcome-desktop-only">通常はスタンダードで利用できる機能に加え、広告掲載料も0円。お申し込みもお支払いも必要ありません。</p></div>
         <div className="welcome-campaign-price"><small>通常 月額</small><s>{planCatalog.standard.monthlyYen.toLocaleString('ja-JP')}円</s><strong>0<em>円</em></strong><b>自動課金なし</b></div>
         <ul><li><WelcomeIcon name="check" />オファーの送受信</li><li><WelcomeIcon name="check" />新規メッセージ無制限</li><li><WelcomeIcon name="check" />案件投稿・会員検索</li><li><WelcomeIcon name="check" />バナー・掲示板上位広告</li></ul>
       </div>}
       <div className="welcome-plan-table-wrap">
         <table className="welcome-plan-table">
           <caption>プランでできること</caption>
-          <thead><tr><th scope="col">できること</th><th scope="col">無料</th><th scope="col" className="is-standard">スタンダード{campaignActive && <em>年内無料</em>}</th></tr></thead>
+          <thead><tr><th scope="col">できること</th><th scope="col">無料</th><th scope="col" className="is-standard">スタンダード{campaignActive && <em>期間中無料</em>}</th></tr></thead>
           <tbody>
             <tr><th scope="row"><b>掲示板を見る</b></th><td><span aria-label="使えます">○</span></td><td className="is-standard"><span aria-label="使えます">○</span></td></tr>
             <tr><th scope="row"><b>会員を探す</b><small>業種・エリア</small></th><td><span aria-label="使えます">○</span></td><td className="is-standard"><span aria-label="使えます">○</span></td></tr>
@@ -192,12 +193,12 @@ export default function Welcome({ children, initialMessage }: { children: ReactN
           <div><span>A</span><p>{item.answer}</p></div>
         </details>)}
       </div>
-      <p className="welcome-faq-contact">解決しない場合は、<a href="mailto:info@tasuki.club">info@tasuki.club</a> までお問い合わせください。</p>
+      <p className="welcome-faq-contact">解決しない場合は、<a href={`mailto:${company.email}`}>{company.email}</a> までお問い合わせください。</p>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faqItems.map(item => ({ '@type': 'Question', name: item.question, acceptedAnswer: { '@type': 'Answer', text: item.answer } })) }) }} />
     </section>
     <section className="welcome-start" id="start"><div><p className="welcome-kicker"><WelcomeIcon name="check" />全機能無料キャンペーン</p><h2>つながりを、商売の機会に。</h2><p>招待コードは必要ありません。<br />Googleアカウントで本人認証後、すぐにご利用いただけます。</p><small>{campaignUntil}まで全機能・広告掲載料が完全無料。終了後も自動課金はありません。</small></div><div className="welcome-signup"><a className="welcome-primary" href="/register"><GoogleMark />新規会員登録 <span aria-hidden="true">→</span></a><p className="welcome-note">新規登録は、本人認証後すぐにご利用いただけます。</p></div></section>
     <section id="member-login" className="welcome-login"><button className="welcome-login-toggle" onClick={() => setLogin(!login)} aria-expanded={login} aria-controls="login-content">すでに会員の方はこちら <span>{login ? '−' : 'ログイン →'}</span></button><div id="login-content" hidden={!login}>{children}</div></section>
-    <footer className="welcome-footer"><a href="#features-heading">TASUKIについて</a><a href="mailto:info@tasuki.club">お問い合わせ</a><span>© TASUKI</span><LegalLinks /></footer>
+    <footer className="welcome-footer"><a href="#features-heading">TASUKIについて</a><a href={`mailto:${company.email}`}>お問い合わせ</a><span>© TASUKI</span><LegalLinks /></footer>
     <nav className="welcome-mobile-account-bar" aria-label="いつでも会員登録・ログイン">
       <a className="welcome-fixed-signup" href="/register">新規会員登録</a>
       <a className="welcome-fixed-login" href="/login/member">ログイン</a>

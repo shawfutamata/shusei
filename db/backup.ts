@@ -32,7 +32,7 @@ const KEEP_MONTHLY_MONTHS = 12;
  * 控えを1つ手に入れた人が全員になりすませてしまう。mobile_auth_codes も同じ筋。
  * どちらも短い命のもので、戻したところで値打ちが無い（事故のあとは入り直せばよい）。
  */
-const SKIP_TABLES = ['mobile_sessions', 'mobile_auth_codes'];
+const SKIP_TABLES = ['mobile_sessions', 'mobile_auth_codes', 'line_oauth_flows', 'line_sessions'];
 
 export type BackupEntry = { key: string; date: string; size: number; uploadedAt: string };
 export type BackupResult = { key: string; tables: number; rows: number; bytes: number; removed: string[] };
@@ -50,7 +50,7 @@ export async function dumpDatabase() {
     WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name NOT LIKE 'd1_%'
     ORDER BY name`).all<{ name: string }>()).results
     .map((row) => row.name)
-    .filter((name) => !SKIP_TABLES.includes(name));
+    .filter((name) => !SKIP_TABLES.includes(name) && !name.startsWith('line_'));
 
   const data: Record<string, unknown[]> = {};
   let rows = 0;

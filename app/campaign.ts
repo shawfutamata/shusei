@@ -13,7 +13,7 @@
 // **期間を変えるのはこのファイルの `until` を書き替えるだけ。** 押した瞬間から
 // 全員に効くので、終わらせる前に必ず会員へ知らせること。
 
-import { isoDate, type Plan } from './entitlements';
+import { isoDateInJapan, type Plan } from './entitlements';
 
 export const freeCampaign = {
   /** 画面に出す名前。 */
@@ -22,9 +22,9 @@ export const freeCampaign = {
   plan: 'standard' as Plan,
   /**
    * この日まで無料（この日を含む）。**空文字にするとキャンペーンは終わる。**
-   * 日付の形は YYYY-MM-DD。
+   * 日付の形は YYYY-MM-DD。日本時間でこの日の23:59:59.999まで。
    */
-  until: '2026-12-31',
+  until: '2027-02-28',
 };
 
 /** キャンペーンが動いているか。日付の判定は entitlements 側で行う。 */
@@ -59,10 +59,10 @@ export function adsFreeNow(now = new Date()) {
  * という食い違いを防ぐ（実際にオファーの欄がそうなっていた）。
  */
 export function campaignRunning(now = new Date()) {
-  return Boolean(freeCampaign.until) && isoDate(now) <= freeCampaign.until;
+  return Boolean(freeCampaign.until) && isoDateInJapan(now) <= freeCampaign.until;
 }
 
-/** 「2026年12月31日」の形。画面に出す用。 */
+/** 「2027年2月28日」の形。画面に出す用。 */
 export function campaignUntilLabel(until = freeCampaign.until) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(until);
   if (!match) return '';

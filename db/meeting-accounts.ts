@@ -104,6 +104,7 @@ async function checkedProfile(eventId:string,input:Record<string,unknown>) {
 /** LPでは同じ会社情報を二度入力させず、認証後のプロフィール設定にまとめる。 */
 export async function createDirectSignupDraft(input:Record<string,unknown>) {
  if(input.consent!==true)throw new Error('規約への同意をご確認ください。');
+ if(input.authProvider==='line'&&input.lineConsent!==true)throw new Error('LINE情報の取得・保存への同意をご確認ください。');
  await schema();
  const invite=typeof input.invite==='string'?input.invite.trim().toUpperCase().slice(0,16):'';
  if(invite&&!await findInviterByCode(invite))throw new Error('紹介リンクが無効です。');
@@ -111,7 +112,7 @@ export async function createDirectSignupDraft(input:Record<string,unknown>) {
  // 同意と紹介コードだけを短期間預かる。会員作成は従来どおり本人認証後に限る。
  await env.DB.batch([
   env.DB.prepare('DELETE FROM meeting_signup_drafts WHERE expires_at<?').bind(new Date().toISOString()),
-  env.DB.prepare('INSERT INTO meeting_signup_drafts VALUES(?,?,?,?,?,?)').bind(id,'direct','',JSON.stringify({profileDeferred:true,invite}),1,new Date(Date.now()+1200000).toISOString()),
+  env.DB.prepare('INSERT INTO meeting_signup_drafts VALUES(?,?,?,?,?,?)').bind(id,'direct','',JSON.stringify({profileDeferred:true,invite,lineConsent:input.authProvider==='line'&&input.lineConsent===true,mailConsent:input.authProvider==='line'&&input.mailConsent===true}),1,new Date(Date.now()+1200000).toISOString()),
  ]);
  return id;
 }

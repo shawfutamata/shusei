@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { serviceName } from '../brand';
+import { company } from '../company';
 import LegalPage, { LegalSection } from '../LegalPage';
 
 export const metadata: Metadata = { title: `プライバシーポリシー｜${serviceName}`, description: `${serviceName}の個人情報の取扱いについて` };
@@ -28,7 +29,7 @@ export default function PrivacyPage() {
     <section id="delete">
       <LegalSection
         heading="10. お問い合わせ・削除依頼"
-        body="アプリ内で削除できない場合や、個人情報の開示・訂正・削除に関するお問い合わせは info@tasuki.club までご連絡ください。"
+        body={`アプリ内で削除できない場合や、個人情報の開示・訂正・削除に関するお問い合わせは ${company.email} までご連絡ください。`}
       />
     </section>
   </LegalPage>;

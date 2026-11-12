@@ -8,7 +8,10 @@ import { execFileSync } from 'node:child_process';
 import { webcrypto } from 'node:crypto';
 const output=mkdtempSync(join(tmpdir(),'tasuki-cron-test-'));
 execFileSync(process.execPath,['node_modules/wrangler/bin/wrangler.js','deploy','--config','wrangler.meeting-scheduler.jsonc','--dry-run','--outdir',output],{stdio:'pipe'});
-const homepage='<h2>2026年間スケジュール</h2><h3>10月7日(水)</h3><a href="https://www.shuseiclub.jp/hirunomeguro/entry_form/index.php?e=11636">申込</a>';
+// scheduledTimeだけを過去に固定しても、名簿取込は実時計で締切を判定する。
+// 翌年の日付を共有し、実行日が進んでも「受付中」の条件を失わせない。
+const year=new Date().getUTCFullYear()+1;
+const homepage=`<h2>${year}年間スケジュール</h2><h3>10月7日</h3><a href="https://www.shuseiclub.jp/hirunomeguro/entry_form/index.php?e=11636">申込</a>`;
 let authenticatedRequests=0;
 async function outbound(request){
  const u=new URL(request.url);
@@ -27,8 +30,8 @@ const rawKey=webcrypto.getRandomValues(new Uint8Array(32));
 const mf=new Miniflare({modules:true,modulesRoot:output,scriptPath:join(output,'meeting-scheduler.js'),compatibilityDate:'2026-05-22',compatibilityFlags:['nodejs_compat'],d1Databases:{DB:'automation-test'},bindings:{MEETING_CONNECTION_KEY:Buffer.from(rawKey).toString('base64')},outboundService:outbound});
 try{
  const worker=await mf.getWorker(),db=await mf.getD1Database('DB');
- const before={scheduledTime:Date.parse('2026-10-04T01:00:00+09:00'),cron:'0 16 * * *'};
- const due={scheduledTime:Date.parse('2026-10-05T01:00:00+09:00'),cron:'0 16 * * *'};
+ const before={scheduledTime:Date.parse(`${year}-10-04T01:00:00+09:00`),cron:'0 16 * * *'};
+ const due={scheduledTime:Date.parse(`${year}-10-05T01:00:00+09:00`),cron:'0 16 * * *'};
  await worker.scheduled(before);assert.equal((await db.prepare('SELECT id FROM meeting_events').all()).results.length,0);
  await worker.scheduled(due);assert.equal((await db.prepare('SELECT id FROM meeting_events').all()).results.length,1);
  assert.equal((await db.prepare('SELECT status FROM meeting_preparations').first()).status,'roster_pending');
@@ -37,7 +40,7 @@ try{
  await db.prepare('UPDATE meeting_automation_settings SET connection=? WHERE id=1').bind(Buffer.concat([Buffer.from(iv),Buffer.from(cipher)]).toString('base64')).run();
  await Promise.all([worker.scheduled(due),worker.scheduled(due)]);
  assert.equal((await db.prepare('SELECT id FROM meeting_events').all()).results.length,1);
- const state=await db.prepare('SELECT status,tables,error FROM meeting_preparations').first();assert.equal(state.status,'ready',state.error);assert.equal(state.tables,8);assert.equal((await db.prepare('SELECT minutes FROM meeting_automation_settings').first()).minutes,15);assert.equal((await db.prepare('SELECT closes_at FROM meeting_events').first()).closes_at,Date.parse('2026-10-07T11:45:00+09:00'));
+ const state=await db.prepare('SELECT status,tables,error FROM meeting_preparations').first();assert.equal(state.status,'ready',state.error);assert.equal(state.tables,8);assert.equal((await db.prepare('SELECT minutes FROM meeting_automation_settings').first()).minutes,15);assert.equal((await db.prepare('SELECT closes_at FROM meeting_events').first()).closes_at,Date.parse(`${year}-10-07T11:45:00+09:00`));
  const roster=(await db.prepare('SELECT profile FROM meeting_roster').all()).results;assert.equal(roster.length,2);assert.equal(JSON.parse(roster[0].profile).table,'');assert.equal(JSON.parse(roster[0].profile).services,'チラシ印刷と商品のケース印刷');
  assert.equal(JSON.parse(roster[1].profile).services,'内装工事');assert.equal(JSON.parse(roster[1].profile).industry,'');
  await worker.scheduled(due);assert.equal((await db.prepare('SELECT profile FROM meeting_roster').all()).results.length,2);

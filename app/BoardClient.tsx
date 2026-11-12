@@ -1,4 +1,5 @@
 'use client';
+import { LineSettingsLink } from './LineLoginButton';
 
 import { ChangeEvent, CSSProperties, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import IndustryPicker from './IndustryPicker';
@@ -2273,6 +2274,7 @@ export default function BoardClient({ initialRequests, initialStats, initialAds,
           <div><p>MY PAGE</p><h1 id="profile-page-title">マイページ</h1></div>
           <button className="mypage-signout" onClick={signOut} disabled={busy}>{busy ? '…' : 'ログアウト'}</button>
         </header>
+        <LineSettingsLink />
         <button className={`rank-card rank-${stats.rank.toLowerCase()} rank-card-slim`} onClick={() => { setPreviewRankLevel(stats.level); setOpenPerk(''); setModal('perks'); }} aria-label={`${stats.rank}会員ランクカード。特典を見る`}>
           <p className="rank-slim-top"><CrownMark /><b>{serviceName}</b></p>
           <RankCrest rank={stats.rank} />

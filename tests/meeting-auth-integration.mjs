@@ -43,7 +43,7 @@ try {
  const directPage=await fetch('/register');assert.equal(directPage.status,200);assert.match(await directPage.text(),/Googleで登録/);
  const directPost=(body)=>fetch('/api/register',{method:'POST',headers:{origin:base,'content-type':'application/json'},body:JSON.stringify(body)});
  const requested=await directPost({action:'request',consent:true,email:'lp@example.com',profile});assert.equal(requested.status,200,await requested.text());const done=await directPost({action:'verify',consent:true,email:'lp@example.com',code:otp});assert.equal(done.status,200,await done.text());
- const completed=await fetch('/register/complete',{headers:{cookie:done.headers.get('set-cookie').split(';')[0]}});assert.equal(completed.status,307);assert.equal(new URL(completed.headers.get('location'),base).href,base+'/');
+ const completed=await fetch('/register/complete',{headers:{cookie:done.headers.get('set-cookie').split(';')[0]}});assert.equal(completed.status,307);assert.equal(new URL(completed.headers.get('location'),base).href,base+'/?welcome=registered');
  assert.equal((await db.prepare("SELECT membership_status FROM members WHERE email='lp@example.com'").first()).membership_status,'active');
  // Google direct signup also lands in the app after verified profile registration.
  googleEmail='direct-google@example.com';
@@ -51,7 +51,7 @@ try {
  const gs=await fetch('/api/auth/google/start?signup=1&draft='+directId);const gc=gs.headers.getSetCookie().map(s=>s.split(';')[0]).join('; '),state2=new URL(gs.headers.get('location')).searchParams.get('state');
  const finished=await fetch('/api/auth/google/callback?state='+state2+'&code=fake',{headers:{cookie:gc}});assert.equal(finished.status,307);assert.equal(finished.headers.get('location'),base+'/register/complete');
  const finalCookie=finished.headers.getSetCookie().find(s=>s.startsWith('member_session=')).split(';')[0];
- const completePage=await fetch('/register/complete',{headers:{cookie:finalCookie}});assert.equal(completePage.status,307);assert.equal(new URL(completePage.headers.get('location'),base).href,base+'/');
+ const completePage=await fetch('/register/complete',{headers:{cookie:finalCookie}});assert.equal(completePage.status,307);assert.equal(new URL(completePage.headers.get('location'),base).href,base+'/?welcome=registered');
  assert.equal((await db.prepare("SELECT membership_status FROM members WHERE email='direct-google@example.com'").first()).membership_status,'active');
  // Waiting existing accounts are not upgraded by a new signup attempt.
  await db.prepare("UPDATE members SET membership_status='invited' WHERE email='direct-google@example.com'").run();

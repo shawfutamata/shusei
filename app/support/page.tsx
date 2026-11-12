@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
 import { serviceName } from '../brand';
+import { company } from '../company';
 import { LegalNav, LegalStyles } from '../LegalPage';
 import BillingPortalButton from '../BillingPortalButton';
 
 export const metadata: Metadata = { title: `サポート｜${serviceName}`, description: `${serviceName}の使い方とお問い合わせ窓口` };
 
-const contactEmail = 'info@tasuki.club';
+const contactEmail = company.email;
 
 const faqs = [
   ['ログインできません', 'ご登録のメールアドレスでログインしてください。「利用権限がありません」と表示される場合は、運営がご利用を停止している可能性があります。下記の窓口へご連絡ください。'],

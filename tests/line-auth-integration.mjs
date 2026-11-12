@@ -1,0 +1,96 @@
+import { mockStatelessToken } from './line-stateless-fixture.mjs';
+// 実ルート＋隔離D1。LINE/Google/メールは全て偽応答。本番・実通知には触れない。
+import { Miniflare } from 'miniflare';
+import { Response, FormData } from 'undici';
+import assert from 'node:assert/strict';
+import { readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { createHash, createHmac } from 'node:crypto';
+const root=resolve('.'), A='U'+'a'.repeat(32), B='U'+'b'.repeat(32), BOT='U'+'d'.repeat(32);
+let subject=A,nonce='',challenge='',googleEmail='existing@example.com',tokenCount=0,deauthStatus=204,deauthCalls=0,pushCalls=0;
+const mails=[],tokens=new Map(),revoked=new Set();
+const bindings={ AUTH_CODE_PEPPER:'test-only',GOOGLE_CLIENT_ID:'fake-client',GOOGLE_CLIENT_SECRET:'fake-secret',LINE_DATA_POLICY_READY:'true',LINE_LOGIN_ENABLED:'true',LINE_SIGNUP_ENABLED:'true',LINE_NOTIFICATIONS_ENABLED:'true',LINE_LOGIN_CHANNEL_ID:'test-client',LINE_LOGIN_CHANNEL_SECRET:'test-secret',LINE_PROVIDER_ID:'test-provider',LINE_MESSAGING_PROVIDER_ID:'test-provider',LINE_MESSAGING_CHANNEL_TOKEN:'test-token',LINE_MESSAGING_CHANNEL_SECRET:'test-webhook',LINE_BOT_USER_ID:BOT,LINE_OFFICIAL_ACCOUNT_ID:'@test-only',LINE_NOTIFY_CRON_TOKEN:'fixture-not-a-secret-token'.repeat(2),LINE_TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64'),LINE_TOKEN_KEY_VERSION:'v1',RESEND_API_KEY:'fake-mail',AUTH_FROM_EMAIL:'test@example.com' };
+const mf=new Miniflare({ modulesRoot:root+'/dist/server',modules:readdirSync(root+'/dist/server',{recursive:true}).filter(p=>/\.m?js$/.test(p)).sort((a,b)=>a==='index.js'?-1:b==='index.js'?1:0).map(p=>({type:'ESModule',path:root+'/dist/server/'+p})),compatibilityDate:'2026-05-22',compatibilityFlags:['nodejs_compat'],assets:{directory:root+'/dist/client',runWorkerFirst:true},d1Databases:{DB:'line-auth-integration'},r2Buckets:['AVATARS'],bindings,outboundService:async request=>{
+ const url=new URL(request.url);
+    if (url.pathname === '/oauth2/v3/token') return mockStatelessToken(request, 'test-client', 'test-secret', 'fake-login-channel-token');
+ if(url.hostname==='api.resend.com'){mails.push(await request.json());return Response.json({id:'fake-mail'});}
+ if(url.hostname==='oauth2.googleapis.com')return Response.json({id_token:'x.'+Buffer.from(JSON.stringify({email:googleEmail,email_verified:true,name:'Existing Member'})).toString('base64url')+'.x'});
+ assert.equal(url.hostname,'api.line.me','no unexpected real network');
+ if(url.pathname.endsWith('/token')){const form=new URLSearchParams(await request.text());assert.equal(createHash('sha256').update(form.get('code_verifier')).digest('base64url'),challenge);assert.equal(form.get('redirect_uri'),'https://tasuki.club/api/auth/line/callback');const token=`fake-access-${++tokenCount}`;tokens.set(token,subject);tokens.set(`fake-id-${tokenCount}`,subject);return Response.json({id_token:`fake-id-${tokenCount}`,access_token:token,expires_in:3600});}
+ if(url.pathname.endsWith('/verify')&&request.method==='POST'){const form=new URLSearchParams(await request.text());assert.equal(form.get('nonce'),nonce);return Response.json({iss:'https://access.line.me',aud:'test-client',exp:Math.floor(Date.now()/1000)+600,iat:Math.floor(Date.now()/1000),nonce,sub:tokens.get(form.get('id_token')),name:'DO_NOT_COPY_LINE_NAME',email:'do-not-copy-line@example.com'});}
+ if(url.pathname.endsWith('/verify')){const token=url.searchParams.get('access_token');return Response.json({client_id:'test-client',expires_in:3600,scope:'openid'},{status:tokens.has(token)&&!revoked.has(token)?200:400});}
+ if(url.pathname.endsWith('/userinfo')){const token=request.headers.get('authorization')?.replace('Bearer ','');return Response.json({sub:tokens.get(token)},{status:revoked.has(token)?401:200});}
+ if(url.pathname.includes('friendship')||url.pathname.includes('/profile'))throw new Error('friendship/profile must not be requested');
+ if(url.pathname==='/user/v1/deauthorize'){deauthCalls++;assert.equal(request.headers.get('authorization'),'Bearer fake-login-channel-token');const {userAccessToken}=await request.json();assert.ok(tokens.has(userAccessToken));if(deauthStatus===204)revoked.add(userAccessToken);return new Response(null,{status:deauthStatus});}
+ if(url.pathname==='/v2/bot/message/push'){pushCalls++;return Response.json({});}
+ throw new Error('unmocked LINE path '+url.pathname);
+}});
+try{
+ const worker=await mf.getWorker(),db=await mf.getD1Database('DB'),base=(await mf.ready).origin;let ip=0;
+ const fetch=(path,options={})=>worker.fetch(base+path,{redirect:'manual',...options});
+ const post=(path,body,cookie='',origin=base,extra={})=>fetch(path,{method:'POST',headers:{origin,cookie,'content-type':'application/json','cf-connecting-ip':'test-'+ip++,...extra},body:JSON.stringify(body)});
+ const cookie=(response,name)=>response.headers.getSetCookie().find(s=>s.startsWith(name+'='))?.split(';')[0];
+ const combined=(...items)=>items.filter(Boolean).join('; ');
+ const code=()=>JSON.stringify(mails.at(-1)).match(/(?:確認コード:? |確認コード: )(\d{6})/)?.[1]||JSON.stringify(mails.at(-1)).match(/\b\d{6}\b/)[0];
+ const parseStart=response=>{assert.equal(response.status,303);const url=new URL(response.headers.get('location'));assert.equal(url.hostname,'access.line.me',response.headers.get('location'));assert.equal(url.searchParams.get('scope'),'openid','never request profile/email');nonce=url.searchParams.get('nonce');challenge=url.searchParams.get('code_challenge');assert.equal(url.searchParams.get('code_challenge_method'),'S256');return{state:url.searchParams.get('state'),cookie:cookie(response,'line_oauth_browser'),url};};
+ const start=(path,jar='')=>fetch(path,{headers:{cookie:jar,'cf-connecting-ip':'test-'+ip++}}).then(parseStart);
+ const callback=(flow,jar='',query='')=>fetch('/api/auth/line/callback?'+(query||new URLSearchParams({state:flow.state,code:'fake'})),{headers:{cookie:combined(jar,flow.cookie)}});
+ const formStart=async(jar,action='link',origin=base)=>{const form=new FormData();form.set('action',action);form.set('consent','yes');form.set('message','yes');form.set('offer','yes');return fetch('/api/auth/line/start',{method:'POST',headers:{origin,cookie:jar,'cf-connecting-ip':'test-'+ip++},body:form});};
+ const google=async()=>{const first=await fetch('/api/auth/google/start');const url=new URL(first.headers.get('location'));const result=await fetch('/api/auth/google/callback?state='+url.searchParams.get('state')+'&code=fake',{headers:{cookie:first.headers.getSetCookie().map(s=>s.split(';')[0]).join('; ')}});return cookie(result,'member_session');};
+ const requestSignup=async(email='own-input@example.com',name='自分で入力した名前')=>{const response=await post('/api/auth/line/registration',{action:'request',name,email,consent:true,lineConsent:true,mailConsent:false});assert.equal(response.status,200,await response.clone().text());return{...(await response.json()),cookie:cookie(response,'line_signup_browser'),code:code()};};
+ assert.deepEqual(await(await fetch('/api/auth/line/config')).json(),{login:true,signup:true});
+ assert.equal((await fetch('/api/line/settings')).status,401);
+ await post('/api/register',{action:'draft',consent:true});
+ await db.prepare("INSERT INTO members(id,email,display_name,membership_status,created_at,company) VALUES('existing','existing@example.com','既存会員','active',?,'既存の会社')").bind(new Date().toISOString()).run();
+ googleEmail='unknown@example.com';assert.equal(await google(),undefined);assert.equal(await db.prepare('SELECT id FROM members WHERE email=?').bind(googleEmail).first(),null);googleEmail='existing@example.com';const googleCookie=await google();assert.ok(googleCookie);
+ assert.equal((await formStart(googleCookie,'link','https://evil.example')).status,403);
+ let flow=parseStart(await formStart(googleCookie));let result=await callback(flow);assert.match(result.headers.get('location'),/line_session/);assert.equal(await db.prepare('SELECT * FROM line_accounts').first(),null);
+ flow=parseStart(await formStart(googleCookie));result=await callback(flow,googleCookie);assert.match(result.headers.get('location'),/line=linked/);assert.equal((await db.prepare("SELECT display_name FROM line_accounts WHERE member_id='existing'").first()).display_name,'');
+ assert.equal((await db.prepare("SELECT company FROM members WHERE id='existing'").first()).company,'既存の会社');
+ result=await callback(flow,googleCookie);assert.equal(cookie(result,'member_session'),undefined,'one-time OAuth');
+ flow=await start('/api/auth/line/start?return_to=https%3A%2F%2Fevil.example');result=await callback(flow);const lineCookie=cookie(result,'member_session');assert.ok(lineCookie);assert.equal(result.headers.get('location'),base+'/');
+ assert.equal((await post('/api/line/settings',{action:'preferences',message:true,offer:true,consent:true},googleCookie)).status,400,'direct ON forbidden');
+ flow=parseStart(await formStart(googleCookie,'preferences'));result=await callback(flow,googleCookie);assert.match(result.headers.get('location'),/preferences_saved/);assert.equal((await db.prepare("SELECT friend FROM line_accounts WHERE member_id='existing'").first()).friend,0);
+ const hook=JSON.stringify({destination:BOT,events:[]});const signed=raw=>({method:'POST',headers:{'x-line-signature':createHmac('sha256','test-webhook').update(raw).digest('base64')},body:raw});assert.equal((await fetch('/api/line/webhook',{method:'POST',body:hook})).status,401);assert.equal((await fetch('/api/line/webhook',signed(hook))).status,200);
+ subject=B;const signup=await requestSignup();
+ assert.match((await fetch('/api/auth/line/start?signup=1&draft='+signup.draftId,{headers:{cookie:signup.cookie}})).headers.get('location'),/line_draft/,'email verification required');
+ let verified=await post('/api/auth/line/registration',{action:'verify',draftId:signup.draftId,code:signup.code},signup.cookie);assert.equal(verified.status,200,await verified.clone().text());const next=(await verified.json()).next;
+ assert.match((await fetch(next)).headers.get('location'),/line_draft/,'verified draft remains browser bound');
+ flow=await start(next,signup.cookie);result=await callback(flow,signup.cookie,new URLSearchParams({state:flow.state,error:'access_denied'}));assert.match(result.headers.get('location'),/line_canceled/);assert.equal(await db.prepare("SELECT * FROM members WHERE email='own-input@example.com'").first(),null);
+ flow=await start(next,signup.cookie);result=await callback(flow,signup.cookie);const newCookie=cookie(result,'member_session');assert.ok(newCookie, result.headers.get('location'));assert.match(result.headers.get('location'),/register\/complete/);
+ const member=await db.prepare("SELECT * FROM members WHERE email='own-input@example.com'").first();assert.equal(member.display_name,'自分で入力した名前');assert.equal(member.membership_source,'line_verified_signup');assert.equal(member.mail_on_message,0);assert.equal(member.company,'');assert.doesNotMatch(JSON.stringify(member),/DO_NOT_COPY|do-not-copy/);
+ assert.equal(await db.prepare('SELECT * FROM line_signup_drafts WHERE id=?').bind(signup.draftId).first(),null,'consumed signup removed');
+ assert.equal((await post('/api/auth/line/registration',{action:'request',name:'上書き不可',email:'EXISTING@example.com',consent:true,lineConsent:true})).status,400);
+ assert.equal((await fetch('/register/complete',{headers:{cookie:newCookie}})).status,307);
+ // LINE session is invalidated on expiry, while independent Google remains usable.
+ await db.prepare("UPDATE line_authorizations SET expires_at=0 WHERE member_id='existing'").run();assert.equal((await fetch('/api/line/settings',{headers:{cookie:lineCookie}})).status,401);assert.equal((await fetch('/api/line/settings',{headers:{cookie:googleCookie}})).status,200);
+ const beforeUnknown=mails.length;const unknown=await post('/api/account/privacy',{action:'request',purpose:'unlink',email:'unknown@example.com',consent:true});assert.equal(unknown.status,200);assert.equal(mails.length,beforeUnknown);
+ assert.equal((await post('/api/account/privacy',{action:'request',purpose:'unlink',email:'existing@example.com',consent:true},'','https://evil.example')).status,403);
+ for(let n=0;n<8;n++)assert.equal((await post('/api/account/privacy',{action:'request',purpose:'unlink',email:'unknown-rate@example.com',consent:true},'',base,{'cf-connecting-ip':'privacy-rate'})).status,200);assert.equal((await post('/api/account/privacy',{action:'request',purpose:'unlink',email:'unknown-rate@example.com',consent:true},'',base,{'cf-connecting-ip':'privacy-rate'})).status,429,'privacy email send quota is independent and small');
+ assert.equal((await post('/api/account/privacy',{action:'request',purpose:'unlink',email:'existing@example.com',consent:true})).status,200);
+ deauthStatus=400;const pending=await post('/api/account/privacy',{action:'confirm',purpose:'unlink',email:'existing@example.com',code:code(),confirm:true});assert.equal(pending.status,200,await pending.clone().text());const pendingBody=await pending.json();assert.equal(pendingBody.done,false);assert.equal(pendingBody.needsLineConfirmation,true);const grantCookie=cookie(pending,'line_privacy_grant');assert.ok(grantCookie);assert.ok(await db.prepare("SELECT * FROM line_accounts WHERE member_id='existing'").first());
+ assert.match((await formStart('','unlink_recovery')).headers.get('location'),/line_session/);
+ subject=B;flow=parseStart(await formStart(grantCookie,'unlink_recovery'));result=await callback(flow,grantCookie);assert.match(result.headers.get('location'),/account\/privacy/);assert.ok(await db.prepare("SELECT * FROM line_accounts WHERE member_id='existing'").first(),'wrong LINE cannot remove binding');
+ subject=A;deauthStatus=204;flow=parseStart(await formStart(grantCookie,'unlink_recovery'));result=await callback(flow,grantCookie);assert.match(result.headers.get('location'),/line_removed/);assert.equal(await db.prepare("SELECT * FROM line_accounts WHERE member_id='existing'").first(),null);assert.equal(await db.prepare("SELECT * FROM line_authorizations WHERE member_id='existing'").first(),null);assert.ok(await db.prepare("SELECT * FROM members WHERE id='existing'").first(),'member data retained on LINE unlink');assert.equal((await fetch('/api/line/settings',{headers:{cookie:googleCookie}})).status,200);
+ const after=deauthCalls;await callback(flow,grantCookie);assert.equal(deauthCalls,after,'replayed callback cannot revoke again');assert.equal((await post('/api/account/privacy',{action:'retry',purpose:'unlink',confirm:true},grantCookie)).status,400,'completed grant cannot replay');
+ // Removed credentials cascade and do not prevent a later, independently authenticated relink.
+ subject=A;flow=parseStart(await formStart(googleCookie));result=await callback(flow,googleCookie);assert.match(result.headers.get('location'),/line=linked/);assert.ok(await db.prepare("SELECT * FROM line_authorizations WHERE member_id='existing' AND status='active'").first());
+ // A revoked LINE token cannot deliver a queued notification, even when the app consent remains on.
+ const newAuthorization=await db.prepare('SELECT * FROM line_accounts WHERE member_id=?').bind(member.id).first();
+ await db.prepare('UPDATE line_accounts SET notify_message=1 WHERE member_id=?').bind(member.id).run();
+ const now=Date.now();await db.prepare("INSERT INTO line_notification_outbox(event_key,member_id,provider_id,line_user_id,consent_version,kind,message_text,retry_key,available_at,created_at) VALUES('revoked-delivery',?,?,?,?, 'message','no private content','test-retry-revoked',?,?)").bind(member.id,newAuthorization.provider_id,newAuthorization.line_user_id,newAuthorization.consent_version,now,now).run();
+ for(const [token,sub]of tokens)if(sub===B)revoked.add(token);
+ const beforePush=pushCalls;await post('/api/admin/line-notifications',{},'',base,{authorization:'Bearer '+bindings.LINE_NOTIFY_CRON_TOKEN});assert.equal(pushCalls,beforePush);assert.equal((await db.prepare("SELECT status FROM line_notification_outbox WHERE event_key='revoked-delivery'").first()).status,'canceled');
+ // Anonymous recovery stays pending on transport/server failure. Cancel invalidates both grant and OAuth flow.
+ subject=B;deauthStatus=500;await post('/api/account/privacy',{action:'request',purpose:'unlink',email:member.email,consent:true});
+ let privacyResult=await post('/api/account/privacy',{action:'confirm',purpose:'unlink',email:member.email,code:code(),confirm:true});assert.equal(privacyResult.status,200);assert.equal((await privacyResult.clone().json()).done,false);let privacyCookie=cookie(privacyResult,'line_privacy_grant');assert.ok(privacyCookie);assert.ok(await db.prepare('SELECT 1 FROM line_accounts WHERE member_id=?').bind(member.id).first());
+ flow=parseStart(await formStart(privacyCookie,'unlink_recovery'));const beforeCancel=deauthCalls;
+ assert.equal((await post('/api/account/privacy',{action:'cancel',purpose:'unlink'},privacyCookie)).status,200);result=await callback(flow,privacyCookie);assert.match(result.headers.get('location'),/line_failed/);assert.equal(deauthCalls,beforeCancel);assert.equal((await post('/api/account/privacy',{action:'retry',purpose:'unlink',confirm:true},privacyCookie)).status,400);
+ // A grant is restricted to its purpose and ten-minute lifetime. Replacing a request revokes the prior grant.
+ await db.prepare('DELETE FROM line_privacy_codes WHERE member_id=?').bind(member.id).run();await post('/api/account/privacy',{action:'request',purpose:'unlink',email:member.email,consent:true});privacyResult=await post('/api/account/privacy',{action:'confirm',purpose:'unlink',email:member.email,code:code(),confirm:true});privacyCookie=cookie(privacyResult,'line_privacy_grant');assert.ok(privacyCookie);
+ const beforeExpiry=deauthCalls;assert.equal((await post('/api/account/privacy',{action:'retry',purpose:'withdraw',confirm:true},privacyCookie)).status,400);assert.equal(deauthCalls,beforeExpiry);
+ await db.prepare('UPDATE line_privacy_grants SET expires_at=0 WHERE member_id=?').bind(member.id).run();assert.equal((await post('/api/account/privacy',{action:'retry',purpose:'unlink',confirm:true},privacyCookie)).status,400);assert.equal(deauthCalls,beforeExpiry);
+ await db.prepare('DELETE FROM line_privacy_codes WHERE member_id=?').bind(member.id).run();await post('/api/account/privacy',{action:'request',purpose:'unlink',email:member.email,consent:true});privacyResult=await post('/api/account/privacy',{action:'confirm',purpose:'unlink',email:member.email,code:code(),confirm:true});privacyCookie=cookie(privacyResult,'line_privacy_grant');assert.ok(privacyCookie);
+ await post('/api/account/privacy',{action:'request',purpose:'unlink',email:member.email,consent:true},privacyCookie);assert.equal((await post('/api/account/privacy',{action:'retry',purpose:'unlink',confirm:true},privacyCookie)).status,400);
+ console.log('PASS: real HTTP openid-only signup with own email/name, browser-bound email OTP, atomic signup, no claim copying/merge, linked credential and session validation, existing Google protection, notification consent without friendship/profile requests, signed webhook, sessionless privacy OTP, pending deauthorize, same-subject OAuth recovery, official unlink/relink, revoked-token delivery block, grant cancel/expiry/replacement and replay protection. Browser UI not run.');
+}finally{await mf.dispose();}
