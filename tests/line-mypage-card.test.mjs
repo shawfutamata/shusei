@@ -19,8 +19,8 @@ function fixture() {
   render();
   return { requests, late, timers, render, text: () => textOf(render()), links: () => all(render(), n => n.type === 'a'), event(type, persisted = true) { for (const fn of listeners.get(type) || []) fn({ persisted }); }, async response(index, body, ok = true) { requests[index].resolve({ ok, json: async () => body }); await settle(); }, async reject(index) { requests[index].reject(Error('network')); await settle(); }, expire() { for (const fn of [...timers.values()]) fn(); }, strict() { for (const slot of slots) if (slot?.effect) { slot.cleanup?.(); slot.cleanup = slot.effect(); } }, unmount() { mounted = false; for (const slot of slots) slot?.cleanup?.(); } };
 }
-test('マイページには認証開始でなく常設の設定カードを置く', () => {
-  const source = readFileSync('app/BoardClient.tsx', 'utf8'); assert.match(source, /<LineConnectionCard \/>/); assert.doesNotMatch(source, /<LineSettingsLink/);
+test('完成前のLINE導線はマイページに表示しない（連携管理機能は保持）', () => {
+  const source = readFileSync('app/BoardClient.tsx', 'utf8'); assert.doesNotMatch(source, /<LineConnectionCard \/>/); assert.doesNotMatch(source, /import LineConnectionCard/); assert.doesNotMatch(source, /<LineSettingsLink/);
   const f = fixture(); assert.match(f.text(), /確認中/); assert.equal(f.links().length, 1); assert.equal(f.links()[0].props.href, '/settings/line'); assert.equal(f.requests.length, 1); assert.doesNotMatch(f.text(), /未連携/); f.unmount();
 });
 for (const [name, data, expected, label] of [
