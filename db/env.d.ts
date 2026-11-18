@@ -16,6 +16,9 @@ declare namespace Cloudflare {
     LINE_NOTIFY_CRON_TOKEN: string;
     // 一度きりの運営本人限定テスト。一般公開フラグは全てfalseを維持。
     LINE_TEST_MEMBER_ID: string;
+    LINE_LINK_CHECK_MEMBER_ID: string;
+    LINE_LINK_CHECK_STARTED_AT: string;
+    LINE_LINK_CHECK_EXPIRES_AT: string;
     TASUKI: Fetcher;
     LINE_TOKEN_ENCRYPTION_KEY: string;
     LINE_TOKEN_KEY_VERSION: string;

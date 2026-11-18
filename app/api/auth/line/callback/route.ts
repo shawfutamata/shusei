@@ -1,3 +1,4 @@
+import { getLineLinkCheckOwner, lineLinkCheckReady, lineLinkCheckWindow, LINE_LINK_CHECK_PATH } from '@/app/line-link-check';
 import { getLineTestOwner } from '@/app/line-test-auth';
 import { lineTestReadyForMember } from '@/app/line-test-config';
 import { getLineTestStatus } from '@/db/line-test';
@@ -13,12 +14,18 @@ import { hashMobileSecret, getMobileSessionAccess } from '@/db/data';
 export async function GET(request: Request) {
   const url = new URL(request.url), jar = await cookies();
   const flow = await consumeLineFlow(url.searchParams.get('state') || '', jar.get(LINE_BROWSER_COOKIE)?.value || '');
+  const checking = flow?.mode === 'owner_link_check';
   const testing = flow?.mode === 'test_link';
-  const settingFlow = flow?.mode === 'link' || flow?.mode === 'preferences' || testing;
+  const settingFlow = flow?.mode === 'link' || flow?.mode === 'preferences' || testing || checking;
   const recovering = flow?.mode === 'unlink_recovery';
-  const home = testing ? '/admin/line-test' : recovering ? '/account/privacy' : settingFlow ? LINE_SETTINGS_PATH : flow?.mode === 'signup' ? '/register' : '/login/member';
+  const home = checking ? LINE_LINK_CHECK_PATH : testing ? '/admin/line-test' : recovering ? '/account/privacy' : settingFlow ? LINE_SETTINGS_PATH : flow?.mode === 'signup' ? '/register' : '/login/member';
   const fail = (error: string) => redirect(request, `${home}?${settingFlow || recovering ? 'line' : 'login'}=${encodeURIComponent(error)}`);
-  if (!flow || !(recovering ? lineRecoveryReady() : testing ? lineTestReadyForMember(flow.memberId) : lineLoginReady()) || (flow.mode === 'signup' && !lineSignupReady())) return fail('line_failed');
+  if (!flow || !(recovering ? lineRecoveryReady() : checking ? lineLinkCheckReady(flow.memberId) : testing ? lineTestReadyForMember(flow.memberId) : lineLoginReady()) || (flow.mode === 'signup' && !lineSignupReady())) return fail('line_failed');
+  if (checking) {
+    const owner = await getLineLinkCheckOwner(), token = await getSessionCookieToken();
+    if (!owner || owner.userId !== flow.memberId || !token || await hashMobileSecret(token) !== flow.sessionHash
+      || flow.draftId !== lineLinkCheckWindow()) return fail('line_session');
+  }
   if (testing) {
     const owner = await getLineTestOwner(), token = await getSessionCookieToken();
     if (!owner || owner.userId !== flow.memberId || !token || await hashMobileSecret(token) !== flow.sessionHash
@@ -44,6 +51,16 @@ export async function GET(request: Request) {
     if (settingFlow) {
       const token = await getSessionCookieToken(), access = token ? await getMobileSessionAccess(token) : null;
       if (!access?.membership.canUseApp || access.user.userId !== flow.memberId || !token || await hashMobileSecret(token) !== flow.sessionHash) return fail('line_session');
+    }
+    if (checking) {
+      // LINEから戻る間の期限切れ・設定変更・セッション変更でも連携を保存しない。
+      const owner = await getLineLinkCheckOwner();
+      if (!owner || owner.userId !== flow.memberId || flow.draftId !== lineLinkCheckWindow()) return fail('line_session');
+      await linkLineAccount(flow.memberId, identity, async () => {
+        const latest = await getLineLinkCheckOwner();
+        return Boolean(latest && latest.userId === flow.memberId && lineLinkCheckReady(flow.memberId) && flow.draftId === lineLinkCheckWindow());
+      });
+      return redirect(request, `${LINE_LINK_CHECK_PATH}?line=linked`);
     }
     if (testing) {
       const owner = await getLineTestOwner();

@@ -5,7 +5,7 @@ import { prepareLineAuthorization, storeLineAuthorization, requestLineDeauthoriz
 import { LINE_DATA_CONSENT_VERSION } from '@/app/line-data-consent';
 import { lineHash, lineReturnPath, randomLineSecret, type LineIdentity } from '@/app/line-auth';
 
-export type LineFlow = { mode: 'login' | 'link' | 'signup' | 'preferences' | 'unlink_recovery' | 'test_link'; memberId: string; sessionHash: string; returnTo: string; draftId: string; nonce: string; verifier: string };
+export type LineFlow = { mode: 'login' | 'link' | 'signup' | 'preferences' | 'unlink_recovery' | 'test_link' | 'owner_link_check'; memberId: string; sessionHash: string; returnTo: string; draftId: string; nonce: string; verifier: string };
 export async function createLineFlow(input: Omit<LineFlow, 'nonce' | 'verifier'>) {
   await ensureDatabase();
   const state = randomLineSecret(), browser = randomLineSecret(), nonce = randomLineSecret(), verifier = randomLineSecret();
@@ -24,7 +24,7 @@ export async function consumeLineFlow(state: string, browser: string) {
     RETURNING mode, member_id AS memberId, session_hash AS sessionHash, return_to AS returnTo, draft_id AS draftId, nonce, verifier`)
     .bind(await lineHash(state), await lineHash(browser), Date.now()).first<LineFlow>();
 }
-export async function linkLineAccount(memberId: string, identity: LineIdentity) {
+export async function linkLineAccount(memberId: string, identity: LineIdentity, beforeSave?: () => Promise<boolean>) {
   await ensureDatabase();
   if (!(await getMembershipAccess(memberId)).canUseApp) throw new Error('denied');
   const current = await env.DB.prepare('SELECT provider_id AS provider, line_user_id AS subject FROM line_accounts WHERE member_id=?').bind(memberId).first<{ provider: string; subject: string }>();
@@ -32,6 +32,8 @@ export async function linkLineAccount(memberId: string, identity: LineIdentity) 
   if (current && (current.provider !== env.LINE_PROVIDER_ID || current.subject !== identity.sub)) throw new Error('line_conflict');
   const now = new Date().toISOString();
   const authorization = await prepareLineAuthorization(memberId, identity.sub, identity.accessToken, identity.expiresIn);
+  // 限定確認は外部トークン検証の待機中にも期限が過ぎ得る。保存直前に再検証する。
+  if (beforeSave && !await beforeSave()) throw new Error('line_failed');
   try {
     const results = await env.DB.batch([
       current

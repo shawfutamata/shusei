@@ -1,3 +1,4 @@
+import { getLineLinkCheckOwner, lineLinkCheckWindow, LINE_LINK_CHECK_PATH } from '@/app/line-link-check';
 import { env } from 'cloudflare:workers';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
@@ -24,6 +25,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   if (request.headers.get('origin') !== new URL(request.url).origin) return NextResponse.json({ error: '送信元を確認してください。' }, { status: 403 });
   const body = await request.formData();
+  if (body.get('action') === 'owner_link_check') {
+    const owner = await getLineLinkCheckOwner();
+    if (!owner) return new Response('Not found', { status: 404 });
+    const token = await getSessionCookieToken(), access = token ? await getMobileSessionAccess(token) : null;
+    if (!token || !access?.membership.canUseApp || access.user.userId !== owner.userId) return failure(request, `${LINE_LINK_CHECK_PATH}?line=line_session`);
+    if (body.get('consent') !== 'yes') return failure(request, `${LINE_LINK_CHECK_PATH}?line=line_consent`);
+    return start(request, 'owner_link_check', owner.userId, await hashMobileSecret(token), LINE_LINK_CHECK_PATH, lineLinkCheckWindow(), request.headers.get('accept') === 'application/json');
+  }
   if (body.get('action') === 'test_link') {
     const owner = await getLineTestOwner();
     if (!owner || !lineTestReadyForMember(owner.userId)) return new Response('Not found', { status: 404 });
@@ -47,7 +56,7 @@ export async function POST(request: Request) {
   if (preferences && !lineMessagingReady()) return failure(request, `${LINE_SETTINGS_PATH}?line=line_unconfigured`);
   return start(request, preferences ? 'preferences' : 'link', access.user.userId, await hashMobileSecret(token), LINE_SETTINGS_PATH, preferences ? JSON.stringify({ message: body.get('message') === 'yes', offer: body.get('offer') === 'yes' }) : '', request.headers.get('accept') === 'application/json');
 }
-async function start(request: Request, mode: 'login' | 'link' | 'signup' | 'preferences' | 'unlink_recovery' | 'test_link', memberId: string, sessionHash: string, returnTo: string, draftId: string, jsonResponse = false) {
+async function start(request: Request, mode: 'login' | 'link' | 'signup' | 'preferences' | 'unlink_recovery' | 'test_link' | 'owner_link_check', memberId: string, sessionHash: string, returnTo: string, draftId: string, jsonResponse = false) {
   if (!await checkSubmissionLimit('line-auth', `start:${request.headers.get('cf-connecting-ip') || 'local'}`)) return NextResponse.json({ error: '少し待って再試行してください。' }, { status: 429 });
   const flow = await createLineFlow({ mode, memberId, sessionHash, returnTo, draftId });
   const authorize = new URL('https://access.line.me/oauth2/v2.1/authorize');

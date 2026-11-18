@@ -199,3 +199,12 @@ LINE full HTTPテストはビルド済み実ルートと隔離D1を使用し、�
 - [Pushの配達条件](https://developers.line.biz/en/reference/messaging-api/nojs/#send-push-message)
 - [通知再試行](https://developers.line.biz/ja/docs/messaging-api/retrying-api-request/)
 - [LINEユーザーデータポリシー](https://terms2.line.me/LINE_Developers_user_data_policy?lang=ja)
+
+### 2026-11-18 本人だけの連携再確認（通知なし）
+
+- `/settings/line/check` と `owner_link_check` は、今回承認された本人の連携確認専用。一般公開・新規登録・通知送信の導線を持たない。一般用の5フラグは全て `false` が必須。
+- `LINE_LINK_CHECK_MEMBER_ID` に確認済み本人会員IDを設定する。`LINE_LINK_CHECK_STARTED_AT` と `LINE_LINK_CHECK_EXPIRES_AT` は UTC の厳密ISO形式（例の形式は `YYYY-MM-DDTHH:mm:ss.sssZ`）。期間は最大24時間、開始前・期限後は404/拒否。期限は実施時に設定し、公開コードに本人IDを埋め込まない。
+- 本人の既存Cookieセッション、同意、Origin、state/browser cookie、PKCE、nonceを要求。callback・保存直前も本人/期間/一般フラグを再確認し、開始時の期間設定と異なれば保存しない。氏名・メール・プロフィールはLINEから取得しない。通知設定や既存会員を自動統合しない。
+- 旧 `LINE_TEST_MEMBER_ID` は未設定のまま。旧 `LINE_TEST_ID` / `line_test_budget` / closed / 送信枠は変更・再開しない。新経路から旧通知APIを使用しない。
+- 連携済みなら画面は確認結果だけを表示する。試験後は新しい3設定を外す。期限・設定削除だけでは連携データは削除されず、解除は別の本人確認手順が必要。一般向け機能の公開準備完了を意味しない。
+- 隔離HTTP・gate・TSXテスト: `node tests/line-link-check-integration.mjs`（ビルド後）、`node tests/line-link-check-gates.mjs`、`node tests/line-link-check-ui.mjs`。実LINE/メールを呼ばない。

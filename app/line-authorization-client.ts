@@ -1,5 +1,5 @@
 /** 認証だけを開始する。通知・解除の完了と取り違えず、遷移は呼出元の生存確認後に行う。 */
-export async function requestLineAuthorization(input: { action: 'link' | 'preferences' | 'unlink_recovery'; message?: boolean; offer?: boolean }, controller: AbortController): Promise<string> {
+export async function requestLineAuthorization(input: { action: 'link' | 'preferences' | 'unlink_recovery' | 'owner_link_check'; message?: boolean; offer?: boolean }, controller: AbortController): Promise<string> {
   const timeout = setTimeout(() => controller.abort(), 20000);
   try {
     const fields = new URLSearchParams({ action: input.action, consent: 'yes' });
