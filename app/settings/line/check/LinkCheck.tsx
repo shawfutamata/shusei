@@ -8,7 +8,13 @@ import styles from '@/app/admin/line-test/line-test.module.css';
 export default function LinkCheck({ email, linked, initialMessage }: { email: string; linked: boolean; initialMessage: string }) {
   const [consent, setConsent] = useState(false), [busy, setBusy] = useState(false), [message, setMessage] = useState(initialMessage);
   const active = useRef<AbortController | null>(null);
-  useEffect(() => { const stop = () => { active.current?.abort(); active.current = null; setBusy(false); }; window.addEventListener('pagehide', stop); return () => { stop(); window.removeEventListener('pagehide', stop); }; }, []);
+  useEffect(() => {
+    const stop = () => { active.current?.abort(); active.current = null; setBusy(false); };
+    // LINEから履歴キャッシュへ戻った場合は、古い未連携表示ではなくサーバーの現在状態を読む。
+    const restore = (event: PageTransitionEvent) => { if (event.persisted) { stop(); window.location.reload(); } };
+    window.addEventListener('pagehide', stop); window.addEventListener('pageshow', restore);
+    return () => { stop(); window.removeEventListener('pagehide', stop); window.removeEventListener('pageshow', restore); };
+  }, []);
   async function begin() {
     if (!consent || linked || active.current) return;
     const controller = new AbortController(); active.current = controller; setBusy(true);
