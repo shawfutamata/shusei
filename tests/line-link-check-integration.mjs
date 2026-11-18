@@ -73,16 +73,39 @@ try{
  result=await callback(flow,ownerCookie);delayVerification=false;assert.match(result.headers.get('location'),/line_failed/,'expiry during external verification rejected');
  assert.equal(await db.prepare("SELECT * FROM line_accounts WHERE member_id='existing'").first(),null,'expired verification did not save');
  await mf.setOptions(options);worker=await mf.getWorker();db=await mf.getD1Database('DB');
+ // 架空の他会員だけを使う。応答には相手の識別情報やSQL本文を出さない。
+ await db.prepare("INSERT INTO line_accounts(member_id,provider_id,line_user_id,display_name,linked_at,consent_version) VALUES('other',? ,?,'PRIVATE_FIXTURE_NAME',?,'fixture')").bind(bindings.LINE_PROVIDER_ID,B,new Date().toISOString()).run();
+ const otherBefore=await db.prepare("SELECT * FROM line_accounts WHERE member_id='other'").first();
+ subject=B;flow=parseStart(await formStart(ownerCookie,'owner_link_check'));result=await callback(flow,ownerCookie);
+ assert.match(result.headers.get('location'),/line_check_used/);assert.doesNotMatch(result.headers.get('location'),/other|PRIVATE_FIXTURE|example.com|Ubbbb/);
+ assert.equal(await db.prepare("SELECT * FROM line_accounts WHERE member_id='existing'").first(),null);
+ assert.equal((await db.prepare("SELECT line_user_id FROM line_accounts WHERE member_id='other'").first()).line_user_id,B,'other fixture unchanged');
+ const diagnosticPage=await fetch('/settings/line/check?line=line_check_used',{headers:{cookie:ownerCookie}});
+ const diagnosticText=await diagnosticPage.text();assert.match(diagnosticText,/既に別のTASUKI会員に連携済み/);assert.doesNotMatch(diagnosticText,/PRIVATE_FIXTURE_NAME|other@example.com|Ubbbb/);
+ subject=A;
+ await db.exec("CREATE TRIGGER fixture_save_failure BEFORE INSERT ON line_accounts WHEN NEW.member_id='existing' BEGIN SELECT RAISE(ABORT, 'DO_NOT_EXPOSE_DATABASE_ERROR'); END");
+ flow=parseStart(await formStart(ownerCookie,'owner_link_check'));result=await callback(flow,ownerCookie);
+ assert.match(result.headers.get('location'),/line_check_storage/);assert.doesNotMatch(result.headers.get('location'),/DO_NOT_EXPOSE|SQL|trigger/);
+ assert.equal(await db.prepare("SELECT * FROM line_accounts WHERE member_id='existing'").first(),null);
+ await db.exec('DROP TRIGGER fixture_save_failure');
  const jsonStart=await fetch('/api/auth/line/start',{method:'POST',headers:{origin:base,cookie:ownerCookie,accept:'application/json','content-type':'application/x-www-form-urlencoded','cf-connecting-ip':'test-json'},body:new URLSearchParams({action:'owner_link_check',consent:'yes'}).toString()});
  flow=parseStart(jsonStart,(await jsonStart.json()).authorizeUrl);result=await callback(flow,ownerCookie);assert.match(result.headers.get('location'),/settings\/line\/check\?line=linked/);
  assert.equal(cookie(result,'member_session'),undefined);
  const linked=await db.prepare("SELECT * FROM line_accounts WHERE member_id='existing'").first();assert.equal(linked.line_user_id,A);assert.equal(linked.notify_message,0);assert.equal(linked.notify_offer,0);
  assert.equal((await db.prepare("SELECT company FROM members WHERE id='existing'").first()).company,'既存の会社');
  const count=tokenCount;await callback(flow,ownerCookie);assert.equal(tokenCount,count,'OAuth state consumed once');
+ flow=parseStart(await formStart(ownerCookie,'owner_link_check'));result=await callback(flow,ownerCookie);assert.match(result.headers.get('location'),/line=linked/,'same owner and LINE remains valid');
  subject=B;flow=parseStart(await formStart(ownerCookie,'owner_link_check'));result=await callback(flow,ownerCookie);assert.match(result.headers.get('location'),/line_conflict/);assert.equal((await db.prepare("SELECT line_user_id FROM line_accounts WHERE member_id='existing'").first()).line_user_id,A);
  assert.deepEqual(await db.prepare('SELECT * FROM line_test_budget').first(),oldBudget,'old budget unchanged');
  assert.equal((await post('/api/admin/line-test',{action:'send',slot:2,confirm:true},ownerCookie)).status,404);
+ assert.deepEqual(await db.prepare("SELECT * FROM line_accounts WHERE member_id='other'").first(),otherBefore,'all other-account fields unchanged');
  assert.equal(pushCalls,0);assert.equal(mails.length,0);assert.equal(deauthCalls,0);
  assert.deepEqual(await(await fetch('/api/auth/line/config')).json(),{login:false,signup:false});
+ // 一般linkに診断オプションが漏れないことを架空DBで確認。
+ await db.prepare("DELETE FROM line_accounts WHERE member_id='existing'").run();
+ await db.prepare("DELETE FROM line_authorizations WHERE member_id='existing'").run();
+ await mf.setOptions({...options,bindings:{...bindings,LINE_LOGIN_ENABLED:'true',LINE_DATA_POLICY_READY:'true'}});worker=await mf.getWorker();db=await mf.getD1Database('DB');
+ subject=B;flow=parseStart(await formStart(ownerCookie,'link'));result=await callback(flow,ownerCookie);assert.match(result.headers.get('location'),/line_conflict/);assert.doesNotMatch(result.headers.get('location'),/line_check_/);
+ assert.deepEqual(await db.prepare("SELECT * FROM line_accounts WHERE member_id='other'").first(),otherBefore);
  console.log('PASS owner link check: real routes/isolated D1; owner/session/Origin/consent/PKCE/state; no public rollout, no mail/push, old budget unchanged');
 } finally { await mf.dispose(); }

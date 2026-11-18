@@ -59,7 +59,7 @@ export async function GET(request: Request) {
       await linkLineAccount(flow.memberId, identity, async () => {
         const latest = await getLineLinkCheckOwner();
         return Boolean(latest && latest.userId === flow.memberId && lineLinkCheckReady(flow.memberId) && flow.draftId === lineLinkCheckWindow());
-      });
+      }, 'owner_link_check');
       return redirect(request, `${LINE_LINK_CHECK_PATH}?line=linked`);
     }
     if (testing) {
@@ -83,6 +83,7 @@ export async function GET(request: Request) {
     return response;
   } catch (error) {
     const reason = error instanceof Error ? error.message : '';
+    if (checking && ['line_check_used', 'line_check_storage'].includes(reason)) return fail(reason);
     return fail(['denied', 'line_conflict', 'line_unlinked', 'line_draft', 'line_email', 'line_existing', 'line_friend', 'line_consent', 'line_pending'].includes(reason) ? reason : 'line_failed');
   }
 }

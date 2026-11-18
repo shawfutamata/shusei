@@ -14,6 +14,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ l
   if (!token) notFound();
   const status = await lineAccountStatus(owner.userId, token);
   const query = await searchParams;
-  const message = query.line === 'linked' ? '本人のLINEとの連携を確認しました。通知は送っていません。' : lineMessages[query.line || ''] || '';
+  const diagnosticMessages: Record<string, string> = {
+    line_check_used: 'このLINEは既に別のTASUKI会員に連携済みです。既存の連携は変更していません。',
+    line_check_storage: 'LINE連携の保存を完了できませんでした。別の会員との連携が原因とは判定していません。設定を変更せず、運営で確認してください。',
+  };
+  const message = query.line === 'linked' ? '本人のLINEとの連携を確認しました。通知は送っていません。' : diagnosticMessages[query.line || ''] || lineMessages[query.line || ''] || '';
   return <LinkCheck email={owner.email} linked={status.linked} initialMessage={message} />;
 }

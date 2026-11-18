@@ -24,12 +24,22 @@ export async function consumeLineFlow(state: string, browser: string) {
     RETURNING mode, member_id AS memberId, session_hash AS sessionHash, return_to AS returnTo, draft_id AS draftId, nonce, verifier`)
     .bind(await lineHash(state), await lineHash(browser), Date.now()).first<LineFlow>();
 }
-export async function linkLineAccount(memberId: string, identity: LineIdentity, beforeSave?: () => Promise<boolean>) {
+export async function linkLineAccount(memberId: string, identity: LineIdentity, beforeSave?: () => Promise<boolean>, diagnostic?: 'owner_link_check') {
   await ensureDatabase();
   if (!(await getMembershipAccess(memberId)).canUseApp) throw new Error('denied');
   const current = await env.DB.prepare('SELECT provider_id AS provider, line_user_id AS subject FROM line_accounts WHERE member_id=?').bind(memberId).first<{ provider: string; subject: string }>();
   if (current && await env.DB.prepare("SELECT 1 FROM line_authorizations WHERE member_id=? AND status IN ('deauthorize_pending','deauthorized')").bind(memberId).first()) throw new Error('line_pending');
   if (current && (current.provider !== env.LINE_PROVIDER_ID || current.subject !== identity.sub)) throw new Error('line_conflict');
+  if (diagnostic === 'owner_link_check') {
+    // 検証済み本人のLINEについて重複の真偽だけを調べる。相手のID・氏名・メールは取得しない。
+    let used: number | null;
+    try {
+      used = await env.DB.prepare('SELECT EXISTS(SELECT 1 FROM line_accounts WHERE provider_id=? AND line_user_id=? AND member_id<>?) AS used')
+        .bind(env.LINE_PROVIDER_ID, identity.sub, memberId).first<number>('used');
+    } catch { throw new Error('line_check_storage'); }
+    if (used === 1) throw new Error('line_check_used');
+    if (used !== 0) throw new Error('line_check_storage');
+  }
   const now = new Date().toISOString();
   const authorization = await prepareLineAuthorization(memberId, identity.sub, identity.accessToken, identity.expiresIn);
   // 限定確認は外部トークン検証の待機中にも期限が過ぎ得る。保存直前に再検証する。
@@ -45,7 +55,7 @@ export async function linkLineAccount(memberId: string, identity: LineIdentity, 
       authorization,
     ]);
     if (!results.at(-1)?.meta.changes) throw new Error('line_conflict');
-  } catch { throw new Error('line_conflict'); }
+  } catch { throw new Error(diagnostic === 'owner_link_check' ? 'line_check_storage' : 'line_conflict'); }
 }
 async function lineSession(memberId: string, subject: string) {
   if (!(await getMembershipAccess(memberId)).canUseApp) throw new Error('denied');
