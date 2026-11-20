@@ -1,5 +1,10 @@
 // 既存の会員IDは変えず、LINEだけを後から取り外せるよう別の表で持つ。
 export const lineStatements = [
+  // 1通限定の独立試験。個人識別子を持たず、削除連鎖や設定変更で枠を再生しない。
+  `CREATE TABLE IF NOT EXISTS line_one_notice_budget (
+    test_id TEXT PRIMARY KEY, status TEXT NOT NULL CHECK(status IN ('unknown','accepted','failed')),
+    closed INTEGER NOT NULL DEFAULT 0 CHECK(closed IN (0,1))
+  )`,
   // テスト予算は解除・退会・期限切れでも復活させない。LINE由来識別子や秘密を保存しない。
   `CREATE TABLE IF NOT EXISTS line_test_budget (
     test_id TEXT PRIMARY KEY, owner_member_id TEXT NOT NULL, linked_at TEXT NOT NULL, authorization_revision TEXT NOT NULL,
